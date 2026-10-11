@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+
+# Never commit original game assets or exports derived from them.
+*.dat
+*.png
+*.wav
+GFX/
+SND/
+export/
