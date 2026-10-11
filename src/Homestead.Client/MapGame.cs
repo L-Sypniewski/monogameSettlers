@@ -167,7 +167,8 @@ public sealed class MapGame : Game
         }
         var production = _world.Production;
         Window.Title = $"{_map.Name} · {_world.Settlers.Count} settlers · {logistics.Jobs.Count} transports, " +
-                       $"produced {production.Produced}, trees {production.TreesCut}/{production.TreesPlanted}, stones {production.StonesCut} · " +
+                       $"produced {production.Produced}, trees {production.TreesCut}/{production.TreesPlanted}, stones {production.StonesCut}, " +
+                       $"crop {production.CropHarvested}/{production.FieldsSown}, fish {production.FishCaught}, water {production.WaterDrawn}, ore {production.OreMined} · " +
                        $"{logistics.Delivered} delivered, {logistics.DroppedOnTheWay} dropped · " +
                        $"pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
                        $"{_gameMap.TerrainAt(cursor)}{(_gameMap.IsWalkable(cursor) ? "" : " (blocked)")}" +
@@ -429,7 +430,7 @@ public sealed class MapGame : Game
 
     /// <summary>
     /// Headless check: set up the demo economy and three construction sites at the first player's
-    /// start, run two minutes of game time, save a frame every eight game seconds, then quit.
+    /// start, run four minutes of game time (long enough for grain to ripen), save a frame every eight game seconds, then quit.
     /// </summary>
     private void Capture(RenderTarget2D target)
     {
@@ -446,13 +447,18 @@ public sealed class MapGame : Game
             case 1:
                 _zoom = 1;
                 var start = _selected!.Position;
-                DemoEconomy.Create(_world, _romans, start, _random);
+                Console.WriteLine(DemoEconomy.Create(_world, _romans, start, _random));
                 foreach (var (name, dx, dy) in new[] { ("lumberjack", -14, 10), ("forester", 8, 16), ("stonecutter", -4, 22) })
                     for (int r = 0; r < 12; r++)
                         if (_world.PlaceConstructionSite(_romans[name], 0, new GridPoint(start.X + dx + r, start.Y + dy)) is not null)
                             break;
                 break;
-            case 1800:
+            case 3600:
+                var production = _world.Production;
+                Console.WriteLine($"buildings: {string.Join(", ", _world.Buildings.Where(b => b.Exists).Select(b => $"{b.Definition.Name}@{b.Position.X},{b.Position.Y}"))}");
+                Console.WriteLine($"produced {production.Produced}, crop {production.CropHarvested}/{production.FieldsSown}, fish {production.FishCaught}, " +
+                                  $"water {production.WaterDrawn}, ore {production.OreMined}; problems: " +
+                                  string.Join(", ", production.Problems.Select(kv => $"{kv.Key} {kv.Value}x")));
                 Exit();
                 break;
         }

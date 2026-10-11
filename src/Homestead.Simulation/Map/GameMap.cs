@@ -18,6 +18,10 @@ public sealed class GameMap
 
     private readonly bool[] _walkable;
 
+    /// <summary>Resource under a point (fish in water, ores in mountains) and its amount (0-15 in original maps).</summary>
+    private readonly ResourceType[] _resourceType;
+    private readonly byte[] _resourceAmount;
+
     public GameMap(int size)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 2);
@@ -28,6 +32,8 @@ public sealed class GameMap
         _blockers = new byte[size * size];
         _walkable = new bool[size * size];
         Array.Fill(_walkable, true);
+        _resourceType = new ResourceType[size * size];
+        _resourceAmount = new byte[size * size];
     }
 
     public int Size { get; }
@@ -44,6 +50,13 @@ public sealed class GameMap
         {
             map._terrain[i] = TerrainTypes.FromOriginal(area.Landscape[i]);
             map._height[i] = area.Height[i];
+            // High nibble type, low nibble amount; 0 means nothing.
+            byte resource = area.Resources[i];
+            if (resource != 0 && resource >> 4 <= (int)ResourceType.Sulfur)
+            {
+                map._resourceType[i] = (ResourceType)(resource >> 4);
+                map._resourceAmount[i] = (byte)(resource & 0x0f);
+            }
         }
         for (int i = 0; i < map.PointCount; i++)
             map.SetObjectCode(map.Point(i), area.Object[i]);
@@ -67,6 +80,19 @@ public sealed class GameMap
 
     /// <summary>The object as original object code; decides both rules and graphics.</summary>
     public byte ObjectCodeAt(GridPoint p) => _objects[Index(p)];
+
+    /// <summary>Resource under the point; amount 0 means there is nothing (left).</summary>
+    public (ResourceType Type, int Amount) ResourceAt(GridPoint p) => (_resourceType[Index(p)], _resourceAmount[Index(p)]);
+
+    /// <summary>Amount of <paramref name="type"/> under the point, 0 if there is another or no resource.</summary>
+    public int ResourceAmount(GridPoint p, ResourceType type) =>
+        _resourceType[Index(p)] == type ? _resourceAmount[Index(p)] : 0;
+
+    public void SetResource(GridPoint p, ResourceType type, int amount)
+    {
+        _resourceType[Index(p)] = type;
+        _resourceAmount[Index(p)] = (byte)Math.Clamp(amount, 0, 255);
+    }
 
     public bool IsWalkable(GridPoint p) => Contains(p) && _walkable[Index(p)];
 

@@ -25,6 +25,12 @@ public class ProductionTests(ITestOutputHelper output)
                 foreach (var outputMaterial in recipe.Outputs)
                     Assert.True(building.OfferPiles.Any(p => p.Material == outputMaterial), $"{civilization} {name} has no output pile for {outputMaterial}");
             }
+            foreach (var (name, mine) in config.Mines)
+                if (catalog.Find(name) is { } building)
+                {
+                    Assert.True(building.OfferPiles.Any(p => p.Material == mine.Output), $"{civilization} {name} has no output pile for {mine.Output}");
+                    Assert.True(building.RequestPiles.Count > 0, $"{civilization} {name} has no food piles");
+                }
             foreach (var (name, recipe) in config.Gatherers)
                 if (catalog.Find(name) is { } building && recipe.Output is { } gathered)
                     Assert.True(building.OfferPiles.Any(p => p.Material == gathered), $"{civilization} {name} has no output pile for {gathered}");
@@ -78,10 +84,7 @@ public class ProductionTests(ITestOutputHelper output)
         var map = new GameMap(70);
         var rock = new GridPoint(36, 38);
         map.SetObjectCode(rock, MapObjectCodes.FullStone);
-        var config = ProductionConfig.Load() is var c ? new ProductionConfig
-        {
-            Workshops = c.Workshops, Gatherers = c.Gatherers, TreeGrowTicks = c.TreeGrowTicks, StonesPerCut = stonesPerCut,
-        } : null;
+        var config = ProductionConfig.Load() with { StonesPerCut = stonesPerCut };
         var world = new World(map, config);
         world.PlaceBuilding(Romans["stonecutter"], 0, new GridPoint(30, 30));
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 25))!;
@@ -100,11 +103,7 @@ public class ProductionTests(ITestOutputHelper output)
     [Fact]
     public void Forester_plants_trees_that_grow_up()
     {
-        var c = ProductionConfig.Load();
-        var config = new ProductionConfig
-        {
-            Workshops = c.Workshops, Gatherers = c.Gatherers, TreeGrowTicks = 200, StonesPerCut = c.StonesPerCut,
-        };
+        var config = ProductionConfig.Load() with { TreeGrowTicks = 200 };
         var map = new GameMap(70);
         var world = new World(map, config);
         world.PlaceBuilding(Romans["forester"], 0, new GridPoint(35, 35));

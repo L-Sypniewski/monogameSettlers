@@ -27,6 +27,10 @@ public sealed class SettlerRenderer : IDisposable
     private const int StonecutterWork = 25;     // walk layout
     private const int ForesterPlant = 36;       // 27 frames west, 27 frames east
     private const int ForesterPlantFrames = 27;
+    private const int FarmerSowFirst = 94;      // one sequence each for SW, NW, NE, SE; 12 frames
+    private const int FarmerHarvest = 99;       // 4 blocks (SW, NW, NE, SE) of 12 frames
+    private const int FisherCastFirst = 101;    // one sequence per direction, 12 frames
+    private const int WaterworkerDrawWest = 156; // 14 frames; 157 for the eastern directions
 
     private const float WorkFramesPerTick = 0.5f;
 
@@ -87,6 +91,19 @@ public sealed class SettlerRenderer : IDisposable
                 bool east = settler.Facing is Direction.East or Direction.SouthEast or Direction.NorthEast;
                 return (Sprites(WorkerFile, ForesterPlant), (east ? ForesterPlantFrames : 0) + work % ForesterPlantFrames);
             }
+            case Activity.Sowing:
+                return (Sprites(WorkerFile, FarmerSowFirst + QuarterBlock(settler.Facing)), work % SettlerSprites.FramesPerDirection);
+            case Activity.Harvesting:
+                return (Sprites(WorkerFile, FarmerHarvest),
+                    QuarterBlock(settler.Facing) * SettlerSprites.FramesPerDirection + work % SettlerSprites.FramesPerDirection);
+            case Activity.Fishing:
+                return (Sprites(WorkerFile, FisherCastFirst + SettlerSprites.Block(settler.Facing)), work % SettlerSprites.FramesPerDirection);
+            case Activity.DrawingWater:
+            {
+                bool east = settler.Facing is Direction.East or Direction.SouthEast or Direction.NorthEast;
+                var sprites = Sprites(WorkerFile, WaterworkerDrawWest + (east ? 1 : 0));
+                return (sprites, work % Math.Max(1, sprites.FrameCount));
+            }
         }
 
         var walk = settler.Profession switch
@@ -100,8 +117,30 @@ public sealed class SettlerRenderer : IDisposable
         int frame = settler.State == SettlerState.Stepping
             ? SettlerSprites.WalkFrame(settler.Facing, StepProgress(settler, tickAlpha))
             : SettlerSprites.StandFrame(settler.Facing);
-        return (walk, frame);
+        return (walk, FitToBlocks(walk, frame));
     }
+
+    /// <summary>
+    /// Walk frames are computed for 12 frames per direction; some sequences (the farmer) have 13.
+    /// Stretches the cycle onto the actual block length.
+    /// </summary>
+    private static int FitToBlocks(SettlerSprites sprites, int frame)
+    {
+        int perBlock = sprites.FrameCount / DirectionExtensions.Count;
+        if (perBlock == SettlerSprites.FramesPerDirection || perBlock < 2)
+            return frame;
+        int block = frame / SettlerSprites.FramesPerDirection, inner = frame % SettlerSprites.FramesPerDirection;
+        return block * perBlock + (inner == 0 ? 0 : 1 + (inner - 1) * (perBlock - 1) / SettlerSprites.WalkCycleFrames);
+    }
+
+    /// <summary>Animations with only four directions: SW, NW, NE, SE (west and east fall to the nearer one).</summary>
+    private static int QuarterBlock(Direction facing) => facing switch
+    {
+        Direction.SouthWest or Direction.West => 0,
+        Direction.NorthWest => 1,
+        Direction.NorthEast => 2,
+        _ => 3,
+    };
 
     /// <summary>Work animations laid out like walk sequences: 6 direction blocks of 12 frames.</summary>
     private static int WalkLayoutAction(Settler settler, int work) =>
@@ -118,6 +157,26 @@ public sealed class SettlerRenderer : IDisposable
         ("SAWMILLER", Material.Trunk) => Sprites(WorkerFile, 16),
         ("SAWMILLER", Material.Plank) => Sprites(WorkerFile, 14),
         ("SAWMILLER", _) => Sprites(WorkerFile, 19),
+        ("FARMER", Material.Crop) => Sprites(WorkerFile, 87),
+        ("FARMER", _) => Sprites(WorkerFile, 90),
+        ("FISHERMAN", Material.Fish) => Sprites(WorkerFile, 113),
+        ("FISHERMAN", _) => Sprites(WorkerFile, 100),
+        ("WATERWORKER", Material.Water) => Sprites(WorkerFile, 155),
+        ("WATERWORKER", _) => Sprites(WorkerFile, 154),
+        ("MINER", Material.Coal) => Sprites(WorkerFile, 49),
+        ("MINER", Material.GoldOre) => Sprites(WorkerFile, 51),
+        ("MINER", Material.IronOre) => Sprites(WorkerFile, 53),
+        ("MINER", _) => Sprites(WorkerFile, 55),
+        ("MILLER", Material.Crop) => Sprites(WorkerFile, 74),
+        ("MILLER", Material.Flour) => Sprites(WorkerFile, 75),
+        ("MILLER", _) => Sprites(WorkerFile, 69),
+        ("SLAUGHTERER", Material.Meat) => Sprites(WorkerFile, 81),
+        ("SLAUGHTERER", Material.Pig) => Sprites(WorkerFile, 84),
+        ("SLAUGHTERER", _) => Sprites(WorkerFile, 78),
+        ("BAKER", Material.Bread) => Sprites(WorkerFile, 127),
+        ("BAKER", Material.Flour) => Sprites(WorkerFile, 132),
+        ("BAKER", Material.Water) => Sprites(WorkerFile, 133),
+        ("BAKER", _) => Sprites(WorkerFile, 134),
         _ => Sprites(CarrierFile, CarrierSequence(settler.Carrying)),
     };
 

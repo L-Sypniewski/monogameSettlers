@@ -9,6 +9,7 @@ using Homestead.AssetTool;
 //   AssetTool export <file> <kind> <index> <outDir>  write PNGs (kind: settler|torso|shadow|landscape|gui)
 //   AssetTool sheet <file> <kind> <out.png>          contact sheet of the first frame of every entry
 //   AssetTool maps                                   parse every map, report sizes and unknown landscape values
+//   AssetTool resources                              resource byte statistics (type nibble per landscape group)
 //   AssetTool minimap <map name> <out.png>           landscape overview of one map
 
 var installation = GameInstallation.Locate();
@@ -27,6 +28,9 @@ switch (args.FirstOrDefault())
         break;
     case "maps":
         MapReport.Scan(installation);
+        break;
+    case "resources":
+        MapReport.Resources(installation);
         break;
     case "minimap" when args.Length == 3:
         MapReport.Minimap(installation, args[1], args[2]);

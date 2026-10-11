@@ -15,7 +15,8 @@ The C# code was written independently; the following data tables and rules were 
   `tools/data-import/convert_jsettlers_buildings.py`
 - Original map codes for buildings, piles and settlers (`OriginalScenario.cs`, `Material.cs`), pile and
   carrier graphics per material (`EconomyRenderer.cs`, `SettlerRenderer.cs`), from `EOriginalMap*Type`,
-  `EMaterialType` and the movables tables
+  `EMaterialType` and the movables tables; worker walk/work animations of all trades (`SettlerRenderer.cs`,
+  from `movables*.txt`); grain image sequence (`MapObjectCatalog.cs`, from `MapObjectDrawer`)
 - Original map object names (`docs/formate/map.md`, from `EOriginalMapObjectType`)
 - Terrain texture atlas layout, transition table and triangle texture orientation
   (`src/Homestead.Client/Terrain/TerrainAtlas.cs`, `TerrainMesh.cs`, from `Background` and `ETextureOrientation`)

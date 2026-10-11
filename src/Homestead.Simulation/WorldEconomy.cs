@@ -59,7 +59,7 @@ public sealed partial class World
             int index = map.Index(p);
             if (_footprints.ContainsKey(index) || _protected.ContainsKey(index))
                 return Fail("too close to another building", out reason);
-            if (!map.IsWalkable(p) || _pilesByPoint.ContainsKey(index))
+            if (!map.IsWalkable(p) || _pilesByPoint.ContainsKey(index) || map.ObjectAt(p) == MapObjectKind.Field)
                 return Fail("something is in the way", out reason);
             if (!definition.Ground.Contains(map.TerrainAt(p).GroundName()))
                 return Fail($"cannot build on {map.TerrainAt(p)}", out reason);

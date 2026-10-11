@@ -13,6 +13,9 @@ public enum MapObjectKind : byte
     /// <summary>Quarry stone that stonecutters can mine.</summary>
     ResourceStone,
 
+    /// <summary>Grain field of a farm (walkable, but nothing else may be put there).</summary>
+    Field,
+
     /// <summary>Codes we do not know yet.</summary>
     Unknown,
 }
@@ -34,6 +37,13 @@ public static class MapObjectCodes
     /// <summary>Quarry stone: 115 is full, each unit cut off moves one code up, 127 is the empty rubble.</summary>
     public const byte FullStone = 115;
     public const byte StoneRubble = 127;
+
+    /// <summary>
+    /// Grain: Homestead's own codes (unused in original maps). 200-206 growing stages, 207 ripe;
+    /// harvesting clears the field.
+    /// </summary>
+    public const byte FirstGrain = 200;
+    public const byte RipeGrain = 207;
 
     public static bool IsAdultTree(byte code) => code is >= FirstTree and <= LastTree;
 
@@ -61,6 +71,7 @@ public static class MapObjectKinds
         // 127 is the depleted stone (rubble): the maps never mark it as blocking.
         >= 115 and <= 126 => MapObjectKind.ResourceStone,
         127 => MapObjectKind.Decoration,
+        >= MapObjectCodes.FirstGrain and <= MapObjectCodes.RipeGrain => MapObjectKind.Field,
         _ => MapObjectKind.Unknown,
     };
 }

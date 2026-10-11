@@ -94,8 +94,13 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
      einstellbar), Förster (Setzlinge wachsen nach)
    - [x] Arbeiter werden aus Trägern rekrutiert; Watchdog für Arbeiter
    - [x] Kreislauf getestet: Wirtschaft baut ein Gebäude nur aus eigener Produktion
-   - [ ] Minen mit Bodenschätzen im Gebirge (Ziel 3: Vorrat je Feld einstellbar, ggf. Regeneration), Nahrung
-   - [ ] Bauernhof (Felder), Fischer, Wasserwerk, Winzer, Imker
+   - [x] Bodenschätze aus den Originalkarten (Fisch, Kohle, Eisen, Gold, Edelsteine, Schwefel)
+   - [x] Minen: je Erz eine Einheit Nahrung (welche, bestimmen die Eingangsstapel je Volk); Ertrag je
+     Mengenstufe (`orePerAmount`) und Regeneration (`regenerateSeconds`) einstellbar → Ziel 3
+   - [x] Bauernhof (Felder wachsen in Stufen), Fischer (Fischbestand nimmt ab), Wasserwerk
+   - [x] Kreislauf getestet: Bauernhof + Wasserwerk → Mühle → Bäcker → Kohlemine
+   - [ ] Winzer, Imker, Reisbauer, Eselzucht
+   - [ ] Minen-Anzeige (Vorrat/erschöpft) im Spiel
    - [ ] Werkzeuge: Träger werden nur mit Werkzeug zu Spezialisten; Schmiede mit Auswahl
 5. **Kampf**
 6. **KI**

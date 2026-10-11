@@ -18,6 +18,7 @@ public static class MapObjectCatalog
     private const int DecorationSequence = 27;  // plants, mushrooms, stumps, cacti, bones, flowers, shrubs, reeds
     private const int SmallTreeSequence = 22;
     private const int ResourceStoneSequence = 31;
+    private const int GrainSequence = 23;       // 0-7 growing to ripe (JSettlers' MapObjectDrawer, MIT)
 
     public static MapObjectSprite? Resolve(byte code) => code switch
     {
@@ -35,6 +36,8 @@ public static class MapObjectCatalog
         // Plausible but unconfirmed: small stones and reefs share sequence 30 (8 + 4 images).
         >= 21 and <= 28 => new(SmallStoneSequence, code - 21, false),
         >= 111 and <= 114 => new(SmallStoneSequence, code - 111 + 8, false),
+        // Grain fields: Homestead's own codes (see MapObjectCodes), one image per growing stage.
+        >= 200 and <= 207 => new(GrainSequence, code - 200, false),
         // 192 occurs often but is unknown; 85-110 never occur.
         _ => null,
     };

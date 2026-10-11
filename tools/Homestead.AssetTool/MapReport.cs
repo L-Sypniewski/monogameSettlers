@@ -41,6 +41,30 @@ internal static class MapReport
                           (unknown.Count == 0 ? "none" : string.Join(", ", unknown.Select(kv => $"{kv.Key} ({kv.Value}x)"))));
     }
 
+    /// <summary>For every resource type (high nibble): how often per landscape group and the amount range.</summary>
+    public static void Resources(GameInstallation installation)
+    {
+        var counts = new SortedDictionary<(int Type, int Group), int>();
+        var amounts = new SortedDictionary<(int Type, int Amount), int>();
+        foreach (string path in installation.MapFiles)
+        {
+            var area = OriginalMap.Open(path).Area;
+            for (int i = 0; i < area.Resources.Length; i++)
+            {
+                int value = area.Resources[i];
+                if (value == 0)
+                    continue;
+                counts[(value >> 4, area.Landscape[i] >> 4)] = counts.GetValueOrDefault((value >> 4, area.Landscape[i] >> 4)) + 1;
+                amounts[(value >> 4, value & 15)] = amounts.GetValueOrDefault((value >> 4, value & 15)) + 1;
+            }
+        }
+        foreach (var type in counts.Keys.Select(k => k.Type).Distinct())
+        {
+            Console.WriteLine($"type {type}: groups " + string.Join(", ", counts.Where(kv => kv.Key.Type == type).Select(kv => $"0x{kv.Key.Group:x}0:{kv.Value}")));
+            Console.WriteLine($"        amounts " + string.Join(", ", amounts.Where(kv => kv.Key.Type == type).Select(kv => $"{kv.Key.Amount}:{kv.Value}")));
+        }
+    }
+
     public static void Minimap(GameInstallation installation, string name, string outPath)
     {
         string path = installation.MapFiles.First(f =>

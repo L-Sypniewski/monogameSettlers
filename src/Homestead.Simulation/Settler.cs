@@ -32,6 +32,10 @@ public enum Activity
     Chopping,
     Mining,
     Planting,
+    Sowing,
+    Harvesting,
+    Fishing,
+    DrawingWater,
 }
 
 public enum SettlerState

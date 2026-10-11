@@ -111,4 +111,41 @@ public class OriginalMapTests(ITestOutputHelper output)
             Assert.True(msPerQuery < 50, $"{msPerQuery:F1} ms per query is too slow.");
         }
     }
+
+    [Fact]
+    public void Fish_lies_in_water_and_ores_lie_in_mountains()
+    {
+        if (TryLocate() is not { } installation)
+        {
+            output.WriteLine("No installation found, skipped.");
+            return;
+        }
+
+        long fish = 0, fishInWater = 0, ore = 0, oreInMountains = 0;
+        foreach (string path in installation.MapFiles.Take(20))
+        {
+            var map = GameMap.FromOriginal(OriginalMap.Open(path).Area);
+            for (int i = 0; i < map.PointCount; i++)
+            {
+                var p = map.Point(i);
+                var (type, amount) = map.ResourceAt(p);
+                if (amount == 0)
+                    continue;
+                if (type == ResourceType.Fish)
+                {
+                    fish++;
+                    fishInWater += map.TerrainAt(p) == TerrainType.Water ? 1 : 0;
+                }
+                else if (type is ResourceType.Coal or ResourceType.IronOre or ResourceType.GoldOre or ResourceType.Sulfur)
+                {
+                    ore++;
+                    oreInMountains += map.TerrainAt(p) is TerrainType.Mountain or TerrainType.MountainBorder ? 1 : 0;
+                }
+            }
+        }
+        output.WriteLine($"fish {fishInWater}/{fish} in water, ore {oreInMountains}/{ore} in mountains");
+        Assert.True(fish > 0 && ore > 0);
+        Assert.True(fishInWater >= fish * 0.999);
+        Assert.True(oreInMountains >= ore * 0.99);
+    }
 }

@@ -31,6 +31,11 @@ Lizenzprüfung, das Spiel und der Editor lesen die Karten ohne Weiteres.
 
 ## Geländepunkt (Chunk 6)
 `höhe, landschaft, objekt, besitzer, begehbarkeit, ressource` (letzte: oberes Nibble Typ, unteres Menge).
+
+Ressourcen-Typen (oberes Nibble), per Statistik über alle Karten bestätigt (`AssetTool resources`):
+0 Fisch (nur Wasser), 1 Kohle, 2 Eisenerz, 3 Golderz, 4 Edelsteine, 5 Schwefel (Gebirge; Edelsteine
+vereinzelt auch Wüste). Menge 0–15, ganz überwiegend 8 (Standard des Editors), danach 15.
+Wert 0 = nichts.
 Reihenfolge zeilenweise, `index = y * größe + x`, y = 0 ist der obere Kartenrand.
 
 Landschaftswerte (Gruppe = oberes Nibble): 0–7 Wasser (Tiefen), 16 Gras, 17 Gebirgsrand außen,

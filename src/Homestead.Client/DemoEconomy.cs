@@ -1,6 +1,7 @@
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
+using Homestead.Simulation.Map;
 using Homestead.Simulation.Pathfinding;
 
 namespace Homestead.Client;
@@ -11,8 +12,16 @@ namespace Homestead.Client;
 /// </summary>
 public static class DemoEconomy
 {
-    private static readonly string[] BuildingNames = ["stock", "sawmill", "lumberjack", "stonecutter", "forester", "mill", "baker"];
-    private static readonly Material[] Goods = [Material.Trunk, Material.Crop, Material.Flour, Material.Water, Material.Stone, Material.Plank];
+    private static readonly string[] BuildingNames = ["stock", "sawmill", "lumberjack", "stonecutter", "forester", "farm", "mill", "baker"];
+    private static readonly Material[] Goods = [Material.Trunk, Material.Crop, Material.Flour, Material.Water, Material.Stone, Material.Plank,
+        Material.Bread, Material.Fish];
+
+    /// <summary>Buildings that only make sense next to water or on top of their resource.</summary>
+    private static readonly (string Name, ResourceType? Resource)[] PlacedAtResources =
+    [
+        ("waterworks", null), ("fisher", ResourceType.Fish), ("coalmine", ResourceType.Coal),
+        ("ironmine", ResourceType.IronOre), ("goldmine", ResourceType.GoldOre),
+    ];
 
     public static string Create(World world, BuildingCatalog catalog, GridPoint near, Random random, int carriers = 12,
         int diggers = 3, int builders = 4)
@@ -20,6 +29,9 @@ public static class DemoEconomy
         int placed = 0;
         foreach (string name in BuildingNames)
             if (PlaceNear(world, catalog[name], near, random) is not null)
+                placed++;
+        foreach (var (name, resource) in PlacedAtResources)
+            if (NearestResource(world.Map!, near, resource) is { } spot && PlaceNear(world, catalog[name], spot, random, 2) is not null)
                 placed++;
 
         int piles = 0;
@@ -45,11 +57,28 @@ public static class DemoEconomy
         return $"demo economy: {placed} buildings, {piles} piles, {spawned} workers";
     }
 
-    /// <summary>Tries positions in growing rings around <paramref name="near"/> until the building fits.</summary>
-    private static Building? PlaceNear(World world, BuildingDefinition definition, GridPoint near, Random random)
+    /// <summary>Nearest point (within 60 steps) with the resource, or nearest water if <paramref name="resource"/> is null.</summary>
+    private static GridPoint? NearestResource(GameMap map, GridPoint near, ResourceType? resource)
     {
-        for (int r = 6; r < 40; r += 2)
-        for (int attempt = 0; attempt < 12; attempt++)
+        for (int r = 1; r <= 60; r++)
+        for (int dy = -r; dy <= r; dy++)
+        for (int dx = -r; dx <= r; dx++)
+        {
+            var p = new GridPoint(near.X + dx, near.Y + dy);
+            if (!map.Contains(p) || PathFinder.Distance(near, p) != r)
+                continue;
+            bool fits = resource is { } type ? map.ResourceAmount(p, type) > 0 : map.TerrainAt(p) == TerrainType.Water;
+            if (fits)
+                return p;
+        }
+        return null;
+    }
+
+    /// <summary>Tries positions in growing rings around <paramref name="near"/> until the building fits.</summary>
+    private static Building? PlaceNear(World world, BuildingDefinition definition, GridPoint near, Random random, int firstRing = 6)
+    {
+        for (int r = firstRing; r < 40; r += 2)
+        for (int attempt = 0; attempt < 40; attempt++)
         {
             var at = new GridPoint(near.X + random.Next(-r, r + 1), near.Y + random.Next(-r, r + 1));
             if (PathFinder.Distance(at, near) < r - 2)

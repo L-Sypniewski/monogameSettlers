@@ -42,6 +42,10 @@ public sealed class BuildingDefinition
 
     /// <summary>How far gatherers (woodcutter, forester, ...) walk from the building, if set in the data.</summary>
     public int? WorkRadius { get; init; }
+
+    /// <summary>Center of the work area if it is not the building itself (the fields in front of a farm).</summary>
+    public GridPoint? WorkCenter { get; init; }
+
     public required IReadOnlyList<PileDefinition> ConstructionPiles { get; init; }
     public required IReadOnlyList<PileDefinition> RequestPiles { get; init; }
     public required IReadOnlyList<PileDefinition> OfferPiles { get; init; }
@@ -120,6 +124,9 @@ public sealed class BuildingCatalog
                 new GridPoint(s.GetProperty("dx").GetInt32(), s.GetProperty("dy").GetInt32()),
                 ParseDirection(s.GetProperty("direction").GetString()!))).ToArray()
             : [];
+        GridPoint? workCenter = b.GetProperty("positions").TryGetProperty("workcenter", out var centers) && centers.GetArrayLength() > 0
+            ? new GridPoint(centers[0].GetProperty("dx").GetInt32(), centers[0].GetProperty("dy").GetInt32())
+            : null;
         return new BuildingDefinition
         {
             Name = name,
@@ -131,6 +138,7 @@ public sealed class BuildingCatalog
             Ground = b.GetProperty("ground").EnumerateArray().Select(g => g.GetString()!).ToHashSet(),
             BuilderSpots = builderSpots,
             WorkRadius = b.TryGetProperty("workradius", out var radius) && int.TryParse(radius.GetString(), out int r) ? r : null,
+            WorkCenter = workCenter,
             ConstructionPiles = Piles(b.GetProperty("constructionStacks")),
             RequestPiles = Piles(b.GetProperty("requestStacks")),
             OfferPiles = Piles(b.GetProperty("offerStacks")),

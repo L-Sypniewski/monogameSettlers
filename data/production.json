@@ -1,5 +1,5 @@
 {
-  "_comment": "Production balancing (Homestead's own values, not taken from the original). Times in game seconds. Workshop inputs/outputs must match the building's request/offer piles in data/buildings.",
+  "_comment": "Production balancing (Homestead's own values, not taken from the original). Times in game seconds. Workshop inputs/outputs must match the building's request/offer piles in data/buildings. Mines eat one unit of whatever food their input piles hold per ore.",
   "workshops": {
     "sawmill": { "inputs": [ "TRUNK" ], "outputs": [ "PLANK" ], "seconds": 6 },
     "mill": { "inputs": [ "CROP" ], "outputs": [ "FLOUR" ], "seconds": 6 },
@@ -13,8 +13,25 @@
   "gatherers": {
     "lumberjack": { "action": "CutTree", "output": "TRUNK", "workSeconds": 6, "restSeconds": 4 },
     "stonecutter": { "action": "CutStone", "output": "STONE", "workSeconds": 8, "restSeconds": 4 },
-    "forester": { "action": "PlantTree", "workSeconds": 5, "restSeconds": 8 }
+    "forester": { "action": "PlantTree", "workSeconds": 5, "restSeconds": 8 },
+    "fisher": { "action": "Fish", "output": "FISH", "workSeconds": 8, "restSeconds": 6 },
+    "waterworks": { "action": "DrawWater", "output": "WATER", "workSeconds": 4, "restSeconds": 4 },
+    "farm": { "action": "Farm", "output": "CROP", "workSeconds": 4, "restSeconds": 4 }
+  },
+  "mines": {
+    "coalmine": { "resource": "Coal", "output": "COAL", "seconds": 10, "radius": 3 },
+    "ironmine": { "resource": "IronOre", "output": "IRONORE", "seconds": 10, "radius": 3 },
+    "goldmine": { "resource": "GoldOre", "output": "GOLDORE", "seconds": 10, "radius": 3 },
+    "gemsmine": { "resource": "Gems", "output": "GEMS", "seconds": 10, "radius": 3 },
+    "sulfurmine": { "resource": "Sulfur", "output": "SULFUR", "seconds": 10, "radius": 3 }
   },
   "trees": { "growSeconds": 150 },
-  "stones": { "stonesPerCut": 1 }
+  "grain": { "growSeconds": 100 },
+  "stones": { "stonesPerCut": 1 },
+  "resources": {
+    "_comment": "Mountains and waters: a field of the original maps holds an amount of 0-15 (mostly 8). orePerAmount/fishPerAmount = units per amount step, so a mine's stock scales with it. regenerateSeconds: a depleted field regains one step this often (0 = never).",
+    "orePerAmount": 4,
+    "fishPerAmount": 2,
+    "regenerateSeconds": 0
+  }
 }
