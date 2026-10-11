@@ -1,0 +1,111 @@
+using System.Text.Json;
+using Homestead.Simulation.Economy;
+
+namespace Homestead.Simulation.Buildings;
+
+public enum Civilization
+{
+    Roman,
+    Egyptian,
+    Asian,
+    Amazon,
+}
+
+/// <summary>A graphic: image <see cref="Image"/> of sequence <see cref="Sequence"/> in GFX file <see cref="File"/>.</summary>
+public readonly record struct ImageRef(int File, int Sequence, int Image);
+
+public sealed record PileDefinition(GridPoint Offset, Material? Material, int Required = 0);
+
+/// <summary>
+/// Static description of a building type. All positions are offsets from the building's anchor
+/// point. Loaded from <c>data/buildings/&lt;civilization&gt;.json</c>.
+/// </summary>
+public sealed class BuildingDefinition
+{
+    public required string Name { get; init; }
+    public required Civilization Civilization { get; init; }
+    public string? Worker { get; init; }
+    public required IReadOnlyList<GridPoint> Blocked { get; init; }
+
+    /// <summary>Fields around the building that must stay free of other buildings (walkable).</summary>
+    public required IReadOnlyList<GridPoint> Protected { get; init; }
+
+    public required GridPoint Door { get; init; }
+    public required IReadOnlyList<PileDefinition> ConstructionPiles { get; init; }
+    public required IReadOnlyList<PileDefinition> RequestPiles { get; init; }
+    public required IReadOnlyList<PileDefinition> OfferPiles { get; init; }
+
+    /// <summary>Layers of the finished building, drawn in order.</summary>
+    public required IReadOnlyList<ImageRef> FinalImages { get; init; }
+
+    public ImageRef? ConstructionImage { get; init; }
+
+    /// <summary>Lowest row offset covered by the building, used for drawing order.</summary>
+    public int BottomRow => Blocked.Count == 0 ? 0 : Blocked.Max(p => p.Y);
+}
+
+/// <summary>All building definitions of one civilization.</summary>
+public sealed class BuildingCatalog
+{
+    private readonly Dictionary<string, BuildingDefinition> _definitions;
+
+    private BuildingCatalog(Civilization civilization, Dictionary<string, BuildingDefinition> definitions)
+    {
+        Civilization = civilization;
+        _definitions = definitions;
+    }
+
+    public Civilization Civilization { get; }
+
+    public IReadOnlyCollection<BuildingDefinition> All => _definitions.Values;
+
+    public BuildingDefinition? Find(string name) => _definitions.GetValueOrDefault(name);
+
+    public BuildingDefinition this[string name] =>
+        Find(name) ?? throw new KeyNotFoundException($"No building '{name}' for {Civilization}.");
+
+    /// <summary>Default data directory: <c>data</c> next to the executable (copied there by the build).</summary>
+    public static string DefaultDataDirectory => Path.Combine(AppContext.BaseDirectory, "data");
+
+    public static BuildingCatalog Load(Civilization civilization, string? dataDirectory = null)
+    {
+        string path = Path.Combine(dataDirectory ?? DefaultDataDirectory, "buildings",
+            civilization.ToString().ToLowerInvariant() + ".json");
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var definitions = new Dictionary<string, BuildingDefinition>();
+        foreach (var entry in document.RootElement.GetProperty("buildings").EnumerateObject())
+            definitions[entry.Name] = Parse(entry.Name, civilization, entry.Value);
+        return new BuildingCatalog(civilization, definitions);
+    }
+
+    private static BuildingDefinition Parse(string name, Civilization civilization, JsonElement b)
+    {
+        static GridPoint Point(JsonElement e) => new(e[0].GetInt32(), e[1].GetInt32());
+        static IReadOnlyList<GridPoint> Points(JsonElement e) => e.EnumerateArray().Select(Point).ToArray();
+        static IReadOnlyList<PileDefinition> Piles(JsonElement e) => e.EnumerateArray()
+            .Select(p => new PileDefinition(Point(p.GetProperty("at")), Materials.Parse(p.GetProperty("material").GetString()!),
+                p.TryGetProperty("required", out var r) ? r.GetInt32() : 0))
+            .ToArray();
+        static IReadOnlyList<ImageRef> Images(JsonElement images, string key) =>
+            images.TryGetProperty(key, out var list)
+                ? list.EnumerateArray().Select(i => new ImageRef(
+                    i.GetProperty("file").GetInt32(), i.GetProperty("sequence").GetInt32(), i.GetProperty("image").GetInt32())).ToArray()
+                : [];
+
+        var images = b.GetProperty("images");
+        return new BuildingDefinition
+        {
+            Name = name,
+            Civilization = civilization,
+            Worker = b.GetProperty("worker").ValueKind == JsonValueKind.String ? b.GetProperty("worker").GetString() : null,
+            Blocked = Points(b.GetProperty("blocked")),
+            Protected = Points(b.GetProperty("protected")),
+            Door = Point(b.GetProperty("door")),
+            ConstructionPiles = Piles(b.GetProperty("constructionStacks")),
+            RequestPiles = Piles(b.GetProperty("requestStacks")),
+            OfferPiles = Piles(b.GetProperty("offerStacks")),
+            FinalImages = Images(images, "final"),
+            ConstructionImage = Images(images, "build").Cast<ImageRef?>().FirstOrDefault(),
+        };
+    }
+}

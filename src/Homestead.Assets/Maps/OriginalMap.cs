@@ -22,6 +22,9 @@ public sealed class OriginalMap
         (IsSinglePlayer, PlayerCount, StartResources) = ReadMapInfo();
         Players = ReadPlayers();
         Area = ReadArea();
+        Settlers = ReadRecords(MapChunkType.Settlers, 6, (c, p) => new MapSettler(c[p], c[p + 1], U16(c, p + 2), U16(c, p + 4)));
+        Buildings = ReadRecords(MapChunkType.Buildings, 12, (c, p) => new MapBuilding(c[p], c[p + 1], U16(c, p + 2), U16(c, p + 4)));
+        Stacks = ReadRecords(MapChunkType.Stacks, 8, (c, p) => new MapStack(U16(c, p), U16(c, p + 2), c[p + 4], c[p + 5]));
     }
 
     public string Path { get; }
@@ -39,6 +42,15 @@ public sealed class OriginalMap
     public IReadOnlyList<MapPlayer> Players { get; }
 
     public MapArea Area { get; }
+
+    /// <summary>Settlers placed in the editor (chunk 7).</summary>
+    public IReadOnlyList<MapSettler> Settlers { get; }
+
+    /// <summary>Buildings placed in the editor (chunk 8). Soldier counts are not read yet.</summary>
+    public IReadOnlyList<MapBuilding> Buildings { get; }
+
+    /// <summary>Piles of goods placed in the editor (chunk 9).</summary>
+    public IReadOnlyList<MapStack> Stacks { get; }
 
     /// <summary>Decoded chunk contents, including those not interpreted yet.</summary>
     public IReadOnlyDictionary<MapChunkType, byte[]> Chunks { get; }
@@ -132,7 +144,23 @@ public sealed class OriginalMap
         return area;
     }
 
+    /// <summary>Optional chunk with <c>u32 count</c> followed by fixed-size records.</summary>
+    private IReadOnlyList<T> ReadRecords<T>(MapChunkType type, int recordSize, Func<byte[], int, T> read)
+    {
+        if (!Chunks.TryGetValue(type, out var chunk) || chunk.Length < 4)
+            return [];
+        int count = (int)U32(chunk, 0);
+        if (count < 0 || 4 + (long)count * recordSize > chunk.Length)
+            throw new InvalidDataException($"{Path}: {type} chunk holds {count} records but is only {chunk.Length} bytes.");
+        var records = new T[count];
+        for (int i = 0; i < count; i++)
+            records[i] = read(chunk, 4 + i * recordSize);
+        return records;
+    }
+
     private static uint U32(byte[] data, int pos) => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(pos));
+
+    private static int U16(byte[] data, int pos) => BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(pos));
 }
 
 public enum MapChunkType
@@ -151,6 +179,15 @@ public enum MapChunkType
 }
 
 public sealed record MapPlayer(int Tribe, int StartX, int StartY, string Name);
+
+/// <summary>A settler from the map. Type codes see docs/formate/map.md.</summary>
+public sealed record MapSettler(int Player, int Type, int X, int Y);
+
+/// <summary>A building from the map, positioned at its anchor point.</summary>
+public sealed record MapBuilding(int Player, int Type, int X, int Y);
+
+/// <summary>A pile of goods from the map.</summary>
+public sealed record MapStack(int X, int Y, int Type, int Count);
 
 /// <summary>Per-point raw map data, row-major (<c>index = y * Size + x</c>).</summary>
 public sealed class MapArea

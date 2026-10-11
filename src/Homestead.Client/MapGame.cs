@@ -4,6 +4,7 @@ using Homestead.Assets.Maps;
 using Homestead.Client.MapObjects;
 using Homestead.Client.Terrain;
 using Homestead.Simulation;
+using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Map;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -17,7 +18,8 @@ namespace Homestead.Client;
 /// <remarks>
 /// Mouse: left click on a settler selects it, left click elsewhere sends the selected settler there ·
 /// right drag pan · wheel zoom.
-/// Keys: arrows/WASD scroll · N new settler at cursor · M 50 wandering settlers · PgUp/PgDn map ·
+/// Keys: arrows/WASD scroll · N new carrier at cursor · M 50 wandering settlers ·
+/// G demo economy at cursor · PgUp/PgDn map ·
 /// O objects · B blocked fields · Esc quit
 /// </remarks>
 public sealed class MapGame : Game
@@ -32,6 +34,7 @@ public sealed class MapGame : Game
     private readonly string[] _mapFiles;
     private readonly string? _captureDirectory;
     private readonly Random _random = new(1);
+    private readonly BuildingCatalog _romans = BuildingCatalog.Load(Civilization.Roman);
 
     private int _mapIndex;
     private OriginalMap _map = null!;
@@ -43,6 +46,7 @@ public sealed class MapGame : Game
     private SpriteBatch _spriteBatch = null!;
     private Texture2D _pixel = null!;
     private SettlerRenderer _settlerRenderer = null!;
+    private EconomyRenderer _economyRenderer = null!;
 
     private World _world = null!;
     private readonly HashSet<int> _wanderers = new();
@@ -90,6 +94,7 @@ public sealed class MapGame : Game
             LightingEnabled = false,
         };
         _settlerRenderer = new SettlerRenderer(GraphicsDevice, _gfx);
+        _economyRenderer = new EconomyRenderer(GraphicsDevice, _gfx);
         LoadMap(_mapIndex);
     }
 
@@ -100,15 +105,15 @@ public sealed class MapGame : Game
         _objects?.Dispose();
         _map = OriginalMap.Open(_mapFiles[_mapIndex]);
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
-        _gameMap = GameMap.FromOriginal(_map.Area);
+        (_world, var report) = OriginalScenario.Load(_map);
+        _gameMap = _world.Map!;
         _objects = new MapObjectLayer(GraphicsDevice, _gfx.Open(MapObjectCatalog.GfxFile), _map.Area, _terrain);
-
-        _world = new World(_gameMap);
+        _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         _wanderers.Clear();
         var start = _map.Players.Count > 0
             ? new GridPoint(_map.Players[0].StartX, _map.Players[0].StartY)
             : new GridPoint(_map.Area.Size / 2, _map.Area.Size / 2);
-        _selected = _world.Spawn(start);
+        _selected = _world.Spawn(start, carrier: true);
         _camera = ToWorld(start);
     }
 
@@ -129,7 +134,9 @@ public sealed class MapGame : Game
         }
 
         var cursor = ScreenToGrid(Mouse.GetState().Position.ToVector2());
-        Window.Title = $"{_map.Name} · {_world.Settlers.Count} settlers · detours {_world.Detours} · " +
+        var logistics = _world.Logistics;
+        Window.Title = $"{_map.Name} · {_world.Settlers.Count} settlers · {logistics.Jobs.Count} transports, " +
+                       $"{logistics.Delivered} delivered, {logistics.DroppedOnTheWay} dropped · " +
                        $"pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
                        $"{_gameMap.TerrainAt(cursor)}{(_gameMap.IsWalkable(cursor) ? "" : " (blocked)")}" +
                        (_message.Length > 0 ? $" · {_message}" : "");
@@ -171,8 +178,10 @@ public sealed class MapGame : Game
             _showBlocked = !_showBlocked;
         if (Pressed(Keys.O))
             _showObjects = !_showObjects;
-        if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen)) is { } spawned)
+        if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen), carrier: true) is { } spawned)
             _selected = spawned;
+        if (Pressed(Keys.G))
+            _message = DemoEconomy.Create(_world, _romans, ScreenToGrid(cursorScreen), _random);
         if (Pressed(Keys.M))
             SpawnWanderers(ScreenToGrid(cursorScreen));
 
@@ -293,11 +302,17 @@ public sealed class MapGame : Game
         // Back to front by grid row, objects and settlers interleaved.
         float alpha = TickAlpha;
         var settlersByRow = _world.Settlers.ToLookup(SettlerRenderer.DepthRow);
+        var buildingsByRow = _world.Buildings.Where(b => b.Exists).ToLookup(EconomyRenderer.DepthRow);
+        var pilesByRow = _world.Piles.ToLookup(p => p.Position.Y);
         int rows = _objects.RowCount(visible, out int firstRow);
         for (int y = firstRow; y < firstRow + rows; y++)
         {
+            foreach (var pile in pilesByRow[y])
+                _economyRenderer.DrawPile(_spriteBatch, pile, _terrain);
             if (_showObjects)
                 _objects.DrawRow(_spriteBatch, y, visible, _time);
+            foreach (var building in buildingsByRow[y])
+                _economyRenderer.DrawBuilding(_spriteBatch, building, _terrain, PlayerColor);
             foreach (var settler in settlersByRow[y])
                 _settlerRenderer.Draw(_spriteBatch, settler, _terrain, alpha, PlayerColor);
         }
@@ -351,8 +366,8 @@ public sealed class MapGame : Game
     }
 
     /// <summary>
-    /// Headless check: send the first settler on a long walk, add wanderers, save a few frames over
-    /// time, then quit.
+    /// Headless check: set up the demo economy at the first player's start, let it run for ten
+    /// seconds, save a frame every second, then quit.
     /// </summary>
     private void Capture(RenderTarget2D target)
     {
@@ -367,10 +382,8 @@ public sealed class MapGame : Game
         switch (++_capturedFrames)
         {
             case 1:
-                _zoom = 2;
-                var start = _selected!.Position;
-                _world.WalkTo(_selected, new GridPoint(start.X + 12, start.Y + 6));
-                SpawnWanderers(start);
+                _zoom = 1;
+                DemoEconomy.Create(_world, _romans, _selected!.Position, _random);
                 break;
             case 600:
                 Exit();
@@ -383,6 +396,7 @@ public sealed class MapGame : Game
         _terrain.Dispose();
         _objects.Dispose();
         _settlerRenderer.Dispose();
+        _economyRenderer.Dispose();
         _atlas.Dispose();
         _effect.Dispose();
         base.UnloadContent();

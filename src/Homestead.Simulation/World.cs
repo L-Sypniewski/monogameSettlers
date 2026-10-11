@@ -1,3 +1,4 @@
+using Homestead.Simulation.Economy;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Pathfinding;
 
@@ -16,7 +17,7 @@ namespace Homestead.Simulation;
 /// <item>After <see cref="PassThroughAfterTicks"/> it walks through (watchdog; counted in <see cref="PassThroughs"/>).</item>
 /// </list>
 /// </remarks>
-public sealed class World
+public sealed partial class World
 {
     public const int TicksPerSecond = 20;
 
@@ -37,6 +38,7 @@ public sealed class World
     public World(GameMap? map = null)
     {
         Map = map;
+        Logistics = new Logistics(this);
         if (map is not null)
         {
             PathFinder = new PathFinder(map);
@@ -87,17 +89,20 @@ public sealed class World
                 if (settler.State != SettlerState.Stepping && _occupant[Map.Index(settler.Position)] == NoOccupant)
                     _occupant[Map.Index(settler.Position)] = settler.Id;
 
+        if (Map is not null)
+            Logistics.Tick();
+
         Tick++;
     }
 
     /// <summary>Places a new settler on the nearest free walkable point.</summary>
-    public Settler? Spawn(GridPoint near)
+    public Settler? Spawn(GridPoint near, bool carrier = false)
     {
         var map = RequireMap();
         var free = NearestFree(near, radius: 10);
         if (free is not { } position)
             return null;
-        var settler = new Settler(_settlers.Count, position);
+        var settler = new Settler(_settlers.Count, position) { IsCarrier = carrier };
         _settlers.Add(settler);
         _occupant[map.Index(position)] = settler.Id;
         return settler;
@@ -170,7 +175,7 @@ public sealed class World
             return;
         }
 
-        if (other.State == SettlerState.Idle && other.Path.Count == 0)
+        if (other.State == SettlerState.Idle && other.Path.Count == 0 && !other.IsWorking)
             StepAside(other, keepFree: settler.Position);
 
         Wait(settler, next);

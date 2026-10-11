@@ -32,8 +32,10 @@ public class OriginalMapTests(ITestOutputHelper output)
         var disagreements = new Dictionary<string, long>();
         foreach (string path in installation.MapFiles)
         {
-            var area = OriginalMap.Open(path).Area;
-            var map = GameMap.FromOriginal(area);
+            var original = OriginalMap.Open(path);
+            var area = original.Area;
+            // Including the buildings placed in the map, which block their footprint.
+            var map = OriginalScenario.Load(original).World.Map!;
             for (int i = 0; i < map.PointCount; i++)
             {
                 bool flaggedBlocked = (area.Accessibility[i] & 1) != 0;

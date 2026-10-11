@@ -82,6 +82,11 @@ public sealed class GameMap
         ChangeFootprint(p, kind, +1);
     }
 
+    /// <summary>Marks a point as blocked by something other than a map object (e.g. a building). Counted.</summary>
+    public void AddBlocker(GridPoint p) => Cover(p, +1);
+
+    public void RemoveBlocker(GridPoint p) => Cover(p, -1);
+
     private void ChangeFootprint(GridPoint p, MapObjectKind kind, int delta)
     {
         if (!kind.BlocksWalking())

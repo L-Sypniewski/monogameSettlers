@@ -1,3 +1,5 @@
+using Homestead.Simulation.Economy;
+
 namespace Homestead.Simulation;
 
 public enum SettlerState
@@ -45,6 +47,15 @@ public sealed class Settler
 
     /// <summary>Consecutive ticks spent waiting for a free field.</summary>
     public int WaitingTicks { get; internal set; }
+
+    /// <summary>Carriers take transport jobs from the logistics system.</summary>
+    public bool IsCarrier { get; internal set; }
+
+    /// <summary>The good in the settler's hands, if any.</summary>
+    public Material? Carrying { get; internal set; }
+
+    /// <summary>Busy on the spot (e.g. picking something up): others must not push it aside.</summary>
+    public bool IsWorking { get; internal set; }
 
     /// <summary>Remaining steps, for display and tests.</summary>
     public IEnumerable<Direction> RemainingPath => Path;

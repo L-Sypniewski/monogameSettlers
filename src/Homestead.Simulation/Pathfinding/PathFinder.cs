@@ -122,6 +122,10 @@ public sealed class PathFinder
         return steps;
     }
 
+    /// <summary>Whether a settler at <paramref name="a"/> could in principle walk to <paramref name="b"/>.</summary>
+    public bool AreConnected(GridPoint a, GridPoint b) =>
+        _map.Contains(a) && _map.IsWalkable(b) && (a == b || MayBeConnected(a, b));
+
     /// <summary>
     /// Cheap rejection of unreachable targets via connected regions of walkable points.
     /// A non-walkable start counts as part of every region next to it.

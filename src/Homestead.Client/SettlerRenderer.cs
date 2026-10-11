@@ -1,6 +1,7 @@
 using Homestead.Assets.Gfx;
 using Homestead.Client.Terrain;
 using Homestead.Simulation;
+using Homestead.Simulation.Economy;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -8,7 +9,7 @@ namespace Homestead.Client;
 
 /// <summary>
 /// Draws simulation settlers: interpolates between ticks, follows terrain height and picks the
-/// walk or stand frame. Each settler gets one of the carrier animations (with different goods).
+/// walk or stand frame. Carriers show the good they carry; other settlers get a varied look.
 /// </summary>
 public sealed class SettlerRenderer : IDisposable
 {
@@ -59,11 +60,51 @@ public sealed class SettlerRenderer : IDisposable
 
     private SettlerSprites SpritesFor(Settler settler)
     {
-        int sequence = _walkSequences[settler.Id % _walkSequences.Length];
+        int sequence = settler.IsCarrier
+            ? CarrierSequence(settler.Carrying)
+            : _walkSequences[settler.Id % _walkSequences.Length];
         if (!_sprites.TryGetValue(sequence, out var sprites))
             _sprites[sequence] = sprites = new SettlerSprites(_device, _gfx, sequence);
         return sprites;
     }
+
+    /// <summary>Roman carrier animation per carried good (file 10). Table from JSettlers' movables (MIT).</summary>
+    private static int CarrierSequence(Material? material) => material switch
+    {
+        null => 0,
+        Material.Plank => 1,
+        Material.Stone => 2,
+        Material.Pig => 3,
+        Material.Trunk => 4,
+        Material.Bread => 5,
+        Material.Coal => 6,
+        Material.GoldOre => 7,
+        Material.IronOre => 8,
+        Material.Fish => 9,
+        Material.Meat => 10,
+        Material.Crop => 11,
+        Material.Flour => 12,
+        Material.Iron => 13,
+        Material.Gold => 14,
+        Material.Water => 15,
+        Material.Hammer => 16,
+        Material.Pick => 17,
+        Material.FishingRod => 18,
+        Material.Scythe => 19,
+        Material.Saw => 20,
+        Material.Blade => 21,
+        Material.Bow => 22,
+        Material.Spear => 23,
+        Material.Sword => 24,
+        Material.Axe => 35,
+        Material.Wine => 54,
+        Material.Keg or Material.Liquor => 55,
+        Material.GunPowder => 56,
+        Material.Gems => 57,
+        Material.Rice => 58,
+        Material.Sulfur => 59,
+        _ => 0,
+    };
 
     public void Dispose()
     {

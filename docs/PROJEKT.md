@@ -73,7 +73,16 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [x] Mehrere Figuren gleichzeitig: ein Feld je Figur, Tauschen bei Gegenverkehr, Ausweichen,
      Umweg nach kurzer Wartezeit, Watchdog lässt nach 2 s durchlaufen (nie festlaufen; Stresstests)
    - [ ] Durchlauf-Quote bei sehr dichtem Verkehr senken (Tuning, sobald echte Träger laufen)
-3. **Gebäude & Träger:** Bauen, Wege, Logistik. Wegfindung und Bewegungs-Watchdog stehen bereits (siehe 2).
+3. **Gebäude & Träger:** ← *in Arbeit*
+   - [x] Gebäudedaten aller Völker als JSON (`data/buildings`, aus JSettlers konvertiert)
+   - [x] Gebäude, Warenstapel und Siedler aus Karten laden und darstellen
+   - [x] Logistik: Anfragen/Angebote, Träger-Aufträge mit Reservierung, Watchdog (Ware ablegen),
+     Lager nimmt alles, Produktionsbedarf vor Lager; Tests inkl. Warenerhaltung
+   - [ ] Bauen: Baustellen, Baumaterial, Bauarbeiter/Planierer
+   - [ ] Lager als Quelle (Waren aus dem Lager an Gebäude liefern)
+   - [ ] Startausstattung je Spielstart (Burg/Lager, Waren, Siedler wie im Original)
+   - [ ] Auf- und Ablegen animieren; Wege (beschleunigen das Laufen)
+   - [ ] Fußabdrücke: JSettlers-Daten sind etwas großzügiger als die Begehbarkeit der Originalkarten
 4. **Wirtschaft:** Warenketten, Produktion, Rohstoffe.
 5. **Kampf**
 6. **KI**

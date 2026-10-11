@@ -18,10 +18,14 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
 - `src/Homestead.Simulation` – Spiellogik, ohne MonoGame; feste Tick-Rate (`World.TicksPerSecond`).
   `Map/GameMap` (Gelände, Objekte, Begehbarkeit), `Pathfinding/PathFinder` (A*), `World`/`Settler`
   (Bewegung: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf – siehe Kommentar in `World`).
+  `Buildings/` (Definitionen aus `data/buildings/*.json`, Gebäude), `Economy/` (Waren, Stapel, `Logistics`),
+  `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern).
+- `data/` – Spieldaten (keine Original-Assets), wird neben jedes Programm kopiert. Gebäudedaten sind aus
+  JSettlers generiert (`tools/data-import/`); nicht von Hand im generierten JSON ändern.
 - `tests/Homestead.Simulation.Tests` – xUnit; Tests gegen Originalkarten laufen nur mit lokaler Installation
   (sonst bestehen sie ohne Prüfung). `dotnet test`
 - `src/Homestead.Client` – MonoGame-Spiel. Szenen: `--scene map` (Standard, Originalkarte mit Figuren:
-  Klick wählt/schickt, N neue Figur, M 50 Wanderer; `--map <name>`) und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
+  Klick wählt/schickt, N neuer Träger, M 50 Wanderer, G Demo-Wirtschaft; `--map <name>`) und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
   (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse).
 - `tools/Homestead.AssetTool` – CLI: `scan` (alle Bilder testweise dekodieren), `export`, `sheet` (PNG).
 

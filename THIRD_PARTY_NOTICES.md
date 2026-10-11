@@ -10,6 +10,12 @@ The C# code was written independently; the following data tables and rules were 
 - Torso/shadow alignment rules (`src/Homestead.Assets/Gfx/GfxFile.cs`, from `AdvancedDatFileReader`)
 - Landscape type mapping and image numbers (`src/Homestead.Client/Terrain/TerrainKind.cs`,
   from `ELandscapeType` and `OriginalLandscape`)
+- Building definitions for all four civilizations (`data/buildings/*.json`: footprints, doors,
+  piles, image references), converted from `jsettlers.common/.../buildings/*.xml` by
+  `tools/data-import/convert_jsettlers_buildings.py`
+- Original map codes for buildings, piles and settlers (`OriginalScenario.cs`, `Material.cs`), pile and
+  carrier graphics per material (`EconomyRenderer.cs`, `SettlerRenderer.cs`), from `EOriginalMap*Type`,
+  `EMaterialType` and the movables tables
 - Original map object names (`docs/formate/map.md`, from `EOriginalMapObjectType`)
 - Terrain texture atlas layout, transition table and triangle texture orientation
   (`src/Homestead.Client/Terrain/TerrainAtlas.cs`, `TerrainMesh.cs`, from `Background` and `ETextureOrientation`)
