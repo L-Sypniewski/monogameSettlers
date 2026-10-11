@@ -131,7 +131,8 @@ public sealed class MapGame : Game
 
         var cursor = ScreenToGrid(Mouse.GetState().Position.ToVector2());
         Window.Title = $"{_map.Name} ({_map.Area.Size}) · zoom {_zoom}x · cursor {cursor.X},{cursor.Y} " +
-                       $"{_terrain.KindAt(cursor.X, cursor.Y)} h={_terrain.HeightAt(cursor.X, cursor.Y)}";
+                       $"{_terrain.KindAt(cursor.X, cursor.Y)} h={_terrain.HeightAt(cursor.X, cursor.Y)} " +
+                       $"object={_map.Area.Object[_map.Area.Index(cursor.X, cursor.Y)]}";
         base.Update(gameTime);
     }
 
