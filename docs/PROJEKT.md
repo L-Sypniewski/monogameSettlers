@@ -64,7 +64,7 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [x] Kartenformat gelesen, alle 198 Karten laden ([formate/map.md](formate/map.md))
    - [x] Gelände mit Höhen, Texturen und Übergängen, Kamera (Scrollen, Zoom), Kartenwechsel
    - [x] Kartenobjekte: Bäume (animiert), Steine, Pflanzen, Wracks …, tiefensortiert mit Figuren
-   - [ ] Steinbruch-Steine: Richtung der 13 Größen am Original prüfen; Riffe/kleine Steine bestätigen
+   - [x] Objekte optisch mit dem Original abgeglichen
    - [ ] Siedler/Gebäude/Waren aus der Karte
    - [x] Unbekannte Landschaftswerte 66–71 geklärt (nur Karte „Vulkanauge"); 112 offen
    - [ ] Begehbarkeit → Simulation, Figuren folgen dem Gelände

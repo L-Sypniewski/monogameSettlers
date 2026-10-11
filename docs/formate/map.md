@@ -41,6 +41,7 @@ In JSettlers fehlen 66–71 und 112 – wir behandeln sie nach Gruppe. 66–71 k
 
 ## Objekte (Byte 3 des Geländepunkts)
 Grafiken in GFX-Datei 01 (`MapObjectCatalog`). Namen aus JSettlers' `EOriginalMapObjectType`.
+Am 11.10.2026 optisch mit dem Original abgeglichen – keine Abweichung gefunden (auch Steinbruch-Steine).
 
 | Codes | Objekt | Sequenz / Bild | Status |
 |-------|--------|----------------|--------|
@@ -51,7 +52,7 @@ Grafiken in GFX-Datei 01 (`MapObjectCatalog`). Namen aus JSettlers' `EOriginalMa
 | 68–81 | Bäume (7 Arten × 2 Varianten) | 1 + (Code−68)/2·3 + (Code−68)%2, animiert | bestätigt (78/79 „Arecaceae" = Palmen 16/17) |
 | 84 | kleiner Baum | 22 / 0 | plausibel |
 | 111–114 | Riffe | 30 / Code−103 | unsicher |
-| 115–127 | Steinbruch-Steine, 13 Größen | 31 / Code−115 | Richtung unsicher (JSettlers: 115 = voll, 127 = leer) |
+| 115–127 | Steinbruch-Steine, 13 Größen | 31 / Code−115 | optisch bestätigt (wie JSettlers: 115 = voll, 127 = leer) |
 | 192 | nur „Vulkanauge" | – | unbekannt |
 
 Bäume: Je Art drei Sequenzen – zwei Wiegen-Animationen (17 Bilder) und eine für Fällen/Stumpf/Wachsen (13 Bilder).
