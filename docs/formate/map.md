@@ -36,7 +36,25 @@ Reihenfolge zeilenweise, `index = y * größe + x`, y = 0 ist der obere Kartenra
 Landschaftswerte (Gruppe = oberes Nibble): 0–7 Wasser (Tiefen), 16 Gras, 17 Gebirgsrand außen,
 20/21/23 Wüsten-/Moor-/Schlammrand außen, 32/33 Gebirge/-rand, 35 Schneerand außen, 48 Sand,
 64/65 Wüste/-rand, 80/81 Moor/-rand, 96–99 Fluss, 128/129 Schnee/-rand, 144/145 Schlamm/-rand.
-In JSettlers fehlen 66–71 (Wüstenvarianten?) und 112 – wir behandeln sie nach Gruppe.
+In JSettlers fehlen 66–71 und 112 – wir behandeln sie nach Gruppe. 66–71 kommen nur in
+„384-2-Vulkanauge" vor, immer zusammen mit Objektcode 192 (Sonderterrain dieser einen Karte, vermutlich Lava).
+
+## Objekte (Byte 3 des Geländepunkts)
+Grafiken in GFX-Datei 01 (`MapObjectCatalog`). Namen aus JSettlers' `EOriginalMapObjectType`.
+
+| Codes | Objekt | Sequenz / Bild | Status |
+|-------|--------|----------------|--------|
+| 1–8, 9–12, 13–20 | große Steine, Steine, Grenzsteine | 29 / Code−1 | bestätigt (8 Grenzsteine = Bilder 12–19) |
+| 21–28 | kleine Steine | 30 / Code−21 | plausibel |
+| 29–33, 34 | Wracks, Grab | 28 / Code−29 | bestätigt |
+| 35–67 | Pflanzen, Pilze, Stümpfe, tote Bäume, Kakteen, Knochen, Blumen, Büsche, Schilf | 27 / Code−35 | bestätigt (33 Bilder, Reihenfolge passt) |
+| 68–81 | Bäume (7 Arten × 2 Varianten) | 1 + (Code−68)/2·3 + (Code−68)%2, animiert | bestätigt (78/79 „Arecaceae" = Palmen 16/17) |
+| 84 | kleiner Baum | 22 / 0 | plausibel |
+| 111–114 | Riffe | 30 / Code−103 | unsicher |
+| 115–127 | Steinbruch-Steine, 13 Größen | 31 / Code−115 | Richtung unsicher (JSettlers: 115 = voll, 127 = leer) |
+| 192 | nur „Vulkanauge" | – | unbekannt |
+
+Bäume: Je Art drei Sequenzen – zwei Wiegen-Animationen (17 Bilder) und eine für Fällen/Stumpf/Wachsen (13 Bilder).
 
 ## Darstellung
 Siehe `Homestead.Client/Terrain`: zwei Dreiecke pro Rasterpunkt, Höhe hebt den Punkt um 2 px je Einheit.

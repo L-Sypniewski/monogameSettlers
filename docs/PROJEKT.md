@@ -63,8 +63,10 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
 2. **Karte & Gelände:** Landschaft rendern, Kamera, Kartenformat. ← *in Arbeit*
    - [x] Kartenformat gelesen, alle 198 Karten laden ([formate/map.md](formate/map.md))
    - [x] Gelände mit Höhen, Texturen und Übergängen, Kamera (Scrollen, Zoom), Kartenwechsel
-   - [ ] Kartenobjekte (Bäume, Steine …), Siedler/Gebäude/Waren aus der Karte
-   - [ ] Unbekannte Landschaftswerte 66–71, 112 klären
+   - [x] Kartenobjekte: Bäume (animiert), Steine, Pflanzen, Wracks …, tiefensortiert mit Figuren
+   - [ ] Steinbruch-Steine: Richtung der 13 Größen am Original prüfen; Riffe/kleine Steine bestätigen
+   - [ ] Siedler/Gebäude/Waren aus der Karte
+   - [x] Unbekannte Landschaftswerte 66–71 geklärt (nur Karte „Vulkanauge"); 112 offen
    - [ ] Begehbarkeit → Simulation, Figuren folgen dem Gelände
 3. **Gebäude & Träger:** Bauen, Wege, Wegfindung, Logistik inkl. Watchdog.
 4. **Wirtschaft:** Warenketten, Produktion, Rohstoffe.

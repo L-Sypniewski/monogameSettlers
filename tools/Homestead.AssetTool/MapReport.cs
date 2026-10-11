@@ -14,11 +14,14 @@ internal static class MapReport
     {
         int ok = 0, failed = 0;
         var unknown = new SortedDictionary<int, int>();
+        var objects = new SortedDictionary<int, int>();
         foreach (string path in installation.MapFiles)
         {
             try
             {
                 var map = OriginalMap.Open(path);
+                foreach (byte value in map.Area.Object)
+                    objects[value] = objects.GetValueOrDefault(value) + 1;
                 foreach (byte value in map.Area.Landscape)
                     if (!KnownLandscapes.Contains(value))
                         unknown[value] = unknown.GetValueOrDefault(value) + 1;
@@ -33,6 +36,7 @@ internal static class MapReport
             }
         }
         Console.WriteLine($"Total: {ok} ok, {failed} failed");
+        Console.WriteLine("Object values: " + string.Join(", ", objects.Select(kv => $"{kv.Key}:{kv.Value}")));
         Console.WriteLine("Unknown landscape values: " +
                           (unknown.Count == 0 ? "none" : string.Join(", ", unknown.Select(kv => $"{kv.Key} ({kv.Value}x)"))));
     }

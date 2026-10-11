@@ -1,6 +1,7 @@
 using Homestead.Assets;
 using Homestead.Assets.Gfx;
 using Homestead.Assets.Maps;
+using Homestead.Client.MapObjects;
 using Homestead.Client.Terrain;
 using Homestead.Simulation;
 using Microsoft.Xna.Framework;
@@ -13,7 +14,8 @@ namespace Homestead.Client;
 /// Shows an original map's terrain with a camera, and a settler walking near the first player's start.
 /// </summary>
 /// <remarks>
-/// Keys: arrows/WASD scroll · right mouse drag pan · wheel zoom · PgUp/PgDn map · H walker to cursor area · Esc quit
+/// Keys: arrows/WASD scroll · right mouse drag pan · wheel zoom · PgUp/PgDn map · H walker to cursor area ·
+/// O objects on/off · Esc quit
 /// </remarks>
 public sealed class MapGame : Game
 {
@@ -30,6 +32,9 @@ public sealed class MapGame : Game
     private int _mapIndex;
     private OriginalMap _map = null!;
     private TerrainMesh _terrain = null!;
+    private MapObjectLayer _objects = null!;
+    private bool _showObjects = true;
+    private TimeSpan _time;
     private Texture2D _atlas = null!;
     private BasicEffect _effect = null!;
     private SpriteBatch _spriteBatch = null!;
@@ -88,8 +93,10 @@ public sealed class MapGame : Game
     {
         _mapIndex = (index % _mapFiles.Length + _mapFiles.Length) % _mapFiles.Length;
         _terrain?.Dispose();
+        _objects?.Dispose();
         _map = OriginalMap.Open(_mapFiles[_mapIndex]);
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
+        _objects = new MapObjectLayer(GraphicsDevice, _gfx.Open(MapObjectCatalog.GfxFile), _map.Area, _terrain);
 
         var start = _map.Players.Count > 0
             ? new GridPoint(_map.Players[0].StartX, _map.Players[0].StartY)
@@ -115,6 +122,7 @@ public sealed class MapGame : Game
 
         var elapsed = _captureDirectory is null ? gameTime.ElapsedGameTime : TimeSpan.FromSeconds(1 / 60.0);
         _accumulator += elapsed;
+        _time += elapsed;
         while (_accumulator >= World.TickDuration)
         {
             _world.Step();
@@ -139,6 +147,8 @@ public sealed class MapGame : Game
             LoadMap(_mapIndex + 1);
         if (Pressed(Keys.PageUp))
             LoadMap(_mapIndex - 1);
+        if (Pressed(Keys.O))
+            _showObjects = !_showObjects;
         if (Pressed(Keys.H))
             PlaceWalker(ScreenToGrid(mouse.Position.ToVector2()));
 
@@ -214,8 +224,23 @@ public sealed class MapGame : Game
         float progress = (_walker.TicksIntoStep + alpha) / _walker.StepTicks;
         var anchor = Vector2.Lerp(ToWorld(_walker.Position), ToWorld(_walker.Target), progress);
 
+        // Back to front by grid row; the walker belongs to the row it is leaving or entering, whichever is lower.
+        int walkerRow = Math.Max(_walker.Position.Y, _walker.Target.Y);
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: View);
-        _sprites.Draw(_spriteBatch, SettlerSprites.WalkFrame(_walker.Facing, progress), anchor, 1, Color.Red);
+        int rows = _objects.RowCount(visible, out int firstRow);
+        bool walkerDrawn = false;
+        for (int y = firstRow; y < firstRow + rows; y++)
+        {
+            if (_showObjects)
+                _objects.DrawRow(_spriteBatch, y, visible, _time);
+            if (y == walkerRow)
+            {
+                _sprites.Draw(_spriteBatch, SettlerSprites.WalkFrame(_walker.Facing, progress), anchor, 1, Color.Red);
+                walkerDrawn = true;
+            }
+        }
+        if (!walkerDrawn)
+            _sprites.Draw(_spriteBatch, SettlerSprites.WalkFrame(_walker.Facing, progress), anchor, 1, Color.Red);
         _spriteBatch.End();
 
         if (target is not null)
@@ -251,6 +276,7 @@ public sealed class MapGame : Game
     protected override void UnloadContent()
     {
         _terrain.Dispose();
+        _objects.Dispose();
         _sprites.Dispose();
         _atlas.Dispose();
         _effect.Dispose();

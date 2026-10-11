@@ -10,6 +10,7 @@ The C# code was written independently; the following data tables and rules were 
 - Torso/shadow alignment rules (`src/Homestead.Assets/Gfx/GfxFile.cs`, from `AdvancedDatFileReader`)
 - Landscape type mapping and image numbers (`src/Homestead.Client/Terrain/TerrainKind.cs`,
   from `ELandscapeType` and `OriginalLandscape`)
+- Original map object names (`docs/formate/map.md`, from `EOriginalMapObjectType`)
 - Terrain texture atlas layout, transition table and triangle texture orientation
   (`src/Homestead.Client/Terrain/TerrainAtlas.cs`, `TerrainMesh.cs`, from `Background` and `ETextureOrientation`)
 
