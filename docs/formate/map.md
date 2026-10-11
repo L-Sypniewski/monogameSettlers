@@ -52,10 +52,20 @@ Am 11.10.2026 optisch mit dem Original abgeglichen – keine Abweichung gefunden
 | 68–81 | Bäume (7 Arten × 2 Varianten) | 1 + (Code−68)/2·3 + (Code−68)%2, animiert | bestätigt (78/79 „Arecaceae" = Palmen 16/17) |
 | 84 | kleiner Baum | 22 / 0 | plausibel |
 | 111–114 | Riffe | 30 / Code−103 | unsicher |
-| 115–127 | Steinbruch-Steine, 13 Größen | 31 / Code−115 | optisch bestätigt (wie JSettlers: 115 = voll, 127 = leer) |
+| 115–127 | Steinbruch-Steine, 13 Größen | 31 / Code−115 | optisch bestätigt (115 = voll, 127 = leer); 127 blockiert laut Karten nicht |
 | 192 | nur „Vulkanauge" | – | unbekannt |
 
 Bäume: Je Art drei Sequenzen – zwei Wiegen-Animationen (17 Bilder) und eine für Fällen/Stumpf/Wachsen (13 Bilder).
+
+## Begehbarkeit
+Byte 5 des Geländepunkts, Bit 0: 1 = nicht begehbar (Werte 8/9 selten, Bedeutung von Bit 3 offen).
+Wir berechnen Begehbarkeit selbst aus Regeln (`GameMap`), weil sie sich im Spiel ändert; das Byte dient
+als Kontrolle (`OriginalMapTests`, 99,8 % Übereinstimmung über alle Karten):
+- Gelände: Wasser, Moor (+ innerer Rand), Schnee (+ innerer Rand) blockieren; Flüsse, Schlamm, äußere Ränder nicht.
+- Objekte: Bäume blockieren ihr Feld, Steinbruch-Steine (115–126) ihr Feld plus die sechs Nachbarn,
+  Code 127 (leerer Stein) und Dekoration blockieren nicht.
+- Restabweichungen: Gelände um vorplatzierte Gebäude (kommt mit dem Laden der Gebäude),
+  Palmen auf Sand (im Original begehbar, bei uns blockierend), Karte „Vulkanauge".
 
 ## Darstellung
 Siehe `Homestead.Client/Terrain`: zwei Dreiecke pro Rasterpunkt, Höhe hebt den Punkt um 2 px je Einheit.

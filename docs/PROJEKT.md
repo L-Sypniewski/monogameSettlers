@@ -67,7 +67,10 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [x] Objekte optisch mit dem Original abgeglichen
    - [ ] Siedler/Gebäude/Waren aus der Karte
    - [x] Unbekannte Landschaftswerte 66–71 geklärt (nur Karte „Vulkanauge"); 112 offen
-   - [ ] Begehbarkeit → Simulation, Figuren folgen dem Gelände
+   - [x] Begehbarkeit in der Simulation (Regeln, mit Kartendaten abgeglichen), Debug-Overlay (Taste B)
+   - [x] A*-Wegsuche mit Regionen für unerreichbare Ziele, Testprojekt (Referenzvergleich, Originalkarten)
+   - [ ] Wegsuche im Client: Ziel anklicken, Figur läuft und folgt den Geländehöhen
+   - [ ] Mehrere Figuren gleichzeitig (Vorbereitung Träger-Logistik)
 3. **Gebäude & Träger:** Bauen, Wege, Wegfindung, Logistik inkl. Watchdog.
 4. **Wirtschaft:** Warenketten, Produktion, Rohstoffe.
 5. **Kampf**

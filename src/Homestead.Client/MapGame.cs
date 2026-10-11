@@ -4,6 +4,7 @@ using Homestead.Assets.Maps;
 using Homestead.Client.MapObjects;
 using Homestead.Client.Terrain;
 using Homestead.Simulation;
+using Homestead.Simulation.Map;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -15,7 +16,7 @@ namespace Homestead.Client;
 /// </summary>
 /// <remarks>
 /// Keys: arrows/WASD scroll · right mouse drag pan · wheel zoom · PgUp/PgDn map · H walker to cursor area ·
-/// O objects on/off · Esc quit
+/// O objects on/off · B blocked fields · Esc quit
 /// </remarks>
 public sealed class MapGame : Game
 {
@@ -33,6 +34,9 @@ public sealed class MapGame : Game
     private OriginalMap _map = null!;
     private TerrainMesh _terrain = null!;
     private MapObjectLayer _objects = null!;
+    private GameMap _gameMap = null!;
+    private Texture2D _pixel = null!;
+    private bool _showBlocked;
     private bool _showObjects = true;
     private TimeSpan _time;
     private Texture2D _atlas = null!;
@@ -71,6 +75,8 @@ public sealed class MapGame : Game
     protected override void LoadContent()
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
+        _pixel = new Texture2D(GraphicsDevice, 1, 1);
+        _pixel.SetData([Color.White]);
         _atlas = TerrainAtlas.Build(GraphicsDevice, _gfx.Open(0));
         _effect = new BasicEffect(GraphicsDevice)
         {
@@ -96,6 +102,7 @@ public sealed class MapGame : Game
         _objects?.Dispose();
         _map = OriginalMap.Open(_mapFiles[_mapIndex]);
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
+        _gameMap = GameMap.FromOriginal(_map.Area);
         _objects = new MapObjectLayer(GraphicsDevice, _gfx.Open(MapObjectCatalog.GfxFile), _map.Area, _terrain);
 
         var start = _map.Players.Count > 0
@@ -148,6 +155,8 @@ public sealed class MapGame : Game
             LoadMap(_mapIndex + 1);
         if (Pressed(Keys.PageUp))
             LoadMap(_mapIndex - 1);
+        if (Pressed(Keys.B))
+            _showBlocked = !_showBlocked;
         if (Pressed(Keys.O))
             _showObjects = !_showObjects;
         if (Pressed(Keys.H))
@@ -242,12 +251,32 @@ public sealed class MapGame : Game
         }
         if (!walkerDrawn)
             _sprites.Draw(_spriteBatch, SettlerSprites.WalkFrame(_walker.Facing, progress), anchor, 1, Color.Red);
+        // Debug overlay on top of everything, so markers are not hidden behind trees.
+        if (_showBlocked)
+            for (int y = firstRow; y < firstRow + rows; y++)
+                DrawBlockedRow(y, visible);
         _spriteBatch.End();
 
         if (target is not null)
             Capture(target);
 
         base.Draw(gameTime);
+    }
+
+    /// <summary>Debug overlay: a red marker on every point settlers cannot walk on.</summary>
+    private void DrawBlockedRow(int y, RectangleF visible)
+    {
+        int firstX = Math.Max(0, (int)((visible.X + y * ScreenProjection.TileWidth / 2f) / ScreenProjection.TileWidth) - 1);
+        int lastX = Math.Min(_gameMap.Size - 1,
+            (int)((visible.X + visible.Width + y * ScreenProjection.TileWidth / 2f) / ScreenProjection.TileWidth) + 1);
+        for (int x = firstX; x <= lastX; x++)
+        {
+            var p = new GridPoint(x, y);
+            if (_gameMap.IsWalkable(p))
+                continue;
+            var position = ToWorld(p);
+            _spriteBatch.Draw(_pixel, new Rectangle((int)position.X - 2, (int)position.Y - 2, 4, 4), Color.Red * 0.7f);
+        }
     }
 
     /// <summary>Headless check: a few views at different zoom levels and maps, then quit.</summary>
@@ -268,7 +297,7 @@ public sealed class MapGame : Game
             case 3: _zoom = 1; break;
             case 5: _zoom = 2; break;
             case 7: _zoom = 4; break;
-            case 9: _zoom = 1; _camera += new Vector2(300, 150); break;
+            case 9: _zoom = 1; _camera += new Vector2(300, 150); _showBlocked = true; break;
             case 11: LoadMap(_mapIndex + 7); _zoom = 1; break;
             case 13: Exit(); break;
         }
