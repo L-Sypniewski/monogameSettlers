@@ -11,7 +11,7 @@ namespace Homestead.Client;
 /// </summary>
 public static class DemoEconomy
 {
-    private static readonly string[] BuildingNames = ["stock", "sawmill", "mill", "baker"];
+    private static readonly string[] BuildingNames = ["stock", "sawmill", "lumberjack", "stonecutter", "forester", "mill", "baker"];
     private static readonly Material[] Goods = [Material.Trunk, Material.Crop, Material.Flour, Material.Water, Material.Stone, Material.Plank];
 
     public static string Create(World world, BuildingCatalog catalog, GridPoint near, Random random, int carriers = 12,

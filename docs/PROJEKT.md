@@ -87,6 +87,15 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [ ] Startausstattung je Spielstart (Burg/Lager, Waren, Siedler wie im Original)
    - [ ] Auf- und Ablegen animieren; Wege (beschleunigen das Laufen)
    - [ ] Fußabdrücke: JSettlers-Daten sind etwas großzügiger als die Begehbarkeit der Originalkarten
-4. **Wirtschaft:** Warenketten, Produktion, Rohstoffe.
+4. **Wirtschaft:** Warenketten, Produktion, Rohstoffe. ← *begonnen*
+   - [x] Produktions-Balancing als Datei (`data/production.json`, eigene Werte)
+   - [x] Werkstätten (Sägewerk, Mühle, Bäcker, Schlachter, Schmelzen, Köhler, Schweinezucht)
+   - [x] Holzfäller (Baumstümpfe bleiben), Steinmetz (Felsen schrumpfen bis zum Geröll, Ertrag je Größe
+     einstellbar), Förster (Setzlinge wachsen nach)
+   - [x] Arbeiter werden aus Trägern rekrutiert; Watchdog für Arbeiter
+   - [x] Kreislauf getestet: Wirtschaft baut ein Gebäude nur aus eigener Produktion
+   - [ ] Minen mit Bodenschätzen im Gebirge (Ziel 3: Vorrat je Feld einstellbar, ggf. Regeneration), Nahrung
+   - [ ] Bauernhof (Felder), Fischer, Wasserwerk, Winzer, Imker
+   - [ ] Werkzeuge: Träger werden nur mit Werkzeug zu Spezialisten; Schmiede mit Auswahl
 5. **Kampf**
 6. **KI**

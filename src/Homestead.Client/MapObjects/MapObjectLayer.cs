@@ -36,6 +36,9 @@ public sealed class MapObjectLayer : IDisposable
         _objects = area.Object.Select(MapObjectCatalog.Resolve).ToArray();
     }
 
+    /// <summary>The object of a point changed in the simulation (tree cut, sapling, stone cut off).</summary>
+    public void SetCode(int x, int y, byte code) => _objects[y * _size + x] = MapObjectCatalog.Resolve(code);
+
     public int RowCount(RectangleF visibleWorld, out int firstRow)
     {
         firstRow = Math.Max(0, (int)(visibleWorld.Y / ScreenProjection.RowHeight) - SpriteMarginRows);

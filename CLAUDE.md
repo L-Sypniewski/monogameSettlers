@@ -19,9 +19,11 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   `Map/GameMap` (Gelände, Objekte, Begehbarkeit), `Pathfinding/PathFinder` (A*), `World`/`Settler`
   (Bewegung: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf – siehe Kommentar in `World`).
   `Buildings/` (Definitionen aus `data/buildings/*.json`, Gebäude, `Construction`: Planierer/Bauarbeiter),
-  `Economy/` (Waren, Stapel, `Logistics` mit Watchdog; `Problems` zählt Abbruchgründe),
+  `Economy/` (Waren, Stapel, `Logistics` mit Watchdog; `Problems` zählt Abbruchgründe; `Production`:
+  Werkstätten und Sammler, Werte aus `data/production.json`),
   `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern).
-- `data/` – Spieldaten (keine Original-Assets), wird neben jedes Programm kopiert. Gebäudedaten sind aus
+- `data/` – Spieldaten (keine Original-Assets), wird neben jedes Programm kopiert. `production.json` ist
+  unser eigenes Balancing (Zeiten, Rezepte, Steine je Felsgröße). Gebäudedaten sind aus
   JSettlers generiert (`tools/data-import/`); nicht von Hand im generierten JSON ändern.
 - `tests/Homestead.Simulation.Tests` – xUnit; Tests gegen Originalkarten laufen nur mit lokaler Installation
   (sonst bestehen sie ohne Prüfung). `dotnet test`
@@ -30,6 +32,10 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   `--map <name>`). Capture-Läufe ohne VSync mit 4-facher Geschwindigkeit (verdecktes Fenster wird sonst gedrosselt). und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
   (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse).
 - `tools/Homestead.AssetTool` – CLI: `scan` (alle Bilder testweise dekodieren), `export`, `sheet` (PNG).
+
+## Kartenobjekte
+`GameMap` speichert je Feld den Original-Objektcode (`MapObjectCodes`); Regeln (Begehbarkeit) und Grafik
+leiten sich beide daraus ab. Laufzeitänderungen: Baumstumpf 41, Setzling 84, Felsgrößen 115→127 (Geröll).
 
 ## Grafik-Konventionen
 - Raster → Pixel: `x*16 - y*8`, `y*9 - höhe*2` (Zeilen halb versetzt), 6 Nachbarrichtungen.

@@ -121,9 +121,7 @@ public sealed class MapGame : Game
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
         (_world, var report) = OriginalScenario.Load(_map);
         _gameMap = _world.Map!;
-        // Diggers change the ground: keep the terrain mesh in sync.
-        _gameMap.PointChanged += p => _terrain.Update(p.X, p.Y, _gameMap.HeightAt(p),
-            _gameMap.TerrainAt(p) == TerrainType.Flattened ? TerrainKind.Flattened : _terrain.KindAt(p.X, p.Y));
+        _gameMap.PointChanged += OnPointChanged;
         _objects = new MapObjectLayer(GraphicsDevice, _gfx.Open(MapObjectCatalog.GfxFile), _map.Area, _terrain);
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         _wanderers.Clear();
@@ -132,6 +130,14 @@ public sealed class MapGame : Game
             : new GridPoint(_map.Area.Size / 2, _map.Area.Size / 2);
         _selected = _world.Spawn(start, Profession.Carrier);
         _camera = ToWorld(start);
+    }
+
+    /// <summary>Diggers, woodcutters, stonecutters and foresters change the map: keep terrain and objects in sync.</summary>
+    private void OnPointChanged(GridPoint p)
+    {
+        _terrain.Update(p.X, p.Y, _gameMap.HeightAt(p),
+            _gameMap.TerrainAt(p) == TerrainType.Flattened ? TerrainKind.Flattened : _terrain.KindAt(p.X, p.Y));
+        _objects?.SetCode(p.X, p.Y, _gameMap.ObjectCodeAt(p));
     }
 
     private Vector2 ToWorld(GridPoint p) => ScreenProjection.ToWorld(p.X, p.Y, _terrain.HeightAt(p.X, p.Y));
@@ -159,7 +165,9 @@ public sealed class MapGame : Game
             _world.CanPlace(definition, cursor, out string reason);
             _message = $"placing {definition.Name} (Q/E change, Esc stop){(reason.Length > 0 ? ": " + reason : "")}";
         }
+        var production = _world.Production;
         Window.Title = $"{_map.Name} · {_world.Settlers.Count} settlers · {logistics.Jobs.Count} transports, " +
+                       $"produced {production.Produced}, trees {production.TreesCut}/{production.TreesPlanted}, stones {production.StonesCut} · " +
                        $"{logistics.Delivered} delivered, {logistics.DroppedOnTheWay} dropped · " +
                        $"pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
                        $"{_gameMap.TerrainAt(cursor)}{(_gameMap.IsWalkable(cursor) ? "" : " (blocked)")}" +
@@ -264,7 +272,7 @@ public sealed class MapGame : Game
         float alpha = TickAlpha;
         var world = Vector2.Transform(screen, Matrix.Invert(View));
         // Settler sprites stand above their anchor; compare with the body center.
-        var hit = _world.Settlers
+        var hit = _world.Settlers.Where(s => !s.IsInside)
             .Select(s => (Settler: s, Distance: Vector2.Distance(world, SettlerRenderer.Anchor(s, _terrain, alpha) - new Vector2(0, 10))))
             .Where(t => t.Distance < 10)
             .OrderBy(t => t.Distance)
@@ -349,7 +357,7 @@ public sealed class MapGame : Game
 
         // Back to front by grid row, objects and settlers interleaved.
         float alpha = TickAlpha;
-        var settlersByRow = _world.Settlers.ToLookup(SettlerRenderer.DepthRow);
+        var settlersByRow = _world.Settlers.Where(s => !s.IsInside).ToLookup(SettlerRenderer.DepthRow);
         var buildingsByRow = _world.Buildings.Where(b => b.Exists).ToLookup(EconomyRenderer.DepthRow);
         var pilesByRow = _world.Piles.ToLookup(p => p.Position.Y);
         int rows = _objects.RowCount(visible, out int firstRow);

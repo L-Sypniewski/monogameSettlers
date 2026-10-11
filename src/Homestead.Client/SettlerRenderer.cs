@@ -22,6 +22,12 @@ public sealed class SettlerRenderer : IDisposable
     private const int BuilderWalk = 21;
     private const int BuilderBuild = 22;    // walk layout: 6 directions x 12 frames
 
+    private const int LumberjackChop = 30;      // 12 frames, all directions
+    private const int LumberjackChopFrames = 12;
+    private const int StonecutterWork = 25;     // walk layout
+    private const int ForesterPlant = 36;       // 27 frames west, 27 frames east
+    private const int ForesterPlantFrames = 27;
+
     private const float WorkFramesPerTick = 0.5f;
 
     private readonly GraphicsDevice _device;
@@ -70,8 +76,17 @@ public sealed class SettlerRenderer : IDisposable
                 return (sprites, work % Math.Max(1, sprites.FrameCount));
             }
             case Activity.Building:
-                return (Sprites(WorkerFile, BuilderBuild),
-                    SettlerSprites.Block(settler.Facing) * SettlerSprites.FramesPerDirection + 1 + work % SettlerSprites.WalkCycleFrames);
+                return (Sprites(WorkerFile, BuilderBuild), WalkLayoutAction(settler, work));
+            case Activity.Chopping:
+                return (Sprites(WorkerFile, LumberjackChop), work % LumberjackChopFrames);
+            case Activity.Mining:
+                return (Sprites(WorkerFile, StonecutterWork), WalkLayoutAction(settler, work));
+            case Activity.Planting:
+            {
+                // One animation for the western, one for the eastern directions.
+                bool east = settler.Facing is Direction.East or Direction.SouthEast or Direction.NorthEast;
+                return (Sprites(WorkerFile, ForesterPlant), (east ? ForesterPlantFrames : 0) + work % ForesterPlantFrames);
+            }
         }
 
         var walk = settler.Profession switch
@@ -79,6 +94,7 @@ public sealed class SettlerRenderer : IDisposable
             Profession.Carrier => Sprites(CarrierFile, CarrierSequence(settler.Carrying)),
             Profession.Digger => Sprites(WorkerFile, DiggerWalk),
             Profession.Builder => Sprites(WorkerFile, BuilderWalk),
+            Profession.Worker => WorkerWalk(settler),
             _ => Sprites(CarrierFile, _walkSequences[settler.Id % _walkSequences.Length]),
         };
         int frame = settler.State == SettlerState.Stepping
@@ -86,6 +102,24 @@ public sealed class SettlerRenderer : IDisposable
             : SettlerSprites.StandFrame(settler.Facing);
         return (walk, frame);
     }
+
+    /// <summary>Work animations laid out like walk sequences: 6 direction blocks of 12 frames.</summary>
+    private static int WalkLayoutAction(Settler settler, int work) =>
+        SettlerSprites.Block(settler.Facing) * SettlerSprites.FramesPerDirection + 1 + work % SettlerSprites.WalkCycleFrames;
+
+    /// <summary>Specialists with their own walk animations; others look like carriers with the good they hold.</summary>
+    private SettlerSprites WorkerWalk(Settler settler) => (settler.Trade, settler.Carrying) switch
+    {
+        ("LUMBERJACK", Material.Trunk) => Sprites(WorkerFile, 31),
+        ("LUMBERJACK", _) => Sprites(WorkerFile, 29),
+        ("STONECUTTER", Material.Stone) => Sprites(WorkerFile, 26),
+        ("STONECUTTER", _) => Sprites(WorkerFile, 24),
+        ("FORESTER", _) => Sprites(WorkerFile, 34),
+        ("SAWMILLER", Material.Trunk) => Sprites(WorkerFile, 16),
+        ("SAWMILLER", Material.Plank) => Sprites(WorkerFile, 14),
+        ("SAWMILLER", _) => Sprites(WorkerFile, 19),
+        _ => Sprites(CarrierFile, CarrierSequence(settler.Carrying)),
+    };
 
     private static float StepProgress(Settler settler, float tickAlpha) =>
         Math.Clamp((settler.TicksIntoStep + tickAlpha) / World.StepTicks, 0, 1);
