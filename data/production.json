@@ -1,0 +1,20 @@
+{
+  "_comment": "Production balancing (Homestead's own values, not taken from the original). Times in game seconds. Workshop inputs/outputs must match the building's request/offer piles in data/buildings.",
+  "workshops": {
+    "sawmill": { "inputs": [ "TRUNK" ], "outputs": [ "PLANK" ], "seconds": 6 },
+    "mill": { "inputs": [ "CROP" ], "outputs": [ "FLOUR" ], "seconds": 6 },
+    "baker": { "inputs": [ "FLOUR", "WATER" ], "outputs": [ "BREAD" ], "seconds": 8 },
+    "slaughterhouse": { "inputs": [ "PIG" ], "outputs": [ "MEAT" ], "seconds": 6 },
+    "ironmelt": { "inputs": [ "IRONORE", "COAL" ], "outputs": [ "IRON" ], "seconds": 8 },
+    "goldmelt": { "inputs": [ "GOLDORE", "COAL" ], "outputs": [ "GOLD" ], "seconds": 8 },
+    "charcoal_burner": { "inputs": [ "PLANK" ], "outputs": [ "COAL" ], "seconds": 10 },
+    "pig_farm": { "inputs": [ "CROP", "WATER" ], "outputs": [ "PIG" ], "seconds": 12 }
+  },
+  "gatherers": {
+    "lumberjack": { "action": "CutTree", "output": "TRUNK", "workSeconds": 6, "restSeconds": 4 },
+    "stonecutter": { "action": "CutStone", "output": "STONE", "workSeconds": 8, "restSeconds": 4 },
+    "forester": { "action": "PlantTree", "workSeconds": 5, "restSeconds": 8 }
+  },
+  "trees": { "growSeconds": 150 },
+  "stones": { "stonesPerCut": 1 }
+}

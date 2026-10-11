@@ -27,6 +27,18 @@ public sealed partial class World
 
     public Construction Construction { get; }
 
+    public Production Production { get; }
+
+    /// <summary>Not part of a building, its surroundings or a pile (free for trees, work spots, ...).</summary>
+    internal bool IsFreeGround(GridPoint p)
+    {
+        var map = RequireMap();
+        if (!map.Contains(p))
+            return false;
+        int index = map.Index(p);
+        return !_footprints.ContainsKey(index) && !_protected.ContainsKey(index) && !_pilesByPoint.ContainsKey(index);
+    }
+
     public Pile? PileAt(GridPoint p) => _pilesByPoint.GetValueOrDefault(RequireMap().Index(p));
 
     internal bool HasPile(Pile pile) => _pilesByPoint.TryGetValue(RequireMap().Index(pile.Position), out var at) && at == pile;

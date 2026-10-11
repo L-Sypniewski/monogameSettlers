@@ -39,6 +39,9 @@ public sealed class BuildingDefinition
     public required IReadOnlySet<string> Ground { get; init; }
 
     public required IReadOnlyList<WorkSpot> BuilderSpots { get; init; }
+
+    /// <summary>How far gatherers (woodcutter, forester, ...) walk from the building, if set in the data.</summary>
+    public int? WorkRadius { get; init; }
     public required IReadOnlyList<PileDefinition> ConstructionPiles { get; init; }
     public required IReadOnlyList<PileDefinition> RequestPiles { get; init; }
     public required IReadOnlyList<PileDefinition> OfferPiles { get; init; }
@@ -127,6 +130,7 @@ public sealed class BuildingCatalog
             Door = Point(b.GetProperty("door")),
             Ground = b.GetProperty("ground").EnumerateArray().Select(g => g.GetString()!).ToHashSet(),
             BuilderSpots = builderSpots,
+            WorkRadius = b.TryGetProperty("workradius", out var radius) && int.TryParse(radius.GetString(), out int r) ? r : null,
             ConstructionPiles = Piles(b.GetProperty("constructionStacks")),
             RequestPiles = Piles(b.GetProperty("requestStacks")),
             OfferPiles = Piles(b.GetProperty("offerStacks")),

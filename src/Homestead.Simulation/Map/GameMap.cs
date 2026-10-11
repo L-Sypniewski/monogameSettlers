@@ -10,7 +10,8 @@ public sealed class GameMap
 {
     private readonly TerrainType[] _terrain;
     private readonly byte[] _height;
-    private readonly MapObjectKind[] _objects;
+    /// <summary>Object per point as original object code (0 = none, see <see cref="MapObjectCodes"/>).</summary>
+    private readonly byte[] _objects;
 
     /// <summary>How many object footprints cover a point (objects can block their neighbors).</summary>
     private readonly byte[] _blockers;
@@ -23,7 +24,7 @@ public sealed class GameMap
         Size = size;
         _terrain = new TerrainType[size * size];
         _height = new byte[size * size];
-        _objects = new MapObjectKind[size * size];
+        _objects = new byte[size * size];
         _blockers = new byte[size * size];
         _walkable = new bool[size * size];
         Array.Fill(_walkable, true);
@@ -45,7 +46,7 @@ public sealed class GameMap
             map._height[i] = area.Height[i];
         }
         for (int i = 0; i < map.PointCount; i++)
-            map.SetObject(map.Point(i), MapObjectKinds.FromOriginal(area.Object[i]));
+            map.SetObjectCode(map.Point(i), area.Object[i]);
         for (int i = 0; i < map.PointCount; i++)
             map._walkable[i] = map.ComputeWalkable(i);
         map.WalkabilityVersion = 0;
@@ -62,7 +63,10 @@ public sealed class GameMap
 
     public int HeightAt(GridPoint p) => _height[Index(p)];
 
-    public MapObjectKind ObjectAt(GridPoint p) => _objects[Index(p)];
+    public MapObjectKind ObjectAt(GridPoint p) => MapObjectKinds.FromOriginal(_objects[Index(p)]);
+
+    /// <summary>The object as original object code; decides both rules and graphics.</summary>
+    public byte ObjectCodeAt(GridPoint p) => _objects[Index(p)];
 
     public bool IsWalkable(GridPoint p) => Contains(p) && _walkable[Index(p)];
 
@@ -84,12 +88,28 @@ public sealed class GameMap
         PointChanged?.Invoke(p);
     }
 
-    public void SetObject(GridPoint p, MapObjectKind kind)
+    /// <summary>Sets an object by kind, using a representative code (tests, tools).</summary>
+    public void SetObject(GridPoint p, MapObjectKind kind) => SetObjectCode(p, kind switch
+    {
+        MapObjectKind.None => MapObjectCodes.None,
+        MapObjectKind.Tree => MapObjectCodes.FirstTree,
+        MapObjectKind.ResourceStone => MapObjectCodes.FullStone,
+        MapObjectKind.Decoration => MapObjectCodes.FirstPlant,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    });
+
+    public void SetObjectCode(GridPoint p, byte code)
     {
         int index = Index(p);
-        ChangeFootprint(p, _objects[index], -1);
-        _objects[index] = kind;
-        ChangeFootprint(p, kind, +1);
+        var oldKind = MapObjectKinds.FromOriginal(_objects[index]);
+        var newKind = MapObjectKinds.FromOriginal(code);
+        _objects[index] = code;
+        if (oldKind != newKind)
+        {
+            ChangeFootprint(p, oldKind, -1);
+            ChangeFootprint(p, newKind, +1);
+        }
+        PointChanged?.Invoke(p);
     }
 
     /// <summary>Marks a point as blocked by something other than a map object (e.g. a building). Counted.</summary>

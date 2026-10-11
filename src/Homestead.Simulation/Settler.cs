@@ -1,3 +1,4 @@
+using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 
 namespace Homestead.Simulation;
@@ -15,6 +16,9 @@ public enum Profession
 
     /// <summary>Builds construction sites from delivered material.</summary>
     Builder,
+
+    /// <summary>Works in a building (see <see cref="Settler.Trade"/> and <see cref="Settler.Workplace"/>).</summary>
+    Worker,
 }
 
 /// <summary>What a settler is doing on the spot, for animation.</summary>
@@ -25,6 +29,9 @@ public enum Activity
     Dropping,
     Digging,
     Building,
+    Chopping,
+    Mining,
+    Planting,
 }
 
 public enum SettlerState
@@ -77,6 +84,14 @@ public sealed class Settler
     internal long LastDetourTick { get; set; } = long.MinValue / 2;
 
     public Profession Profession { get; internal set; }
+
+    /// <summary>For workers: the trade as named in the building data (e.g. LUMBERJACK, SAWMILLER).</summary>
+    public string? Trade { get; internal set; }
+
+    public Building? Workplace { get; internal set; }
+
+    /// <summary>Inside a building: not drawn, not occupying a field.</summary>
+    public bool IsInside { get; internal set; }
 
     /// <summary>Carriers take transport jobs from the logistics system.</summary>
     public bool IsCarrier => Profession == Profession.Carrier;

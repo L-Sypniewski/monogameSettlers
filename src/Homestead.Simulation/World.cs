@@ -39,11 +39,12 @@ public sealed partial class World
     private readonly List<Settler> _settlers = new();
     private readonly int[] _occupant;
 
-    public World(GameMap? map = null)
+    public World(GameMap? map = null, ProductionConfig? production = null)
     {
         Map = map;
         Logistics = new Logistics(this);
         Construction = new Construction(this);
+        Production = new Production(this, production ?? (map is null ? ProductionConfig.None : ProductionConfig.Load()));
         if (map is not null)
         {
             PathFinder = new PathFinder(map);
@@ -91,13 +92,14 @@ public sealed partial class World
         // After a pass-through a settler may stand on a field it does not own; claim it once free.
         if (Map is not null)
             foreach (var settler in _settlers)
-                if (settler.State != SettlerState.Stepping && _occupant[Map.Index(settler.Position)] == NoOccupant)
+                if (settler.State != SettlerState.Stepping && !settler.IsInside && _occupant[Map.Index(settler.Position)] == NoOccupant)
                     _occupant[Map.Index(settler.Position)] = settler.Id;
 
         if (Map is not null)
         {
             Logistics.Tick();
             Construction.Tick();
+            Production.Tick();
         }
         foreach (var settler in _settlers)
             if (settler.IsWorking)
@@ -300,6 +302,28 @@ public sealed partial class World
                 return p;
         }
         return null;
+    }
+
+    /// <summary>Whether a settler stands on (or is stepping onto) the point.</summary>
+    internal bool IsOccupied(GridPoint p) => _occupant[RequireMap().Index(p)] != NoOccupant;
+
+    /// <summary>The settler goes into a building through the door it stands on.</summary>
+    internal void EnterBuilding(Settler settler)
+    {
+        WalkTo(settler, settler.StepTarget);
+        int index = RequireMap().Index(settler.Position);
+        if (_occupant[index] == settler.Id)
+            _occupant[index] = NoOccupant;
+        settler.IsInside = true;
+    }
+
+    /// <summary>The settler comes out of the door (where it went in).</summary>
+    internal void LeaveBuilding(Settler settler)
+    {
+        settler.IsInside = false;
+        int index = RequireMap().Index(settler.Position);
+        if (_occupant[index] == NoOccupant)
+            _occupant[index] = settler.Id;
     }
 
     private GameMap RequireMap() => Map ?? throw new InvalidOperationException("This world has no map.");

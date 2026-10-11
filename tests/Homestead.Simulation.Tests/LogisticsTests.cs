@@ -7,6 +7,8 @@ using Xunit.Abstractions;
 
 namespace Homestead.Simulation.Tests;
 
+// Transport only: production is switched off, so workers do not consume the delivered goods.
+
 public class LogisticsTests(ITestOutputHelper output)
 {
     private static readonly BuildingCatalog Romans = BuildingCatalog.Load(Civilization.Roman);
@@ -27,7 +29,7 @@ public class LogisticsTests(ITestOutputHelper output)
     [Fact]
     public void Carrier_brings_loose_goods_to_a_building()
     {
-        var world = new World(new GameMap(60));
+        var world = new World(new GameMap(60), ProductionConfig.None);
         var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(30, 30))!;
         var trunks = world.AddLooseGoods(new GridPoint(12, 14), Material.Trunk, 3)!;
         world.Spawn(new GridPoint(20, 40), Profession.Carrier);
@@ -44,7 +46,7 @@ public class LogisticsTests(ITestOutputHelper output)
     [Fact]
     public void Several_carriers_never_take_the_same_unit()
     {
-        var world = new World(new GameMap(60));
+        var world = new World(new GameMap(60), ProductionConfig.None);
         var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(30, 30))!;
         world.AddLooseGoods(new GridPoint(10, 10), Material.Trunk, 2);
         for (int i = 0; i < 6; i++)
@@ -59,7 +61,7 @@ public class LogisticsTests(ITestOutputHelper output)
     [Fact]
     public void Specific_requests_are_served_before_the_storehouse()
     {
-        var world = new World(new GameMap(70));
+        var world = new World(new GameMap(70), ProductionConfig.None);
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(20, 20))!;
         var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(50, 50))!;
         world.AddLooseGoods(new GridPoint(22, 30), Material.Trunk, 4); // next to the storehouse
@@ -74,7 +76,7 @@ public class LogisticsTests(ITestOutputHelper output)
     [Fact]
     public void Storehouse_takes_anything_one_material_per_pile()
     {
-        var world = new World(new GameMap(60));
+        var world = new World(new GameMap(60), ProductionConfig.None);
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(30, 30))!;
         world.AddLooseGoods(new GridPoint(10, 10), Material.Stone, 3);
         world.AddLooseGoods(new GridPoint(12, 10), Material.Fish, 2);
@@ -91,7 +93,7 @@ public class LogisticsTests(ITestOutputHelper output)
     [Fact]
     public void Goods_survive_when_the_target_building_disappears()
     {
-        var world = new World(new GameMap(60));
+        var world = new World(new GameMap(60), ProductionConfig.None);
         var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(40, 40))!;
         world.AddLooseGoods(new GridPoint(8, 8), Material.Trunk, 1);
         var carrier = world.Spawn(new GridPoint(10, 10), Profession.Carrier)!;
@@ -118,7 +120,7 @@ public class LogisticsTests(ITestOutputHelper output)
             if (d is >= 3 and <= 6)
                 map.SetTerrain(p, TerrainType.Water);
         }
-        var world = new World(map);
+        var world = new World(map, ProductionConfig.None);
         world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(40, 40));
         var island = world.AddLooseGoods(new GridPoint(10, 10), Material.Trunk, 2)!;
         world.Spawn(new GridPoint(30, 50), Profession.Carrier);
@@ -134,7 +136,7 @@ public class LogisticsTests(ITestOutputHelper output)
     public void Busy_economy_conserves_goods_and_serves_requests()
     {
         var random = new Random(3);
-        var world = new World(new GameMap(96));
+        var world = new World(new GameMap(96), ProductionConfig.None);
         var materials = new[] { Material.Trunk, Material.Stone, Material.Crop, Material.Flour, Material.Water };
         var buildings = new List<Building>();
         foreach (var (name, x, y) in new[] { ("sawmill", 25, 25), ("mill", 70, 25), ("baker", 25, 70), ("stock", 70, 70), ("sawmill", 48, 48) })

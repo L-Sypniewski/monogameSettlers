@@ -17,6 +17,30 @@ public enum MapObjectKind : byte
     Unknown,
 }
 
+/// <summary>Original object codes the simulation creates or changes at runtime.</summary>
+public static class MapObjectCodes
+{
+    public const byte None = 0;
+    public const byte FirstPlant = 35;
+    public const byte TreeStump = 41;
+
+    /// <summary>Adult trees: 68-81, pairs of codes per tree type.</summary>
+    public const byte FirstTree = 68;
+    public const byte LastTree = 81;
+
+    /// <summary>Young tree, planted by a forester.</summary>
+    public const byte Sapling = 84;
+
+    /// <summary>Quarry stone: 115 is full, each unit cut off moves one code up, 127 is the empty rubble.</summary>
+    public const byte FullStone = 115;
+    public const byte StoneRubble = 127;
+
+    public static bool IsAdultTree(byte code) => code is >= FirstTree and <= LastTree;
+
+    /// <summary>Stone units left in a quarry stone (0 for anything else).</summary>
+    public static int StoneLeft(byte code) => code is >= FullStone and < StoneRubble ? StoneRubble - code : 0;
+}
+
 public static class MapObjectKinds
 {
     public static bool BlocksWalking(this MapObjectKind kind) => kind is MapObjectKind.Tree or MapObjectKind.ResourceStone;
