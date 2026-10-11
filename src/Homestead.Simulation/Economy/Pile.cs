@@ -7,11 +7,14 @@ public enum PileRole
     /// <summary>Goods lying around (from the map or dropped by a carrier). Offered to anyone.</summary>
     Loose,
 
-    /// <summary>Input pile of a building: carriers fill it.</summary>
+    /// <summary>Input pile of a building or construction site: carriers fill it.</summary>
     Request,
 
     /// <summary>Output pile of a building: carriers empty it.</summary>
     Offer,
+
+    /// <summary>Storehouse pile: takes any material (one at a time) and hands it out again.</summary>
+    Storage,
 }
 
 /// <summary>
@@ -21,12 +24,15 @@ public enum PileRole
 /// </summary>
 public sealed class Pile
 {
+    private readonly Material? _accepted;
+
     internal Pile(int id, GridPoint position, PileRole role, Material? material, int capacity, Building? owner)
     {
         Id = id;
         Position = position;
         Role = role;
         Material = material;
+        _accepted = role == PileRole.Request ? material : null;
         Capacity = capacity;
         Owner = owner;
     }
@@ -37,17 +43,21 @@ public sealed class Pile
 
     public PileRole Role { get; }
 
-    /// <summary>Current material. Null for an empty request pile that accepts any material (storehouse).</summary>
+    /// <summary>Current material. Null for an empty storehouse pile.</summary>
     public Material? Material { get; internal set; }
 
-    /// <summary>For request piles: the material it was defined for, null = any.</summary>
-    public Material? AcceptedMaterial => Role == PileRole.Request ? _accepted : Material;
-
-    private Material? _accepted;
+    /// <summary>For request piles the material they were defined for; null for storehouse piles (any).</summary>
+    public Material? AcceptedMaterial => Role switch
+    {
+        PileRole.Request => _accepted,
+        PileRole.Storage => null,
+        _ => Material,
+    };
 
     public int Count { get; internal set; }
 
-    public int Capacity { get; }
+    /// <summary>Most units the pile takes. Construction piles count down as material is used up.</summary>
+    public int Capacity { get; internal set; }
 
     public int Reserved { get; internal set; }
 
@@ -55,15 +65,20 @@ public sealed class Pile
 
     public Building? Owner { get; }
 
+    private bool Receives => Role is PileRole.Request or PileRole.Storage;
+
     /// <summary>Units carriers may still be sent to pick up.</summary>
     public int Available => Role == PileRole.Request ? 0 : Count - Reserved;
 
     /// <summary>Units carriers may still bring.</summary>
-    public int Space => Role == PileRole.Request ? Capacity - Count - Incoming : 0;
+    public int Space => Receives ? Capacity - Count - Incoming : 0;
 
-    public bool Accepts(Material material) =>
-        Role == PileRole.Request && Space > 0 && (Material ?? _accepted ?? material) == material;
+    public bool Accepts(Material material) => Receives && Space > 0 && (Material ?? _accepted ?? material) == material;
 
-    internal static Pile CreateRequest(int id, GridPoint position, Material? accepted, int capacity, Building owner) =>
-        new(id, position, PileRole.Request, accepted, capacity, owner) { _accepted = accepted };
+    /// <summary>A storehouse pile that ran empty takes any material again.</summary>
+    internal void ResetMaterialIfEmpty()
+    {
+        if (Receives && Count == 0 && Incoming == 0 && Reserved == 0)
+            Material = AcceptedMaterial;
+    }
 }

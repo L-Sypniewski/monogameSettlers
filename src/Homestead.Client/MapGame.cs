@@ -113,7 +113,7 @@ public sealed class MapGame : Game
         var start = _map.Players.Count > 0
             ? new GridPoint(_map.Players[0].StartX, _map.Players[0].StartY)
             : new GridPoint(_map.Area.Size / 2, _map.Area.Size / 2);
-        _selected = _world.Spawn(start, carrier: true);
+        _selected = _world.Spawn(start, Profession.Carrier);
         _camera = ToWorld(start);
     }
 
@@ -178,7 +178,7 @@ public sealed class MapGame : Game
             _showBlocked = !_showBlocked;
         if (Pressed(Keys.O))
             _showObjects = !_showObjects;
-        if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen), carrier: true) is { } spawned)
+        if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen), Profession.Carrier) is { } spawned)
             _selected = spawned;
         if (Pressed(Keys.G))
             _message = DemoEconomy.Create(_world, _romans, ScreenToGrid(cursorScreen), _random);

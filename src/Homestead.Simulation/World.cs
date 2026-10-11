@@ -1,3 +1,4 @@
+using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Pathfinding;
@@ -13,7 +14,9 @@ namespace Homestead.Simulation;
 /// <list type="number">
 /// <item>Two settlers wanting each other's field swap places.</item>
 /// <item>An idle settler in the way is asked to step aside.</item>
-/// <item>After <see cref="ReplanAfterTicks"/> the waiting settler looks for a detour around the field.</item>
+/// <item>After <see cref="ReplanAfterTicks"/> the waiting settler looks for a detour around the field,
+/// but at most once per <see cref="DetourCooldownTicks"/>, so it cannot circle around a crowd forever
+/// (found by the logistics stress test: carriers circling a storehouse full of busy colleagues).</item>
 /// <item>After <see cref="PassThroughAfterTicks"/> it walks through (watchdog; counted in <see cref="PassThroughs"/>).</item>
 /// </list>
 /// </remarks>
@@ -26,6 +29,7 @@ public sealed partial class World
 
     public const int ReplanAfterTicks = 6;
     public const int PassThroughAfterTicks = 40;
+    public const int DetourCooldownTicks = 40;
 
     /// <summary>A detour may be at most this many steps longer than the blocked path.</summary>
     public const int MaxDetourSteps = 12;
@@ -39,6 +43,7 @@ public sealed partial class World
     {
         Map = map;
         Logistics = new Logistics(this);
+        Construction = new Construction(this);
         if (map is not null)
         {
             PathFinder = new PathFinder(map);
@@ -90,19 +95,25 @@ public sealed partial class World
                     _occupant[Map.Index(settler.Position)] = settler.Id;
 
         if (Map is not null)
+        {
             Logistics.Tick();
+            Construction.Tick();
+        }
+        foreach (var settler in _settlers)
+            if (settler.IsWorking)
+                settler.ActivityTicks++;
 
         Tick++;
     }
 
     /// <summary>Places a new settler on the nearest free walkable point.</summary>
-    public Settler? Spawn(GridPoint near, bool carrier = false)
+    public Settler? Spawn(GridPoint near, Profession profession = Profession.None)
     {
         var map = RequireMap();
         var free = NearestFree(near, radius: 10);
         if (free is not { } position)
             return null;
-        var settler = new Settler(_settlers.Count, position) { IsCarrier = carrier };
+        var settler = new Settler(_settlers.Count, position) { Profession = profession };
         _settlers.Add(settler);
         _occupant[map.Index(position)] = settler.Id;
         return settler;
@@ -175,7 +186,7 @@ public sealed partial class World
             return;
         }
 
-        if (other.State == SettlerState.Idle && other.Path.Count == 0 && !other.IsWorking)
+        if (other.State == SettlerState.Idle && other.Path.Count == 0 && !other.IsWorking && !other.HasTask)
             StepAside(other, keepFree: settler.Position);
 
         Wait(settler, next);
@@ -210,7 +221,7 @@ public sealed partial class World
         settler.State = SettlerState.Waiting;
         settler.WaitingTicks++;
 
-        if (settler.WaitingTicks == ReplanAfterTicks)
+        if (settler.WaitingTicks == ReplanAfterTicks && Tick - settler.LastDetourTick > DetourCooldownTicks)
         {
             Replan(settler, avoid: new HashSet<int> { Map!.Index(blocked) });
         }
@@ -246,7 +257,10 @@ public sealed partial class World
             return;
 
         if (avoid is not null)
+        {
             Detours++;
+            settler.LastDetourTick = Tick;
+        }
         settler.Path.Clear();
         foreach (var step in path)
             settler.Path.Enqueue(step);

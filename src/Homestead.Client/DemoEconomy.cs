@@ -31,7 +31,7 @@ public static class DemoEconomy
 
         int spawned = 0;
         for (int i = 0; i < carriers; i++)
-            if (world.Spawn(new GridPoint(near.X + random.Next(-6, 7), near.Y + random.Next(-6, 7)), carrier: true) is not null)
+            if (world.Spawn(new GridPoint(near.X + random.Next(-6, 7), near.Y + random.Next(-6, 7)), Profession.Carrier) is not null)
                 spawned++;
 
         return $"demo economy: {placed} buildings, {piles} piles, {spawned} carriers";

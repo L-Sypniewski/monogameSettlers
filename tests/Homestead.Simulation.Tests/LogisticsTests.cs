@@ -30,7 +30,7 @@ public class LogisticsTests(ITestOutputHelper output)
         var world = new World(new GameMap(60));
         var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(30, 30))!;
         var trunks = world.AddLooseGoods(new GridPoint(12, 14), Material.Trunk, 3)!;
-        world.Spawn(new GridPoint(20, 40), carrier: true);
+        world.Spawn(new GridPoint(20, 40), Profession.Carrier);
 
         Run(world, 3000);
 
@@ -48,7 +48,7 @@ public class LogisticsTests(ITestOutputHelper output)
         var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(30, 30))!;
         world.AddLooseGoods(new GridPoint(10, 10), Material.Trunk, 2);
         for (int i = 0; i < 6; i++)
-            world.Spawn(new GridPoint(15 + i, 45), carrier: true);
+            world.Spawn(new GridPoint(15 + i, 45), Profession.Carrier);
 
         Run(world, 3000, check: () => AssertConserved(world, Material.Trunk, 2));
 
@@ -63,7 +63,7 @@ public class LogisticsTests(ITestOutputHelper output)
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(20, 20))!;
         var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(50, 50))!;
         world.AddLooseGoods(new GridPoint(22, 30), Material.Trunk, 4); // next to the storehouse
-        world.Spawn(new GridPoint(25, 30), carrier: true);
+        world.Spawn(new GridPoint(25, 30), Profession.Carrier);
 
         Run(world, 5000);
 
@@ -79,7 +79,7 @@ public class LogisticsTests(ITestOutputHelper output)
         world.AddLooseGoods(new GridPoint(10, 10), Material.Stone, 3);
         world.AddLooseGoods(new GridPoint(12, 10), Material.Fish, 2);
         for (int i = 0; i < 3; i++)
-            world.Spawn(new GridPoint(15 + i, 45), carrier: true);
+            world.Spawn(new GridPoint(15 + i, 45), Profession.Carrier);
 
         Run(world, 5000);
 
@@ -94,7 +94,7 @@ public class LogisticsTests(ITestOutputHelper output)
         var world = new World(new GameMap(60));
         var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(40, 40))!;
         world.AddLooseGoods(new GridPoint(8, 8), Material.Trunk, 1);
-        var carrier = world.Spawn(new GridPoint(10, 10), carrier: true)!;
+        var carrier = world.Spawn(new GridPoint(10, 10), Profession.Carrier)!;
 
         // Wait until the trunk is on its way, then tear the building down.
         Run(world, 2000, stopWhen: () => carrier.Carrying == Material.Trunk);
@@ -121,7 +121,7 @@ public class LogisticsTests(ITestOutputHelper output)
         var world = new World(map);
         world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(40, 40));
         var island = world.AddLooseGoods(new GridPoint(10, 10), Material.Trunk, 2)!;
-        world.Spawn(new GridPoint(30, 50), carrier: true);
+        world.Spawn(new GridPoint(30, 50), Profession.Carrier);
 
         Run(world, 1000);
 
@@ -148,7 +148,7 @@ public class LogisticsTests(ITestOutputHelper output)
                 expected[material] = expected.GetValueOrDefault(material) + pile.Count;
         }
         for (int i = 0; i < 40; i++)
-            world.Spawn(new GridPoint(random.Next(10, 86), random.Next(10, 86)), carrier: true);
+            world.Spawn(new GridPoint(random.Next(10, 86), random.Next(10, 86)), Profession.Carrier);
 
         Run(world, 30_000, check: () =>
         {
@@ -163,6 +163,7 @@ public class LogisticsTests(ITestOutputHelper output)
             Assert.True(request.Count == request.Capacity || stillLoose == 0,
                 $"{request.Owner!.Definition.Name} wants {request.AcceptedMaterial}: has {request.Count}, {stillLoose} lying around.");
         }
+        output.WriteLine(string.Join(", ", world.Logistics.Problems.Select(kv => $"{kv.Key} {kv.Value}x")));
         output.WriteLine($"delivered {world.Logistics.Delivered}, cancelled {world.Logistics.Cancelled}, " +
                          $"dropped {world.Logistics.DroppedOnTheWay}, pass-throughs {world.PassThroughs}, detours {world.Detours}");
         Assert.Equal(0, world.Logistics.DroppedOnTheWay);

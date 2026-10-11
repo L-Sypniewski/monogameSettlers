@@ -25,6 +25,9 @@ public enum TerrainType : byte
     Mud,
     MudBorder,
     MudBorderOuter,
+
+    /// <summary>Ground levelled for a building.</summary>
+    Flattened,
 }
 
 public static class TerrainTypes
@@ -37,6 +40,13 @@ public static class TerrainTypes
     {
         TerrainType.Water or TerrainType.Moor or TerrainType.MoorBorder or TerrainType.Snow or TerrainType.SnowBorder => false,
         _ => true,
+    };
+
+    /// <summary>Ground type name as used in the building data (<c>ground</c> lists).</summary>
+    public static string GroundName(this TerrainType terrain) => terrain switch
+    {
+        TerrainType.River => "RIVER1",
+        _ => terrain.ToString().ToUpperInvariant(),
     };
 
     /// <summary>Landscape byte of original maps. Unknown values fall back by their group (upper nibble).</summary>

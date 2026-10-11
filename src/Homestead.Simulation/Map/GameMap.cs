@@ -68,10 +68,20 @@ public sealed class GameMap
 
     public bool IsWalkable(int index) => _walkable[index];
 
+    /// <summary>Raised when terrain or height of a point changes after loading (for redrawing).</summary>
+    public event Action<GridPoint>? PointChanged;
+
     public void SetTerrain(GridPoint p, TerrainType terrain)
     {
         _terrain[Index(p)] = terrain;
         UpdateWalkable(Index(p));
+        PointChanged?.Invoke(p);
+    }
+
+    public void SetHeight(GridPoint p, int height)
+    {
+        _height[Index(p)] = (byte)Math.Clamp(height, 0, 255);
+        PointChanged?.Invoke(p);
     }
 
     public void SetObject(GridPoint p, MapObjectKind kind)

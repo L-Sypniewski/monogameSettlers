@@ -16,6 +16,9 @@ public readonly record struct ImageRef(int File, int Sequence, int Image);
 
 public sealed record PileDefinition(GridPoint Offset, Material? Material, int Required = 0);
 
+/// <summary>Where a builder stands while building, and which way it faces.</summary>
+public sealed record WorkSpot(GridPoint Offset, Direction Facing);
+
 /// <summary>
 /// Static description of a building type. All positions are offsets from the building's anchor
 /// point. Loaded from <c>data/buildings/&lt;civilization&gt;.json</c>.
@@ -31,6 +34,11 @@ public sealed class BuildingDefinition
     public required IReadOnlyList<GridPoint> Protected { get; init; }
 
     public required GridPoint Door { get; init; }
+
+    /// <summary>Ground types the building may be placed on (data names, e.g. GRASS, MOUNTAIN).</summary>
+    public required IReadOnlySet<string> Ground { get; init; }
+
+    public required IReadOnlyList<WorkSpot> BuilderSpots { get; init; }
     public required IReadOnlyList<PileDefinition> ConstructionPiles { get; init; }
     public required IReadOnlyList<PileDefinition> RequestPiles { get; init; }
     public required IReadOnlyList<PileDefinition> OfferPiles { get; init; }
@@ -78,6 +86,17 @@ public sealed class BuildingCatalog
         return new BuildingCatalog(civilization, definitions);
     }
 
+    private static Direction ParseDirection(string name) => name switch
+    {
+        "EAST" => Direction.East,
+        "SOUTH_EAST" => Direction.SouthEast,
+        "SOUTH_WEST" => Direction.SouthWest,
+        "WEST" => Direction.West,
+        "NORTH_WEST" => Direction.NorthWest,
+        "NORTH_EAST" => Direction.NorthEast,
+        _ => throw new FormatException($"Unknown direction '{name}'."),
+    };
+
     private static BuildingDefinition Parse(string name, Civilization civilization, JsonElement b)
     {
         static GridPoint Point(JsonElement e) => new(e[0].GetInt32(), e[1].GetInt32());
@@ -93,6 +112,11 @@ public sealed class BuildingCatalog
                 : [];
 
         var images = b.GetProperty("images");
+        var builderSpots = b.GetProperty("positions").TryGetProperty("bricklayer", out var spots)
+            ? spots.EnumerateArray().Select(s => new WorkSpot(
+                new GridPoint(s.GetProperty("dx").GetInt32(), s.GetProperty("dy").GetInt32()),
+                ParseDirection(s.GetProperty("direction").GetString()!))).ToArray()
+            : [];
         return new BuildingDefinition
         {
             Name = name,
@@ -101,6 +125,8 @@ public sealed class BuildingCatalog
             Blocked = Points(b.GetProperty("blocked")),
             Protected = Points(b.GetProperty("protected")),
             Door = Point(b.GetProperty("door")),
+            Ground = b.GetProperty("ground").EnumerateArray().Select(g => g.GetString()!).ToHashSet(),
+            BuilderSpots = builderSpots,
             ConstructionPiles = Piles(b.GetProperty("constructionStacks")),
             RequestPiles = Piles(b.GetProperty("requestStacks")),
             OfferPiles = Piles(b.GetProperty("offerStacks")),

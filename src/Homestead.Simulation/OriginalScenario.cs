@@ -69,7 +69,7 @@ public static class OriginalScenario
         int settlers = 0;
         foreach (var s in original.Settlers)
         {
-            if (world.Spawn(new GridPoint(s.X, s.Y), carrier: s.Type == CarrierType) is not null)
+            if (world.Spawn(new GridPoint(s.X, s.Y), s.Type == CarrierType ? Profession.Carrier : Profession.None) is not null)
                 settlers++;
         }
 

@@ -2,6 +2,31 @@ using Homestead.Simulation.Economy;
 
 namespace Homestead.Simulation;
 
+public enum Profession
+{
+    /// <summary>No job assigned (e.g. scripted walkers).</summary>
+    None,
+
+    /// <summary>Transports goods between piles.</summary>
+    Carrier,
+
+    /// <summary>Levels the ground of construction sites.</summary>
+    Digger,
+
+    /// <summary>Builds construction sites from delivered material.</summary>
+    Builder,
+}
+
+/// <summary>What a settler is doing on the spot, for animation.</summary>
+public enum Activity
+{
+    None,
+    PickingUp,
+    Dropping,
+    Digging,
+    Building,
+}
+
 public enum SettlerState
 {
     /// <summary>Standing, nothing to do.</summary>
@@ -48,14 +73,31 @@ public sealed class Settler
     /// <summary>Consecutive ticks spent waiting for a free field.</summary>
     public int WaitingTicks { get; internal set; }
 
+    /// <summary>Tick of the last detour around a blocked field.</summary>
+    internal long LastDetourTick { get; set; } = long.MinValue / 2;
+
+    public Profession Profession { get; internal set; }
+
     /// <summary>Carriers take transport jobs from the logistics system.</summary>
-    public bool IsCarrier { get; internal set; }
+    public bool IsCarrier => Profession == Profession.Carrier;
+
+    /// <summary>Animation hint while <see cref="IsWorking"/>.</summary>
+    public Activity Activity { get; internal set; }
+
+    /// <summary>Ticks spent in the current activity, for animation.</summary>
+    public int ActivityTicks { get; internal set; }
 
     /// <summary>The good in the settler's hands, if any.</summary>
     public Material? Carrying { get; internal set; }
 
     /// <summary>Busy on the spot (e.g. picking something up): others must not push it aside.</summary>
     public bool IsWorking { get; internal set; }
+
+    /// <summary>
+    /// Has a job (transport, construction). Such settlers are not pushed aside when idle for a
+    /// moment: they may just have arrived and their job has not reacted yet.
+    /// </summary>
+    public bool HasTask { get; internal set; }
 
     /// <summary>Remaining steps, for display and tests.</summary>
     public IEnumerable<Direction> RemainingPath => Path;
