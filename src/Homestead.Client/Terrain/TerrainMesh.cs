@@ -91,7 +91,7 @@ public sealed class TerrainMesh : IDisposable
     {
         _device = device;
         _size = area.Size;
-        _heights = area.Height;
+        _heights = (byte[])area.Height.Clone();
         _kinds = area.Landscape.Select(TerrainKinds.FromOriginal).ToArray();
         _chunksPerRow = (_size - 1 + ChunkSize - 1) / ChunkSize;
         _chunks = new VertexBuffer?[_chunksPerRow * _chunksPerRow];
@@ -102,6 +102,30 @@ public sealed class TerrainMesh : IDisposable
     public int HeightAt(int x, int y) => _heights[Math.Clamp(y, 0, _size - 1) * _size + Math.Clamp(x, 0, _size - 1)];
 
     public TerrainKind KindAt(int x, int y) => _kinds[Math.Clamp(y, 0, _size - 1) * _size + Math.Clamp(x, 0, _size - 1)];
+
+    /// <summary>
+    /// Changes height and terrain of a point at runtime (e.g. levelled by diggers). The chunks with
+    /// triangles touching the point are rebuilt on the next draw; lighting depends on the neighbor
+    /// below as well, so that chunk is included.
+    /// </summary>
+    public void Update(int x, int y, int height, TerrainKind kind)
+    {
+        int index = y * _size + x;
+        _heights[index] = (byte)height;
+        _kinds[index] = kind;
+        for (int dy = -1; dy <= 1; dy++)
+        for (int dx = -1; dx <= 0; dx++)
+            Invalidate(x + dx, y + dy);
+    }
+
+    private void Invalidate(int x, int y)
+    {
+        if (x < 0 || y < 0 || x >= _size - 1 || y >= _size - 1)
+            return;
+        ref var chunk = ref _chunks[y / ChunkSize * _chunksPerRow + x / ChunkSize];
+        chunk?.Dispose();
+        chunk = null;
+    }
 
     /// <summary>Draws all chunks that intersect the visible world rectangle. Chunks are built on first use.</summary>
     public void Draw(BasicEffect effect, RectangleF visibleWorld)

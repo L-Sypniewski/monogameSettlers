@@ -13,20 +13,30 @@ namespace Homestead.Client;
 /// </summary>
 public sealed class SettlerRenderer : IDisposable
 {
-    private const int SettlerFile = 10; // Roman settlers
+    private const int CarrierFile = 10; // Roman settlers
+    private const int WorkerFile = 11;  // Roman specialists
+
+    // Roman specialists in file 11 (tables from JSettlers' movables, MIT).
+    private const int DiggerWalk = 13;
+    private const int DiggerDigFirst = 206; // one sequence per direction, 12 frames
+    private const int BuilderWalk = 21;
+    private const int BuilderBuild = 22;    // walk layout: 6 directions x 12 frames
+
+    private const float WorkFramesPerTick = 0.5f;
 
     private readonly GraphicsDevice _device;
-    private readonly GfxFile _gfx;
+    private readonly GfxDirectory _gfx;
     private readonly int[] _walkSequences;
-    private readonly Dictionary<int, SettlerSprites> _sprites = new();
+    private readonly Dictionary<(int File, int Sequence), SettlerSprites> _sprites = new();
 
     public SettlerRenderer(GraphicsDevice device, GfxDirectory gfx)
     {
         _device = device;
-        _gfx = gfx.Open(SettlerFile);
-        // Carriers: the leading sequences with the 6 x 12 walk layout (empty-handed and with goods).
-        _walkSequences = Enumerable.Range(0, _gfx.SettlerCount)
-            .TakeWhile(s => _gfx.GetSettlerFrameCount(s) == DirectionExtensions.Count * SettlerSprites.FramesPerDirection)
+        _gfx = gfx;
+        // Varied looks for settlers without a profession: the leading carrier sequences.
+        var carriers = gfx.Open(CarrierFile);
+        _walkSequences = Enumerable.Range(0, carriers.SettlerCount)
+            .TakeWhile(s => carriers.GetSettlerFrameCount(s) == DirectionExtensions.Count * SettlerSprites.FramesPerDirection)
             .ToArray();
     }
 
@@ -45,11 +55,36 @@ public sealed class SettlerRenderer : IDisposable
 
     public void Draw(SpriteBatch batch, Settler settler, TerrainMesh terrain, float tickAlpha, Color playerColor)
     {
-        var sprites = SpritesFor(settler);
+        var (sprites, frame) = Frame(settler, tickAlpha);
+        sprites.Draw(batch, frame, Anchor(settler, terrain, tickAlpha), 1, playerColor);
+    }
+
+    private (SettlerSprites Sprites, int Frame) Frame(Settler settler, float tickAlpha)
+    {
+        int work = (int)((settler.ActivityTicks + tickAlpha) * WorkFramesPerTick);
+        switch (settler.Activity)
+        {
+            case Activity.Digging:
+            {
+                var sprites = Sprites(WorkerFile, DiggerDigFirst + SettlerSprites.Block(settler.Facing));
+                return (sprites, work % Math.Max(1, sprites.FrameCount));
+            }
+            case Activity.Building:
+                return (Sprites(WorkerFile, BuilderBuild),
+                    SettlerSprites.Block(settler.Facing) * SettlerSprites.FramesPerDirection + 1 + work % SettlerSprites.WalkCycleFrames);
+        }
+
+        var walk = settler.Profession switch
+        {
+            Profession.Carrier => Sprites(CarrierFile, CarrierSequence(settler.Carrying)),
+            Profession.Digger => Sprites(WorkerFile, DiggerWalk),
+            Profession.Builder => Sprites(WorkerFile, BuilderWalk),
+            _ => Sprites(CarrierFile, _walkSequences[settler.Id % _walkSequences.Length]),
+        };
         int frame = settler.State == SettlerState.Stepping
             ? SettlerSprites.WalkFrame(settler.Facing, StepProgress(settler, tickAlpha))
             : SettlerSprites.StandFrame(settler.Facing);
-        sprites.Draw(batch, frame, Anchor(settler, terrain, tickAlpha), 1, playerColor);
+        return (walk, frame);
     }
 
     private static float StepProgress(Settler settler, float tickAlpha) =>
@@ -58,13 +93,10 @@ public sealed class SettlerRenderer : IDisposable
     private static Vector2 ToWorld(GridPoint p, TerrainMesh terrain) =>
         ScreenProjection.ToWorld(p.X, p.Y, terrain.HeightAt(p.X, p.Y));
 
-    private SettlerSprites SpritesFor(Settler settler)
+    private SettlerSprites Sprites(int file, int sequence)
     {
-        int sequence = settler.IsCarrier
-            ? CarrierSequence(settler.Carrying)
-            : _walkSequences[settler.Id % _walkSequences.Length];
-        if (!_sprites.TryGetValue(sequence, out var sprites))
-            _sprites[sequence] = sprites = new SettlerSprites(_device, _gfx, sequence);
+        if (!_sprites.TryGetValue((file, sequence), out var sprites))
+            _sprites[(file, sequence)] = sprites = new SettlerSprites(_device, _gfx.Open(file), sequence);
         return sprites;
     }
 

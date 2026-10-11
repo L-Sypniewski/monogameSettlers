@@ -19,7 +19,8 @@ namespace Homestead.Client;
 /// Mouse: left click on a settler selects it, left click elsewhere sends the selected settler there ·
 /// right drag pan · wheel zoom.
 /// Keys: arrows/WASD scroll · N new carrier at cursor · M 50 wandering settlers ·
-/// G demo economy at cursor · PgUp/PgDn map ·
+/// G demo economy at cursor · P placement mode (Q/E building type, click places a construction site) ·
+/// PgUp/PgDn map ·
 /// O objects · B blocked fields · Esc quit
 /// </remarks>
 public sealed class MapGame : Game
@@ -35,6 +36,9 @@ public sealed class MapGame : Game
     private readonly string? _captureDirectory;
     private readonly Random _random = new(1);
     private readonly BuildingCatalog _romans = BuildingCatalog.Load(Civilization.Roman);
+    private BuildingDefinition[] _placeable = [];
+    private int _placeIndex;
+    private bool _placing;
 
     private int _mapIndex;
     private OriginalMap _map = null!;
@@ -78,6 +82,13 @@ public sealed class MapGame : Game
         };
         IsMouseVisible = true;
         Window.AllowUserResizing = true;
+        if (captureDirectory is not null)
+        {
+            // Offscreen runs must not wait for the screen: a covered window gets throttled to
+            // about one frame per second by the window system.
+            _graphics.SynchronizeWithVerticalRetrace = false;
+            IsFixedTimeStep = false;
+        }
     }
 
     protected override void LoadContent()
@@ -94,6 +105,9 @@ public sealed class MapGame : Game
             LightingEnabled = false,
         };
         _settlerRenderer = new SettlerRenderer(GraphicsDevice, _gfx);
+        _placeable = _romans.All.Where(b => b.ConstructionPiles.Count > 0 && b.ConstructionImage is not null)
+            .OrderBy(b => b.Name).ToArray();
+        _placeIndex = Math.Max(0, Array.FindIndex(_placeable, b => b.Name == "lumberjack"));
         _economyRenderer = new EconomyRenderer(GraphicsDevice, _gfx);
         LoadMap(_mapIndex);
     }
@@ -107,6 +121,9 @@ public sealed class MapGame : Game
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
         (_world, var report) = OriginalScenario.Load(_map);
         _gameMap = _world.Map!;
+        // Diggers change the ground: keep the terrain mesh in sync.
+        _gameMap.PointChanged += p => _terrain.Update(p.X, p.Y, _gameMap.HeightAt(p),
+            _gameMap.TerrainAt(p) == TerrainType.Flattened ? TerrainKind.Flattened : _terrain.KindAt(p.X, p.Y));
         _objects = new MapObjectLayer(GraphicsDevice, _gfx.Open(MapObjectCatalog.GfxFile), _map.Area, _terrain);
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         _wanderers.Clear();
@@ -123,7 +140,8 @@ public sealed class MapGame : Game
     {
         HandleInput(gameTime);
 
-        var elapsed = _captureDirectory is null ? gameTime.ElapsedGameTime : TimeSpan.FromSeconds(1 / 60.0);
+        // Capture runs use fixed frame times at 4x speed, so long processes fit into a short run.
+        var elapsed = _captureDirectory is null ? gameTime.ElapsedGameTime : TimeSpan.FromSeconds(4 / 60.0);
         _accumulator += elapsed;
         _time += elapsed;
         while (_accumulator >= World.TickDuration)
@@ -135,6 +153,12 @@ public sealed class MapGame : Game
 
         var cursor = ScreenToGrid(Mouse.GetState().Position.ToVector2());
         var logistics = _world.Logistics;
+        if (_placing)
+        {
+            var definition = _placeable[_placeIndex];
+            _world.CanPlace(definition, cursor, out string reason);
+            _message = $"placing {definition.Name} (Q/E change, Esc stop){(reason.Length > 0 ? ": " + reason : "")}";
+        }
         Window.Title = $"{_map.Name} · {_world.Settlers.Count} settlers · {logistics.Jobs.Count} transports, " +
                        $"{logistics.Delivered} delivered, {logistics.DroppedOnTheWay} dropped · " +
                        $"pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
@@ -169,7 +193,18 @@ public sealed class MapGame : Game
         var cursorScreen = mouse.Position.ToVector2();
 
         if (Pressed(Keys.Escape))
-            Exit();
+        {
+            if (_placing)
+                _placing = false;
+            else
+                Exit();
+        }
+        if (Pressed(Keys.P))
+            _placing = !_placing;
+        if (_placing && Pressed(Keys.E))
+            _placeIndex = (_placeIndex + 1) % _placeable.Length;
+        if (_placing && Pressed(Keys.Q))
+            _placeIndex = (_placeIndex - 1 + _placeable.Length) % _placeable.Length;
         if (Pressed(Keys.PageDown))
             LoadMap(_mapIndex + 1);
         if (Pressed(Keys.PageUp))
@@ -210,9 +245,22 @@ public sealed class MapGame : Game
         _previousMouse = mouse;
     }
 
-    /// <summary>Select the settler under the cursor, or send the selected one to the clicked point.</summary>
+    /// <summary>
+    /// Placement mode: place a construction site. Otherwise select the settler under the cursor, or
+    /// send the selected one to the clicked point.
+    /// </summary>
     private void Click(Vector2 screen)
     {
+        if (_placing)
+        {
+            var definition = _placeable[_placeIndex];
+            var at = ScreenToGrid(screen);
+            _message = _world.CanPlace(definition, at, out string reason)
+                ? _world.PlaceConstructionSite(definition, 0, at) is not null ? $"{definition.Name} site placed" : "could not place"
+                : $"{definition.Name}: {reason}";
+            return;
+        }
+
         float alpha = TickAlpha;
         var world = Vector2.Transform(screen, Matrix.Invert(View));
         // Settler sprites stand above their anchor; compare with the body center.
@@ -319,6 +367,12 @@ public sealed class MapGame : Game
 
         if (_selected is not null)
             DrawSelectionMarker(_selected, alpha);
+        if (_placing)
+        {
+            var at = ScreenToGrid(Mouse.GetState().Position.ToVector2());
+            var definition = _placeable[_placeIndex];
+            _economyRenderer.DrawPreview(_spriteBatch, definition, at, _terrain, _world.CanPlace(definition, at, out _));
+        }
         // Debug overlay on top of everything, so markers are not hidden behind trees.
         if (_showBlocked)
             for (int y = firstRow; y < firstRow + rows; y++)
@@ -366,13 +420,13 @@ public sealed class MapGame : Game
     }
 
     /// <summary>
-    /// Headless check: set up the demo economy at the first player's start, let it run for ten
-    /// seconds, save a frame every second, then quit.
+    /// Headless check: set up the demo economy and three construction sites at the first player's
+    /// start, run two minutes of game time, save a frame every eight game seconds, then quit.
     /// </summary>
     private void Capture(RenderTarget2D target)
     {
         GraphicsDevice.SetRenderTarget(null);
-        if (_capturedFrames % 60 == 59)
+        if (_capturedFrames % 120 == 119)
         {
             using var stream = File.Create(Path.Combine(_captureDirectory!, $"{_map.Name}_{_capturedFrames:D4}.png"));
             target.SaveAsPng(stream, target.Width, target.Height);
@@ -383,9 +437,14 @@ public sealed class MapGame : Game
         {
             case 1:
                 _zoom = 1;
-                DemoEconomy.Create(_world, _romans, _selected!.Position, _random);
+                var start = _selected!.Position;
+                DemoEconomy.Create(_world, _romans, start, _random);
+                foreach (var (name, dx, dy) in new[] { ("lumberjack", -14, 10), ("forester", 8, 16), ("stonecutter", -4, 22) })
+                    for (int r = 0; r < 12; r++)
+                        if (_world.PlaceConstructionSite(_romans[name], 0, new GridPoint(start.X + dx + r, start.Y + dy)) is not null)
+                            break;
                 break;
-            case 600:
+            case 1800:
                 Exit();
                 break;
         }

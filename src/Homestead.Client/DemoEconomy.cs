@@ -14,7 +14,8 @@ public static class DemoEconomy
     private static readonly string[] BuildingNames = ["stock", "sawmill", "mill", "baker"];
     private static readonly Material[] Goods = [Material.Trunk, Material.Crop, Material.Flour, Material.Water, Material.Stone, Material.Plank];
 
-    public static string Create(World world, BuildingCatalog catalog, GridPoint near, Random random, int carriers = 12)
+    public static string Create(World world, BuildingCatalog catalog, GridPoint near, Random random, int carriers = 12,
+        int diggers = 3, int builders = 4)
     {
         int placed = 0;
         foreach (string name in BuildingNames)
@@ -29,12 +30,19 @@ public static class DemoEconomy
                 piles++;
         }
 
-        int spawned = 0;
-        for (int i = 0; i < carriers; i++)
-            if (world.Spawn(new GridPoint(near.X + random.Next(-6, 7), near.Y + random.Next(-6, 7)), Profession.Carrier) is not null)
-                spawned++;
+        // Construction material, so placed sites can be built.
+        foreach (var material in new[] { Material.Plank, Material.Stone })
+            for (int i = 0, added = 0; i < 100 && added < 4; i++)
+                if (world.AddLooseGoods(new GridPoint(near.X + random.Next(-12, 13), near.Y + random.Next(-12, 13)), material, 8) is not null)
+                    added++;
 
-        return $"demo economy: {placed} buildings, {piles} piles, {spawned} carriers";
+        int spawned = 0;
+        foreach (var (profession, count) in new[] { (Profession.Carrier, carriers), (Profession.Digger, diggers), (Profession.Builder, builders) })
+            for (int i = 0; i < count; i++)
+                if (world.Spawn(new GridPoint(near.X + random.Next(-6, 7), near.Y + random.Next(-6, 7)), profession) is not null)
+                    spawned++;
+
+        return $"demo economy: {placed} buildings, {piles} piles, {spawned} workers";
     }
 
     /// <summary>Tries positions in growing rings around <paramref name="near"/> until the building fits.</summary>

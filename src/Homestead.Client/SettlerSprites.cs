@@ -43,15 +43,25 @@ public sealed class SettlerSprites : IDisposable
 
     public static int StandFrame(Direction facing) => Block(facing) * FramesPerDirection;
 
-    /// <summary>Draws shadow, body and player-colored torso with the frame's anchor at <paramref name="anchor"/>.</summary>
-    public void Draw(SpriteBatch batch, int frame, Vector2 anchor, float scale, Color playerColor)
+    /// <summary>
+    /// Draws shadow, body and player-colored torso with the frame's anchor at <paramref name="anchor"/>.
+    /// <paramref name="visibleFromBottom"/> &lt; 1 shows only the lower part (growing construction sites);
+    /// the shadow is left out then. <paramref name="tint"/> multiplies all layers (placement preview).
+    /// </summary>
+    public void Draw(SpriteBatch batch, int frame, Vector2 anchor, float scale, Color playerColor,
+        float visibleFromBottom = 1, Color? tint = null)
     {
-        if ((uint)frame >= (uint)FrameCount)
+        if ((uint)frame >= (uint)FrameCount || visibleFromBottom <= 0)
             return;
-        _shadow[frame]?.Draw(batch, anchor, scale, Color.White);
-        _body[frame]?.Draw(batch, anchor, scale, Color.White);
-        _torso[frame]?.Draw(batch, anchor, scale, playerColor);
+        var white = tint ?? Color.White;
+        if (visibleFromBottom >= 1)
+            _shadow[frame]?.Draw(batch, anchor, scale, white, 1);
+        _body[frame]?.Draw(batch, anchor, scale, white, visibleFromBottom);
+        _torso[frame]?.Draw(batch, anchor, scale, Multiply(playerColor, white), visibleFromBottom);
     }
+
+    private static Color Multiply(Color a, Color b) =>
+        new(a.R * b.R / 255, a.G * b.G / 255, a.B * b.B / 255, a.A * b.A / 255);
 
     public void Dispose()
     {
@@ -59,7 +69,8 @@ public sealed class SettlerSprites : IDisposable
             layer?.Texture.Dispose();
     }
 
-    private static int Block(Direction facing) => facing switch
+    /// <summary>Index of a direction in the original's order (SW, W, NW, NE, E, SE).</summary>
+    public static int Block(Direction facing) => facing switch
     {
         Direction.SouthWest => 0,
         Direction.West => 1,
@@ -81,7 +92,18 @@ public sealed class SettlerSprites : IDisposable
             return new Layer(texture, new Vector2(bitmap.OffsetX, bitmap.OffsetY));
         }
 
-        public void Draw(SpriteBatch batch, Vector2 anchor, float scale, Color tint) =>
-            batch.Draw(Texture, anchor + Offset * scale, null, tint, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+        public void Draw(SpriteBatch batch, Vector2 anchor, float scale, Color tint, float visibleFromBottom)
+        {
+            if (visibleFromBottom >= 1)
+            {
+                batch.Draw(Texture, anchor + Offset * scale, null, tint, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+                return;
+            }
+            int visible = (int)(Texture.Height * visibleFromBottom);
+            int hidden = Texture.Height - visible;
+            var source = new Rectangle(0, hidden, Texture.Width, visible);
+            batch.Draw(Texture, anchor + (Offset + new Vector2(0, hidden)) * scale, source, tint, 0, Vector2.Zero, scale,
+                SpriteEffects.None, 0);
+        }
     }
 }

@@ -26,13 +26,38 @@ public sealed class EconomyRenderer : IDisposable
     /// <summary>Grid row used for drawing order: the lowest row the building covers.</summary>
     public static int DepthRow(Building building) => building.Position.Y + building.Definition.BottomRow;
 
+    /// <summary>
+    /// Finished buildings show their final layers. Construction sites show the construction image,
+    /// growing from the bottom with progress; while levelling there is nothing to see yet.
+    /// </summary>
     public void DrawBuilding(SpriteBatch batch, Building building, TerrainMesh terrain, Color playerColor)
     {
-        var anchor = ScreenProjection.ToWorld(building.Position.X, building.Position.Y,
-            terrain.HeightAt(building.Position.X, building.Position.Y));
-        foreach (var image in building.Definition.FinalImages)
-            Sprites(image.File, image.Sequence).Draw(batch, image.Image, anchor, 1, playerColor);
+        var anchor = Anchor(building.Position, terrain);
+        switch (building.State)
+        {
+            case BuildingState.Finished:
+                foreach (var image in building.Definition.FinalImages)
+                    Sprites(image.File, image.Sequence).Draw(batch, image.Image, anchor, 1, playerColor);
+                break;
+            case BuildingState.Constructing when building.Definition.ConstructionImage is { } image:
+                // A sliver at the start, so a fresh site is visible at all.
+                float visible = 0.05f + 0.95f * building.ConstructionProgress;
+                Sprites(image.File, image.Sequence).Draw(batch, image.Image, anchor, 1, playerColor, visible);
+                break;
+        }
     }
+
+    /// <summary>Semi-transparent preview of a building at a position, green if it fits, red if not.</summary>
+    public void DrawPreview(SpriteBatch batch, BuildingDefinition definition, GridPoint position, TerrainMesh terrain, bool fits)
+    {
+        var anchor = Anchor(position, terrain);
+        var tint = (fits ? new Color(160, 255, 160) : new Color(255, 120, 120)) * 0.6f;
+        foreach (var image in definition.FinalImages)
+            Sprites(image.File, image.Sequence).Draw(batch, image.Image, anchor, 1, Color.White, tint: tint);
+    }
+
+    private static Vector2 Anchor(GridPoint p, TerrainMesh terrain) =>
+        ScreenProjection.ToWorld(p.X, p.Y, terrain.HeightAt(p.X, p.Y));
 
     public void DrawPile(SpriteBatch batch, Pile pile, TerrainMesh terrain)
     {

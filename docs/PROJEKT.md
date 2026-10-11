@@ -78,8 +78,12 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [x] Gebäude, Warenstapel und Siedler aus Karten laden und darstellen
    - [x] Logistik: Anfragen/Angebote, Träger-Aufträge mit Reservierung, Watchdog (Ware ablegen),
      Lager nimmt alles, Produktionsbedarf vor Lager; Tests inkl. Warenerhaltung
-   - [ ] Bauen: Baustellen, Baumaterial, Bauarbeiter/Planierer
-   - [ ] Lager als Quelle (Waren aus dem Lager an Gebäude liefern)
+   - [x] Bauen: Baustellen mit Platzierungsprüfung, Planierer ebnen ein (Gelände ändert sich live),
+     Bauarbeiter verbauen gelieferte Materialien, Baufortschritt sichtbar; Platzier-Modus im Client (P)
+   - [x] Lager als Quelle (Waren aus dem Lager an Baustellen und Gebäude); Reihenfolge Baustelle → Produktion → Lager
+   - [x] Weitere Festlauf-Fälle gefunden und behoben (gegenseitiges Wegschieben an Stapeln, Kreisen um Gedränge)
+   - [ ] Untätige Träger verteilen sich (stehen derzeit gesammelt im Lagerhof)
+   - [ ] Planierer/Bauarbeiter entstehen aus Trägern + Werkzeug (derzeit direkt erzeugt)
    - [ ] Startausstattung je Spielstart (Burg/Lager, Waren, Siedler wie im Original)
    - [ ] Auf- und Ablegen animieren; Wege (beschleunigen das Laufen)
    - [ ] Fußabdrücke: JSettlers-Daten sind etwas großzügiger als die Begehbarkeit der Originalkarten
