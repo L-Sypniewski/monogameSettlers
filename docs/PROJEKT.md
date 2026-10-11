@@ -69,9 +69,11 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [x] Unbekannte Landschaftswerte 66–71 geklärt (nur Karte „Vulkanauge"); 112 offen
    - [x] Begehbarkeit in der Simulation (Regeln, mit Kartendaten abgeglichen), Debug-Overlay (Taste B)
    - [x] A*-Wegsuche mit Regionen für unerreichbare Ziele, Testprojekt (Referenzvergleich, Originalkarten)
-   - [ ] Wegsuche im Client: Ziel anklicken, Figur läuft und folgt den Geländehöhen
-   - [ ] Mehrere Figuren gleichzeitig (Vorbereitung Träger-Logistik)
-3. **Gebäude & Träger:** Bauen, Wege, Wegfindung, Logistik inkl. Watchdog.
+   - [x] Wegsuche im Client: Figur anklicken/Ziel anklicken, Figur läuft und folgt den Geländehöhen
+   - [x] Mehrere Figuren gleichzeitig: ein Feld je Figur, Tauschen bei Gegenverkehr, Ausweichen,
+     Umweg nach kurzer Wartezeit, Watchdog lässt nach 2 s durchlaufen (nie festlaufen; Stresstests)
+   - [ ] Durchlauf-Quote bei sehr dichtem Verkehr senken (Tuning, sobald echte Träger laufen)
+3. **Gebäude & Träger:** Bauen, Wege, Logistik. Wegfindung und Bewegungs-Watchdog stehen bereits (siehe 2).
 4. **Wirtschaft:** Warenketten, Produktion, Rohstoffe.
 5. **Kampf**
 6. **KI**

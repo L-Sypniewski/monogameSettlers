@@ -16,11 +16,12 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
 - `src/Homestead.Assets` – Parser für Originaldateien (GFX, Karten), ohne MonoGame-Abhängigkeit. Formatdoku in `docs/formate/`.
 - `src/Homestead.AssetViewer` – MonoGame-Viewer (DesktopGL), keine Content-Pipeline.
 - `src/Homestead.Simulation` – Spiellogik, ohne MonoGame; feste Tick-Rate (`World.TicksPerSecond`).
-  `Map/GameMap` (Gelände, Objekte, Begehbarkeit), `Pathfinding/PathFinder` (A*).
+  `Map/GameMap` (Gelände, Objekte, Begehbarkeit), `Pathfinding/PathFinder` (A*), `World`/`Settler`
+  (Bewegung: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf – siehe Kommentar in `World`).
 - `tests/Homestead.Simulation.Tests` – xUnit; Tests gegen Originalkarten laufen nur mit lokaler Installation
   (sonst bestehen sie ohne Prüfung). `dotnet test`
-- `src/Homestead.Client` – MonoGame-Spiel. Szenen: `--scene map` (Standard, Gelände einer Originalkarte,
-  `--map <name>`) und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
+- `src/Homestead.Client` – MonoGame-Spiel. Szenen: `--scene map` (Standard, Originalkarte mit Figuren:
+  Klick wählt/schickt, N neue Figur, M 50 Wanderer; `--map <name>`) und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
   (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse).
 - `tools/Homestead.AssetTool` – CLI: `scan` (alle Bilder testweise dekodieren), `export`, `sheet` (PNG).
 

@@ -44,11 +44,13 @@ public sealed class PathFinder
     /// <summary>
     /// Shortest path as a list of steps, or null if the target cannot be reached.
     /// The start itself does not need to be walkable (a settler may stand in a doorway).
+    /// <paramref name="avoid"/> lists point indices to treat as blocked for this search only
+    /// (e.g. a field another settler stands on).
     /// </summary>
-    public IReadOnlyList<Direction>? FindPath(GridPoint start, GridPoint target)
+    public IReadOnlyList<Direction>? FindPath(GridPoint start, GridPoint target, IReadOnlySet<int>? avoid = null)
     {
         LastExpandedNodes = 0;
-        if (!_map.Contains(start) || !_map.IsWalkable(target))
+        if (!_map.Contains(start) || !_map.IsWalkable(target) || avoid?.Contains(_map.Index(target)) == true)
             return null;
         if (start == target)
             return [];
@@ -89,7 +91,7 @@ public sealed class PathFinder
                 if ((uint)nx >= (uint)size || (uint)ny >= (uint)size)
                     continue;
                 int next = ny * size + nx;
-                if (!_map.IsWalkable(next) || _closedStamp[next] == _stamp)
+                if (!_map.IsWalkable(next) || _closedStamp[next] == _stamp || avoid?.Contains(next) == true)
                     continue;
                 if (_seenStamp[next] == _stamp && _cost[next] <= nextCost)
                     continue;

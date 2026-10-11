@@ -12,42 +12,47 @@ using Microsoft.Xna.Framework.Input;
 namespace Homestead.Client;
 
 /// <summary>
-/// Shows an original map's terrain with a camera, and a settler walking near the first player's start.
+/// An original map with terrain, objects and settlers that walk where they are sent.
 /// </summary>
 /// <remarks>
-/// Keys: arrows/WASD scroll · right mouse drag pan · wheel zoom · PgUp/PgDn map · H walker to cursor area ·
-/// O objects on/off · B blocked fields · Esc quit
+/// Mouse: left click on a settler selects it, left click elsewhere sends the selected settler there ·
+/// right drag pan · wheel zoom.
+/// Keys: arrows/WASD scroll · N new settler at cursor · M 50 wandering settlers · PgUp/PgDn map ·
+/// O objects · B blocked fields · Esc quit
 /// </remarks>
 public sealed class MapGame : Game
 {
-    private const int SettlerFile = 10;
-    private const int HexagonSide = 4;
-    private const int StepTicks = 8;
+    private const int WanderRadius = 15;
+    private const int WandererBatch = 50;
+
+    private static readonly Color PlayerColor = Color.Red;
 
     private readonly GraphicsDeviceManager _graphics;
-    private readonly GameInstallation _installation;
     private readonly GfxDirectory _gfx;
     private readonly string[] _mapFiles;
     private readonly string? _captureDirectory;
+    private readonly Random _random = new(1);
 
     private int _mapIndex;
     private OriginalMap _map = null!;
     private TerrainMesh _terrain = null!;
     private MapObjectLayer _objects = null!;
     private GameMap _gameMap = null!;
-    private Texture2D _pixel = null!;
-    private bool _showBlocked;
-    private bool _showObjects = true;
-    private TimeSpan _time;
     private Texture2D _atlas = null!;
     private BasicEffect _effect = null!;
     private SpriteBatch _spriteBatch = null!;
-    private SettlerSprites _sprites = null!;
+    private Texture2D _pixel = null!;
+    private SettlerRenderer _settlerRenderer = null!;
 
-    private World _world = new();
-    private Walker _walker = null!;
+    private World _world = null!;
+    private readonly HashSet<int> _wanderers = new();
+    private Settler? _selected;
+    private string _message = "";
     private TimeSpan _accumulator;
+    private TimeSpan _time;
 
+    private bool _showBlocked;
+    private bool _showObjects = true;
     private Vector2 _camera; // world position shown at the screen center
     private float _zoom = 2;
     private KeyboardState _previousKeys;
@@ -56,7 +61,6 @@ public sealed class MapGame : Game
 
     public MapGame(GameInstallation installation, GfxDirectory gfx, string? mapName, string? captureDirectory)
     {
-        _installation = installation;
         _gfx = gfx;
         _captureDirectory = captureDirectory;
         _mapFiles = installation.MapFiles.ToArray();
@@ -85,14 +89,8 @@ public sealed class MapGame : Game
             VertexColorEnabled = true,
             LightingEnabled = false,
         };
-        _sprites = new SettlerSprites(GraphicsDevice, _gfx.Open(SettlerFile), 0);
+        _settlerRenderer = new SettlerRenderer(GraphicsDevice, _gfx);
         LoadMap(_mapIndex);
-
-        if (_captureDirectory is not null)
-        {
-            using var stream = File.Create(Path.Combine(_captureDirectory, "atlas.png"));
-            _atlas.SaveAsPng(stream, _atlas.Width, _atlas.Height);
-        }
     }
 
     private void LoadMap(int index)
@@ -105,20 +103,13 @@ public sealed class MapGame : Game
         _gameMap = GameMap.FromOriginal(_map.Area);
         _objects = new MapObjectLayer(GraphicsDevice, _gfx.Open(MapObjectCatalog.GfxFile), _map.Area, _terrain);
 
+        _world = new World(_gameMap);
+        _wanderers.Clear();
         var start = _map.Players.Count > 0
             ? new GridPoint(_map.Players[0].StartX, _map.Players[0].StartY)
             : new GridPoint(_map.Area.Size / 2, _map.Area.Size / 2);
-        PlaceWalker(start);
+        _selected = _world.Spawn(start);
         _camera = ToWorld(start);
-    }
-
-    /// <summary>The walker's hexagon is centered on <paramref name="center"/>.</summary>
-    private void PlaceWalker(GridPoint center)
-    {
-        _world = new World();
-        _walker = new Walker(new GridPoint(center.X - HexagonSide, center.Y - HexagonSide),
-            Walker.HexagonRoute(HexagonSide), StepTicks);
-        _world.Walkers.Add(_walker);
     }
 
     private Vector2 ToWorld(GridPoint p) => ScreenProjection.ToWorld(p.X, p.Y, _terrain.HeightAt(p.X, p.Y));
@@ -132,15 +123,35 @@ public sealed class MapGame : Game
         _time += elapsed;
         while (_accumulator >= World.TickDuration)
         {
+            GiveWanderersNewDestinations();
             _world.Step();
             _accumulator -= World.TickDuration;
         }
 
         var cursor = ScreenToGrid(Mouse.GetState().Position.ToVector2());
-        Window.Title = $"{_map.Name} ({_map.Area.Size}) · zoom {_zoom}x · cursor {cursor.X},{cursor.Y} " +
-                       $"{_terrain.KindAt(cursor.X, cursor.Y)} h={_terrain.HeightAt(cursor.X, cursor.Y)} " +
-                       $"object={_map.Area.Object[_map.Area.Index(cursor.X, cursor.Y)]}";
+        Window.Title = $"{_map.Name} · {_world.Settlers.Count} settlers · detours {_world.Detours} · " +
+                       $"pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
+                       $"{_gameMap.TerrainAt(cursor)}{(_gameMap.IsWalkable(cursor) ? "" : " (blocked)")}" +
+                       (_message.Length > 0 ? $" · {_message}" : "");
         base.Update(gameTime);
+    }
+
+    private void GiveWanderersNewDestinations()
+    {
+        foreach (int id in _wanderers)
+        {
+            var settler = _world.Settlers[id];
+            if (settler.Destination is not null || settler.State == SettlerState.Stepping)
+                continue;
+            for (int attempt = 0; attempt < 10; attempt++)
+            {
+                var target = new GridPoint(
+                    settler.Position.X + _random.Next(-WanderRadius, WanderRadius + 1),
+                    settler.Position.Y + _random.Next(-WanderRadius, WanderRadius + 1));
+                if (_gameMap.IsWalkable(target) && _world.WalkTo(settler, target))
+                    break;
+            }
+        }
     }
 
     private void HandleInput(GameTime gameTime)
@@ -148,6 +159,7 @@ public sealed class MapGame : Game
         var keys = Keyboard.GetState();
         var mouse = Mouse.GetState();
         bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
+        var cursorScreen = mouse.Position.ToVector2();
 
         if (Pressed(Keys.Escape))
             Exit();
@@ -159,8 +171,14 @@ public sealed class MapGame : Game
             _showBlocked = !_showBlocked;
         if (Pressed(Keys.O))
             _showObjects = !_showObjects;
-        if (Pressed(Keys.H))
-            PlaceWalker(ScreenToGrid(mouse.Position.ToVector2()));
+        if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen)) is { } spawned)
+            _selected = spawned;
+        if (Pressed(Keys.M))
+            SpawnWanderers(ScreenToGrid(cursorScreen));
+
+        if (mouse.LeftButton == ButtonState.Pressed && _previousMouse.LeftButton == ButtonState.Released
+            && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position))
+            Click(cursorScreen);
 
         float speed = 800 / _zoom * (float)gameTime.ElapsedGameTime.TotalSeconds;
         if (keys.IsKeyDown(Keys.Left) || keys.IsKeyDown(Keys.A))
@@ -182,6 +200,45 @@ public sealed class MapGame : Game
         _previousKeys = keys;
         _previousMouse = mouse;
     }
+
+    /// <summary>Select the settler under the cursor, or send the selected one to the clicked point.</summary>
+    private void Click(Vector2 screen)
+    {
+        float alpha = TickAlpha;
+        var world = Vector2.Transform(screen, Matrix.Invert(View));
+        // Settler sprites stand above their anchor; compare with the body center.
+        var hit = _world.Settlers
+            .Select(s => (Settler: s, Distance: Vector2.Distance(world, SettlerRenderer.Anchor(s, _terrain, alpha) - new Vector2(0, 10))))
+            .Where(t => t.Distance < 10)
+            .OrderBy(t => t.Distance)
+            .Select(t => t.Settler)
+            .FirstOrDefault();
+        if (hit is not null)
+        {
+            _selected = hit;
+            _wanderers.Remove(hit.Id);
+            _message = $"settler {hit.Id} selected";
+            return;
+        }
+
+        if (_selected is null)
+            return;
+        var target = ScreenToGrid(screen);
+        _wanderers.Remove(_selected.Id);
+        _message = _world.WalkTo(_selected, target) ? $"walking to {target.X},{target.Y}" : "unreachable";
+    }
+
+    private void SpawnWanderers(GridPoint near)
+    {
+        for (int i = 0; i < WandererBatch; i++)
+        {
+            var at = new GridPoint(near.X + _random.Next(-8, 9), near.Y + _random.Next(-8, 9));
+            if (_world.Spawn(at) is { } settler)
+                _wanderers.Add(settler.Id);
+        }
+    }
+
+    private float TickAlpha => (float)(_accumulator / World.TickDuration);
 
     private Matrix View
     {
@@ -229,28 +286,24 @@ public sealed class MapGame : Game
             viewport.Width / _zoom, viewport.Height / _zoom);
         _terrain.Draw(_effect, visible);
 
-        // Walker: interpolate position and terrain height between the two grid points.
-        float alpha = (float)(_accumulator / World.TickDuration);
-        float progress = (_walker.TicksIntoStep + alpha) / _walker.StepTicks;
-        var anchor = Vector2.Lerp(ToWorld(_walker.Position), ToWorld(_walker.Target), progress);
-
-        // Back to front by grid row; the walker belongs to the row it is leaving or entering, whichever is lower.
-        int walkerRow = Math.Max(_walker.Position.Y, _walker.Target.Y);
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: View);
+        if (_selected is not null)
+            DrawPath(_selected);
+
+        // Back to front by grid row, objects and settlers interleaved.
+        float alpha = TickAlpha;
+        var settlersByRow = _world.Settlers.ToLookup(SettlerRenderer.DepthRow);
         int rows = _objects.RowCount(visible, out int firstRow);
-        bool walkerDrawn = false;
         for (int y = firstRow; y < firstRow + rows; y++)
         {
             if (_showObjects)
                 _objects.DrawRow(_spriteBatch, y, visible, _time);
-            if (y == walkerRow)
-            {
-                _sprites.Draw(_spriteBatch, SettlerSprites.WalkFrame(_walker.Facing, progress), anchor, 1, Color.Red);
-                walkerDrawn = true;
-            }
+            foreach (var settler in settlersByRow[y])
+                _settlerRenderer.Draw(_spriteBatch, settler, _terrain, alpha, PlayerColor);
         }
-        if (!walkerDrawn)
-            _sprites.Draw(_spriteBatch, SettlerSprites.WalkFrame(_walker.Facing, progress), anchor, 1, Color.Red);
+
+        if (_selected is not null)
+            DrawSelectionMarker(_selected, alpha);
         // Debug overlay on top of everything, so markers are not hidden behind trees.
         if (_showBlocked)
             for (int y = firstRow; y < firstRow + rows; y++)
@@ -261,6 +314,24 @@ public sealed class MapGame : Game
             Capture(target);
 
         base.Draw(gameTime);
+    }
+
+    /// <summary>Dots along the remaining path of a settler.</summary>
+    private void DrawPath(Settler settler)
+    {
+        var p = settler.StepTarget;
+        foreach (var step in settler.RemainingPath)
+        {
+            p = p.Neighbor(step);
+            var position = ToWorld(p);
+            _spriteBatch.Draw(_pixel, new Rectangle((int)position.X - 1, (int)position.Y - 1, 3, 3), Color.Yellow * 0.8f);
+        }
+    }
+
+    private void DrawSelectionMarker(Settler settler, float alpha)
+    {
+        var anchor = SettlerRenderer.Anchor(settler, _terrain, alpha);
+        _spriteBatch.Draw(_pixel, new Rectangle((int)anchor.X - 1, (int)anchor.Y - 32, 3, 3), Color.Yellow);
     }
 
     /// <summary>Debug overlay: a red marker on every point settlers cannot walk on.</summary>
@@ -279,27 +350,31 @@ public sealed class MapGame : Game
         }
     }
 
-    /// <summary>Headless check: a few views at different zoom levels and maps, then quit.</summary>
+    /// <summary>
+    /// Headless check: send the first settler on a long walk, add wanderers, save a few frames over
+    /// time, then quit.
+    /// </summary>
     private void Capture(RenderTarget2D target)
     {
         GraphicsDevice.SetRenderTarget(null);
-        if (_capturedFrames is 2 or 4 or 6 or 8 or 10 or 12)
+        if (_capturedFrames % 60 == 59)
         {
-            using var stream = File.Create(Path.Combine(_captureDirectory!, $"{_map.Name}_z{_zoom}_{_capturedFrames:D2}.png"));
+            using var stream = File.Create(Path.Combine(_captureDirectory!, $"{_map.Name}_{_capturedFrames:D4}.png"));
             target.SaveAsPng(stream, target.Width, target.Height);
         }
         target.Dispose();
 
-        // Script: overview, then close-ups around the walker, then the next map.
         switch (++_capturedFrames)
         {
-            case 1: _zoom = 0.5f; break;
-            case 3: _zoom = 1; break;
-            case 5: _zoom = 2; break;
-            case 7: _zoom = 4; break;
-            case 9: _zoom = 1; _camera += new Vector2(300, 150); _showBlocked = true; break;
-            case 11: LoadMap(_mapIndex + 7); _zoom = 1; break;
-            case 13: Exit(); break;
+            case 1:
+                _zoom = 2;
+                var start = _selected!.Position;
+                _world.WalkTo(_selected, new GridPoint(start.X + 12, start.Y + 6));
+                SpawnWanderers(start);
+                break;
+            case 600:
+                Exit();
+                break;
         }
     }
 
@@ -307,7 +382,7 @@ public sealed class MapGame : Game
     {
         _terrain.Dispose();
         _objects.Dispose();
-        _sprites.Dispose();
+        _settlerRenderer.Dispose();
         _atlas.Dispose();
         _effect.Dispose();
         base.UnloadContent();
