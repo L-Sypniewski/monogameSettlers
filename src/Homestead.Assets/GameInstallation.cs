@@ -25,6 +25,14 @@ public sealed class GameInstallation
 
     public string SndDirectory => FindSubdirectory("SND");
 
+    public string MapDirectory => FindSubdirectory("Map");
+
+    /// <summary>All map files below the map folder (single player, multiplayer, user maps).</summary>
+    public IEnumerable<string> MapFiles =>
+        Directory.EnumerateFiles(MapDirectory, "*", SearchOption.AllDirectories)
+            .Where(f => Path.GetExtension(f).Equals(".map", StringComparison.OrdinalIgnoreCase))
+            .Order(StringComparer.OrdinalIgnoreCase);
+
     // Not XDG_CONFIG_HOME on purpose: sandboxed launchers (Flatpak IDEs) redirect it,
     // and the same file should be found no matter how the program was started.
     public static string SettingsPath => OperatingSystem.IsWindows()

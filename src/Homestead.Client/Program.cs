@@ -2,12 +2,25 @@ using Homestead.Assets;
 using Homestead.Assets.Gfx;
 using Homestead.Client;
 
-// Options: --capture <dir>  render offscreen, save frames as PNG and quit (for checks without looking)
-string? captureDirectory = null;
-int captureIndex = Array.IndexOf(args, "--capture");
-if (captureIndex >= 0 && captureIndex + 1 < args.Length)
-    captureDirectory = args[captureIndex + 1];
+// Options:
+//   --scene map|walk   map: terrain of an original map (default), walk: walking PoC on plain grass
+//   --map <name>       map to open (file name without extension)
+//   --capture <dir>    render offscreen, save frames as PNG and quit (for checks without looking)
+string? Option(string name)
+{
+    int i = Array.IndexOf(args, name);
+    return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+}
 
 var installation = GameInstallation.Locate();
-using var game = new WalkPocGame(new GfxDirectory(installation.GfxDirectory), captureDirectory);
+var gfx = new GfxDirectory(installation.GfxDirectory);
+string? capture = Option("--capture");
+if (capture is not null)
+    Directory.CreateDirectory(capture);
+
+using Microsoft.Xna.Framework.Game game = Option("--scene") switch
+{
+    "walk" => new WalkPocGame(gfx, capture),
+    _ => new MapGame(installation, gfx, Option("--map"), capture),
+};
 game.Run();

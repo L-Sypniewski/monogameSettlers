@@ -1,12 +1,15 @@
 using System.Diagnostics;
 using Homestead.Assets;
 using Homestead.Assets.Gfx;
+using Homestead.Assets.Maps;
 using Homestead.AssetTool;
 
 // Usage:
 //   AssetTool scan                                   decode every image of every GFX file, report errors
 //   AssetTool export <file> <kind> <index> <outDir>  write PNGs (kind: settler|torso|shadow|landscape|gui)
 //   AssetTool sheet <file> <kind> <out.png>          contact sheet of the first frame of every entry
+//   AssetTool maps                                   parse every map, report sizes and unknown landscape values
+//   AssetTool minimap <map name> <out.png>           landscape overview of one map
 
 var installation = GameInstallation.Locate();
 var gfx = new GfxDirectory(installation.GfxDirectory);
@@ -22,8 +25,14 @@ switch (args.FirstOrDefault())
     case "sheet" when args.Length == 4:
         ContactSheet.Write(gfx.Open(int.Parse(args[1])), args[2], args[3]);
         break;
+    case "maps":
+        MapReport.Scan(installation);
+        break;
+    case "minimap" when args.Length == 3:
+        MapReport.Minimap(installation, args[1], args[2]);
+        break;
     default:
-        Console.Error.WriteLine("Usage: scan | export <file> <kind> <index> <outDir> | sheet <file> <kind> <out.png>");
+        Console.Error.WriteLine("Usage: scan | export <file> <kind> <index> <outDir> | sheet <file> <kind> <out.png> | maps | minimap <map> <out.png>");
         return 1;
 }
 return 0;

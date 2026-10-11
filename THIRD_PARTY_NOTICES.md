@@ -4,9 +4,14 @@
 
 https://github.com/paulwedeck/settlers-remake
 
-Used as a reference for the structure of the original GFX file format
-(index tables, sequence headers, run-length encoding, torso and shadow layers).
-The C# implementation in `src/Homestead.Assets` was written independently.
+Used as a reference for the original file formats (GFX images, maps) and terrain rendering.
+The C# code was written independently; the following data tables and rules were ported:
+
+- Torso/shadow alignment rules (`src/Homestead.Assets/Gfx/GfxFile.cs`, from `AdvancedDatFileReader`)
+- Landscape type mapping and image numbers (`src/Homestead.Client/Terrain/TerrainKind.cs`,
+  from `ELandscapeType` and `OriginalLandscape`)
+- Terrain texture atlas layout, transition table and triangle texture orientation
+  (`src/Homestead.Client/Terrain/TerrainAtlas.cs`, `TerrainMesh.cs`, from `Background` and `ETextureOrientation`)
 
 ```
 The MIT License (MIT)

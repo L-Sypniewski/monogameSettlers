@@ -49,7 +49,7 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
   keine MonoGame-Abhängigkeit).
 
 ## Roadmap
-1. **Asset-Viewer:** GFX-.dat-Dateien parsen und in MonoGame anzeigen. ← *in Arbeit*
+1. **Asset-Viewer:** GFX-.dat-Dateien parsen und in MonoGame anzeigen. ✓ (Reste offen)
    - [x] Installation gefunden: GOG Ultimate Collection (Lutris)
    - [x] GFX-Format analysiert, mit JSettlers abgeglichen ([formate/gfx.md](formate/gfx.md))
    - [x] C#-Parser: alle 151.088 Bilder aller GFX-Dateien dekodieren fehlerfrei
@@ -60,7 +60,12 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [ ] SND-Format
    - [x] Mini-PoC Bewegung: Träger läuft ein Sechseck auf dem Raster, alle 6 Richtungen,
      feste Tick-Rate (20/s) mit Interpolation (`Homestead.Simulation` + `Homestead.Client`)
-2. **Karte & Gelände:** Landschaft rendern, Kamera, Kartenformat.
+2. **Karte & Gelände:** Landschaft rendern, Kamera, Kartenformat. ← *in Arbeit*
+   - [x] Kartenformat gelesen, alle 198 Karten laden ([formate/map.md](formate/map.md))
+   - [x] Gelände mit Höhen, Texturen und Übergängen, Kamera (Scrollen, Zoom), Kartenwechsel
+   - [ ] Kartenobjekte (Bäume, Steine …), Siedler/Gebäude/Waren aus der Karte
+   - [ ] Unbekannte Landschaftswerte 66–71, 112 klären
+   - [ ] Begehbarkeit → Simulation, Figuren folgen dem Gelände
 3. **Gebäude & Träger:** Bauen, Wege, Wegfindung, Logistik inkl. Watchdog.
 4. **Wirtschaft:** Warenketten, Produktion, Rohstoffe.
 5. **Kampf**

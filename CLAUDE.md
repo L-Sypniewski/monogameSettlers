@@ -13,15 +13,18 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
 - Kein „Siedler"/„Settlers" in Projekt- oder Typnamen.
 
 ## Aufbau
-- `src/Homestead.Assets` – Parser für Originaldateien, ohne MonoGame-Abhängigkeit. Formatdoku in `docs/formate/`.
+- `src/Homestead.Assets` – Parser für Originaldateien (GFX, Karten), ohne MonoGame-Abhängigkeit. Formatdoku in `docs/formate/`.
 - `src/Homestead.AssetViewer` – MonoGame-Viewer (DesktopGL), keine Content-Pipeline.
 - `src/Homestead.Simulation` – Spiellogik, ohne MonoGame; feste Tick-Rate (`World.TicksPerSecond`).
-- `src/Homestead.Client` – MonoGame-Spiel (derzeit Lauf-PoC). `--capture <dir>` rendert offscreen
-  und speichert Frames als PNG (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse).
+- `src/Homestead.Client` – MonoGame-Spiel. Szenen: `--scene map` (Standard, Gelände einer Originalkarte,
+  `--map <name>`) und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
+  (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse).
 - `tools/Homestead.AssetTool` – CLI: `scan` (alle Bilder testweise dekodieren), `export`, `sheet` (PNG).
 
 ## Grafik-Konventionen
-- Raster → Pixel: `x*16 - y*8`, `y*9` (Zeilen halb versetzt), 6 Nachbarrichtungen.
+- Raster → Pixel: `x*16 - y*8`, `y*9 - höhe*2` (Zeilen halb versetzt), 6 Nachbarrichtungen.
+- Gelände-Atlas: Texturkoordinaten immer einen halben Texel innerhalb der Atlas-Zelle halten,
+  sonst entstehen Linien aus Nachbarzellen.
 - Lauf-Sequenzen: 72 Frames = 6 Richtungsblöcke à 12 (SW, W, NW, NE, O, SO); Frame 0 im Block = stehen,
   1–11 = Laufzyklus (ein Zyklus pro Rasterschritt).
 
