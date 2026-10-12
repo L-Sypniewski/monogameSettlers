@@ -679,6 +679,9 @@ public sealed class Production
             int index = map.Index(p);
             if (_reservedTargets.Contains(index) || _unreachableUntil.TryGetValue(index, out long until) && until > _world.Tick)
                 continue;
+            // Workers stay on their own land.
+            if (_world.TerritoryRules && map.OwnerAt(p) != w.Building.Player)
+                continue;
 
             bool fits = want switch
             {

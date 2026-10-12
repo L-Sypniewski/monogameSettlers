@@ -70,12 +70,16 @@ public sealed class PathFinder
     /// Shortest path as a list of steps, or null if the target cannot be reached.
     /// The start itself does not need to be walkable (a settler may stand in a doorway).
     /// <paramref name="avoid"/> lists point indices to treat as blocked for this search only
-    /// (e.g. a field another settler stands on).
+    /// (e.g. a field another settler stands on). With <paramref name="ownLandOf"/> the path stays on
+    /// that player's land.
     /// </summary>
-    public IReadOnlyList<Direction>? FindPath(GridPoint start, GridPoint target, IReadOnlySet<int>? avoid = null)
+    public IReadOnlyList<Direction>? FindPath(GridPoint start, GridPoint target, IReadOnlySet<int>? avoid = null, int? ownLandOf = null)
     {
         LastExpandedNodes = 0;
         if (!_map.Contains(start) || !_map.IsWalkable(target) || avoid?.Contains(_map.Index(target)) == true)
+            return null;
+        byte landOf = ownLandOf is { } player ? (byte)player : GameMap.NoOwner;
+        if (ownLandOf is not null && _map.OwnerAt(_map.Index(target)) != landOf)
             return null;
         if (start == target)
             return [];
@@ -116,7 +120,8 @@ public sealed class PathFinder
                 if ((uint)nx >= (uint)size || (uint)ny >= (uint)size)
                     continue;
                 int next = ny * size + nx;
-                if (!_map.IsWalkable(next) || _closedStamp[next] == _stamp || avoid?.Contains(next) == true)
+                if (!_map.IsWalkable(next) || _closedStamp[next] == _stamp || avoid?.Contains(next) == true
+                    || ownLandOf is not null && _map.OwnerAt(next) != landOf)
                     continue;
                 if (_seenStamp[next] == _stamp && _cost[next] <= nextCost)
                     continue;

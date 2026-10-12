@@ -133,7 +133,12 @@ public sealed partial class World
             var p = position + offset;
             if (!map.Contains(p) || !map.IsWalkable(p) || _footprints.ContainsKey(map.Index(p)))
                 return Fail("door or pile place blocked", out reason);
+            // Workers and carriers walk on their own land only.
+            if (TerritoryRules && map.OwnerAt(p) != player)
+                return Fail("door or pile place not on own land", out reason);
         }
+        if (TerritoryRules && definition.BuilderSpots.Any(s => !map.Contains(position + s.Offset) || map.OwnerAt(position + s.Offset) != player))
+            return Fail("builders would stand outside own land", out reason);
         if (!DoorLeadsOut(definition, position))
             return Fail("the door would lead nowhere", out reason);
         reason = "";

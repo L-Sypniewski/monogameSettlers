@@ -156,12 +156,21 @@ public sealed partial class World
         settler.IsStrolling = false;
         // Plan from where the settler will be standing next.
         var from = settler.StepTarget;
-        var path = PathFinder!.FindPath(from, destination);
+        var path = PathFinder!.FindPath(from, destination, ownLandOf: LandOf(settler));
         if (path is null)
             return false;
         Follow(settler, path, destination);
         return true;
     }
+
+    /// <summary>
+    /// Everyone but soldiers walks on the own land only (with territory rules). Somebody standing
+    /// outside it (land lost under its feet) may walk anywhere, so it can come home.
+    /// </summary>
+    internal int? LandOf(Settler settler) =>
+        TerritoryRules && settler.Profession != Profession.Soldier && Map!.OwnerAt(settler.StepTarget) == settler.Player
+            ? settler.Player
+            : null;
 
     /// <summary>
     /// Walks a path planned elsewhere (e.g. around fighting soldiers). Like <see cref="WalkTo"/>, the
@@ -281,7 +290,7 @@ public sealed partial class World
             return;
         }
 
-        var path = PathFinder!.FindPath(settler.Position, destination, avoid);
+        var path = PathFinder!.FindPath(settler.Position, destination, avoid, LandOf(settler));
         if (path is null)
         {
             // No way around: keep waiting (the watchdog will push through) unless the

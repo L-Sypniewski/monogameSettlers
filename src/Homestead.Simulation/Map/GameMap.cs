@@ -93,6 +93,9 @@ public sealed class GameMap
     /// <summary>The player owning the point, or null.</summary>
     public int? OwnerAt(GridPoint p) => _owner[Index(p)] is var o && o != NoOwner ? o : null;
 
+    /// <summary>Owner by point index; <see cref="NoOwner"/> for nobody.</summary>
+    public byte OwnerAt(int index) => _owner[index];
+
     public void SetOwner(GridPoint p, int? player) => _owner[Index(p)] = player is { } o ? (byte)o : NoOwner;
 
     /// <summary>Resource under the point; amount 0 means there is nothing (left).</summary>
