@@ -90,6 +90,8 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [x] Wohnhäuser entlassen Träger (klein 10, mittel 30, groß 100; einer pro Sekunde, einstellbar)
    - [ ] Startausstattung je Spielstart (Burg/Lager, Waren, Siedler wie im Original)
    - [ ] Auf- und Ablegen animieren; Wege (beschleunigen das Laufen)
+   - [x] Baustellen: Tür und Stapelplätze müssen frei sein (sonst nie belieferbar); Lager hält eine Ware zusammen
+   - [ ] Lager nimmt nur 6 Warenarten (6 Stapelplätze) – sollte alle aufnehmen
    - [ ] Fußabdrücke: JSettlers-Daten sind etwas großzügiger als die Begehbarkeit der Originalkarten
 4. **Wirtschaft:** Warenketten, Produktion, Rohstoffe. ← *begonnen*
    - [x] Produktions-Balancing als Datei (`data/production.json`, eigene Werte)
@@ -109,5 +111,12 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
      Entlassene legen ihr Werkzeug ab
    - [x] Werkzeug- und Waffenschmied: fehlende Werkzeuge zuerst, sonst kleiner Vorrat je Ware
    - [ ] Schmied-Auswahl durch den Spieler (Wunschliste/Anteile)
-5. **Kampf**
+5. **Kampf** ← *begonnen*
+   - [x] Soldaten: Kaserne macht aus Träger + Waffe Schwertkämpfer/Pikenier/Bogenschütze; Kartensoldaten mit Stufe
+   - [x] Militärgebäude (Turm, großer Turm, Burg) werden besetzt, Soldaten stehen sichtbar auf den Plätzen
+   - [x] Gebiet: besetzte Gebäude beanspruchen Land (Radien aus den Originalkarten, 98,8 % deckungsgleich),
+     Grenzpfähle in Spielerfarbe, Bauen nur auf eigenem Land
+   - [x] Spielertrennung in Logistik, Rekrutierung, Baustellen
+   - [ ] Angriff, Nahkampf, Bogenschützen, Eroberung von Gebäuden
+   - [ ] Soldaten-Stufen durch Gold/Tempel, Heiler
 6. **KI**

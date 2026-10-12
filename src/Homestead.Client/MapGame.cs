@@ -29,7 +29,6 @@ public sealed class MapGame : Game
     private const int WanderRadius = 15;
     private const int WandererBatch = 50;
 
-    private static readonly Color PlayerColor = Color.Red;
 
     private readonly GraphicsDeviceManager _graphics;
     private readonly GfxDirectory _gfx;
@@ -162,6 +161,30 @@ public sealed class MapGame : Game
         }
     }
 
+    /// <summary>Border posts of grid row <paramref name="y"/>: owned points next to land of another owner.</summary>
+    private void DrawBorderRow(int y, RectangleF visible)
+    {
+        const float margin = 32;
+        int firstX = Math.Max(0, (int)((visible.X - margin + y * ScreenProjection.TileWidth / 2f) / ScreenProjection.TileWidth));
+        int lastX = Math.Min(_gameMap.Size - 1,
+            (int)((visible.X + visible.Width + margin + y * ScreenProjection.TileWidth / 2f) / ScreenProjection.TileWidth));
+        for (int x = firstX; x <= lastX; x++)
+        {
+            var p = new GridPoint(x, y);
+            if (_gameMap.OwnerAt(p) is not { } owner)
+                continue;
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+            {
+                var n = p.Neighbor((Direction)d);
+                if (_gameMap.Contains(n) && _gameMap.OwnerAt(n) != owner)
+                {
+                    _economyRenderer.DrawBorderPost(_spriteBatch, p, owner, _terrain);
+                    break;
+                }
+            }
+        }
+    }
+
     private Vector2 ToWorld(GridPoint p) => ScreenProjection.ToWorld(p.X, p.Y, _terrain.HeightAt(p.X, p.Y));
 
     protected override void Update(GameTime gameTime)
@@ -254,6 +277,17 @@ public sealed class MapGame : Game
             _message = DemoEconomy.Create(_world, _romans, ScreenToGrid(cursorScreen), _random);
         if (Pressed(Keys.M))
             SpawnWanderers(ScreenToGrid(cursorScreen));
+        if (Pressed(Keys.K))
+        {
+            // Test soldiers: two of each kind, for player 0 (with Shift for player 1).
+            int player = keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift) ? 1 : 0;
+            int soldiers = 0;
+            foreach (var type in Enum.GetValues<SoldierType>())
+                for (int i = 0; i < 2; i++)
+                    if (_world.SpawnSoldier(ScreenToGrid(cursorScreen), type, player: player) is not null)
+                        soldiers++;
+            _message = $"{soldiers} soldiers for player {player + 1}";
+        }
 
         if (mouse.LeftButton == ButtonState.Pressed && _previousMouse.LeftButton == ButtonState.Released
             && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position))
@@ -409,6 +443,7 @@ public sealed class MapGame : Game
         int rows = _objects.RowCount(visible, out int firstRow);
         for (int y = firstRow; y < firstRow + rows; y++)
         {
+            DrawBorderRow(y, visible);
             foreach (var (point, ring) in marksByRow[y])
                 _economyRenderer.DrawWorkAreaMark(_spriteBatch, point, ring, _terrain);
             foreach (var pile in pilesByRow[y])
@@ -417,11 +452,14 @@ public sealed class MapGame : Game
                 _objects.DrawRow(_spriteBatch, y, visible, _time);
             foreach (var building in buildingsByRow[y])
             {
-                _economyRenderer.DrawBuilding(_spriteBatch, building, _terrain, PlayerColor);
-                _economyRenderer.DrawFlag(_spriteBatch, building, _world.Production.HasWorker(building), _terrain, PlayerColor, _time);
+                var color = PlayerColors.Of(building.Player);
+                _economyRenderer.DrawBuilding(_spriteBatch, building, _terrain, color);
+                _economyRenderer.DrawOccupants(_spriteBatch, building, _world.Military.Occupants(building), _settlerRenderer, _terrain);
+                _economyRenderer.DrawFlag(_spriteBatch, building, _world.Production.HasWorker(building) || _world.Military.IsOccupied(building),
+                    _terrain, color, _time);
             }
             foreach (var settler in settlersByRow[y])
-                _settlerRenderer.Draw(_spriteBatch, settler, _terrain, alpha, PlayerColor);
+                _settlerRenderer.Draw(_spriteBatch, settler, _terrain, alpha, PlayerColors.Of(settler.Player));
         }
 
         if (_selected is not null)

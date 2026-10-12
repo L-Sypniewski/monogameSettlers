@@ -19,6 +19,16 @@ public enum Profession
 
     /// <summary>Works in a building (see <see cref="Settler.Trade"/> and <see cref="Settler.Workplace"/>).</summary>
     Worker,
+
+    /// <summary>Fights and occupies military buildings (see <see cref="Settler.SoldierType"/>).</summary>
+    Soldier,
+}
+
+public enum SoldierType
+{
+    Swordsman,
+    Pikeman,
+    Bowman,
 }
 
 /// <summary>What a settler is doing on the spot, for animation.</summary>
@@ -65,6 +75,14 @@ public sealed class Settler
     }
 
     public int Id { get; }
+
+    /// <summary>The player the settler belongs to (0-based, as in the original maps).</summary>
+    public int Player { get; internal set; }
+
+    public SoldierType? SoldierType { get; internal set; }
+
+    /// <summary>Soldier rank 1-3.</summary>
+    public int Level { get; internal set; } = 1;
 
     /// <summary>The grid point the settler stands on, or leaves during a step.</summary>
     public GridPoint Position { get; internal set; }

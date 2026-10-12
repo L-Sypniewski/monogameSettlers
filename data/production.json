@@ -44,6 +44,10 @@
     "FARMER": "SCYTHE",
     "FISHERMAN": "FISHINGROD"
   },
+  "storage": {
+    "_comment": "Units per storehouse pile; a storehouse has six piles, each holding one material at a time.",
+    "pileCapacity": 40
+  },
   "housing": {
     "_comment": "Carriers a finished living house sends out through its door, one every intervalSeconds. Houses that come with a loaded map do not (the map lists its settlers itself).",
     "residents": { "small_livinghouse": 10, "medium_livinghouse": 30, "big_livinghouse": 100 },

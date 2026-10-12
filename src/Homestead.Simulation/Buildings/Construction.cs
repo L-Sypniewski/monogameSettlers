@@ -78,7 +78,7 @@ public sealed class Construction
         while (missing > 0)
         {
             var site = sites.First(s => freeSpots(s) > 0);
-            if (_world.Recruitment.Start(profession, trade, site.Door) is not { } recruit)
+            if (_world.Recruitment.Start(profession, trade, site.Door, site.Player) is not { } recruit)
                 break;
             if (recruit.State == RecruitState.FetchingTool)
                 _recruits.Add(recruit);
@@ -104,6 +104,8 @@ public sealed class Construction
             int bestDistance = int.MaxValue;
             foreach (var site in sites)
             {
+                if (site.Player != worker.Player)
+                    continue;
                 var spot = worker.Profession == Profession.Digger ? FreeDigSpot(site, worker.Position, null) : FreeBuilderSpot(site);
                 if (spot is not { } s)
                     continue;

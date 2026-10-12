@@ -19,6 +19,7 @@ public sealed class EconomyRenderer : IDisposable
     private const int DoorFlagSequence = 63;
     private const int RoofFlagSequence = 64;
     private const float FlagFramesPerSecond = 10;
+    private const int BorderPostSequence = 65; // file 13, in the player color
     private const int WorkAreaFile = 1;
     private const int WorkAreaSequence = 91; // 4 posts, green (inner ring) to red (outer ring)
 
@@ -69,6 +70,32 @@ public sealed class EconomyRenderer : IDisposable
             return;
         int frame = (int)(time.TotalSeconds * FlagFramesPerSecond + building.Id) % sprites.FrameCount;
         sprites.Draw(batch, frame, Anchor(building.Position + offset, terrain), 1, playerColor);
+    }
+
+    /// <summary>A border post of the player's land.</summary>
+    public void DrawBorderPost(SpriteBatch batch, GridPoint p, int player, TerrainMesh terrain)
+    {
+        var sprites = Sprites(FlagFile, BorderPostSequence);
+        if (sprites.FrameCount > 0)
+            sprites.Draw(batch, 0, Anchor(p, terrain), 1, PlayerColors.Of(player));
+    }
+
+    /// <summary>
+    /// Soldiers in the places of a military building, standing on it at the places' pixel offsets
+    /// (y up, from the building anchor), facing south-east or south-west.
+    /// </summary>
+    public void DrawOccupants(SpriteBatch batch, Building building, IReadOnlyList<Settler?> occupants, SettlerRenderer settlers,
+        TerrainMesh terrain)
+    {
+        var anchor = Anchor(building.Position, terrain);
+        for (int i = 0; i < occupants.Count; i++)
+        {
+            if (occupants[i] is not { } soldier)
+                continue;
+            var place = building.Definition.Occupiers[i];
+            settlers.DrawStanding(batch, soldier, anchor + new Vector2(place.Pixel.X, -place.Pixel.Y),
+                place.LooksRight ? Direction.SouthEast : Direction.SouthWest, PlayerColors.Of(soldier.Player));
+        }
     }
 
     /// <summary>One post of a work area marking; <paramref name="ring"/> 0 (inner) to 3 (outer).</summary>

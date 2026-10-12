@@ -45,6 +45,13 @@ def convert(path):
         b["images"].setdefault(img.get("for").lower(), []).append(
             {"file": int(img.get("file", "-1")), "sequence": int(img.get("sequence", "-1")),
              "image": int(img.get("image")), "type": img.get("type")})
+    # Soldier places of military buildings: where a soldier stands (grid offset) and where it is
+    # drawn on the building (pixel offset from the building anchor).
+    occupiers = [{"type": e.get("type"), "soldier": [int(e.get("soldierX")), int(e.get("soldierY"))],
+                  "pixel": [int(e.get("offsetX")), int(e.get("offsetY"))], "looksRight": e.get("looksRight") == "true"}
+                 for e in root.findall("occupyer")]
+    if occupiers:
+        b["occupiers"] = occupiers
     for child in root:
         if child.tag in POSITION_LISTS:
             entry = {k: (int(v) if k in ("dx", "dy") else v) for k, v in child.attrib.items()}

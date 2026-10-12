@@ -2978,7 +2978,81 @@
      }
     ]
    },
-   "viewdistance": "40"
+   "viewdistance": "40",
+   "occupiers": [
+    {
+     "type": "INFANTRY",
+     "soldier": [
+      1,
+      1
+     ],
+     "pixel": [
+      -7,
+      12
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "INFANTRY",
+     "soldier": [
+      2,
+      0
+     ],
+     "pixel": [
+      14,
+      20
+     ],
+     "looksRight": true
+    },
+    {
+     "type": "INFANTRY",
+     "soldier": [
+      -3,
+      -7
+     ],
+     "pixel": [
+      2,
+      77
+     ],
+     "looksRight": true
+    },
+    {
+     "type": "BOWMAN",
+     "soldier": [
+      -5,
+      -10
+     ],
+     "pixel": [
+      -5,
+      93
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "BOWMAN",
+     "soldier": [
+      -4,
+      -6
+     ],
+     "pixel": [
+      -20,
+      41
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "BOWMAN",
+     "soldier": [
+      -3,
+      -6
+     ],
+     "pixel": [
+      0,
+      36
+     ],
+     "looksRight": false
+    }
+   ]
   },
   "castle": {
    "worker": null,
@@ -3765,7 +3839,129 @@
      }
     ]
    },
-   "viewdistance": "40"
+   "viewdistance": "40",
+   "occupiers": [
+    {
+     "type": "INFANTRY",
+     "soldier": [
+      -5,
+      1
+     ],
+     "pixel": [
+      -82,
+      25
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "INFANTRY",
+     "soldier": [
+      3,
+      5
+     ],
+     "pixel": [
+      0,
+      -31
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "INFANTRY",
+     "soldier": [
+      5,
+      5
+     ],
+     "pixel": [
+      28,
+      -32
+     ],
+     "looksRight": true
+    },
+    {
+     "type": "INFANTRY",
+     "soldier": [
+      4,
+      -1
+     ],
+     "pixel": [
+      60,
+      22
+     ],
+     "looksRight": true
+    },
+    {
+     "type": "INFANTRY",
+     "soldier": [
+      -3,
+      -2
+     ],
+     "pixel": [
+      -45,
+      30
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "INFANTRY",
+     "soldier": [
+      -2,
+      -1
+     ],
+     "pixel": [
+      -30,
+      26
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "BOWMAN",
+     "soldier": [
+      -7,
+      -7
+     ],
+     "pixel": [
+      -59,
+      57
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "BOWMAN",
+     "soldier": [
+      1,
+      -1
+     ],
+     "pixel": [
+      22,
+      3
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "BOWMAN",
+     "soldier": [
+      0,
+      -6
+     ],
+     "pixel": [
+      18,
+      70
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "BOWMAN",
+     "soldier": [
+      -3,
+      -8
+     ],
+     "pixel": [
+      48,
+      50
+     ],
+     "looksRight": false
+    }
+   ]
   },
   "coalmine": {
    "worker": "MINER",
@@ -16230,7 +16426,45 @@
      }
     ]
    },
-   "viewdistance": "38"
+   "viewdistance": "38",
+   "occupiers": [
+    {
+     "type": "INFANTRY",
+     "soldier": [
+      3,
+      2
+     ],
+     "pixel": [
+      -28,
+      18
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "BOWMAN",
+     "soldier": [
+      -3,
+      -6
+     ],
+     "pixel": [
+      -7,
+      60
+     ],
+     "looksRight": false
+    },
+    {
+     "type": "BOWMAN",
+     "soldier": [
+      -2,
+      -6
+     ],
+     "pixel": [
+      13,
+      60
+     ],
+     "looksRight": false
+    }
+   ]
   },
   "waterworks": {
    "worker": "WATERWORKER",

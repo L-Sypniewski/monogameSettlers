@@ -16,6 +16,15 @@ public readonly record struct ImageRef(int File, int Sequence, int Image);
 
 public sealed record PileDefinition(GridPoint Offset, Material? Material, int Required = 0);
 
+/// <summary>
+/// A soldier place of a military building: bowmen stand on top, infantry (swordsmen, pikemen) at the
+/// front. <see cref="Pixel"/> is where the soldier is drawn, relative to the building anchor, y up.
+/// </summary>
+public sealed record OccupierPlace(bool ForBowman, GridPoint Soldier, (int X, int Y) Pixel, bool LooksRight)
+{
+    public bool Accepts(SoldierType type) => ForBowman == (type == SoldierType.Bowman);
+}
+
 /// <summary>Where a builder stands while building, and which way it faces.</summary>
 public sealed record WorkSpot(GridPoint Offset, Direction Facing);
 
@@ -42,6 +51,9 @@ public sealed class BuildingDefinition
 
     /// <summary>How far gatherers (woodcutter, forester, ...) walk from the building, if set in the data.</summary>
     public int? WorkRadius { get; init; }
+
+    /// <summary>Soldier places (military buildings only).</summary>
+    public IReadOnlyList<OccupierPlace> Occupiers { get; init; } = [];
 
     /// <summary>Where the building's flag stands (on the roof, or at the door of buildings without a worker).</summary>
     public GridPoint? Flag { get; init; }
@@ -150,6 +162,12 @@ public sealed class BuildingCatalog
             WorkCenter = workCenter,
             DropPosition = dropPosition,
             Flag = b.TryGetProperty("flag", out var flag) ? Point(flag) : null,
+            Occupiers = b.TryGetProperty("occupiers", out var occupiers)
+                ? occupiers.EnumerateArray().Select(o => new OccupierPlace(
+                    o.GetProperty("type").GetString() == "BOWMAN", Point(o.GetProperty("soldier")),
+                    (o.GetProperty("pixel")[0].GetInt32(), o.GetProperty("pixel")[1].GetInt32()),
+                    o.GetProperty("looksRight").GetBoolean())).ToArray()
+                : [],
             ConstructionPiles = Piles(b.GetProperty("constructionStacks")),
             RequestPiles = Piles(b.GetProperty("requestStacks")),
             OfferPiles = Piles(b.GetProperty("offerStacks")),

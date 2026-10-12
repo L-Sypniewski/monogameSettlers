@@ -1,6 +1,7 @@
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Homestead.Simulation.Map;
+using Homestead.Simulation.Military;
 using Homestead.Simulation.Pathfinding;
 
 namespace Homestead.Simulation;
@@ -39,7 +40,7 @@ public sealed partial class World
     private readonly List<Settler> _settlers = new();
     private readonly int[] _occupant;
 
-    public World(GameMap? map = null, ProductionConfig? production = null)
+    public World(GameMap? map = null, ProductionConfig? production = null, MilitaryConfig? military = null)
     {
         Map = map;
         Logistics = new Logistics(this);
@@ -49,6 +50,7 @@ public sealed partial class World
         Production = new Production(this, config);
         Idling = new Idling(this);
         Housing = new Housing(this, config);
+        Military = new Military.Military(this, military ?? MilitaryConfig.Load());
         if (map is not null)
         {
             PathFinder = new PathFinder(map);
@@ -105,6 +107,7 @@ public sealed partial class World
             Recruitment.Tick();
             Construction.Tick();
             Production.Tick();
+            Military.Tick();
             Housing.Tick();
             Idling.Tick();
         }
@@ -116,16 +119,26 @@ public sealed partial class World
     }
 
     /// <summary>Places a new settler on the nearest free walkable point.</summary>
-    public Settler? Spawn(GridPoint near, Profession profession = Profession.None)
+    public Settler? Spawn(GridPoint near, Profession profession = Profession.None, int player = 0)
     {
         var map = RequireMap();
         var free = NearestFree(near, radius: 10);
         if (free is not { } position)
             return null;
-        var settler = new Settler(_settlers.Count, position) { Profession = profession };
+        var settler = new Settler(_settlers.Count, position) { Profession = profession, Player = player };
         _settlers.Add(settler);
         _occupant[map.Index(position)] = settler.Id;
         return settler;
+    }
+
+    /// <summary>Places a new soldier (map loading, tests, debugging).</summary>
+    public Settler? SpawnSoldier(GridPoint near, SoldierType type, int level = 1, int player = 0)
+    {
+        if (Spawn(near, Profession.Soldier, player) is not { } soldier)
+            return null;
+        soldier.SoldierType = type;
+        soldier.Level = Math.Clamp(level, 1, 3);
+        return soldier;
     }
 
     /// <summary>Orders a settler to walk somewhere. Returns false if the target cannot be reached.</summary>

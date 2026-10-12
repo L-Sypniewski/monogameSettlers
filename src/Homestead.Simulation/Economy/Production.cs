@@ -88,7 +88,7 @@ public sealed class Production
         var tool = _world.Recruitment.ToolFor(building.Definition.Worker);
         return w.Phase switch
         {
-            Phase.NeedsWorker when tool is { } t && !_world.Recruitment.ToolAvailable(t) => $"no worker: tool missing ({t})",
+            Phase.NeedsWorker when tool is { } t && !_world.Recruitment.ToolAvailable(t, building.Player) => $"no worker: tool missing ({t})",
             Phase.NeedsWorker => "no worker: no free carrier",
             Phase.Recruiting when tool is { } t => $"worker is fetching the tool ({t})",
             Phase.Recruiting or Phase.WorkerComing => "worker is on the way",
@@ -418,7 +418,7 @@ public sealed class Production
 
     private void Recruit(Workplace w)
     {
-        if (_world.Recruitment.Start(Profession.Worker, w.Building.Definition.Worker, w.Building.Door) is not { } recruit)
+        if (_world.Recruitment.Start(Profession.Worker, w.Building.Definition.Worker, w.Building.Door, w.Building.Player) is not { } recruit)
             return;
         w.Recruit = recruit;
         w.Phase = Phase.Recruiting;

@@ -15,6 +15,7 @@ public sealed class SettlerRenderer : IDisposable
 {
     private const int CarrierFile = 10; // Roman settlers
     private const int WorkerFile = 11;  // Roman specialists
+    private const int SoldierFile = 12; // Roman soldiers
 
     // Roman specialists in file 11 (tables from JSettlers' movables, MIT).
     private const int DiggerWalk = 13;
@@ -63,6 +64,13 @@ public sealed class SettlerRenderer : IDisposable
     /// <summary>Grid row used for depth sorting: the lower of the two rows a step connects.</summary>
     public static int DepthRow(Settler settler) => Math.Max(settler.Position.Y, settler.StepTarget.Y);
 
+    /// <summary>A settler standing at a given screen position (soldiers on a tower).</summary>
+    public void DrawStanding(SpriteBatch batch, Settler settler, Vector2 anchor, Direction facing, Color playerColor)
+    {
+        var sprites = WalkSprites(settler);
+        sprites.Draw(batch, FitToBlocks(sprites, SettlerSprites.StandFrame(facing)), anchor, 1, playerColor);
+    }
+
     public void Draw(SpriteBatch batch, Settler settler, TerrainMesh terrain, float tickAlpha, Color playerColor)
     {
         var (sprites, frame) = Frame(settler, tickAlpha);
@@ -106,19 +114,36 @@ public sealed class SettlerRenderer : IDisposable
             }
         }
 
-        var walk = settler.Profession switch
-        {
-            Profession.Carrier => Sprites(CarrierFile, CarrierSequence(settler.Carrying)),
-            Profession.Digger => Sprites(WorkerFile, DiggerWalk),
-            Profession.Builder => Sprites(WorkerFile, BuilderWalk),
-            Profession.Worker => WorkerWalk(settler),
-            _ => Sprites(CarrierFile, _walkSequences[settler.Id % _walkSequences.Length]),
-        };
+        var walk = WalkSprites(settler);
         int frame = settler.State == SettlerState.Stepping
             ? SettlerSprites.WalkFrame(settler.Facing, StepProgress(settler, tickAlpha))
             : SettlerSprites.StandFrame(settler.Facing);
         return (walk, FitToBlocks(walk, frame));
     }
+
+    private SettlerSprites WalkSprites(Settler settler) => settler.Profession switch
+        {
+            Profession.Carrier => Sprites(CarrierFile, CarrierSequence(settler.Carrying)),
+            Profession.Digger => Sprites(WorkerFile, DiggerWalk),
+            Profession.Builder => Sprites(WorkerFile, BuilderWalk),
+            Profession.Worker => WorkerWalk(settler),
+            Profession.Soldier => Sprites(SoldierFile, SoldierSequence(settler)),
+            _ => Sprites(CarrierFile, _walkSequences[settler.Id % _walkSequences.Length]),
+        };
+
+    /// <summary>Roman soldier walk animations per type and level (file 12; JSettlers' movables, MIT).</summary>
+    private static int SoldierSequence(Settler soldier) => (soldier.SoldierType, soldier.Level) switch
+    {
+        (SoldierType.Swordsman, 1) => 9,
+        (SoldierType.Swordsman, 2) => 11,
+        (SoldierType.Swordsman, _) => 10,
+        (SoldierType.Pikeman, 1) => 15,
+        (SoldierType.Pikeman, 2) => 17,
+        (SoldierType.Pikeman, _) => 16,
+        (SoldierType.Bowman, 1) => 21,
+        (SoldierType.Bowman, 2) => 23,
+        _ => 22,
+    };
 
     /// <summary>
     /// Walk frames are computed for 12 frames per direction; some sequences (the farmer) have 13.

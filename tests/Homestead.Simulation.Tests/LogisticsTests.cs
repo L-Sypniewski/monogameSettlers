@@ -215,4 +215,36 @@ public class LogisticsTests(ITestOutputHelper output)
         int carried = world.Settlers.Count(s => s.Carrying == material);
         Assert.Equal(expected, inPiles + carried);
     }
+
+    [Fact]
+    public void A_storehouse_keeps_one_material_together()
+    {
+        var world = new World(new GameMap(70), ProductionConfig.None);
+        var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(35, 35))!;
+        world.AddLooseGoods(new GridPoint(15, 15), Material.Blade, 8);
+        world.AddLooseGoods(new GridPoint(17, 15), Material.Blade, 4);
+        for (int i = 0; i < 6; i++)
+            world.Spawn(new GridPoint(20 + i, 50), Profession.Carrier);
+
+        for (int t = 0; t < 10_000 && (world.Piles.Any(p => p.Role == PileRole.Loose && p.Count > 0) || world.Logistics.Jobs.Count > 0); t++)
+            world.Step();
+
+        var blades = stock.Piles.Where(p => p.Material == Material.Blade && p.Count > 0).ToList();
+        Assert.Equal(12, blades.Sum(p => p.Count));
+        Assert.Single(blades); // one pile holds 40, not spread over all six piles
+    }
+
+    [Fact]
+    public void A_building_whose_pile_place_is_blocked_cannot_be_placed()
+    {
+        var map = new GameMap(70);
+        var world = new World(map, ProductionConfig.None);
+        var at = new GridPoint(30, 30);
+        Assert.True(world.CanPlace(Romans["sawmill"], at, out _));
+
+        map.SetObject(at + Romans["sawmill"].ConstructionPiles[0].Offset, MapObjectKind.Tree);
+
+        Assert.False(world.CanPlace(Romans["sawmill"], at, out string reason));
+        Assert.Equal("door or pile place blocked", reason);
+    }
 }

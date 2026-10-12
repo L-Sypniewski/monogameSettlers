@@ -18,15 +18,33 @@ public static class OriginalScenario
         "temple", "donkey_farm", "beekeeping", "sulfurmine",
     ];
 
-    /// <summary>Settler type 0 in chunk 7 is the carrier; other professions are placed as plain settlers for now.</summary>
-    private const int CarrierType = 0;
+    /// <summary>
+    /// Settler types of chunk 7 that we place as something other than a carrier (order from JSettlers'
+    /// EOriginalMapSettlersType, MIT). Other specialists come as carriers: they become specialists
+    /// again by taking up a tool.
+    /// </summary>
+    private static (Profession Profession, SoldierType? Soldier, int Level) SettlerOf(int type) => type switch
+    {
+        1 => (Profession.Digger, null, 1),
+        2 => (Profession.Builder, null, 1),
+        5 => (Profession.Soldier, SoldierType.Swordsman, 1),
+        8 => (Profession.Soldier, SoldierType.Bowman, 1),
+        15 => (Profession.Soldier, SoldierType.Pikeman, 1),
+        30 => (Profession.Soldier, SoldierType.Bowman, 2),
+        31 => (Profession.Soldier, SoldierType.Pikeman, 2),
+        32 => (Profession.Soldier, SoldierType.Swordsman, 2),
+        33 => (Profession.Soldier, SoldierType.Bowman, 3),
+        34 => (Profession.Soldier, SoldierType.Pikeman, 3),
+        35 => (Profession.Soldier, SoldierType.Swordsman, 3),
+        _ => (Profession.Carrier, null, 1),
+    };
 
     public sealed record LoadReport(int Buildings, int Piles, int Settlers, IReadOnlyList<string> Skipped);
 
     public static (World World, LoadReport Report) Load(OriginalMap original, string? dataDirectory = null)
     {
         var map = GameMap.FromOriginal(original.Area);
-        var world = new World(map);
+        var world = new World(map) { TerritoryRules = true };
         var catalogs = new Dictionary<Civilization, BuildingCatalog>();
         var skipped = new List<string>();
 
@@ -72,7 +90,11 @@ public static class OriginalScenario
         int settlers = 0;
         foreach (var s in original.Settlers)
         {
-            if (world.Spawn(new GridPoint(s.X, s.Y), s.Type == CarrierType ? Profession.Carrier : Profession.None) is not null)
+            var (profession, soldier, level) = SettlerOf(s.Type);
+            var settler = soldier is { } type
+                ? world.SpawnSoldier(new GridPoint(s.X, s.Y), type, level, s.Player)
+                : world.Spawn(new GridPoint(s.X, s.Y), profession, s.Player);
+            if (settler is not null)
                 settlers++;
         }
 

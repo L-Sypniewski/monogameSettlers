@@ -35,6 +35,14 @@ public sealed partial class World
 
     public Housing Housing { get; }
 
+    public Military.Military Military { get; }
+
+    /// <summary>
+    /// Buildings may only be placed on the player's own land (worlds from original maps). Off for
+    /// test worlds without territory.
+    /// </summary>
+    public bool TerritoryRules { get; set; }
+
     /// <summary>Not part of a building, its surroundings or a pile (free for trees, work spots, ...).</summary>
     public bool IsFreeGround(GridPoint p)
     {
@@ -63,6 +71,8 @@ public sealed partial class World
                 return $"construction site: {building.BuildStepsDone}/{building.BuildStepsTotal} built" +
                        (material ? "" : ", waiting for material");
         }
+        if (Military.Status(building) is { } military)
+            return military;
         if (Production.Status(building) is { } status)
             return status;
         if (Housing.ResidentsLeft(building) is { } left)
@@ -74,6 +84,13 @@ public sealed partial class World
         return "no function yet";
     }
 
+    /// <summary>
+    /// Whether the player may use the goods of a pile: piles of its own buildings, and loose goods on
+    /// its own land or on land of nobody.
+    /// </summary>
+    public bool BelongsTo(Pile pile, int player) =>
+        pile.Owner is { } owner ? owner.Player == player : RequireMap().OwnerAt(pile.Position) is not { } o || o == player;
+
     public Pile? PileAt(GridPoint p) => _pilesByPoint.GetValueOrDefault(RequireMap().Index(p));
 
     internal bool HasPile(Pile pile) => _pilesByPoint.TryGetValue(RequireMap().Index(pile.Position), out var at) && at == pile;
@@ -83,7 +100,7 @@ public sealed partial class World
     /// walkable ground, not overlapping other buildings or their protected surroundings, and its own
     /// surroundings (door, piles) on the map and not under another building.
     /// </summary>
-    public bool CanPlace(BuildingDefinition definition, GridPoint position, out string reason)
+    public bool CanPlace(BuildingDefinition definition, GridPoint position, out string reason, int player = 0)
     {
         var map = RequireMap();
         foreach (var offset in definition.Blocked)
@@ -98,6 +115,8 @@ public sealed partial class World
                 return Fail("something is in the way", out reason);
             if (!definition.Ground.Contains(map.TerrainAt(p).GroundName()))
                 return Fail($"cannot build on {map.TerrainAt(p)}", out reason);
+            if (TerritoryRules && map.OwnerAt(p) != player)
+                return Fail("not on own land", out reason);
         }
         foreach (var offset in definition.Protected)
         {
@@ -106,6 +125,14 @@ public sealed partial class World
                 return Fail("too close to the map edge", out reason);
             if (_footprints.ContainsKey(map.Index(p)))
                 return Fail("too close to another building", out reason);
+        }
+        // Door and piles must be reachable, or carriers and workers could never get there.
+        foreach (var offset in definition.ConstructionPiles.Concat(definition.RequestPiles).Concat(definition.OfferPiles)
+                     .Select(pile => pile.Offset).Append(definition.Door))
+        {
+            var p = position + offset;
+            if (!map.Contains(p) || !map.IsWalkable(p) || _footprints.ContainsKey(map.Index(p)))
+                return Fail("door or pile place blocked", out reason);
         }
         reason = "";
         return true;
@@ -126,7 +153,7 @@ public sealed partial class World
         var map = RequireMap();
         if (definition.Blocked.Any(o => !map.Contains(position + o)))
             return null;
-        if (!force && !CanPlace(definition, position, out _))
+        if (!force && !CanPlace(definition, position, out _, player))
             return null;
 
         var building = Register(definition, player, position, BuildingState.Finished);
@@ -142,7 +169,7 @@ public sealed partial class World
     /// </summary>
     public Building? PlaceConstructionSite(BuildingDefinition definition, int player, GridPoint position)
     {
-        if (!CanPlace(definition, position, out _))
+        if (!CanPlace(definition, position, out _, player))
             return null;
 
         var map = RequireMap();
@@ -292,7 +319,8 @@ public sealed partial class World
         foreach (var pile in definition.RequestPiles)
         {
             var role = pile.Material is null ? PileRole.Storage : PileRole.Request;
-            AddPile(new Pile(_nextPileId++, building.Position + pile.Offset, role, pile.Material, Materials.MaxPileSize, building), building);
+            int capacity = role == PileRole.Storage ? Production.Config.StoragePileCapacity : Materials.MaxPileSize;
+            AddPile(new Pile(_nextPileId++, building.Position + pile.Offset, role, pile.Material, capacity, building), building);
         }
         foreach (var pile in definition.OfferPiles)
             AddPile(new Pile(_nextPileId++, building.Position + pile.Offset, PileRole.Offer, pile.Material, Materials.MaxPileSize, building), building);

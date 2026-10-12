@@ -87,16 +87,22 @@ public sealed class Logistics
         {
             if (idleCarriers.Count == 0)
                 break;
+            int player = request.Owner?.Player ?? 0;
 
             Pile? source = null;
             int sourceDistance = int.MaxValue;
             foreach (var offer in offers)
             {
                 if (offer.Available <= 0 || offer.Material is not { } material || !request.Accepts(material)
-                    || offer.Owner == request.Owner)
+                    || offer.Owner == request.Owner || !_world.BelongsTo(offer, player))
                     continue;
                 // Storehouse to storehouse would only shuffle goods around.
                 if (offer.Role == PileRole.Storage && request.Role == PileRole.Storage)
+                    continue;
+                // An empty storehouse pile starts a new material only if no pile there holds it with room
+                // left; otherwise one material spreads over all piles and the storehouse is full.
+                if (request is { Role: PileRole.Storage, Material: null } && request.Owner!.Piles.Any(o =>
+                        o != request && o.Role == PileRole.Storage && o.Material == material && o.Space > 0))
                     continue;
                 int distance = PathFinder.Distance(offer.Position, request.Position);
                 if (distance < sourceDistance && pathFinder.AreConnected(offer.Position, request.Position))
@@ -112,6 +118,8 @@ public sealed class Logistics
             int carrierDistance = int.MaxValue;
             foreach (var candidate in idleCarriers)
             {
+                if (candidate.Player != player)
+                    continue;
                 int distance = PathFinder.Distance(candidate.Position, source.Position);
                 if (distance < carrierDistance && pathFinder.AreConnected(candidate.Position, source.Position))
                 {

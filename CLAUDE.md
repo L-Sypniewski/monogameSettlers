@@ -24,6 +24,9 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   entlassen Träger; `Recruitment`: Träger
   holen ihr Werkzeug und werden Spezialisten – Tests ohne Werkzeugthema nutzen `TestConfig.NoTools`;
   `Idling`: untätige Träger gehen aus dem Weg),
+  `Military/` (Kaserne bildet Soldaten aus, Militärgebäude rufen Soldaten, besetzte beanspruchen Land;
+  Werte in `data/military.json`, Gebietsradien aus den Originalkarten gemessen). Siedler und Gebäude haben einen
+  Spieler; Logistik/Rekrutierung bedienen nur den eigenen Spieler, `World.TerritoryRules` erzwingt eigenes Land.
   `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern).
 - `data/` – Spieldaten (keine Original-Assets), wird neben jedes Programm kopiert. `production.json` ist
   unser eigenes Balancing (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration). Gebäudedaten sind aus
@@ -31,7 +34,7 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
 - `tests/Homestead.Simulation.Tests` – xUnit; Tests gegen Originalkarten laufen nur mit lokaler Installation
   (sonst bestehen sie ohne Prüfung). `dotnet test`
 - `src/Homestead.Client` – MonoGame-Spiel. Szenen: `--scene map` (Standard, Originalkarte mit Figuren:
-  Klick wählt/schickt Figuren, Klick auf ein Gebäude zeigt Zustand + Arbeitsbereich, N neuer Träger, M 50 Wanderer, G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
+  Klick wählt/schickt Figuren, Klick auf ein Gebäude zeigt Zustand + Arbeitsbereich, N neuer Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
   entlassen dann Träger);
   `--map <name>`). Capture-Läufe ignorieren Eingaben (Tastatur/Maus sind global) und laufen ohne VSync mit 4-facher Geschwindigkeit (verdecktes Fenster wird sonst gedrosselt). und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
   (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse). `HOMESTEAD_CAPTURE_ZOOM=4` und

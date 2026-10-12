@@ -18,6 +18,9 @@ The C# code was written independently; the following data tables and rules were 
   `EMaterialType` and the movables tables; worker walk/work animations of all trades (`SettlerRenderer.cs`,
   from `movables*.txt`); grain image sequence (`MapObjectCatalog.cs`, from `MapObjectDrawer`); flag and work area mark images
   and the work circle metric (`EconomyRenderer.cs`, `PathFinder.InCircle`, from `MapObjectDrawer`, `MainGrid`, `MapCircle`)
+- Soldier places of military buildings (`occupiers` in `data/buildings/*.json`), soldier and border
+  post images (`SettlerRenderer.cs`, `EconomyRenderer.cs`), original settler type codes (`OriginalScenario.cs`,
+  from `EOriginalMapSettlersType`), tools per trade (`data/production.json`, from `EMovableType`)
 - Original map object names (`docs/formate/map.md`, from `EOriginalMapObjectType`)
 - Terrain texture atlas layout, transition table and triangle texture orientation
   (`src/Homestead.Client/Terrain/TerrainAtlas.cs`, `TerrainMesh.cs`, from `Background` and `ETextureOrientation`)

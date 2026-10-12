@@ -31,17 +31,17 @@ public sealed class Recruitment
     public Material? ToolFor(string? trade) => trade is not null && _config.Tools.TryGetValue(trade, out var tool) ? tool : null;
 
     /// <summary>Whether a tool of this kind is lying in a pile, not promised to anyone.</summary>
-    public bool ToolAvailable(Material tool) => _world.Piles.Any(p => p.Material == tool && p.Available > 0);
+    public bool ToolAvailable(Material tool, int player) => _world.Piles.Any(p => p.Material == tool && p.Available > 0 && _world.BelongsTo(p, player));
 
     /// <summary>
     /// Starts turning the best-placed idle carrier into <paramref name="profession"/>/<paramref name="trade"/>
     /// for work near <paramref name="workplace"/>. Null if there is no carrier or no tool to be had now.
     /// </summary>
-    internal Recruit? Start(Profession profession, string? trade, GridPoint workplace)
+    internal Recruit? Start(Profession profession, string? trade, GridPoint workplace, int player)
     {
         var pathFinder = _world.PathFinder!;
         var carriers = _world.Settlers
-            .Where(s => s.IsAvailableCarrier && pathFinder.AreConnected(s.Position, workplace))
+            .Where(s => s.IsAvailableCarrier && s.Player == player && pathFinder.AreConnected(s.Position, workplace))
             .ToList();
         if (carriers.Count == 0)
             return null;
@@ -56,7 +56,7 @@ public sealed class Recruitment
 
         // The tool nearest to the workplace, then the carrier nearest to the tool.
         var pile = _world.Piles
-            .Where(p => p.Material == tool && p.Available > 0 && pathFinder.AreConnected(p.Position, workplace))
+            .Where(p => p.Material == tool && p.Available > 0 && _world.BelongsTo(p, player) && pathFinder.AreConnected(p.Position, workplace))
             .MinBy(p => PathFinder.Distance(p.Position, workplace));
         if (pile is null)
             return null;

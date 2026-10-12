@@ -59,6 +59,9 @@ public sealed record ProductionConfig
     /// <summary>Every this many ticks a depleted field regains one amount step (up to its start value); 0 = never.</summary>
     public int RegenerateTicks { get; init; }
 
+    /// <summary>Units one storehouse pile holds (a storehouse has six piles).</summary>
+    public int StoragePileCapacity { get; init; } = 40;
+
     /// <summary>Carriers a living house releases once it is finished (by building name).</summary>
     public IReadOnlyDictionary<string, int> Residents { get; init; } = new Dictionary<string, int>();
 
@@ -118,6 +121,7 @@ public sealed record ProductionConfig
             Mines = mines,
             Smiths = smiths,
             Tools = tools,
+            StoragePileCapacity = root.GetProperty("storage").GetProperty("pileCapacity").GetInt32(),
             Residents = housing.GetProperty("residents").EnumerateObject().ToDictionary(r => r.Name, r => r.Value.GetInt32()),
             ResidentIntervalTicks = Ticks(housing, "intervalSeconds"),
             TreeGrowTicks = Ticks(root.GetProperty("trees"), "growSeconds"),

@@ -1,0 +1,6 @@
+{
+  "_comment": "Military balancing. territory: radius of the land an occupied building claims, in the round hex metric of PathFinder.InCircle. Measured from the original maps' owner bytes (edge of the land around the buildings: tower 931, big tower 967, castle 1101 = radius squared), so the values reproduce the original.",
+  "territory": { "tower": 30.52, "big_tower": 31.1, "castle": 33.19 },
+  "weapons": { "SWORD": "Swordsman", "SPEAR": "Pikeman", "BOW": "Bowman" },
+  "trainingSeconds": 4
+}

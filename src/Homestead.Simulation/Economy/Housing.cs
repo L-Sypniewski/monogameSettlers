@@ -47,7 +47,7 @@ public sealed class Housing
                 continue;
             if (_world.IsOccupied(house.Door))
                 continue; // the previous one has not left the doorstep yet
-            if (_world.Spawn(house.Door, Profession.Carrier) is not { } resident)
+            if (_world.Spawn(house.Door, Profession.Carrier, house.Player) is not { } resident)
                 continue;
             _released[house.Id] = _released.GetValueOrDefault(house.Id) + 1;
             _lastRelease[house.Id] = _world.Tick;
