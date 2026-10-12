@@ -38,6 +38,7 @@ public sealed class MapGame : Game
     private readonly Random _random = new(1);
     private readonly BuildingCatalog _romans = BuildingCatalog.Load(Civilization.Roman);
     private BuildingDefinition[] _placeable = [];
+    private BuildMenu _buildMenu = null!;
     private int _placeIndex;
     private bool _placing;
 
@@ -126,6 +127,7 @@ public sealed class MapGame : Game
             .OrderBy(b => b.Name).ToArray();
         _placeIndex = Math.Max(0, Array.FindIndex(_placeable, b => b.Name == "lumberjack"));
         _economyRenderer = new EconomyRenderer(GraphicsDevice, _gfx);
+        _buildMenu = new BuildMenu(GraphicsDevice, _gfx, _romans);
         LoadMap(_mapIndex);
     }
 
@@ -354,9 +356,20 @@ public sealed class MapGame : Game
             _message = $"{soldiers} soldiers for player {player + 1}";
         }
 
+        // The build menu at the left edge: a click chooses a category or the building to place.
+        bool onMenu = BuildMenu.Contains(cursorScreen);
+        if (onMenu && mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is null
+            && _buildMenu.Click(cursorScreen) is { } chosen)
+        {
+            _placeIndex = Math.Max(0, Array.IndexOf(_placeable, chosen));
+            _placing = true;
+        }
+        if (onMenu && _buildMenu.BuildingAt(cursorScreen) is { } hovered)
+            _message = hovered.Name;
+
         // Left button: a click on release, or a selection box when dragged.
         if (mouse.LeftButton == ButtonState.Pressed && _previousMouse.LeftButton == ButtonState.Released
-            && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position))
+            && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position) && !onMenu)
             _dragStart = cursorScreen;
         if (mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is { } dragStart)
         {
@@ -380,7 +393,7 @@ public sealed class MapGame : Game
 
         // Right button: dragging moves the map, a click gives the selected soldiers their order.
         if (mouse.RightButton == ButtonState.Pressed && _previousMouse.RightButton == ButtonState.Released
-            && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position))
+            && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position) && !onMenu)
             _rightStart = cursorScreen;
         if (mouse.RightButton == ButtonState.Pressed && _previousMouse.RightButton == ButtonState.Pressed)
             _camera -= (mouse.Position - _previousMouse.Position).ToVector2() / _zoom;
@@ -535,12 +548,32 @@ public sealed class MapGame : Game
     }
 
     /// <summary>Screen position to the nearest grid point, ignoring terrain height.</summary>
+    /// <summary>
+    /// The grid point drawn under a screen position, height included: higher points are drawn further
+    /// up, so the rows below the flat estimate are searched for the point drawn nearest the cursor.
+    /// </summary>
     private GridPoint ScreenToGrid(Vector2 screen)
     {
         var world = Vector2.Transform(screen, Matrix.Invert(View));
-        int y = (int)MathF.Round(world.Y / ScreenProjection.RowHeight);
-        int x = (int)MathF.Round((world.X + y * ScreenProjection.TileWidth / 2f) / ScreenProjection.TileWidth);
-        return new GridPoint(Math.Clamp(x, 0, _map.Area.Size - 1), Math.Clamp(y, 0, _map.Area.Size - 1));
+        int size = _map.Area.Size;
+        int flatY = (int)MathF.Round(world.Y / ScreenProjection.RowHeight);
+        int maxRows = 255 * ScreenProjection.HeightStep / ScreenProjection.RowHeight + 1;
+        var best = new GridPoint(0, 0);
+        float bestDistance = float.MaxValue;
+        for (int y = Math.Max(0, flatY - 1); y <= Math.Min(size - 1, flatY + maxRows); y++)
+        {
+            int x0 = (int)MathF.Round((world.X + y * ScreenProjection.TileWidth / 2f) / ScreenProjection.TileWidth);
+            for (int x = Math.Max(0, x0 - 1); x <= Math.Min(size - 1, x0 + 1); x++)
+            {
+                float distance = Vector2.DistanceSquared(world, ScreenProjection.ToWorld(x, y, _terrain.HeightAt(x, y)));
+                if (distance < bestDistance)
+                {
+                    best = new GridPoint(x, y);
+                    bestDistance = distance;
+                }
+            }
+        }
+        return best;
     }
 
     protected override void Draw(GameTime gameTime)
@@ -611,7 +644,7 @@ public sealed class MapGame : Game
             DrawSelectionMarker(soldier, alpha);
         if (_dragStart is { } boxStart && !_placing)
             DrawSelectionBox(boxStart, Mouse.GetState().Position.ToVector2());
-        if (_placing)
+        if (_placing && !BuildMenu.Contains(Mouse.GetState().Position.ToVector2()))
         {
             var at = ScreenToGrid(Mouse.GetState().Position.ToVector2());
             var definition = _placeable[_placeIndex];
@@ -621,6 +654,10 @@ public sealed class MapGame : Game
         if (_showBlocked)
             for (int y = firstRow; y < firstRow + rows; y++)
                 DrawBlockedRow(y, visible);
+        _spriteBatch.End();
+
+        _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        _buildMenu.Draw(_spriteBatch, _pixel, viewport.Height, _placing ? _placeable[_placeIndex] : null, Mouse.GetState().Position.ToVector2());
         _spriteBatch.End();
 
         if (target is not null)

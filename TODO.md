@@ -11,7 +11,7 @@ TERRAIN:
 x Höhenunterschiede geringer, auf 50% reduzieren.
 
 GAMEPLAY:
-Beim Selektieren und kommandieren der Soldaten soll die Zielkoordinate mit der Höhe verrechnet werden.
+x Beim Selektieren und kommandieren der Soldaten soll die Zielkoordinate mit der Höhe verrechnet werden.
 x 30% aller Träger (gezählt werden alle derzeitigen Fachkräfte + Träger) wird reserviert und darf niemals zu einem Soldaten oder einer Fachkraft werden. Für die KI heißt es dann, Wohnhäuser höher zu priorisieren
 Tasten 1-9: Gruppierte Einheiten auswählen
 x Erzwungener Befehl: Wenn zum Rechtsklick noch Strg gedrückt ist, erhält der Lauf-Befehl oberste Priorität.
@@ -21,6 +21,8 @@ x Rechtsklick, um einen Befehl zu erteilen
 x Linksklick, um die Soldaten wieder abzuwählen
 Ctrl+1-9: Gruppe erstellen. Gruppe soll oben rechts als kleines Icon eingeblendet werden
 Shift+Auswahl von Einheuten: Einheiten der aktuellen Auswahl hinzufügen
+Völker-spezifische Einheiten/Siedler anzeigen
+Amazonen mit einbinden
 
 KI:
 x Die KI sollte freien Bauplatz ebenfalls wie eine Resource behandeln und die Einnahme von neuer Baufläche anstreben.
@@ -43,3 +45,15 @@ x Die KI soll beim Angriff Ziele am Rand priorisieren, die schlechter verteidigt
 x Je nach Volk sollen die Werte/Thresholds unterschiedlich konfigurierbar sein können.
 
 x Zusätzliche/spezifische KI-Regeln in json auslagern (wie es bereits schon gemacht wurde)
+
+
+UI:
+x Erstmal simpel: Links am Rand ein Menü mit den selben Kategorien wie im Originalspiel. Darunter die entsprechenden Bauoptionen. Jede Bauoption als Icon anzeigen.
+
+Tweaks:
+Balancing abweichend vom Originalspiel konfigurierbar:
+Resourcenverbrauch beim Abbau von Steinen, Erze (alle Rohstoffe in Bergen), Fisch: 100%, 75%, 50%, 25%, 10%, 0% (unendlich). 3 Kategorien, individuell konfigurierbar.
+
+Simulation:
+Militärisches Verhalten (ai.military und ai.attack) gegeneinander simulieren.
+Verschiedene Build-Orders testen

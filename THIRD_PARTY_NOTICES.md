@@ -22,6 +22,7 @@ The C# code was written independently; the following data tables and rules were 
   post images (`SettlerRenderer.cs`, `EconomyRenderer.cs`), original settler type codes (`OriginalScenario.cs`,
   from `EOriginalMapSettlersType`), tools per trade (`data/production.json`, from `EMovableType`)
 - Start equipment per start level for multiplayer maps (`data/start.json`, from `EMapStartResources`)
+- Build menu categories and their buildings (`data/ui.json`, from `EBuildingsCategory`)
 - Original map object names (`docs/formate/map.md`, from `EOriginalMapObjectType`)
 - Terrain texture atlas layout, transition table and triangle texture orientation
   (`src/Homestead.Client/Terrain/TerrainAtlas.cs`, `TerrainMesh.cs`, from `Background` and `ETextureOrientation`)

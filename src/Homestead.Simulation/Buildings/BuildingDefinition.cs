@@ -73,6 +73,9 @@ public sealed class BuildingDefinition
 
     public ImageRef? ConstructionImage { get; init; }
 
+    /// <summary>Icon of the build menu (a GUI image: <see cref="ImageRef.Sequence"/> is its index in the file).</summary>
+    public ImageRef? GuiImage { get; init; }
+
     /// <summary>Lowest row offset covered by the building, used for drawing order.</summary>
     public int BottomRow => Blocked.Count == 0 ? 0 : Blocked.Max(p => p.Y);
 }
@@ -173,6 +176,7 @@ public sealed class BuildingCatalog
             OfferPiles = Piles(b.GetProperty("offerStacks")),
             FinalImages = Images(images, "final"),
             ConstructionImage = Images(images, "build").Cast<ImageRef?>().FirstOrDefault(),
+            GuiImage = Images(images, "gui").Cast<ImageRef?>().FirstOrDefault(),
         };
     }
 }
