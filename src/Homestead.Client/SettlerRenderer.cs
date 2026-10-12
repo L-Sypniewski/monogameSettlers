@@ -76,6 +76,8 @@ public sealed class SettlerRenderer : IDisposable
         int work = (int)((settler.ActivityTicks + tickAlpha) * WorkFramesPerTick);
         if (WorkAction(settler.Activity) is { } action && Find(settler, action, settler.Facing) is { } animation)
             return (Sprites(animation), animation.Cycle(work));
+        if (settler.IsStriking && settler.State != SettlerState.Stepping && Strike(settler, work) is { } strike)
+            return strike;
         if (settler.State == SettlerState.Stepping)
         {
             float progress = StepProgress(settler, tickAlpha);
@@ -98,6 +100,32 @@ public sealed class SettlerRenderer : IDisposable
         int file = ((int)people + 1) * 10;
         var looks = WalkSequences(file);
         return (Sprites(file, looks[settler.Id % looks.Length]), plainFrame);
+    }
+
+    /// <summary>One round of a striker's loop, in work frames: what he does from which frame on.</summary>
+    private static readonly (int From, string Action)[] StrikeLoop =
+    [
+        (0, "HOMELESS_IDLE"), (30, "HOMELESS2"), (44, "HOMELESS_IDLE"), (50, "HOMELESS3"), (60, "HOMELESS4"), (65, "HOMELESS_IDLE"),
+    ];
+
+    private const int StrikeLoopFrames = 75;
+
+    /// <summary>
+    /// A striking carrier (JSettlers' homeless bearer, MIT): puts his hands behind his back, then stands
+    /// so, now and then shaking his head or kicking a pebble. Parts the people lacks are spent standing.
+    /// </summary>
+    private (SettlerSprites Sprites, int Frame)? Strike(Settler settler, int work)
+    {
+        var people = _peopleOf(settler.Player);
+        SettlerAnimation? Own(string action) =>
+            _animations.Find(people, "BEARER", action, "NO_MATERIAL", settler.Facing) is { } a && Exists(a) ? a : null;
+        if (Own("HOMELESS1") is { } start && work < start.Duration)
+            return (Sprites(start), start.Cycle(work));
+        int step = (work + settler.Id * 17) % StrikeLoopFrames;
+        var (from, action) = StrikeLoop.Last(part => part.From <= step);
+        if ((action == "HOMELESS_IDLE" ? null : Own(action)) is { } animation)
+            return (Sprites(animation), animation.Cycle(step - from));
+        return Own("HOMELESS_IDLE") is { } idle ? (Sprites(idle), idle.Start) : null;
     }
 
     /// <summary>The action of an activity in the animation tables.</summary>

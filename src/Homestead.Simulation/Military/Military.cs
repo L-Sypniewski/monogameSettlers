@@ -252,8 +252,15 @@ public sealed partial class Military
             g.Places[i] = null;
         }
         _garrisons.Remove(g.Building.Id);
-        if (occupied)
-            Unclaim(g.Building);
+        if (!occupied)
+            return;
+        Unclaim(g.Building);
+        // Buildings on the land given up go down with it.
+        var map = _world.Map!;
+        int player = g.Building.Player;
+        var lost = TerritoryOf(g.Building).Where(p => map.OwnerAt(p) != player).ToHashSet();
+        foreach (var other in _world.Buildings.Where(b => b.Exists && b.Player == player && lost.Contains(b.Position)).ToList())
+            _world.RemoveBuilding(other);
     }
 
     // ---- territory ----

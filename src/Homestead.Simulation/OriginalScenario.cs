@@ -126,6 +126,7 @@ public static class OriginalScenario
             piles = world.Piles.Count();
         }
 
+        world.Housing.SettleStartPopulation();
         var playerCatalogs = Enumerable.Range(0, original.Players.Count).Select(CatalogOf).ToArray();
         return (world, new LoadReport(buildings, piles, settlers, skipped, playerCatalogs));
     }

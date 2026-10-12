@@ -67,6 +67,7 @@ public static class DemoEconomy
                 if (world.Spawn(new GridPoint(near.X + random.Next(-6, 7), near.Y + random.Next(-6, 7)), profession) is not null)
                     spawned++;
 
+        world.Housing.SettleStartPopulation(); // the demo's settlers have room
         return $"demo economy: {placed} buildings, {piles} piles, {spawned} workers";
     }
 

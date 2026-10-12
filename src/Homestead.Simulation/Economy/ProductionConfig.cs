@@ -74,6 +74,9 @@ public sealed record ProductionConfig
     /// </summary>
     public Depletion Depletion { get; init; } = new(100, 100, 100);
 
+    /// <summary>Share of its construction material a building leaves when it comes down (sites: of what was built in).</summary>
+    public double DemolitionPayback { get; init; } = 0.5;
+
     /// <summary>How geologists search (see <see cref="Geology"/>).</summary>
     public GeologistRules Geologists { get; init; } = new(10, 3 * World.TicksPerSecond, 2 * World.TicksPerSecond,
         4 * 60 * World.TicksPerSecond, 9 * 60 * World.TicksPerSecond);
@@ -188,6 +191,7 @@ public sealed record ProductionConfig
                     Ticks(geologists, "signSeconds"), (int)(geologists.GetProperty("signMinutes")[0].GetDouble() * 60 * World.TicksPerSecond),
                     (int)(geologists.GetProperty("signMinutes")[1].GetDouble() * 60 * World.TicksPerSecond))
                 : new GeologistRules(10, 3 * World.TicksPerSecond, 2 * World.TicksPerSecond, 4 * 60 * World.TicksPerSecond, 9 * 60 * World.TicksPerSecond),
+            DemolitionPayback = root.TryGetProperty("demolition", out var demolition) ? demolition.GetProperty("payback").GetDouble() : 0.5,
             Depletion = root.TryGetProperty("depletion", out var depletion)
                 ? new Depletion(depletion.GetProperty("stone").GetInt32(), depletion.GetProperty("mountain").GetInt32(), depletion.GetProperty("fish").GetInt32())
                 : new Depletion(100, 100, 100),

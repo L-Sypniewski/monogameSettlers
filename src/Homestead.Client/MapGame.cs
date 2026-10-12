@@ -400,7 +400,17 @@ public sealed class MapGame : Game
                     Convert(entry.Profession);
             }
         }
-        else if (!ShowsBuildingInfo)
+        else if (ShowsBuildingInfo)
+        {
+            // The info panel's tear-down button (asks first).
+            if (onMenu && released && _buildingInfo.Click(cursorScreen, GraphicsDevice.Viewport.Height, _selectedBuilding!, 0))
+            {
+                _message = $"{_buildingInfo.NameOf(_selectedBuilding!.Definition)} torn down";
+                _world.RemoveBuilding(_selectedBuilding);
+                _selectedBuilding = null;
+            }
+        }
+        else
         {
             if (onMenu && released && _buildMenu!.Click(cursorScreen) is { } chosen)
             {
@@ -756,6 +766,9 @@ public sealed class MapGame : Game
             }
         }
 
+        foreach (var cloud in _world.DustClouds)
+            _economyRenderer.DrawDustCloud(_spriteBatch, cloud.Position, (_world.Tick - cloud.Tick + alpha) / World.DustCloudTicks, _terrain);
+
         if (_selected is not null)
             DrawSelectionMarker(_selected, alpha);
         foreach (var settler in _group)
@@ -776,7 +789,8 @@ public sealed class MapGame : Game
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         if (ShowsBuildingInfo)
-            _buildingInfo.Draw(_spriteBatch, _pixel, viewport.Height, _font, _economyRenderer, _world, _selectedBuilding!, 0);
+            _buildingInfo.Draw(_spriteBatch, _pixel, viewport.Height, _font, _economyRenderer, _world, _selectedBuilding!, 0,
+                Mouse.GetState().Position.ToVector2());
         else if (CarriersSelected)
             _conversionMenu.Draw(_spriteBatch, _pixel, viewport.Height, _settlerRenderer, Own.Civilization, Mouse.GetState().Position.ToVector2());
         else
@@ -877,7 +891,9 @@ public sealed class MapGame : Game
     private void Capture(RenderTarget2D target)
     {
         GraphicsDevice.SetRenderTarget(null);
-        if (_capturedFrames % 120 == 119)
+        // HOMESTEAD_CAPTURE_STRIKE=1: the focused building comes down (dust), carriers without room strike.
+        bool strike = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_STRIKE") == "1";
+        if (_capturedFrames % 120 == 119 || strike && _capturedFrames is 1202 or 1206)
         {
             using var stream = File.Create(Path.Combine(_captureDirectory!, $"{_map.Name}_{_capturedFrames:D4}.png"));
             target.SaveAsPng(stream, target.Width, target.Height);
@@ -919,13 +935,21 @@ public sealed class MapGame : Game
                     _camera = ToWorld(site.Position);
                 }
                 break;
+            case 1200 when strike && _selectedBuilding is { Exists: true } torn:
+                // It comes down in dust; ten newcomers without room go on strike next to it.
+                _camera = ToWorld(torn.Position);
+                Console.WriteLine($"tearing down {torn.Definition.Name} at {torn.Position.X},{torn.Position.Y}");
+                _world.RemoveBuilding(torn);
+                for (int i = 0; i < 10; i++)
+                    _world.Spawn(new GridPoint(torn.Position.X + 3 + i % 5, torn.Position.Y + 3 + i / 5), Profession.Carrier);
+                break;
             case 3600:
                 var production = _world.Production;
                 Console.WriteLine($"buildings: {string.Join(", ", _world.Buildings.Where(b => b.Exists).Select(b => $"{b.Definition.Name}@{b.Position.X},{b.Position.Y}"))}");
                 Console.WriteLine($"produced {production.Produced}, crop {production.CropHarvested}/{production.FieldsSown}, fish {production.FishCaught}, " +
                                   $"water {production.WaterDrawn}, ore {production.OreMined}, tools {production.ToolsMade}; " +
                                   $"kills {_world.Military.Kills}, captures {_world.Military.Captures}; " +
-                                  $"residents {_world.Housing.Released}, settlers {_world.Settlers.Count}; diggers {_world.Settlers.Count(s => s.Profession == Profession.Digger)}, builders {_world.Settlers.Count(s => s.Profession == Profession.Builder)}; problems: " +
+                                  $"residents {_world.Housing.Released}, room {_world.Housing.Room(0)} for {_world.Housing.Needing(0)}, striking {_world.Housing.Striking(0)}, settlers {_world.Settlers.Count}; diggers {_world.Settlers.Count(s => s.Profession == Profession.Digger)}, builders {_world.Settlers.Count(s => s.Profession == Profession.Builder)}; problems: " +
                                   string.Join(", ", production.Problems.Select(kv => $"{kv.Key} {kv.Value}x")));
                 var carriers = _world.Settlers.Where(c => c.IsCarrier && !c.IsInside).ToList();
                 Console.WriteLine($"carriers {carriers.Count}: with a task {carriers.Count(c => c.HasTask)}, strolling {carriers.Count(c => c.IsStrolling)}, " +

@@ -150,6 +150,12 @@ public sealed class Settler
     public bool IsAvailableCarrier => IsCarrier && !HasTask && Carrying is null && !ConversionPending
                                         && (IsStrolling || Destination is null && State != SettlerState.Stepping);
 
+    /// <summary>
+    /// On strike for lack of living space (see <see cref="Economy.Housing"/>): a carrier takes no transport
+    /// jobs, a worker stays in his building.
+    /// </summary>
+    public bool IsStriking { get; internal set; }
+
     /// <summary>The tool a specialist took up when it was recruited (put down again if it becomes a carrier).</summary>
     public Material? Tool { get; internal set; }
 

@@ -82,6 +82,7 @@ void Print(World world, long tick)
             .OrderBy(g => g.Key).Select(g => g.Count() > 1 ? $"{g.Key} {g.Count()}" : g.Key);
         Console.WriteLine($"   P{p + 1}: land {ai.Land} (free {ai.FreeLand}), {finished} buildings + {own.Count - finished} sites, " +
                           $"settlers {settlers.Count} (carriers {settlers.Count(s => s.Profession == Profession.Carrier)}, soldiers {settlers.Count(s => s.Profession == Profession.Soldier)}), " +
+                          $"room {world.Housing.Room(p)} for {world.Housing.Needing(p)} (striking {world.Housing.Striking(p)}), " +
                           $"plank {Stock(Material.Plank)} stone {Stock(Material.Stone)} coal {Stock(Material.Coal)} iron {Stock(Material.Iron)}");
         Console.WriteLine($"       {string.Join(", ", kinds)}");
         foreach (var site in own.Where(b => b.State != BuildingState.Finished && tick - siteSince[b.Id] >= 10 * 60 * World.TicksPerSecond))

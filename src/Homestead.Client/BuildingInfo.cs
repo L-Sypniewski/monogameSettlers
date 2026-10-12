@@ -11,7 +11,8 @@ namespace Homestead.Client;
 /// <summary>
 /// Shown at the left edge instead of the build menu while a building is selected: its name and image;
 /// for own buildings also its state, the goods in its piles (construction sites: material delivered
-/// of needed) and a mine's hit rate. Names and states come from <c>data/ui.json</c>.
+/// of needed) and a mine's hit rate, and at the bottom a button to tear it down (asks first). Names and
+/// states come from <c>data/ui.json</c>.
 /// </summary>
 public sealed partial class BuildingInfo
 {
@@ -23,6 +24,9 @@ public sealed partial class BuildingInfo
     private readonly Dictionary<string, string> _names = new();
     private readonly List<(string Contains, string State)> _states = new();
     private readonly string _active;
+
+    /// <summary>The building whose tear-down button was pressed: the panel asks whether to go on.</summary>
+    private Building? _confirming;
 
     public BuildingInfo()
     {
@@ -37,7 +41,38 @@ public sealed partial class BuildingInfo
 
     public string NameOf(BuildingDefinition definition) => _names.GetValueOrDefault(definition.Name, definition.Name);
 
-    public void Draw(SpriteBatch batch, Texture2D pixel, int height, UiFont font, EconomyRenderer economy, World world, Building building, int ownPlayer)
+    private static Rectangle DemolishButton(int height) => new(Margin, height - Margin - 28, Inner, 28);
+
+    private static Rectangle YesButton(int height) => new(Margin, height - Margin - 28, Inner / 2 - 2, 28);
+
+    private static Rectangle NoButton(int height) => new(Margin + Inner / 2 + 2, height - Margin - 28, Inner / 2 - 2, 28);
+
+    /// <summary>
+    /// A left click on the panel. True if it confirmed tearing down <paramref name="building"/>: first the
+    /// button, then "Ja"; "Nein" goes back.
+    /// </summary>
+    public bool Click(Vector2 screen, int height, Building building, int ownPlayer)
+    {
+        if (building.Player != ownPlayer)
+            return false;
+        if (_confirming != building)
+        {
+            if (DemolishButton(height).Contains(screen))
+                _confirming = building;
+            return false;
+        }
+        if (YesButton(height).Contains(screen))
+        {
+            _confirming = null;
+            return true;
+        }
+        if (NoButton(height).Contains(screen))
+            _confirming = null;
+        return false;
+    }
+
+    public void Draw(SpriteBatch batch, Texture2D pixel, int height, UiFont font, EconomyRenderer economy, World world, Building building,
+        int ownPlayer, Vector2 cursor)
     {
         batch.Draw(pixel, new Rectangle(0, 0, BuildMenu.Width, height), new Color(36, 28, 18, 230));
         int y = Margin;
@@ -53,6 +88,7 @@ public sealed partial class BuildingInfo
         y = imageBox.Bottom + 8;
         if (building.Player != ownPlayer)
             return;
+        DrawDemolish(batch, pixel, height, font, building, cursor);
 
         // State.
         font.Draw(batch, "Status", new Vector2(Margin, y), Label, 12);
@@ -82,6 +118,27 @@ public sealed partial class BuildingInfo
             economy.DrawMaterialIcon(batch, goods[i].Material, new Rectangle(cell.X, cell.Y, 26, 28));
             font.Draw(batch, goods[i].Text, new Vector2(cell.X + 29, cell.Y + 6), Text);
         }
+    }
+
+    /// <summary>The tear-down button at the bottom, or the question whether to go on.</summary>
+    private void DrawDemolish(SpriteBatch batch, Texture2D pixel, int height, UiFont font, Building building, Vector2 cursor)
+    {
+        if (_confirming != building)
+        {
+            Button(batch, pixel, font, DemolishButton(height), "Abreißen", cursor);
+            return;
+        }
+        string question = "Wirklich abreißen?";
+        font.Draw(batch, question, new Vector2(Margin + (Inner - font.Measure(question).X) / 2, height - Margin - 50), Text);
+        Button(batch, pixel, font, YesButton(height), "Ja", cursor);
+        Button(batch, pixel, font, NoButton(height), "Nein", cursor);
+    }
+
+    private static void Button(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle rect, string label, Vector2 cursor)
+    {
+        batch.Draw(pixel, rect, rect.Contains(cursor) ? new Color(150, 115, 60) : new Color(80, 62, 38));
+        var size = font.Measure(label);
+        font.Draw(batch, label, new Vector2(rect.X + (rect.Width - size.X) / 2, rect.Y + (rect.Height - size.Y) / 2), Text);
     }
 
     /// <summary>The short German state of the building (soldiers for military buildings).</summary>

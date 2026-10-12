@@ -84,6 +84,7 @@ public sealed partial class AiPlayer
         if (_home is null)
             return;
         TearDownUseless(mine);
+        TearDownSpareHouse(mine);
         mine.RemoveAll(b => !b.Exists);
         FollowStrikes(mine);
         FollowCampaign();
@@ -155,6 +156,25 @@ public sealed partial class AiPlayer
         return free < _config.FreeCarriers
                || carriers <= producers * _config.CarriersPerProductionBuilding
                || _world.Recruitment.Convertible(Player) < _config.HouseWhenConvertible;
+    }
+
+    /// <summary>
+    /// Tears down a living house no one needs: one that has released all its residents, while without
+    /// it at least spareRoom places would still be free and no house is wanted. Its material comes back
+    /// in part. The biggest such house first.
+    /// </summary>
+    private void TearDownSpareHouse(List<Building> mine)
+    {
+        if (_world.Housing.Room(Player) is not { } room || HouseWanted(mine))
+            return;
+        int spare = room - _world.Housing.Needing(Player);
+        var house = mine.Where(b => b.State == BuildingState.Finished && _world.Housing.ResidentsLeft(b) == 0
+                                    && spare - _world.Housing.RoomOf(b) >= _config.SpareRoom)
+            .MaxBy(b => _world.Housing.RoomOf(b));
+        if (house is null)
+            return;
+        Note($"tears down {house.Definition.Name} at {house.Position.X},{house.Position.Y}: {spare} places spare");
+        _world.RemoveBuilding(house);
     }
 
     private bool IsLivingHouse(string name) => name == _config.House || _config.HouseSizes.Any(h => h.Building == name);

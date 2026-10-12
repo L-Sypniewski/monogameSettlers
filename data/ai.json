@@ -7,6 +7,8 @@
   "freeCarriers": 6,
   "houseWhenConvertible": 4,
   "carriersPerProductionBuilding": 3,
+  "_spareRoomComment": "Living space no one needs (carriers turned soldiers): a living house that has released all its residents is torn down for its material when, without it, at least spareRoom places would still be left over and no house is wanted. The biggest such house goes first.",
+  "spareRoom": 15,
   "_houseSizesComment": "Which living house: the first of houseSizes whose sawmills and stonecutters (finished) the player has, otherwise house. Per people below, after what their houses cost (Egyptians build with stone, Asians and Amazons with planks).",
   "houseSizes": [
     { "building": "big_livinghouse", "sawmills": 2, "stonecutters": 3 },

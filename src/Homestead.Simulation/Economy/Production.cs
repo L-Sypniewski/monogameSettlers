@@ -110,6 +110,7 @@ public sealed class Production
             Phase.NeedsWorker => "no worker: no free carrier",
             Phase.Recruiting when tool is { } t => $"worker is fetching the tool ({t})",
             Phase.Recruiting or Phase.WorkerComing => "worker is on the way",
+            Phase.Inside when w.Worker?.IsStriking == true => "on strike",
             Phase.Inside => w.Waiting ?? "resting",
             Phase.ToPile or Phase.PickingUp or Phase.ToDoorToWork =>
                 w.Mine is null ? "fetching " + string.Join(" and ", w.Workshop!.Inputs) : "fetching food",
@@ -329,6 +330,11 @@ public sealed class Production
             case Phase.Inside:
                 if (--w.TicksLeft > 0)
                     break;
+                if (worker!.IsStriking)
+                {
+                    w.TicksLeft = 1; // no living space: he stays inside until the strike ends
+                    break;
+                }
                 if (w.Workshop is { } recipe)
                     StartWorkshopCycle(w, recipe);
                 else

@@ -41,6 +41,9 @@ public sealed record AiConfig
 
     /// <summary>A living house is wanted once fewer carriers than this may still become specialists (carrier reserve).</summary>
     public int HouseWhenConvertible { get; init; } = 4;
+
+    /// <summary>A living house is torn down when the living space left over without it is still at least this much.</summary>
+    public int SpareRoom { get; init; } = 15;
     public required int StockWhenWaiting { get; init; }
     public required IReadOnlyList<(string Building, int Count)> BuildOrder { get; init; }
     public required string ExpansionBuilding { get; init; }
@@ -85,6 +88,7 @@ public sealed record AiConfig
             FreeCarriers = root.GetProperty("freeCarriers").GetInt32(),
             House = root.GetProperty("house").GetString()!,
             HouseWhenConvertible = root.TryGetProperty("houseWhenConvertible", out var convertible) ? convertible.GetInt32() : 4,
+            SpareRoom = root.TryGetProperty("spareRoom", out var spare) ? spare.GetInt32() : 15,
             CarriersPerProductionBuilding = root.TryGetProperty("carriersPerProductionBuilding", out var perBuilding) ? perBuilding.GetDouble() : 2,
             HouseSizes = root.TryGetProperty("houseSizes", out var sizes)
                 ? sizes.EnumerateArray().Select(s => new HouseSize(s.GetProperty("building").GetString()!,

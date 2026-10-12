@@ -28,6 +28,9 @@ The C# code was written independently; the following data tables and rules were 
   from `movables*.txt` by `tools/data-import/convert_jsettlers_movables.py`
 - Geologist sign images per resource and their lifetime (`EconomyRenderer.cs`, `data/production.json`, from
   `MapObjectDrawer`, `RessourceSignMapObject`, `GeologistMovable`)
+- Dust cloud of a building coming down, its duration and the share of construction material left behind
+  (`EconomyRenderer.cs`, `WorldEconomy.cs`, `data/production.json`, from `MapObjectDrawer`, `Building`, `Constants`);
+  the striking carrier's animation order (`SettlerRenderer.cs`, from `BearerMovable`'s homeless behaviour)
 - Build menu categories and their buildings (`data/ui.json`, from `EBuildingsCategory`)
 - Original map object names (`docs/formate/map.md`, from `EOriginalMapObjectType`)
 - Terrain texture atlas layout, transition table and triangle texture orientation

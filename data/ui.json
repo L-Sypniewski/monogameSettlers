@@ -120,6 +120,10 @@
   "_statusComment": "Building info panel: the simulation's status text mapped to a short German state. The first entry whose text is contained in the status wins; anything else counts as active. Military buildings show their soldiers instead.",
   "status": [
     [
+      "on strike",
+      "Streik: kein Wohnraum"
+    ],
+    [
       "levelling the ground",
       "Baustelle: Planieren"
     ],

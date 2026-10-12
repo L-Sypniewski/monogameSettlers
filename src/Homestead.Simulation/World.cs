@@ -121,7 +121,7 @@ public sealed partial class World
                 ai.Tick();
         }
         foreach (var settler in _settlers)
-            if (settler.IsWorking)
+            if (settler.IsWorking || settler.IsStriking)
                 settler.ActivityTicks++;
 
         Tick++;

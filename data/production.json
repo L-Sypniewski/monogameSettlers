@@ -74,6 +74,10 @@
     "residents": { "small_livinghouse": 10, "medium_livinghouse": 30, "big_livinghouse": 100 },
     "intervalSeconds": 1
   },
+  "demolition": {
+    "_comment": "Share of the construction material a building leaves on the ground when it is torn down or lost with its land (construction sites: of the material already built in). 0.5 as in JSettlers.",
+    "payback": 0.5
+  },
   "trees": { "growSeconds": 150, "stumpSeconds": 60 },
   "grain": { "growSeconds": 100 },
   "stones": { "stonesPerCut": 1 },

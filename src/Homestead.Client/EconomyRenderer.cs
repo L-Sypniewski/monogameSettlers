@@ -27,6 +27,8 @@ public sealed class EconomyRenderer : IDisposable
     private const int SitePostSequence = 92;   // file 1: posts around a construction site
     private const int SiteSignSequence = 93;   // file 1: the sign on a construction site
     private const int MaxResourceAmount = 15;  // amount per field in original maps
+    private const int DustFile = 13;           // a building coming down (JSettlers' MapObjectDrawer, MIT)
+    private const int DustSequence = 38;
 
     private readonly GraphicsDevice _device;
     private readonly GfxDirectory _gfx;
@@ -138,6 +140,16 @@ public sealed class EconomyRenderer : IDisposable
             return;
         float progress = Math.Clamp(sign.Amount / (float)MaxResourceAmount, 0, 1);
         sprites.Draw(batch, Math.Min((int)(progress * sprites.FrameCount), sprites.FrameCount - 1), Anchor(p, terrain), 1, Color.White);
+    }
+
+    /// <summary>The dust cloud of a building coming down, <paramref name="progress"/> 0..1 through it.</summary>
+    public void DrawDustCloud(SpriteBatch batch, GridPoint p, float progress, TerrainMesh terrain)
+    {
+        var sprites = Sprites(DustFile, DustSequence);
+        if (sprites.FrameCount == 0)
+            return;
+        int frame = Math.Clamp((int)(progress * sprites.FrameCount), 0, sprites.FrameCount - 1);
+        sprites.Draw(batch, frame, Anchor(p, terrain), 1, Color.White);
     }
 
     /// <summary>Semi-transparent preview of a building at a position, green if it fits, red if not.</summary>

@@ -18,12 +18,13 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
 - `src/Homestead.Simulation` – Spiellogik, ohne MonoGame; feste Tick-Rate (`World.TicksPerSecond`).
   `Map/GameMap` (Gelände, Objekte, Begehbarkeit), `Pathfinding/PathFinder` (A*), `World`/`Settler`
   (Bewegung: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf – siehe Kommentar in `World`).
-  `Buildings/` (Definitionen aus `data/buildings/*.json`, Gebäude, `Construction`: Planierer/Bauarbeiter),
+  `Buildings/` (Definitionen aus `data/buildings/*.json`, Gebäude, `Construction`: Planierer/Bauarbeiter; `World.RemoveBuilding`: Abriss und Verlust mit Staubwolke (`DustClouds`),
+  lässt den Anteil `demolition.payback` des Baumaterials liegen; ein geräumtes Militärgebäude gibt sein Land auf, eigene Gebäude darauf fallen mit),
   `Economy/` (Waren, Stapel, `Logistics` mit Watchdog – je Ware erst die Zielart (Baustelle, Gebäude, Lager;
   Gebäudetyp nach `distribution`-Gewichten, z. B. Nahrung an Minen 90:10), dann das nächste Ziel mit Platz; ins Lager kommen nur die Waren aus `storage.materials`
   in `production.json` (Werkzeuge, Waffen, Gold), alles andere bleibt am Ausgabestapel des Erzeugers (8; voll → er wartet); `Problems` zählt Abbruchgründe; `Production`:
   Werkstätten, Minen, Schmiede und Sammler, Werte aus `data/production.json`; `Housing`: Wohnhäuser
-  entlassen Träger; `Recruitment`: Träger
+  entlassen Träger und geben so viel Wohnraum, wie sie entlassen haben (dazu die Startbevölkerung, `SettleStartPopulation`); Träger und Arbeiter (auch Planierer/Bauarbeiter) brauchen Platz, Soldaten und Geologen nicht; fehlt Platz, streiken entsprechend viele (`Settler.IsStriking`): erst untätige Träger (keine Aufträge), dann Arbeiter (bleiben im Gebäude); `Recruitment`: Träger
   holen ihr Werkzeug und werden Spezialisten – Tests ohne Werkzeugthema nutzen `TestConfig.NoTools`;
   `Idling`: untätige Träger, Soldaten, Planierer, Bauarbeiter, Geologen und arbeitslose Fachleute gehen aus dem Weg;
   `Geology`: Geologen untersuchen Gebirgsfelder im Umkreis `geologists.searchRadius` um den Zielpunkt (nächstes freies Feld, bei Gleichstand zufällig) und setzen Schilder mit Rohstoff und Menge;
@@ -34,7 +35,7 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   Spieler; Logistik/Rekrutierung bedienen nur den eigenen Spieler, `World.TerritoryRules` erzwingt eigenes Land (Bauplatz samt Tür, Stapeln, Bauarbeiterplätzen; Wege aller außer Soldaten und Geologen,
   Erreichbarkeit über Landgebiete je Besitzer in `PathFinder`; Gestrandete gehen heim).
   `Ai/` (`AiPlayer`: Computerspieler mit denselben Befehlen wie ein Mensch, kennt die ganze Karte; baut nach
-  `data/ai.json` und Bedarf (Wohnhaus, solange Träger ≤ 3 × Produktionsgebäude; Größe nach fertigen Sägewerken/Steinmetzen je Volk; kein Material wird für Türme zurückgehalten), expandiert mit Türmen gezielt zu fehlenden Rohstoffen; `AiPlayer.Military`: kennt alle feindlichen Soldaten,
+  `data/ai.json` und Bedarf (Wohnhaus, solange Träger ≤ 3 × Produktionsgebäude; Größe nach fertigen Sägewerken/Steinmetzen je Volk; kein Material wird für Türme zurückgehalten; reißt ein Wohnhaus ab, wenn danach noch `spareRoom` Plätze frei wären), expandiert mit Türmen gezielt zu fehlenden Rohstoffen; `AiPlayer.Military`: kennt alle feindlichen Soldaten,
   Verteidigung zuerst, greift kleinere Trupps an, wenn deutlich überlegen (laufend neu bewertet), verteilt die übrigen
   zur Bewachung nach Bedrohung; `AiPlayer.Campaign`: sammelt Soldaten und erobert feindliche Militärgebäude bei 1,5:1;
   Werte in `ai.json`, je Volk überschreibbar (`civilizations`, dort auch die Build-Order je Volk); `MapSurvey`: Kartenüberblick in Zellen;
@@ -47,16 +48,16 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
 - `tests/Homestead.Simulation.Tests` – xUnit; Tests gegen Originalkarten laufen nur mit lokaler Installation
   (sonst bestehen sie ohne Prüfung). `dotnet test`
 - `src/Homestead.Client` – MonoGame-Spiel. Szenen: `--scene map` (Standard, Originalkarte mit Figuren:
-  Baumenü links (Kategorien wie im Original aus `data/ui.json`, Icon-Klick startet das Platzieren; Gebäude des eigenen Volks), Klick wählt/schickt Figuren, Klick auf ein Gebäude zeigt links statt des Baumenüs Name, Bild und (bei eigenen) Status, Waren bzw. Baumaterial und bei Minen die Trefferquote der letzten 10 Gänge (deutsche Namen/Zustände in `data/ui.json`, Text über FontStashSharp mit einer Systemschrift) sowie den Arbeitsbereich, N neuer Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), F Angriff auf das feindliche
+  Baumenü links (Kategorien wie im Original aus `data/ui.json`, Icon-Klick startet das Platzieren; Gebäude des eigenen Volks), Klick wählt/schickt Figuren, Klick auf ein Gebäude zeigt links statt des Baumenüs Name, Bild und (bei eigenen) Status, unten „Abreißen“ mit Rückfrage, Waren bzw. Baumaterial und bei Minen die Trefferquote der letzten 10 Gänge (deutsche Namen/Zustände in `data/ui.json`, Text über FontStashSharp mit einer Systemschrift) sowie den Arbeitsbereich, N neuer Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), F Angriff auf das feindliche
   Militärgebäude unter dem Mauszeiger, Rahmen ziehen oder Klick wählt eigene Figuren mit Vorrang Soldaten > Geologen > untätige Träger, andere Berufe nie (Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungener Laufbefehl ohne Kämpfen; Geologen: Rechtsklick auf ein Gebirge sucht dort; Träger: links Umwandlungsmenü statt Baumenü, wandelt bis zur Trägerreserve um, beschäftigte nach ihrer Lieferung; Linksklick: abwählen; rechts ziehen verschiebt die Karte), F12 gedrückt halten: 10-fache Geschwindigkeit, I KI spielt für dich (an/aus; die anderen Spieler sind immer KI), L KI-Entscheidungen in die Konsole, G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
   entlassen dann Träger; nach dem Platzieren endet er, Rechtsklick bricht ab; Baustellen zeigen Schild und Pfosten);
   `--map <name>`, Standard: erste Mehrspieler-Karte; `--peoples amazon,roman,…`: Völker für Spieler, deren Volk die Karte offen lässt (Spieler i: Eintrag i mod Anzahl; ohne Angabe zufällig, Kartenvorgaben 0–3 gelten immer)).
   Figuren sehen aus wie ihr Volk: `SettlerAnimations` löst Typ/Aktion/Ware/Richtung über `data/settlers.json` auf
   (aus JSettlers' `movables*.txt` generiert, `tools/data-import/convert_jsettlers_movables.py`; nicht von Hand ändern). Capture-Läufe ignorieren Eingaben (Tastatur/Maus sind global) und laufen ohne VSync mit 4-facher Geschwindigkeit (verdecktes Fenster wird sonst gedrosselt). und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
   (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse). `HOMESTEAD_CAPTURE_ZOOM=4` und
-  `HOMESTEAD_CAPTURE_FOCUS=<gebäude>` (oder `site`: eine frische Baustelle) für Nahaufnahmen, `HOMESTEAD_CAPTURE_BATTLE=1` lässt Feinde den Startturm angreifen, `HOMESTEAD_CAPTURE_GEOLOGISTS=1` wandelt Träger um und schickt Geologen ins nächste eigene Gebirge; am Ende gibt der Lauf Zähler und Gebäudezustände aus.
+  `HOMESTEAD_CAPTURE_FOCUS=<gebäude>` (oder `site`: eine frische Baustelle) für Nahaufnahmen, `HOMESTEAD_CAPTURE_BATTLE=1` lässt Feinde den Startturm angreifen, `HOMESTEAD_CAPTURE_STRIKE=1` reißt das fokussierte Gebäude ab und setzt 10 Träger ohne Wohnraum dazu, `HOMESTEAD_CAPTURE_GEOLOGISTS=1` wandelt Träger um und schickt Geologen ins nächste eigene Gebirge; am Ende gibt der Lauf Zähler und Gebäudezustände aus.
 - `tools/Homestead.Arena` – KI gegen KI ohne Fenster: `dotnet tools/Homestead.Arena/bin/Release/net9.0/Homestead.Arena.dll
-  [karte…] [--all] [--minutes 30] [--every 5] [--peoples amazon,asian] [--seed 1] [--log]`; offene Völker zufällig mit festem Seed; gibt je Spieler Land, Gebäude, Siedler, Vorräte und
+  [karte…] [--all] [--minutes 30] [--every 5] [--peoples amazon,asian] [--seed 1] [--log]`; offene Völker zufällig mit festem Seed; gibt je Spieler Land, Gebäude, Siedler, Wohnraum/Streikende, Vorräte und
   hängende Baustellen aus.
 - `tools/Homestead.AssetTool` – CLI: `scan` (alle Bilder testweise dekodieren), `export`, `sheet` (PNG),
   `maps`, `resources` (Statistik der Bodenschätze), `minimap`.

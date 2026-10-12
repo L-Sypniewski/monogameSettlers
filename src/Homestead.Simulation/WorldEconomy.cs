@@ -237,7 +237,19 @@ public sealed partial class World
         return building;
     }
 
-    /// <summary>Removes a building or site; goods in its piles stay on the ground, workers and carriers react.</summary>
+    /// <summary>How long the dust cloud of a building coming down lasts (as in JSettlers).</summary>
+    public const int DustCloudTicks = 6 * TicksPerSecond / 5;
+
+    private readonly List<DustCloud> _dustClouds = new();
+
+    /// <summary>Dust clouds of buildings that came down within the last <see cref="DustCloudTicks"/>.</summary>
+    public IReadOnlyList<DustCloud> DustClouds => _dustClouds;
+
+    /// <summary>
+    /// Removes a building or site: it comes down in a cloud of dust, goods in its piles stay on the
+    /// ground, part of its construction material too (<see cref="ProductionConfig.DemolitionPayback"/>);
+    /// workers and carriers react.
+    /// </summary>
     public void RemoveBuilding(Building building)
     {
         if (!building.Exists)
@@ -252,8 +264,23 @@ public sealed partial class World
         }
         foreach (var offset in building.Definition.Protected)
             Unprotect(map, building.Position + offset);
+
+        // Material built in: all of it once finished, else what the builders used up of each pile.
+        // (A construction pile's capacity shrinks with every unit built in.)
+        var builtIn = building.Definition.ConstructionPiles.Where(p => p.Material is not null)
+            .GroupBy(p => p.Material!.Value)
+            .Select(g => (Material: g.Key, Count: building.State == BuildingState.Finished
+                ? g.Sum(p => p.Required)
+                : g.Sum(p => p.Required) - building.Piles.Where(p => p.Role == PileRole.Request && p.AcceptedMaterial == g.Key).Sum(p => p.Capacity)))
+            .ToList();
         foreach (var pile in building.Piles.ToList())
             RemovePileDroppingGoods(building, pile);
+        foreach (var (material, count) in builtIn)
+            for (int i = 0; i < (int)(count * Production.Config.DemolitionPayback); i++)
+                DropGoods(building.Position, material);
+
+        _dustClouds.RemoveAll(c => Tick - c.Tick >= DustCloudTicks);
+        _dustClouds.Add(new DustCloud(building.Position, Tick));
     }
 
     /// <summary>Levelling is done: the footprint becomes solid and builders can start.</summary>
@@ -403,3 +430,6 @@ public sealed partial class World
         owner?.AddPile(pile);
     }
 }
+
+/// <summary>A building came down at <paramref name="Position"/> in tick <paramref name="Tick"/>.</summary>
+public sealed record DustCloud(GridPoint Position, long Tick);
