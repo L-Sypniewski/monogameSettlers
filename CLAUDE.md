@@ -20,7 +20,8 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   (Bewegung: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf – siehe Kommentar in `World`).
   `Buildings/` (Definitionen aus `data/buildings/*.json`, Gebäude, `Construction`: Planierer/Bauarbeiter),
   `Economy/` (Waren, Stapel, `Logistics` mit Watchdog; `Problems` zählt Abbruchgründe; `Production`:
-  Werkstätten, Minen und Sammler, Werte aus `data/production.json`),
+  Werkstätten, Minen, Schmiede und Sammler, Werte aus `data/production.json`; `Recruitment`: Träger
+  holen ihr Werkzeug und werden Spezialisten – Tests ohne Werkzeugthema nutzen `TestConfig.NoTools`),
   `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern).
 - `data/` – Spieldaten (keine Original-Assets), wird neben jedes Programm kopiert. `production.json` ist
   unser eigenes Balancing (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration). Gebäudedaten sind aus

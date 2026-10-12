@@ -44,7 +44,9 @@ public sealed partial class World
         Map = map;
         Logistics = new Logistics(this);
         Construction = new Construction(this);
-        Production = new Production(this, production ?? (map is null ? ProductionConfig.None : ProductionConfig.Load()));
+        var config = production ?? (map is null ? ProductionConfig.None : ProductionConfig.Load());
+        Recruitment = new Recruitment(this, config);
+        Production = new Production(this, config);
         if (map is not null)
         {
             PathFinder = new PathFinder(map);
@@ -98,6 +100,7 @@ public sealed partial class World
         if (Map is not null)
         {
             Logistics.Tick();
+            Recruitment.Tick();
             Construction.Tick();
             Production.Tick();
         }

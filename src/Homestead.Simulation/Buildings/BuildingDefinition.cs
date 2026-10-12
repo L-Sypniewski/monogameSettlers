@@ -43,6 +43,9 @@ public sealed class BuildingDefinition
     /// <summary>How far gatherers (woodcutter, forester, ...) walk from the building, if set in the data.</summary>
     public int? WorkRadius { get; init; }
 
+    /// <summary>Where a smith puts down what it made (it has no output pile).</summary>
+    public GridPoint? DropPosition { get; init; }
+
     /// <summary>Center of the work area if it is not the building itself (the fields in front of a farm).</summary>
     public GridPoint? WorkCenter { get; init; }
 
@@ -127,6 +130,9 @@ public sealed class BuildingCatalog
         GridPoint? workCenter = b.GetProperty("positions").TryGetProperty("workcenter", out var centers) && centers.GetArrayLength() > 0
             ? new GridPoint(centers[0].GetProperty("dx").GetInt32(), centers[0].GetProperty("dy").GetInt32())
             : null;
+        GridPoint? dropPosition = b.GetProperty("positions").TryGetProperty("smithDropPosition", out var drops) && drops.GetArrayLength() > 0
+            ? new GridPoint(drops[0].GetProperty("dx").GetInt32(), drops[0].GetProperty("dy").GetInt32())
+            : null;
         return new BuildingDefinition
         {
             Name = name,
@@ -139,6 +145,7 @@ public sealed class BuildingCatalog
             BuilderSpots = builderSpots,
             WorkRadius = b.TryGetProperty("workradius", out var radius) && int.TryParse(radius.GetString(), out int r) ? r : null,
             WorkCenter = workCenter,
+            DropPosition = dropPosition,
             ConstructionPiles = Piles(b.GetProperty("constructionStacks")),
             RequestPiles = Piles(b.GetProperty("requestStacks")),
             OfferPiles = Piles(b.GetProperty("offerStacks")),

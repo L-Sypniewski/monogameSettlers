@@ -7,12 +7,20 @@ using Homestead.Simulation.Pathfinding;
 namespace Homestead.Client;
 
 /// <summary>
-/// Development helper: sets up a small economy (storehouse, a few workshops, goods lying around,
-/// carriers) to watch the logistics at work. Not the game's start equipment.
+/// Development helper: sets up a small economy (storehouse, a few workshops, goods and tools lying
+/// around, carriers) to watch the logistics at work. Carriers become specialists by picking up the
+/// tools. Not the game's start equipment.
 /// </summary>
 public static class DemoEconomy
 {
-    private static readonly string[] BuildingNames = ["stock", "sawmill", "lumberjack", "stonecutter", "forester", "farm", "mill", "baker"];
+    private static readonly string[] BuildingNames = ["stock", "sawmill", "lumberjack", "stonecutter", "forester", "farm", "mill", "baker", "toolsmith"];
+
+    /// <summary>Tools for the demo's workers plus a few diggers and builders.</summary>
+    private static readonly (Material Tool, int Count)[] Tools =
+    [
+        (Material.Axe, 1), (Material.Pick, 4), (Material.Saw, 1), (Material.Scythe, 1), (Material.FishingRod, 1),
+        (Material.Hammer, 4), (Material.Blade, 3), (Material.Iron, 4), (Material.Coal, 4),
+    ];
     private static readonly Material[] Goods = [Material.Trunk, Material.Crop, Material.Flour, Material.Water, Material.Stone, Material.Plank,
         Material.Bread, Material.Fish];
 
@@ -23,8 +31,8 @@ public static class DemoEconomy
         ("ironmine", ResourceType.IronOre), ("goldmine", ResourceType.GoldOre),
     ];
 
-    public static string Create(World world, BuildingCatalog catalog, GridPoint near, Random random, int carriers = 12,
-        int diggers = 3, int builders = 4)
+    public static string Create(World world, BuildingCatalog catalog, GridPoint near, Random random, int carriers = 24,
+        int diggers = 0, int builders = 0)
     {
         int placed = 0;
         foreach (string name in BuildingNames)
@@ -41,6 +49,11 @@ public static class DemoEconomy
             if (world.Map!.Contains(at) && world.AddLooseGoods(at, Goods[random.Next(Goods.Length)], random.Next(3, 9)) is not null)
                 piles++;
         }
+
+        foreach (var (tool, count) in Tools)
+            for (int i = 0; i < 100; i++)
+                if (world.AddLooseGoods(new GridPoint(near.X + random.Next(-8, 9), near.Y + random.Next(-8, 9)), tool, count) is not null)
+                    break;
 
         // Construction material, so placed sites can be built.
         foreach (var material in new[] { Material.Plank, Material.Stone })

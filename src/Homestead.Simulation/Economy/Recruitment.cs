@@ -1,0 +1,189 @@
+using Homestead.Simulation.Pathfinding;
+
+namespace Homestead.Simulation.Economy;
+
+/// <summary>
+/// Turns idle carriers into specialists. A trade that needs a tool (see <see cref="ProductionConfig.Tools"/>)
+/// first sends the carrier to a pile holding one; the tool is reserved there so no carrier takes it away.
+/// </summary>
+/// <remarks>
+/// The carrier becomes the specialist the moment it picks up the tool (or right away if the trade needs
+/// none). Watchdog: no progress towards the tool for <see cref="StallTicks"/>, or the tool pile gone, ends
+/// the recruitment as failed and the carrier stays a carrier.
+/// </remarks>
+public sealed class Recruitment
+{
+    public const int StallTicks = 400;
+
+    private readonly World _world;
+    private readonly ProductionConfig _config;
+    private readonly List<Recruit> _active = new();
+
+    internal Recruitment(World world, ProductionConfig config)
+    {
+        _world = world;
+        _config = config;
+    }
+
+    /// <summary>Recruitments whose carrier is still on the way to its tool.</summary>
+    public IReadOnlyList<Recruit> Active => _active;
+
+    public Material? ToolFor(string? trade) => trade is not null && _config.Tools.TryGetValue(trade, out var tool) ? tool : null;
+
+    /// <summary>Whether a tool of this kind is lying in a pile, not promised to anyone.</summary>
+    public bool ToolAvailable(Material tool) => _world.Piles.Any(p => p.Material == tool && p.Available > 0);
+
+    /// <summary>
+    /// Starts turning the best-placed idle carrier into <paramref name="profession"/>/<paramref name="trade"/>
+    /// for work near <paramref name="workplace"/>. Null if there is no carrier or no tool to be had now.
+    /// </summary>
+    internal Recruit? Start(Profession profession, string? trade, GridPoint workplace)
+    {
+        var pathFinder = _world.PathFinder!;
+        var carriers = _world.Settlers
+            .Where(s => s.Profession == Profession.Carrier && !s.HasTask && s.Carrying is null && s.Destination is null
+                        && s.State != SettlerState.Stepping && pathFinder.AreConnected(s.Position, workplace))
+            .ToList();
+        if (carriers.Count == 0)
+            return null;
+
+        if (ToolFor(trade) is not { } tool)
+        {
+            var settler = carriers.MinBy(s => PathFinder.Distance(s.Position, workplace))!;
+            var recruit = new Recruit(settler, profession, trade, null);
+            Convert(recruit);
+            return recruit;
+        }
+
+        // The tool nearest to the workplace, then the carrier nearest to the tool.
+        var pile = _world.Piles
+            .Where(p => p.Material == tool && p.Available > 0 && pathFinder.AreConnected(p.Position, workplace))
+            .MinBy(p => PathFinder.Distance(p.Position, workplace));
+        if (pile is null)
+            return null;
+        var carrier = carriers.MinBy(s => PathFinder.Distance(s.Position, pile.Position))!;
+        var fetching = new Recruit(carrier, profession, trade, pile) { LastProgress = _world.Tick };
+        pile.Reserved++;
+        carrier.HasTask = true;
+        _active.Add(fetching);
+        if (carrier.Position != pile.Position && !_world.WalkTo(carrier, pile.Position))
+            Fail(fetching);
+        return fetching;
+    }
+
+    internal void Tick()
+    {
+        foreach (var recruit in _active.ToList())
+            Advance(recruit);
+    }
+
+    private void Advance(Recruit r)
+    {
+        var settler = r.Settler;
+        var pile = r.ToolPile!;
+        if (!_world.HasPile(pile) || pile.Material != r.Tool)
+        {
+            Fail(r);
+            return;
+        }
+
+        if (r.PickingUp)
+        {
+            if (--r.TicksLeft > 0)
+                return;
+            settler.IsWorking = false;
+            settler.Activity = Activity.None;
+            _world.TakeFromPile(pile);
+            Convert(r);
+            return;
+        }
+
+        if (settler.State == SettlerState.Stepping || settler.Destination is not null)
+        {
+            int remaining = settler.RemainingPath.Count();
+            if (remaining < r.BestRemaining)
+            {
+                r.BestRemaining = remaining;
+                r.LastProgress = _world.Tick;
+            }
+            if (_world.Tick - r.LastProgress > StallTicks)
+                Fail(r);
+            return;
+        }
+
+        if (settler.Position != pile.Position)
+        {
+            // Walk ended elsewhere: try again; the watchdog above limits retries.
+            if (!_world.WalkTo(settler, pile.Position) || _world.Tick - r.LastProgress > StallTicks)
+                Fail(r);
+            return;
+        }
+
+        r.PickingUp = true;
+        r.TicksLeft = Production.HandleTicks;
+        settler.IsWorking = true;
+        settler.Activity = Activity.PickingUp;
+        settler.ActivityTicks = 0;
+    }
+
+    private void Convert(Recruit r)
+    {
+        _active.Remove(r);
+        var settler = r.Settler;
+        settler.Profession = r.Profession;
+        settler.Trade = r.Trade;
+        settler.Tool = r.Tool;
+        settler.HasTask = false;
+        r.State = RecruitState.Done;
+    }
+
+    /// <summary>The workplace no longer needs the recruit: the carrier stays a carrier.</summary>
+    internal void Cancel(Recruit recruit)
+    {
+        if (_active.Contains(recruit))
+            Fail(recruit);
+    }
+
+    private void Fail(Recruit r)
+    {
+        _active.Remove(r);
+        var settler = r.Settler;
+        if (r.ToolPile is { } pile && !r.PickingUp && _world.HasPile(pile))
+            pile.Reserved = Math.Max(0, pile.Reserved - 1);
+        settler.HasTask = false;
+        settler.IsWorking = false;
+        settler.Activity = Activity.None;
+        r.State = RecruitState.Failed;
+    }
+}
+
+public enum RecruitState
+{
+    FetchingTool,
+    Done,
+    Failed,
+}
+
+/// <summary>A carrier on its way to become a specialist.</summary>
+public sealed class Recruit
+{
+    internal Recruit(Settler settler, Profession profession, string? trade, Pile? toolPile)
+    {
+        Settler = settler;
+        Profession = profession;
+        Trade = trade;
+        ToolPile = toolPile;
+        Tool = toolPile?.Material;
+    }
+
+    public Settler Settler { get; }
+    public Profession Profession { get; }
+    public string? Trade { get; }
+    public Pile? ToolPile { get; }
+    public Material? Tool { get; }
+    public RecruitState State { get; internal set; }
+    internal bool PickingUp { get; set; }
+    internal int TicksLeft { get; set; }
+    internal int BestRemaining { get; set; } = int.MaxValue;
+    internal long LastProgress { get; set; }
+}

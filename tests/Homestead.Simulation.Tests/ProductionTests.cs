@@ -40,7 +40,7 @@ public class ProductionTests(ITestOutputHelper output)
     [Fact]
     public void A_carrier_becomes_the_worker_and_the_sawmill_turns_trunks_into_planks()
     {
-        var world = new World(new GameMap(70));
+        var world = new World(new GameMap(70), TestConfig.NoTools);
         var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(30, 30))!;
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50))!;
         world.AddLooseGoods(new GridPoint(10, 50), Material.Trunk, 5);
@@ -63,7 +63,7 @@ public class ProductionTests(ITestOutputHelper output)
         var trees = new[] { new GridPoint(25, 40), new GridPoint(28, 44), new GridPoint(33, 40), new GridPoint(68, 30) };
         foreach (var tree in trees)
             map.SetObject(tree, MapObjectKind.Tree);
-        var world = new World(map);
+        var world = new World(map, TestConfig.NoTools);
         world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(30, 30));
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(45, 25))!;
         Spawn(world, Profession.Carrier, 3, new GridPoint(40, 35));
@@ -84,7 +84,7 @@ public class ProductionTests(ITestOutputHelper output)
         var map = new GameMap(70);
         var rock = new GridPoint(36, 38);
         map.SetObjectCode(rock, MapObjectCodes.FullStone);
-        var config = ProductionConfig.Load() with { StonesPerCut = stonesPerCut };
+        var config = TestConfig.NoTools with { StonesPerCut = stonesPerCut };
         var world = new World(map, config);
         world.PlaceBuilding(Romans["stonecutter"], 0, new GridPoint(30, 30));
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 25))!;
@@ -103,7 +103,7 @@ public class ProductionTests(ITestOutputHelper output)
     [Fact]
     public void Forester_plants_trees_that_grow_up()
     {
-        var config = ProductionConfig.Load() with { TreeGrowTicks = 200 };
+        var config = TestConfig.NoTools with { TreeGrowTicks = 200 };
         var map = new GameMap(70);
         var world = new World(map, config);
         world.PlaceBuilding(Romans["forester"], 0, new GridPoint(35, 35));
@@ -122,7 +122,7 @@ public class ProductionTests(ITestOutputHelper output)
         var map = new GameMap(70);
         for (int i = 0; i < 6; i++)
             map.SetObject(new GridPoint(24 + i * 3, 42), MapObjectKind.Tree);
-        var world = new World(map);
+        var world = new World(map, TestConfig.NoTools);
         var lumberjack = world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(30, 30))!;
         Spawn(world, Profession.Carrier, 1, new GridPoint(40, 45));
         Run(world, 5_000, stopWhen: () => world.Production.WorkerOf(lumberjack)?.Carrying == Material.Trunk);
@@ -143,7 +143,7 @@ public class ProductionTests(ITestOutputHelper output)
     {
         var random = new Random(4);
         var map = new GameMap(110);
-        var world = new World(map);
+        var world = new World(map, TestConfig.NoTools);
         var anchors = new[] { ("stock", 55, 55), ("lumberjack", 28, 75), ("forester", 20, 90), ("sawmill", 40, 50), ("stonecutter", 75, 75) };
         foreach (var (name, x, y) in anchors)
             Assert.NotNull(world.PlaceBuilding(Romans[name], 0, new GridPoint(x, y)));

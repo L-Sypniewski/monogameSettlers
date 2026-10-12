@@ -10,7 +10,9 @@ namespace Homestead.Simulation.Economy;
 /// building. Also lets trees and grain grow and depleted ground regenerate (if configured).
 /// </summary>
 /// <remarks>
-/// A finished building with a recipe calls the nearest idle carrier, who becomes its worker.
+/// A finished building with a recipe recruits a carrier (who first fetches the trade's tool, see
+/// <see cref="Recruitment"/>) and walks it to the door. A smith picks its product each cycle
+/// (<see cref="ChooseProduct"/>) and puts it down at its drop position for the carriers.
 /// Workshop cycle: leave, fetch each input from the input piles, go in, work, bring the output to
 /// the output pile, go in. A mine works the same with one unit of any food as input; the ore comes
 /// from the richest field around it (see <see cref="ProductionConfig.OrePerAmount"/>). Gatherer
@@ -28,6 +30,7 @@ public sealed class Production
     private const int UnreachableForgetTicks = 2000;
     private const int DefaultRadius = 12;
     private const int ExhaustedRetryTicks = 200;
+    private const int RecruitInterval = 10;
     private const int GrainStages = MapObjectCodes.RipeGrain - MapObjectCodes.FirstGrain;
 
     private readonly World _world;
@@ -67,6 +70,7 @@ public sealed class Production
     public int WaterDrawn { get; private set; }
     public int FieldsSown { get; private set; }
     public int CropHarvested { get; private set; }
+    public int ToolsMade { get; private set; }
 
     public IReadOnlyDictionary<string, int> Problems => _problems;
 
@@ -112,6 +116,8 @@ public sealed class Production
             string name = building.Definition.Name;
             if (_config.Workshops.TryGetValue(name, out var workshop))
                 _workplaces[building.Id] = new Workplace(building, workshop, null);
+            else if (_config.Smiths.TryGetValue(name, out var smith))
+                _workplaces[building.Id] = new Workplace(building, new WorkshopRecipe(smith.Inputs, [], smith.Ticks), null) { Smith = smith };
             else if (_config.Mines.TryGetValue(name, out var mine))
                 _workplaces[building.Id] = new Workplace(building, new WorkshopRecipe([], [mine.Output], mine.Ticks), null) { Mine = mine };
             else if (_config.Gatherers.TryGetValue(name, out var gatherer))
@@ -221,17 +227,32 @@ public sealed class Production
         switch (w.Phase)
         {
             case Phase.NeedsWorker:
-                Recruit(w);
+                if (_world.Tick % RecruitInterval == 0)
+                    Recruit(w);
+                break;
+
+            case Phase.Recruiting:
+                if (w.Recruit!.State == RecruitState.Failed)
+                {
+                    Report("recruit did not get its tool");
+                    w.Recruit = null;
+                    w.Phase = Phase.NeedsWorker;
+                }
+                else if (w.Recruit.State == RecruitState.Done)
+                {
+                    w.Worker = w.Recruit.Settler;
+                    w.Recruit = null;
+                    w.Worker.HasTask = true;
+                    w.Worker.Workplace = w.Building;
+                    if (!WalkTo(w, w.Building.Door, Phase.WorkerComing))
+                        ReleaseWorker(w);
+                }
                 break;
 
             case Phase.WorkerComing:
                 if (Arrived(w, out bool stalledComing))
                 {
-                    worker!.Profession = Profession.Worker;
-                    worker.Trade = w.Building.Definition.Worker;
-                    worker.Workplace = w.Building;
-                    worker.Carrying = null;
-                    _world.EnterBuilding(worker);
+                    _world.EnterBuilding(worker!);
                     Rest(w, 0);
                 }
                 else if (stalledComing)
@@ -306,11 +327,15 @@ public sealed class Production
                     TakeResource(field, _config.OrePerAmount);
                     OreMined++;
                 }
+                else if (w.Smith is not null)
+                {
+                    ToolsMade++;
+                }
                 else
                 {
                     Produced++;
                 }
-                worker!.Carrying = w.Workshop!.Outputs[0];
+                worker!.Carrying = w.Product ?? w.Workshop!.Outputs[0];
                 _world.LeaveBuilding(worker);
                 DeliverOutput(w);
                 break;
@@ -375,28 +400,63 @@ public sealed class Production
 
     private void Recruit(Workplace w)
     {
-        var door = w.Building.Door;
-        var pathFinder = _world.PathFinder!;
-        var recruit = _world.Settlers
-            .Where(s => s.Profession == Profession.Carrier && !s.HasTask && s.Carrying is null && s.Destination is null
-                        && s.State != SettlerState.Stepping && pathFinder.AreConnected(s.Position, door))
-            .MinBy(s => PathFinder.Distance(s.Position, door));
-        if (recruit is null)
+        if (_world.Recruitment.Start(Profession.Worker, w.Building.Definition.Worker, w.Building.Door) is not { } recruit)
             return;
-        w.Worker = recruit;
-        recruit.HasTask = true;
-        if (!WalkTo(w, door, Phase.WorkerComing))
-            ReleaseWorker(w);
+        w.Recruit = recruit;
+        w.Phase = Phase.Recruiting;
+    }
+
+    /// <summary>Workplaces still waiting for a worker whose trade needs this tool.</summary>
+    internal int WaitingFor(Material tool) => _workplaces.Values.Count(w =>
+        w.Phase is Phase.NeedsWorker && _world.Recruitment.ToolFor(w.Building.Definition.Worker) == tool);
+
+    /// <summary>
+    /// What a smith makes next: the tool most short for waiting workplaces and construction, otherwise
+    /// the product with the fewest units around while below the stock target; null to rest.
+    /// </summary>
+    private Material? ChooseProduct(SmithRecipe smith)
+    {
+        Material? best = null;
+        int bestShortage = 0;
+        foreach (var product in smith.Products)
+        {
+            int free = _world.Piles.Where(p => p.Material == product).Sum(p => p.Available);
+            int shortage = WaitingFor(product) + _world.Construction.WaitingFor(product) - free;
+            if (shortage > bestShortage)
+            {
+                best = product;
+                bestShortage = shortage;
+            }
+        }
+        if (best is not null)
+            return best;
+
+        var (fewest, count) = smith.Products
+            .Select(m => (m, _world.Piles.Where(p => p.Material == m).Sum(p => p.Count) + _world.Settlers.Count(s => s.Carrying == m)))
+            .MinBy(x => x.Item2);
+        return count < smith.KeepInStock ? fewest : null;
     }
 
     private void StartWorkshopCycle(Workplace w, WorkshopRecipe recipe)
     {
         var piles = w.Building.Piles;
-        var output = piles.FirstOrDefault(p => p.Role == PileRole.Offer && p.Material == recipe.Outputs[0]);
-        if (output is null || output.Count >= output.Capacity)
+        if (w.Smith is { } smith)
         {
-            w.TicksLeft = RetryTicks;
-            return;
+            w.Product = ChooseProduct(smith);
+            if (w.Product is null)
+            {
+                w.TicksLeft = RetryTicks;
+                return;
+            }
+        }
+        else
+        {
+            var output = piles.FirstOrDefault(p => p.Role == PileRole.Offer && p.Material == recipe.Outputs[0]);
+            if (output is null || output.Count >= output.Capacity)
+            {
+                w.TicksLeft = RetryTicks;
+                return;
+            }
         }
         w.Inputs.Clear();
         if (w.Mine is not null)
@@ -513,6 +573,13 @@ public sealed class Production
     private void DeliverOutput(Workplace w)
     {
         var output = w.Building.Piles.FirstOrDefault(p => p.Role == PileRole.Offer && p.Material == w.Worker!.Carrying);
+        if (output is null && w.Building.Definition.DropPosition is { } drop)
+        {
+            // Smiths put their products down next to the building; carriers take them from there.
+            if (!WalkTo(w, w.Building.Position + drop, Phase.ToOutput))
+                GiveUp(w, "drop position unreachable");
+            return;
+        }
         if (output is null)
         {
             DropCarried(w.Worker!);
@@ -764,6 +831,9 @@ public sealed class Production
                 _world.LeaveBuilding(worker);
             StopActivity(worker);
             DropCarried(worker);
+            if (worker.Tool is { } tool)
+                _world.DropGoods(worker.Position, tool);
+            worker.Tool = null;
             worker.Profession = Profession.Carrier;
             worker.Trade = null;
             worker.Workplace = null;
@@ -778,6 +848,10 @@ public sealed class Production
 
     private void Dismiss(Workplace w)
     {
+        if (w.Recruit is { State: RecruitState.FetchingTool } recruit)
+            _world.Recruitment.Cancel(recruit);
+        else if (w.Recruit is { State: RecruitState.Done } done)
+            w.Worker = done.Settler; // converted meanwhile: release it below
         ReleaseWorker(w);
         _workplaces.Remove(w.Building.Id);
     }
@@ -787,6 +861,7 @@ public sealed class Production
     private enum Phase
     {
         NeedsWorker,
+        Recruiting,
         WorkerComing,
         Inside,
         ToPile,
@@ -818,6 +893,11 @@ public sealed class Production
         public WorkshopRecipe? Workshop { get; } = workshop;
         public GathererRecipe? Gatherer { get; } = gatherer;
         public MineRecipe? Mine { get; init; }
+        public SmithRecipe? Smith { get; init; }
+
+        /// <summary>Smith: what the current cycle makes.</summary>
+        public Material? Product { get; set; }
+        public Recruit? Recruit { get; set; }
 
         /// <summary>Mine: nothing left in the ground on the last try.</summary>
         public bool Exhausted { get; set; }

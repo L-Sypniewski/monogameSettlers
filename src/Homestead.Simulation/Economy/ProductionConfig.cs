@@ -25,12 +25,25 @@ public sealed record GathererRecipe(GatherAction Action, Material? Output, int W
 /// </summary>
 public sealed record MineRecipe(ResourceType Resource, Material Output, int Ticks, int Radius);
 
+/// <summary>
+/// A smith: like a workshop, but it chooses one of several <see cref="Products"/> per cycle (tools that
+/// are missing first, otherwise whatever has fewer than <see cref="KeepInStock"/> units around).
+/// </summary>
+public sealed record SmithRecipe(IReadOnlyList<Material> Inputs, IReadOnlyList<Material> Products, int Ticks, int KeepInStock);
+
 /// <summary>Production balancing, loaded from <c>data/production.json</c>. Keyed by building name.</summary>
 public sealed record ProductionConfig
 {
     public required IReadOnlyDictionary<string, WorkshopRecipe> Workshops { get; init; }
     public required IReadOnlyDictionary<string, GathererRecipe> Gatherers { get; init; }
     public IReadOnlyDictionary<string, MineRecipe> Mines { get; init; } = new Dictionary<string, MineRecipe>();
+    public IReadOnlyDictionary<string, SmithRecipe> Smiths { get; init; } = new Dictionary<string, SmithRecipe>();
+
+    /// <summary>
+    /// The tool a carrier must pick up to become this trade (keys: worker names of the building data,
+    /// plus DIGGER and BRICKLAYER). Trades not listed need none.
+    /// </summary>
+    public IReadOnlyDictionary<string, Material> Tools { get; init; } = new Dictionary<string, Material>();
     public required int TreeGrowTicks { get; init; }
     public required int StonesPerCut { get; init; }
 
@@ -82,6 +95,13 @@ public sealed record ProductionConfig
                 Material(m.Value.GetProperty("output")),
                 Ticks(m.Value, "seconds"),
                 m.Value.GetProperty("radius").GetInt32()));
+        var smiths = root.GetProperty("smiths").EnumerateObject().Where(m => !m.Name.StartsWith('_')).ToDictionary(
+            m => m.Name,
+            m => new SmithRecipe(MaterialList(m.Value.GetProperty("inputs")), MaterialList(m.Value.GetProperty("products")),
+                Ticks(m.Value, "seconds"), m.Value.GetProperty("keepInStock").GetInt32()));
+        var tools = root.GetProperty("tools").EnumerateObject()
+            .Where(t => !t.Name.StartsWith('_'))
+            .ToDictionary(t => t.Name, t => Material(t.Value));
         var resources = root.GetProperty("resources");
 
         return new ProductionConfig
@@ -89,6 +109,8 @@ public sealed record ProductionConfig
             Workshops = workshops,
             Gatherers = gatherers,
             Mines = mines,
+            Smiths = smiths,
+            Tools = tools,
             TreeGrowTicks = Ticks(root.GetProperty("trees"), "growSeconds"),
             GrainGrowTicks = Ticks(root.GetProperty("grain"), "growSeconds"),
             StonesPerCut = root.GetProperty("stones").GetProperty("stonesPerCut").GetInt32(),

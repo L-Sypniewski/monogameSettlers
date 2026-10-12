@@ -83,7 +83,7 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [x] Lager als Quelle (Waren aus dem Lager an Baustellen und Gebäude); Reihenfolge Baustelle → Produktion → Lager
    - [x] Weitere Festlauf-Fälle gefunden und behoben (gegenseitiges Wegschieben an Stapeln, Kreisen um Gedränge)
    - [ ] Untätige Träger verteilen sich (stehen derzeit gesammelt im Lagerhof)
-   - [ ] Planierer/Bauarbeiter entstehen aus Trägern + Werkzeug (derzeit direkt erzeugt)
+   - [x] Planierer/Bauarbeiter entstehen aus Trägern + Werkzeug (Schaufel/Hammer)
    - [ ] Startausstattung je Spielstart (Burg/Lager, Waren, Siedler wie im Original)
    - [ ] Auf- und Ablegen animieren; Wege (beschleunigen das Laufen)
    - [ ] Fußabdrücke: JSettlers-Daten sind etwas großzügiger als die Begehbarkeit der Originalkarten
@@ -101,6 +101,9 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [x] Kreislauf getestet: Bauernhof + Wasserwerk → Mühle → Bäcker → Kohlemine
    - [ ] Winzer, Imker, Reisbauer, Eselzucht
    - [ ] Minen-Anzeige (Vorrat/erschöpft) im Spiel
-   - [ ] Werkzeuge: Träger werden nur mit Werkzeug zu Spezialisten; Schmiede mit Auswahl
+   - [x] Werkzeuge: Träger werden nur mit Werkzeug zu Spezialisten (Tabelle in `production.json`);
+     Entlassene legen ihr Werkzeug ab
+   - [x] Werkzeug- und Waffenschmied: fehlende Werkzeuge zuerst, sonst kleiner Vorrat je Ware
+   - [ ] Schmied-Auswahl durch den Spieler (Wunschliste/Anteile)
 5. **Kampf**
 6. **KI**

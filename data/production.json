@@ -25,6 +25,25 @@
     "gemsmine": { "resource": "Gems", "output": "GEMS", "seconds": 10, "radius": 3 },
     "sulfurmine": { "resource": "Sulfur", "output": "SULFUR", "seconds": 10, "radius": 3 }
   },
+  "smiths": {
+    "_comment": "One product per cycle: tools somebody waits for first, otherwise the product with the fewest units around while below keepInStock; with everything in stock the smith rests.",
+    "toolsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD" ], "seconds": 10, "keepInStock": 2 },
+    "weaponsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "SWORD", "BOW", "SPEAR" ], "seconds": 10, "keepInStock": 8 }
+  },
+  "tools": {
+    "_comment": "Tool a carrier must take to become the trade (game knowledge, as in JSettlers' EMovableType). BLADE is the digger's shovel.",
+    "LUMBERJACK": "AXE",
+    "SLAUGHTERER": "AXE",
+    "STONECUTTER": "PICK",
+    "MINER": "PICK",
+    "SAWMILLER": "SAW",
+    "SMITH": "HAMMER",
+    "DOCKWORKER": "HAMMER",
+    "BRICKLAYER": "HAMMER",
+    "DIGGER": "BLADE",
+    "FARMER": "SCYTHE",
+    "FISHERMAN": "FISHINGROD"
+  },
   "trees": { "growSeconds": 150 },
   "grain": { "growSeconds": 100 },
   "stones": { "stonesPerCut": 1 },

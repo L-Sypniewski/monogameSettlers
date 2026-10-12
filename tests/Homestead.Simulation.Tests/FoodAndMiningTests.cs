@@ -16,7 +16,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         var map = new GameMap(70);
         map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 2);
         map.SetResource(new GridPoint(29, 31), ResourceType.IronOre, 5); // wrong kind for a coal mine
-        var world = new World(map, ProductionConfig.Load() with { OrePerAmount = 2 });
+        var world = new World(map, TestConfig.NoTools with { OrePerAmount = 2 });
         var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50))!;
         world.AddLooseGoods(new GridPoint(10, 50), Material.Bread, 8);
@@ -43,7 +43,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
     {
         var map = new GameMap(70);
         map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 1);
-        var config = ProductionConfig.Load() with { OrePerAmount = 2, RegenerateTicks = 300 };
+        var config = TestConfig.NoTools with { OrePerAmount = 2, RegenerateTicks = 300 };
         var world = new World(map, config);
         var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50))!;
@@ -61,7 +61,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
     public void Fisher_catches_fish_from_the_lake_and_empties_it()
     {
         var map = LakeMap(70, fishAmount: 1);
-        var world = new World(map, ProductionConfig.Load() with { FishPerAmount = 1 });
+        var world = new World(map, TestConfig.NoTools with { FishPerAmount = 1 });
         world.PlaceBuilding(Romans["fisher"], 0, new GridPoint(40, 45));
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 25))!;
         Spawn(world, Profession.Carrier, 3, new GridPoint(45, 40));
@@ -77,7 +77,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
     public void Waterworks_draws_water()
     {
         var map = LakeMap(70, fishAmount: 0);
-        var world = new World(map);
+        var world = new World(map, TestConfig.NoTools);
         world.PlaceBuilding(Romans["waterworks"], 0, new GridPoint(40, 45));
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 25))!;
         Spawn(world, Profession.Carrier, 3, new GridPoint(45, 40));
@@ -91,7 +91,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
     public void Farmer_sows_grain_that_ripens_and_harvests_it()
     {
         var map = new GameMap(70);
-        var world = new World(map, ProductionConfig.Load() with { GrainGrowTicks = 700 });
+        var world = new World(map, TestConfig.NoTools with { GrainGrowTicks = 700 });
         var farm = world.PlaceBuilding(Romans["farm"], 0, new GridPoint(30, 20))!;
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(55, 25))!;
         Spawn(world, Profession.Carrier, 3, new GridPoint(45, 40));
@@ -114,7 +114,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         for (int dy = -3; dy <= 3; dy++)
         for (int dx = -3; dx <= 3; dx++)
             map.SetResource(new GridPoint(80 + dx, 80 + dy), ResourceType.Coal, 8);
-        var world = new World(map);
+        var world = new World(map, TestConfig.NoTools);
         var anchors = new[] { ("stock", 60, 55), ("farm", 60, 15), ("waterworks", 40, 45), ("mill", 50, 80), ("baker", 65, 95), ("coalmine", 80, 80) };
         foreach (var (name, x, y) in anchors)
             Assert.True(world.PlaceBuilding(Romans[name], 0, new GridPoint(x, y)) is not null, $"{name} does not fit");

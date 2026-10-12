@@ -109,6 +109,9 @@ public sealed class Settler
     /// <summary>The good in the settler's hands, if any.</summary>
     public Material? Carrying { get; internal set; }
 
+    /// <summary>The tool a specialist took up when it was recruited (put down again if it becomes a carrier).</summary>
+    public Material? Tool { get; internal set; }
+
     /// <summary>Busy on the spot (e.g. picking something up): others must not push it aside.</summary>
     public bool IsWorking { get; internal set; }
 

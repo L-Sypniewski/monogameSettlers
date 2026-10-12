@@ -1,3 +1,4 @@
+using Homestead.Simulation.Economy;
 using Homestead.Simulation.Pathfinding;
 
 namespace Homestead.Simulation.Buildings;
@@ -10,6 +11,9 @@ namespace Homestead.Simulation.Buildings;
 /// When all points are level, the site becomes solid and builders take the builder spots of the
 /// building definition. Each build cycle uses one unit of delivered material; without material a
 /// builder waits on its spot. Workers whose site disappears are simply released.
+/// If sites need more diggers or builders than there are, carriers are recruited, each fetching its
+/// tool first (shovel/hammer, see <see cref="ProductionConfig.Tools"/>). Without tool rules for these
+/// trades (e.g. <see cref="ProductionConfig.None"/>) nobody is recruited and only existing ones work.
 /// </remarks>
 public sealed class Construction
 {
@@ -17,9 +21,14 @@ public sealed class Construction
     public const int BuildTicks = 30;
     public const int MaxDiggersPerSite = 3;
     public const int DispatchInterval = 5;
+    private const string DiggerTrade = "DIGGER";
+    private const string BuilderTrade = "BRICKLAYER";
 
     private readonly World _world;
     private readonly Dictionary<int, Assignment> _assignments = new();
+    private readonly List<Recruit> _recruits = new();
+    private int _missingDiggers;
+    private int _missingBuilders;
 
     internal Construction(World world)
     {
@@ -28,12 +37,54 @@ public sealed class Construction
 
     public int Assigned => _assignments.Count;
 
+    /// <summary>Diggers/builders the sites still lack and cannot recruit because the tool is missing.</summary>
+    internal int WaitingFor(Material tool) =>
+        (_world.Recruitment.ToolFor(DiggerTrade) == tool ? _missingDiggers : 0)
+        + (_world.Recruitment.ToolFor(BuilderTrade) == tool ? _missingBuilders : 0);
+
     internal void Tick()
     {
         foreach (var assignment in _assignments.Values.ToList())
             Advance(assignment);
         if (_world.Tick % DispatchInterval == 0)
+        {
             Dispatch();
+            RecruitWorkers();
+        }
+    }
+
+    /// <summary>Recruits diggers and builders while the sites have more free spots than there are workers.</summary>
+    private void RecruitWorkers()
+    {
+        _recruits.RemoveAll(r => r.State != RecruitState.FetchingTool);
+        var sites = _world.Buildings.Where(b => b.Exists && b.State != BuildingState.Finished).ToList();
+        _missingDiggers = Recruit(Profession.Digger, DiggerTrade, sites, site => site.State == BuildingState.Flattening
+            ? Math.Min(MaxDiggersPerSite, site.Unlevelled.Count) - _assignments.Values.Count(a => a.Site == site)
+            : 0);
+        _missingBuilders = Recruit(Profession.Builder, BuilderTrade, sites, site => site.State == BuildingState.Constructing
+            ? site.Definition.BuilderSpots.Count - _assignments.Values.Count(a => a.Site == site)
+            : 0);
+    }
+
+    /// <summary>Starts recruitments for the shortfall; returns how many could not be started.</summary>
+    private int Recruit(Profession profession, string trade, List<Building> sites, Func<Building, int> freeSpots)
+    {
+        if (_world.Recruitment.ToolFor(trade) is null)
+            return 0;
+        int wanted = sites.Sum(s => Math.Max(0, freeSpots(s)));
+        int idle = _world.Settlers.Count(s => s.Profession == profession && !_assignments.ContainsKey(s.Id));
+        int coming = _recruits.Count(r => r.Profession == profession);
+        int missing = wanted - idle - coming;
+        while (missing > 0)
+        {
+            var site = sites.First(s => freeSpots(s) > 0);
+            if (_world.Recruitment.Start(profession, trade, site.Door) is not { } recruit)
+                break;
+            if (recruit.State == RecruitState.FetchingTool)
+                _recruits.Add(recruit);
+            missing--;
+        }
+        return missing;
     }
 
     private void Dispatch()

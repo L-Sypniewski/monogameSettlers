@@ -29,6 +29,8 @@ public sealed partial class World
 
     public Production Production { get; }
 
+    public Recruitment Recruitment { get; }
+
     /// <summary>Not part of a building, its surroundings or a pile (free for trees, work spots, ...).</summary>
     internal bool IsFreeGround(GridPoint p)
     {

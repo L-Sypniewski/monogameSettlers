@@ -177,6 +177,7 @@ public sealed class SettlerRenderer : IDisposable
         ("BAKER", Material.Flour) => Sprites(WorkerFile, 132),
         ("BAKER", Material.Water) => Sprites(WorkerFile, 133),
         ("BAKER", _) => Sprites(WorkerFile, 134),
+        ("SMITH", _) => Sprites(WorkerFile, 40),
         _ => Sprites(CarrierFile, CarrierSequence(settler.Carrying)),
     };
 
