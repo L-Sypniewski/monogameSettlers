@@ -37,7 +37,7 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   `data/ai.json` und Bedarf (Wohnhaus, solange Träger ≤ 2 × Produktionsgebäude; das größte, dessen Material doppelt vorrätig ist), expandiert mit Türmen gezielt zu fehlenden Rohstoffen; `AiPlayer.Military`: kennt alle feindlichen Soldaten,
   Verteidigung zuerst, greift kleinere Trupps an, wenn deutlich überlegen (laufend neu bewertet), verteilt die übrigen
   zur Bewachung nach Bedrohung; `AiPlayer.Campaign`: sammelt Soldaten und erobert feindliche Militärgebäude bei 1,5:1;
-  Werte in `ai.json`, je Volk überschreibbar (`civilizations`); `MapSurvey`: Kartenüberblick in Zellen;
+  Werte in `ai.json`, je Volk überschreibbar (`civilizations`, dort auch die Build-Order je Volk); `MapSurvey`: Kartenüberblick in Zellen;
   `World.AiPlayers` werden in jedem Tick angestoßen).
   `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern; Mehrspieler-Karten ohne Gebäude bekommen
   über `StartSetup` für jeden Spieler die gleiche Startausstattung aus `data/start.json`).

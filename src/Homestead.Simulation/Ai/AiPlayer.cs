@@ -113,8 +113,11 @@ public sealed partial class AiPlayer
             if (mine.Count(b => b.Definition.Name == name) >= count || _catalog.Find(name) is not { } definition)
                 continue;
             bool basic = Basics.Contains(name);
+            // Without quarry stone in the own land, the stones kept for the tower towards it are not to be touched.
+            bool stoneShort = reserve.Stones > 0 && _survey.Own.StoneUnits < _config.MinStoneUnits;
             if (!Enough(planks, Cost(definition, Material.Plank) + reserve.Planks + (basic ? 0 : keepPlanks))
-                || !Enough(stones, Cost(definition, Material.Stone) + reserve.Stones + (basic ? 0 : keepStones)))
+                || !Enough(stones, Cost(definition, Material.Stone) + reserve.Stones + (basic ? 0 : keepStones))
+                || stoneShort && Cost(definition, Material.Stone) > 0 && stones - reserve.Stones < Cost(definition, Material.Stone))
             {
                 // Wait for the material rather than skip ahead, unless nothing would ever bring it.
                 bool noSupply = Basics.Contains(name) && !mine.Any(b => b.Definition.Name == name);
@@ -262,8 +265,9 @@ public sealed partial class AiPlayer
     /// <summary>
     /// Where the building's production chain is: the middle of the own buildings that supply what it
     /// needs or need what it makes (iron mine and coal mine for the iron melt, mill and waterworks for
-    /// the baker). Keeps transport ways short and spreads the economy over the land. Null if there
-    /// are none yet.
+    /// the baker). Keeps transport ways short and spreads the economy over the land. A further one of
+    /// a kind goes to the part of the chain the existing ones do not serve yet (a second sawmill to the
+    /// woodcutters at the new wood). Null if there are none yet.
     /// </summary>
     private GridPoint? ChainCenter(BuildingDefinition definition, List<Building> mine)
     {
@@ -272,10 +276,17 @@ public sealed partial class AiPlayer
         var related = mine.Where(b => !IsMilitary(b) && !b.Piles.Any(p => p.Role == PileRole.Storage) && b.Definition.Name != definition.Name
                                       && (Outputs(b.Definition).Overlaps(inputs) || Inputs(b.Definition).Overlaps(outputs)))
             .ToList();
+        var same = mine.Where(b => b.Definition.Name == definition.Name).Select(b => b.Position).ToList();
+        var unserved = related.Where(b => same.All(s => PathFinder.Distance(s, b.Position) > ServedDistance)).ToList();
+        if (same.Count > 0 && unserved.Count > 0)
+            related = unserved;
         if (related.Count == 0)
             return null;
         return new GridPoint((int)Math.Round(related.Average(b => b.Position.X)), (int)Math.Round(related.Average(b => b.Position.Y)));
     }
+
+    /// <summary>A building of the chain this close to one of the kind counts as served by it.</summary>
+    private const int ServedDistance = 12;
 
     private static HashSet<Material> Inputs(BuildingDefinition definition) =>
         definition.RequestPiles.Where(p => p.Material is not null).Select(p => p.Material!.Value).ToHashSet();
@@ -399,19 +410,25 @@ public sealed partial class AiPlayer
     {
         if (_catalog.Find(_config.ExpansionBuilding) is not { } tower)
             return default;
+        (int Planks, int Stones) cost = (Cost(tower, Material.Plank), Cost(tower, Material.Stone));
+        // Without quarry stone in the own land the next tower towards it is what matters most: its
+        // material stays back even while it cannot be started yet, or the economy would use up the
+        // last stones nobody can replace.
+        bool stoneShort = _survey.Own.StoneUnits < _config.MinStoneUnits
+                          && NearestUnclaimed(c => c.StoneUnits >= 10) is not null;
+        var waiting = stoneShort ? cost : default;
         int towerSites = mine.Count(b => IsMilitary(b) && b.State != BuildingState.Finished);
         if (towerSites >= _config.MaxTowerSites)
-            return default;
+            return waiting;
         // Somebody has to occupy it.
         int spareSoldiers = _world.Settlers.Count(s => s.Player == Player && s.Profession == Profession.Soldier && !s.HasTask && !s.IsInside);
         int emptyTowers = mine.Count(b => IsMilitary(b) && b.State == BuildingState.Finished && !_world.Military.IsOccupied(b));
         spareSoldiers -= emptyTowers + towerSites;
         if (spareSoldiers <= 0)
-            return default;
-        (int Planks, int Stones) cost = (Cost(tower, Material.Plank), Cost(tower, Material.Stone));
+            return waiting;
         int planks = Free(Material.Plank, mine), stones = Free(Material.Stone, mine);
-        // A wanted living house comes before towers: they leave its material.
-        (int Planks, int Stones) keep = HouseWanted(mine) && HouseToBuild(mine) is { } house
+        // A wanted living house comes before towers: they leave its material (not while stone is short).
+        (int Planks, int Stones) keep = !stoneShort && HouseWanted(mine) && HouseToBuild(mine) is { } house
             ? (Cost(house, Material.Plank), Cost(house, Material.Stone))
             : default;
         bool affordable = Enough(planks, cost.Planks + keep.Planks) && Enough(stones, cost.Stones + keep.Stones);
@@ -437,6 +454,10 @@ public sealed partial class AiPlayer
                     _lacksRoom = false;
                 return default;
             }
+            // Stone short and known where it is, but no spot yet (the last tower has not claimed its
+            // land): wait for it rather than spend the last stones on a tower elsewhere.
+            if (need == "stone" && stoneShort)
+                return cost;
         }
         return default;
     }
