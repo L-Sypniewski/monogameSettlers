@@ -14,6 +14,7 @@ GAMEPLAY:
 Beim Selektieren und kommandieren der Soldaten soll die Zielkoordinate mit der Höhe verrechnet werden.
 x 30% aller Träger (gezählt werden alle derzeitigen Fachkräfte + Träger) wird reserviert und darf niemals zu einem Soldaten oder einer Fachkraft werden. Für die KI heißt es dann, Wohnhäuser höher zu priorisieren
 Tasten 1-9: Gruppierte Einheiten auswählen
+x Erzwungener Befehl: Wenn zum Rechtsklick noch Strg gedrückt ist, erhält der Lauf-Befehl oberste Priorität.
 
 x Bei selektierten Soldaten:
 x Rechtsklick, um einen Befehl zu erteilen
@@ -27,6 +28,8 @@ x Gebäude, die zu einer Wirtschaftskette gehören zB Eisenmine -> Eisenschmelze
 Ist die Wirtschaft komplett, soll erweitert werden. Ziel ist die schnellere Einheitenproduktion. Bevorzugt werden demnach Gebäude, bei denen es ein Engpass gibt.
 Es sollen auch mittlere und größere Wohnhäuser gebaut werden, falls entsprechende Resourcen vorhanden sind
 x Die KI soll auch (vorerst) wissen, wo gegnerische Truppen liegen.
+x Bei Angriffen / Truppenbewegungen soll mit einbezogen werden, ob sich auf dem Weg dahin gegnerische Truppen befinden. Wenn also 2 Soldaten einen alleinstehenden angreifen wollen, muss geprüft werden, ob auf dem Weg dahin noch ein paar Gegner warten.
+x Bei Flucht-manövern oder Rückzügen wird "Erzwungener Befehl" genutzt.
 
 
 KI-Kampf:

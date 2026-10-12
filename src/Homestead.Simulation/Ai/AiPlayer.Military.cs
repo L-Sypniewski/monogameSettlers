@@ -71,21 +71,28 @@ public sealed partial class AiPlayer
         Guard(military, guards.Concat(spare).ToList());
     }
 
-    /// <summary>Sends the nearest soldiers of <paramref name="pool"/> against the group if they get strikeRatio times its strength.</summary>
+    /// <summary>
+    /// Sends the nearest soldiers of <paramref name="pool"/> against the group if they get strikeRatio
+    /// times the strength they will meet: the group plus enemy groups waiting on the way there.
+    /// </summary>
     private bool TryStrike(EnemyGroup group, List<Settler> pool, string verb)
     {
         var config = _config.Military;
+        var candidates = pool.Where(s => PathFinder.Distance(s.Position, group.Center) <= config.StrikeRange * 2)
+            .OrderBy(s => PathFinder.Distance(s.Position, group.Center)).ToList();
+        if (candidates.Count == 0)
+            return false;
+        double opposition = Opposition(group, candidates[0].Position);
         var strikers = new List<Settler>();
         double strength = 0;
-        foreach (var soldier in pool.Where(s => PathFinder.Distance(s.Position, group.Center) <= config.StrikeRange * 2)
-                     .OrderBy(s => PathFinder.Distance(s.Position, group.Center)))
+        foreach (var soldier in candidates)
         {
-            if (strength >= group.Strength * config.StrikeRatio)
+            if (strength >= opposition * config.StrikeRatio)
                 break;
             strikers.Add(soldier);
             strength += Strength(soldier);
         }
-        if (strength < group.Strength * config.StrikeRatio)
+        if (strength < opposition * config.StrikeRatio)
             return false;
         _world.Military.Move(strikers, group.Center);
         _strikes.Add(new Strike(strikers, group.Soldiers.ToHashSet(), group.Center));
@@ -127,6 +134,17 @@ public sealed partial class AiPlayer
     private GridPoint HomeDoor() => _home is { Exists: true } h && h.Player == Player ? h.Door
         : _world.Buildings.Where(b => b.Exists && b.Player == Player && IsMilitary(b)).Select(b => b.Door).FirstOrDefault();
 
+    /// <summary>The group's strength plus that of other enemy groups near the way from <paramref name="from"/> to it.</summary>
+    private double Opposition(EnemyGroup group, GridPoint from)
+    {
+        int clearance = _config.Attack.PathClearance;
+        int steps = Math.Max(1, PathFinder.Distance(from, group.Center) / 3);
+        var onTheWay = EnemyGroups.Where(g => !g.Soldiers.Any(group.Soldiers.Contains) && Enumerable.Range(0, steps + 1).Any(i =>
+            PathFinder.Distance(g.Center, new GridPoint(from.X + (group.Center.X - from.X) * i / steps,
+                from.Y + (group.Center.Y - from.Y) * i / steps)) <= clearance));
+        return group.Strength + onTheWay.Sum(g => g.Strength);
+    }
+
     /// <summary>Own soldiers free for orders: outside, idle, not part of a running strike or campaign.</summary>
     private List<Settler> IdleSoldiers() => _world.Settlers
         .Where(s => s.Player == Player && s.Profession == Profession.Soldier && !s.HasTask && !s.IsInside && !s.IsDead
@@ -144,6 +162,7 @@ public sealed partial class AiPlayer
             return;
         var config = _config.Military;
         var groups = FindEnemyGroups(config.GroupRadius);
+        EnemyGroups = groups;
         foreach (var strike in _strikes.ToList())
         {
             strike.Soldiers.RemoveAll(s => s.IsDead || s.IsInside);
@@ -161,7 +180,10 @@ public sealed partial class AiPlayer
             strike.Targets = group.Soldiers.ToHashSet();
 
             double strength = strike.Soldiers.Sum(Strength);
-            if (strength < group.Strength * config.RetreatRatio)
+            // What they will meet: the group and whoever waits on the way to it.
+            var from = new GridPoint((int)strike.Soldiers.Average(s => s.Position.X), (int)strike.Soldiers.Average(s => s.Position.Y));
+            double opposition = Opposition(group, from);
+            if (strength < opposition * config.RetreatRatio)
             {
                 // Reinforcements first; if there are not enough, retreat.
                 var helpers = IdleSoldiers().Where(s => PathFinder.Distance(s.Position, group.Center) <= config.StrikeRange * 2)
@@ -169,12 +191,12 @@ public sealed partial class AiPlayer
                 var joining = new List<Settler>();
                 foreach (var helper in helpers)
                 {
-                    if (strength >= group.Strength * config.StrikeRatio)
+                    if (strength >= opposition * config.StrikeRatio)
                         break;
                     joining.Add(helper);
                     strength += Strength(helper);
                 }
-                if (strength >= group.Strength * config.RetreatRatio)
+                if (strength >= opposition * config.RetreatRatio)
                 {
                     _world.Military.Move(joining, group.Center);
                     strike.Soldiers.AddRange(joining);
@@ -182,7 +204,7 @@ public sealed partial class AiPlayer
                 }
                 else
                 {
-                    _world.Military.Move(strike.Soldiers, HomeDoor(), retreat: true);
+                    _world.Military.Move(strike.Soldiers, HomeDoor(), forced: true);
                     Note($"calls off the strike at {group.Center.X},{group.Center.Y}: {group.Soldiers.Count} enemies are too strong");
                     _strikes.Remove(strike);
                     continue;

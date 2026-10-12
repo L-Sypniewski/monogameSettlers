@@ -480,13 +480,17 @@ public sealed class MapGame : Game
         if (soldiers.Count == 0 || _placing)
             return;
         var clicked = ScreenToGrid(screen);
-        if (_world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) > 0)
+        bool control = Keyboard.GetState().IsKeyDown(Keys.LeftControl) || Keyboard.GetState().IsKeyDown(Keys.RightControl);
+        if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) > 0)
         {
             _message = $"{soldiers.Count} soldiers attack {attacked.Definition.Name}";
             return;
         }
-        _world.Military.Move(soldiers, clicked);
-        _message = $"{soldiers.Count} soldiers to {clicked.X},{clicked.Y}";
+        // Ctrl: forced order, they walk there without stopping to fight.
+        var keys = Keyboard.GetState();
+        bool forced = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
+        _world.Military.Move(soldiers, clicked, forced);
+        _message = $"{soldiers.Count} soldiers to {clicked.X},{clicked.Y}{(forced ? " (forced)" : "")}";
     }
 
     /// <summary>Selects the own soldiers (outside buildings) inside the box between two screen points.</summary>

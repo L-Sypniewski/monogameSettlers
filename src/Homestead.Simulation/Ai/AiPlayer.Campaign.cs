@@ -105,7 +105,7 @@ public sealed partial class AiPlayer
         if (strength < defense * _config.Military.RetreatRatio)
         {
             Note($"retreats from {target.Position.X},{target.Position.Y}");
-            _world.Military.Move(c.Soldiers, HomeDoor(), retreat: true);
+            _world.Military.Move(c.Soldiers, HomeDoor(), forced: true);
             _campaign = null;
         }
     }
