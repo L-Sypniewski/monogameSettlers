@@ -26,6 +26,8 @@ The C# code was written independently; the following data tables and rules were 
 - Settler animations of all four peoples (`data/settlers.json`: type, action, carried material and
   direction to file, sequence and frames, with JSettlers' priority rules in `SettlerAnimations.cs`), converted
   from `movables*.txt` by `tools/data-import/convert_jsettlers_movables.py`
+- Geologist sign images per resource and their lifetime (`EconomyRenderer.cs`, `data/production.json`, from
+  `MapObjectDrawer`, `RessourceSignMapObject`, `GeologistMovable`)
 - Build menu categories and their buildings (`data/ui.json`, from `EBuildingsCategory`)
 - Original map object names (`docs/formate/map.md`, from `EOriginalMapObjectType`)
 - Terrain texture atlas layout, transition table and triangle texture orientation
