@@ -83,6 +83,13 @@
     "fishPerAmount": 2,
     "regenerateSeconds": 0
   },
+  "geologists": {
+    "_comment": "A geologist sent to a mountain searches field after field within searchRadius of that point: surveySeconds examining, signSeconds setting the sign. A sign shows what lies below and how much, and disappears after signMinutes (random between the two values). Values from JSettlers' GeologistMovable and RessourceSignMapObject (MIT), radius our own.",
+    "searchRadius": 10,
+    "surveySeconds": 3,
+    "signSeconds": 1.6,
+    "signMinutes": [4, 9]
+  },
   "depletion": {
     "_comment": "Our own balancing: percent of the units taken that use up the ground. stone: quarry stone; mountain: everything mines dig (coal, ores, gems, sulfur); fish. 100 as in the original, e.g. 75, 50, 25, 10; 0 = never runs out.",
     "stone": 100,

@@ -33,7 +33,8 @@ public sealed class Recruitment
     /// carriers and specialists (<see cref="ProductionConfig.KeptCarriers"/>) always stays a carrier.
     /// Carriers on their way to fetch a tool count as specialists already.
     /// </summary>
-    public bool MayConvert(int player) => Convertible(player) > 0;
+    /// <param name="reserved">Carriers already promised to a conversion that has not happened yet.</param>
+    public bool MayConvert(int player, int reserved = 0) => Convertible(player) > reserved;
 
     /// <summary>How many more carriers of the player may become specialists or soldiers (see <see cref="MayConvert"/>).</summary>
     public int Convertible(int player)

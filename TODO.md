@@ -47,6 +47,12 @@ x Je nach Volk sollen die Werte/Thresholds unterschiedlich konfigurierbar sein k
 x Zusätzliche/spezifische KI-Regeln in json auslagern (wie es bereits schon gemacht wurde)
 
 
+GEOLOGEN:
+x Mehrere Träger auswählen (Soldaten haben Vorrang); Priorisierung Soldaten > Geologen > Träger
+x Sind Träger ausgewählt, wird links statt des Baumenüs ein Konvertierungs-Menü angezeigt (vorerst Geologen)
+x Mit Knopfdruck werden sie konvertiert, so weit die 30%-Regel es zulässt
+x Geologe + Rechtsklick auf ein Gebirge: läuft hin und sucht. Danach nächstes freies Feld (bei mehreren zufällig), immer höchstens 10 Felder von der Start-Suchposition
+
 UI:
 x Erstmal simpel: Links am Rand ein Menü mit den selben Kategorien wie im Originalspiel. Darunter die entsprechenden Bauoptionen. Jede Bauoption als Icon anzeigen.
 x Solange F12 gedrückt ist, erhöht sich die Spielgeschwindigkeit auf das 10-fache
@@ -58,3 +64,15 @@ x Resourcenverbrauch beim Abbau von Steinen, Erze (alle Rohstoffe in Bergen), Fi
 Simulation:
 Militärisches Verhalten (ai.military und ai.attack) gegeneinander simulieren.
 Verschiedene Build-Orders testen
+
+Schwierigkeitsgrad:
+Jedem KI-Gegner wird eine Schwierigkeit leicht/mittel/schwer zugewiesen.
+Leicht:
+    - KI weiß nur das, was sie normalerweise sehen sollte. Im eigenen Land, Gegnerpositionen durch Späher, Resourcen durch Geologen
+    - Bildet Geologen aus
+Mittel:
+    - KI weiß nur das, was sie normalerweise sehen sollte. Im eigenen Land, Gegnerpositionen durch Späher, Resourcen durch Geologen
+    - Bildet Geologen und Späher
+Schwer:
+    - KI weiß alles. (Map, Militär, Rohstoffe)
+    - Bildet keine Späher oder Geologen aus.

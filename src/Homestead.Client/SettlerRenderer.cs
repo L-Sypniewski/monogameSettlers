@@ -53,6 +53,13 @@ public sealed class SettlerRenderer : IDisposable
         sprites.Draw(batch, frame, anchor, 1, playerColor);
     }
 
+    /// <summary>A standing settler of a type and people, e.g. as a menu icon.</summary>
+    public void DrawIcon(SpriteBatch batch, Civilization people, string type, Vector2 anchor, float scale, Color playerColor)
+    {
+        if (Resolve(people, type, "NO_ACTION", "NO_MATERIAL", Direction.SouthWest) is { } animation)
+            Sprites(animation).Draw(batch, animation.Start, anchor, scale, playerColor);
+    }
+
     public void Draw(SpriteBatch batch, Settler settler, TerrainMesh terrain, float tickAlpha, Color playerColor)
     {
         var (sprites, frame) = Frame(settler, tickAlpha);
@@ -91,10 +98,10 @@ public sealed class SettlerRenderer : IDisposable
     /// <summary>The action of an activity in the animation tables.</summary>
     private static string? WorkAction(Activity activity) => activity switch
     {
-        Activity.Sowing => "ACTION2",
+        Activity.Sowing or Activity.Signing => "ACTION2",
         Activity.Digging or Activity.Building or Activity.Chopping or Activity.Mining or Activity.Planting
             or Activity.Harvesting or Activity.Fishing or Activity.DrawingWater or Activity.Fighting
-            or Activity.Shooting => "ACTION1",
+            or Activity.Shooting or Activity.Surveying => "ACTION1",
         _ => null,
     };
 
@@ -123,6 +130,7 @@ public sealed class SettlerRenderer : IDisposable
         Profession.Builder => "BRICKLAYER",
         Profession.Soldier => $"{(settler.SoldierType ?? SoldierType.Swordsman).ToString().ToUpperInvariant()}_L{Math.Clamp(settler.Level, 1, 3)}",
         Profession.Worker => settler.Trade,
+        Profession.Geologist => "GEOLOGIST",
         _ => null,
     };
 

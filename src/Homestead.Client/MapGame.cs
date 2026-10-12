@@ -43,6 +43,7 @@ public sealed class MapGame : Game
     private BuildingCatalog? _romans;
     private BuildingDefinition[] _placeable = [];
     private BuildMenu? _buildMenu;
+    private readonly ConversionMenu _conversionMenu = new();
     private int _placeIndex;
     private bool _placing;
 
@@ -383,16 +384,29 @@ public sealed class MapGame : Game
             _message = $"{soldiers} soldiers for player {player + 1}";
         }
 
-        // The build menu at the left edge: a click chooses a category or the building to place.
+        // The menu at the left edge: with carriers selected what they can become, otherwise the build
+        // menu (a click chooses a category or the building to place).
         bool onMenu = BuildMenu.Contains(cursorScreen);
-        if (onMenu && mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is null
-            && _buildMenu!.Click(cursorScreen) is { } chosen)
+        bool released = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is null;
+        if (CarriersSelected)
         {
-            _placeIndex = Math.Max(0, Array.IndexOf(_placeable, chosen));
-            _placing = true;
+            if (onMenu && _conversionMenu.EntryAt(cursorScreen) is { } entry)
+            {
+                _message = $"{entry.Name}: convert the selected carriers";
+                if (released)
+                    Convert(entry.Profession);
+            }
         }
-        if (onMenu && _buildMenu!.BuildingAt(cursorScreen) is { } hovered)
-            _message = hovered.Name;
+        else
+        {
+            if (onMenu && released && _buildMenu!.Click(cursorScreen) is { } chosen)
+            {
+                _placeIndex = Math.Max(0, Array.IndexOf(_placeable, chosen));
+                _placing = true;
+            }
+            if (onMenu && _buildMenu!.BuildingAt(cursorScreen) is { } hovered)
+                _message = hovered.Name;
+        }
 
         // Left button: a click on release, or a selection box when dragged.
         if (mouse.LeftButton == ButtonState.Pressed && _previousMouse.LeftButton == ButtonState.Released
@@ -406,7 +420,9 @@ public sealed class MapGame : Game
                 Click(cursorScreen);
             _dragStart = null;
         }
-        _group.RemoveAll(s => s.IsDead || s.IsInside);
+        // The selection holds one kind; who died, went inside or changed profession leaves it.
+        var kind = _group.FirstOrDefault(s => !s.IsDead && !s.IsInside)?.Profession;
+        _group.RemoveAll(s => s.IsDead || s.IsInside || s.Profession != kind);
 
         float speed = 800 / _zoom * (float)gameTime.ElapsedGameTime.TotalSeconds;
         if (keys.IsKeyDown(Keys.Left) || keys.IsKeyDown(Keys.A))
@@ -466,18 +482,27 @@ public sealed class MapGame : Game
             .OrderBy(t => t.Distance)
             .Select(t => t.Settler)
             .FirstOrDefault();
-        if (hit is not null && (_group.Count == 0 || hit.Player == 0))
+        // Own soldiers, geologists and carriers join the selection that takes orders; others are only looked at.
+        if (hit is { Player: 0, Profession: Profession.Soldier or Profession.Geologist or Profession.Carrier })
+        {
+            _group.Clear();
+            _group.Add(hit);
+            _selected = null;
+            _selectedBuilding = null;
+            _message = SelectionHint();
+            return;
+        }
+        if (hit is not null && _group.Count == 0)
         {
             _selected = hit;
             _selectedBuilding = null;
-            _group.Clear();
             _wanderers.Remove(hit.Id);
             _message = $"settler {hit.Id} selected";
             return;
         }
 
-        // Selected soldiers get their orders by right click; a left click elsewhere deselects them.
-        if (SelectedSoldiers().Count > 0)
+        // The selection gets its orders by right click; a left click elsewhere deselects it.
+        if (_group.Count > 0)
         {
             _group.Clear();
             _selected = null;
@@ -507,8 +532,28 @@ public sealed class MapGame : Game
         _message = _world.WalkTo(_selected, target) ? $"walking to {target.X},{target.Y}" : "unreachable";
     }
 
-    private List<Settler> SelectedSoldiers() => _group.Count > 0 ? _group.ToList()
-        : _selected is { Profession: Profession.Soldier, Player: 0 } soldier ? [soldier] : [];
+    private List<Settler> SelectedSoldiers() => _group.Where(s => s.Profession == Profession.Soldier).ToList();
+
+    /// <summary>Only carriers are selected: the menu at the left offers what they can become.</summary>
+    private bool CarriersSelected => _group.Count > 0 && _group.All(s => s.Profession == Profession.Carrier);
+
+    private string SelectionHint() => _group.Count == 0 ? "" : _group[0].Profession switch
+    {
+        Profession.Soldier => $"{_group.Count} soldiers selected (right click: go there / attack, left click: deselect)",
+        Profession.Geologist => $"{_group.Count} geologists selected (right click on a mountain: search there)",
+        _ => $"{_group.Count} carriers selected (menu at the left: convert them)",
+    };
+
+    /// <summary>Turns the selected carriers into specialists, as far as the carrier reserve allows; they stay selected.</summary>
+    private void Convert(Profession profession)
+    {
+        int count = _group.Count;
+        var (now, later) = profession == Profession.Geologist ? _world.Geology.Convert(_group) : (0, 0);
+        _group.RemoveAll(s => s.Profession != profession);
+        string name = profession.ToString().ToLowerInvariant() + "s";
+        _message = $"{now} {name}" + (later > 0 ? $", {later} more after their delivery" : "")
+                   + (now + later < count ? $"; {count - now - later} stay carriers (carrier reserve)" : "");
+    }
 
     /// <summary>
     /// Right click: the selected soldiers attack the enemy military building clicked on, otherwise go
@@ -516,10 +561,20 @@ public sealed class MapGame : Game
     /// </summary>
     private void Command(Vector2 screen)
     {
-        var soldiers = SelectedSoldiers();
-        if (soldiers.Count == 0 || _placing)
+        if (_placing)
             return;
         var clicked = ScreenToGrid(screen);
+        var geologists = _group.Where(s => s.Profession == Profession.Geologist).ToList();
+        if (geologists.Count > 0)
+        {
+            int sent = _world.Geology.Send(geologists, clicked);
+            _message = !_world.Geology.IsSearchable(clicked) ? "geologists search mountains only"
+                : sent > 0 ? $"{sent} geologists search around {clicked.X},{clicked.Y}" : "no way there";
+            return;
+        }
+        var soldiers = SelectedSoldiers();
+        if (soldiers.Count == 0)
+            return;
         bool control = Keyboard.GetState().IsKeyDown(Keys.LeftControl) || Keyboard.GetState().IsKeyDown(Keys.RightControl);
         if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) > 0)
         {
@@ -533,7 +588,10 @@ public sealed class MapGame : Game
         _message = $"{soldiers.Count} soldiers to {clicked.X},{clicked.Y}{(forced ? " (forced)" : "")}";
     }
 
-    /// <summary>Selects the own soldiers (outside buildings) inside the box between two screen points.</summary>
+    /// <summary>
+    /// Selects the own settlers (outside buildings) inside the box between two screen points: the
+    /// soldiers if there are any, else the geologists, else the carriers.
+    /// </summary>
     private void SelectInBox(Vector2 from, Vector2 to)
     {
         var inverse = Matrix.Invert(View);
@@ -542,13 +600,20 @@ public sealed class MapGame : Game
         var min = Vector2.Min(a, b);
         var max = Vector2.Max(a, b);
         float alpha = TickAlpha;
-        _group.Clear();
-        _group.AddRange(_world.Settlers.Where(s => s.Profession == Profession.Soldier && s.Player == 0 && !s.IsInside)
+        var inBox = _world.Settlers.Where(s => s.Player == 0 && !s.IsInside)
             .Where(s => SettlerRenderer.Anchor(s, _terrain, alpha) - new Vector2(0, 10) is var p
-                        && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y));
+                        && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y)
+            .ToList();
+        _group.Clear();
+        foreach (var profession in new[] { Profession.Soldier, Profession.Geologist, Profession.Carrier })
+            if (inBox.Where(s => s.Profession == profession).ToList() is { Count: > 0 } chosen)
+            {
+                _group.AddRange(chosen);
+                break;
+            }
         _selected = null;
         _selectedBuilding = null;
-        _message = _group.Count > 0 ? $"{_group.Count} soldiers selected (right click: go there / attack, left click: deselect)" : "";
+        _message = SelectionHint();
     }
 
     private void SpawnWanderers(GridPoint near)
@@ -638,6 +703,7 @@ public sealed class MapGame : Game
         var settlersByRow = _world.Settlers.Where(s => !s.IsInside).ToLookup(SettlerRenderer.DepthRow);
         var buildingsByRow = _world.Buildings.Where(b => b.Exists).ToLookup(EconomyRenderer.DepthRow);
         var pilesByRow = _world.Piles.ToLookup(p => p.Position.Y);
+        var signsByRow = _world.Geology.Signs.ToLookup(s => s.Key.Y);
         var marksByRow = WorkAreaMarks().ToLookup(m => m.Point.Y);
         int rows = _objects.RowCount(visible, out int firstRow);
         for (int y = firstRow; y < firstRow + rows; y++)
@@ -647,6 +713,8 @@ public sealed class MapGame : Game
                 _economyRenderer.DrawWorkAreaMark(_spriteBatch, point, ring, _terrain);
             foreach (var pile in pilesByRow[y])
                 _economyRenderer.DrawPile(_spriteBatch, pile, _terrain);
+            foreach (var (point, sign) in signsByRow[y])
+                _economyRenderer.DrawResourceSign(_spriteBatch, point, sign, _terrain);
             if (_showObjects)
                 _objects.DrawRow(_spriteBatch, y, visible, _time);
             foreach (var building in buildingsByRow[y])
@@ -667,8 +735,8 @@ public sealed class MapGame : Game
 
         if (_selected is not null)
             DrawSelectionMarker(_selected, alpha);
-        foreach (var soldier in _group)
-            DrawSelectionMarker(soldier, alpha);
+        foreach (var settler in _group)
+            DrawSelectionMarker(settler, alpha);
         if (_dragStart is { } boxStart && !_placing)
             DrawSelectionBox(boxStart, Mouse.GetState().Position.ToVector2());
         if (_placing && !BuildMenu.Contains(Mouse.GetState().Position.ToVector2()))
@@ -684,7 +752,10 @@ public sealed class MapGame : Game
         _spriteBatch.End();
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-        _buildMenu!.Draw(_spriteBatch, _pixel, viewport.Height, _placing ? _placeable[_placeIndex] : null, Mouse.GetState().Position.ToVector2());
+        if (CarriersSelected)
+            _conversionMenu.Draw(_spriteBatch, _pixel, viewport.Height, _settlerRenderer, Own.Civilization, Mouse.GetState().Position.ToVector2());
+        else
+            _buildMenu!.Draw(_spriteBatch, _pixel, viewport.Height, _placing ? _placeable[_placeIndex] : null, Mouse.GetState().Position.ToVector2());
         _spriteBatch.End();
 
         if (target is not null)
@@ -749,6 +820,35 @@ public sealed class MapGame : Game
     /// Headless check: set up the demo economy and three construction sites at the first player's
     /// start, run four minutes of game time (long enough for grain to ripen), save a frame every eight game seconds, then quit.
     /// </summary>
+    /// <summary>
+    /// HOMESTEAD_CAPTURE_GEOLOGISTS=1: carriers are selected (the conversion menu shows), become
+    /// geologists and search the own mountain nearest to the start; the camera follows them.
+    /// </summary>
+    private void CaptureGeologists(int frame)
+    {
+        if (frame == 60)
+        {
+            _group.Clear();
+            _group.AddRange(_world.Settlers.Where(s => s.Player == 0 && s.IsCarrier && !s.IsInside).Take(4));
+        }
+        else if (frame == 240)
+        {
+            Convert(Profession.Geologist);
+            Console.WriteLine($"geologists: {_message}");
+        }
+        else if (frame == 600)
+        {
+            _group.Clear();
+            _group.AddRange(_world.Settlers.Where(s => s.Player == 0 && s.Profession == Profession.Geologist));
+            var mountain = Enumerable.Range(0, _gameMap.Size * _gameMap.Size).Select(i => new GridPoint(i % _gameMap.Size, i / _gameMap.Size))
+                .Where(p => _world.Geology.IsSearchable(p) && _gameMap.OwnerAt(p) == 0)
+                .OrderBy(p => Simulation.Pathfinding.PathFinder.Distance(p, _start)).FirstOrDefault();
+            Console.WriteLine($"geologists: {_world.Geology.Send(_group, mountain)} sent to {mountain.X},{mountain.Y}");
+            _camera = ToWorld(mountain);
+            _selectedBuilding = null;
+        }
+    }
+
     private void Capture(RenderTarget2D target)
     {
         GraphicsDevice.SetRenderTarget(null);
@@ -759,6 +859,8 @@ public sealed class MapGame : Game
         }
         target.Dispose();
 
+        if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_GEOLOGISTS") == "1")
+            CaptureGeologists(_capturedFrames + 1);
         switch (++_capturedFrames)
         {
             case 1:

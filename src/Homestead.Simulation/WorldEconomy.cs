@@ -35,6 +35,8 @@ public sealed partial class World
 
     public Housing Housing { get; }
 
+    public Geology Geology { get; }
+
     public Military.Military Military { get; }
 
     /// <summary>

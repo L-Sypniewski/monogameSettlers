@@ -55,6 +55,7 @@ public sealed partial class World
         Production = new Production(this, config);
         Idling = new Idling(this);
         Housing = new Housing(this, config);
+        Geology = new Geology(this, config);
         Military = new Military.Military(this, military ?? MilitaryConfig.Load());
         if (map is not null)
         {
@@ -114,6 +115,7 @@ public sealed partial class World
             Production.Tick();
             Military.Tick();
             Housing.Tick();
+            Geology.Tick();
             Idling.Tick();
             foreach (var ai in AiPlayers)
                 ai.Tick();

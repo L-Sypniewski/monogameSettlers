@@ -70,6 +70,10 @@ public sealed record ProductionConfig
     /// </summary>
     public Depletion Depletion { get; init; } = new(100, 100, 100);
 
+    /// <summary>How geologists search (see <see cref="Geology"/>).</summary>
+    public GeologistRules Geologists { get; init; } = new(10, 3 * World.TicksPerSecond, 2 * World.TicksPerSecond,
+        4 * 60 * World.TicksPerSecond, 9 * 60 * World.TicksPerSecond);
+
     /// <summary>Units one storehouse pile holds (a storehouse has six piles).</summary>
     public int StoragePileCapacity { get; init; } = Materials.MaxPileSize;
 
@@ -173,6 +177,11 @@ public sealed record ProductionConfig
             OrePerAmount = resources.GetProperty("orePerAmount").GetInt32(),
             FishPerAmount = resources.GetProperty("fishPerAmount").GetInt32(),
             RegenerateTicks = Ticks(resources, "regenerateSeconds"),
+            Geologists = root.TryGetProperty("geologists", out var geologists)
+                ? new GeologistRules(geologists.GetProperty("searchRadius").GetInt32(), Ticks(geologists, "surveySeconds"),
+                    Ticks(geologists, "signSeconds"), (int)(geologists.GetProperty("signMinutes")[0].GetDouble() * 60 * World.TicksPerSecond),
+                    (int)(geologists.GetProperty("signMinutes")[1].GetDouble() * 60 * World.TicksPerSecond))
+                : new GeologistRules(10, 3 * World.TicksPerSecond, 2 * World.TicksPerSecond, 4 * 60 * World.TicksPerSecond, 9 * 60 * World.TicksPerSecond),
             Depletion = root.TryGetProperty("depletion", out var depletion)
                 ? new Depletion(depletion.GetProperty("stone").GetInt32(), depletion.GetProperty("mountain").GetInt32(), depletion.GetProperty("fish").GetInt32())
                 : new Depletion(100, 100, 100),
@@ -182,3 +191,10 @@ public sealed record ProductionConfig
 
 /// <summary>Percent of the units taken that use up the ground, per kind of resource (see <see cref="ProductionConfig.Depletion"/>).</summary>
 public sealed record Depletion(int Stone, int Mountain, int Fish);
+
+/// <summary>
+/// Geologists search fields within <paramref name="SearchRadius"/> of the point they were sent to, each
+/// for <paramref name="SurveyTicks"/> plus <paramref name="SignTicks"/>; a sign stays between
+/// <paramref name="SignMinTicks"/> and <paramref name="SignMaxTicks"/>.
+/// </summary>
+public sealed record GeologistRules(int SearchRadius, int SurveyTicks, int SignTicks, int SignMinTicks, int SignMaxTicks);

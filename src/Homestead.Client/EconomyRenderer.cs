@@ -1,6 +1,7 @@
 using Homestead.Assets.Gfx;
 using Homestead.Client.Terrain;
 using Homestead.Simulation;
+using Homestead.Simulation.Map;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Microsoft.Xna.Framework;
@@ -22,6 +23,8 @@ public sealed class EconomyRenderer : IDisposable
     private const int BorderPostSequence = 65; // file 13, in the player color
     private const int WorkAreaFile = 1;
     private const int WorkAreaSequence = 91; // 4 posts, green (inner ring) to red (outer ring)
+    private const int SignFile = 1;            // geologist signs (JSettlers' MapObjectDrawer, MIT)
+    private const int MaxResourceAmount = 15;  // amount per field in original maps
 
     private readonly GraphicsDevice _device;
     private readonly GfxDirectory _gfx;
@@ -104,6 +107,28 @@ public sealed class EconomyRenderer : IDisposable
         var sprites = Sprites(WorkAreaFile, WorkAreaSequence);
         if (sprites.FrameCount > 0)
             sprites.Draw(batch, Math.Min(ring, sprites.FrameCount - 1), Anchor(p, terrain), 1, Color.White);
+    }
+
+    /// <summary>
+    /// A geologist's sign: one sequence per resource (94 coal, 95 gems, 96 gold, 97 iron, 98 sulfur,
+    /// 99 nothing), its frames from little to much.
+    /// </summary>
+    public void DrawResourceSign(SpriteBatch batch, GridPoint p, ResourceSign sign, TerrainMesh terrain)
+    {
+        int sequence = sign.Resource switch
+        {
+            ResourceType.Coal => 94,
+            ResourceType.Gems => 95,
+            ResourceType.GoldOre => 96,
+            ResourceType.IronOre => 97,
+            ResourceType.Sulfur => 98,
+            _ => 99,
+        };
+        var sprites = Sprites(SignFile, sequence);
+        if (sprites.FrameCount == 0)
+            return;
+        float progress = Math.Clamp(sign.Amount / (float)MaxResourceAmount, 0, 1);
+        sprites.Draw(batch, Math.Min((int)(progress * sprites.FrameCount), sprites.FrameCount - 1), Anchor(p, terrain), 1, Color.White);
     }
 
     /// <summary>Semi-transparent preview of a building at a position, green if it fits, red if not.</summary>

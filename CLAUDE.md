@@ -25,7 +25,8 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   Werkstätten, Minen, Schmiede und Sammler, Werte aus `data/production.json`; `Housing`: Wohnhäuser
   entlassen Träger; `Recruitment`: Träger
   holen ihr Werkzeug und werden Spezialisten – Tests ohne Werkzeugthema nutzen `TestConfig.NoTools`;
-  `Idling`: untätige Träger, Soldaten, Planierer, Bauarbeiter und arbeitslose Fachleute gehen aus dem Weg;
+  `Idling`: untätige Träger, Soldaten, Planierer, Bauarbeiter, Geologen und arbeitslose Fachleute gehen aus dem Weg;
+  `Geology`: Geologen untersuchen Gebirgsfelder im Umkreis `geologists.searchRadius` um den Zielpunkt (nächstes freies Feld, bei Gleichstand zufällig) und setzen Schilder mit Rohstoff und Menge;
   wird ein Gebäude abgerissen, behält der Arbeiter Beruf und Werkzeug und übernimmt das nächste Gebäude seines Berufs),
   `Military/` (Kaserne bildet Soldaten aus, Militärgebäude rufen Soldaten, besetzte beanspruchen Land;
   `MilitaryCombat`: Angriff, Kampf, Verteidigung, Eroberung; nahe am Feind lokale Wegsuche (Radius `combatPathRadius`) um stehende/kämpfende Figuren herum;
@@ -47,13 +48,13 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   (sonst bestehen sie ohne Prüfung). `dotnet test`
 - `src/Homestead.Client` – MonoGame-Spiel. Szenen: `--scene map` (Standard, Originalkarte mit Figuren:
   Baumenü links (Kategorien wie im Original aus `data/ui.json`, Icon-Klick startet das Platzieren; Gebäude des eigenen Volks), Klick wählt/schickt Figuren, Klick auf ein Gebäude zeigt Zustand + Arbeitsbereich, N neuer Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), F Angriff auf das feindliche
-  Militärgebäude unter dem Mauszeiger, Rahmen ziehen wählt eigene Soldaten (Rechtsklick: hinschicken/angreifen, Strg+Rechtsklick: erzwungener Laufbefehl ohne Kämpfen, Linksklick: abwählen; rechts ziehen verschiebt die Karte), F12 gedrückt halten: 10-fache Geschwindigkeit, I KI spielt für dich (an/aus; die anderen Spieler sind immer KI), L KI-Entscheidungen in die Konsole, G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
+  Militärgebäude unter dem Mauszeiger, Rahmen ziehen oder Klick wählt eigene Figuren mit Vorrang Soldaten > Geologen > Träger (Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungener Laufbefehl ohne Kämpfen; Geologen: Rechtsklick auf ein Gebirge sucht dort; Träger: links Umwandlungsmenü statt Baumenü, wandelt bis zur Trägerreserve um, beschäftigte nach ihrer Lieferung; Linksklick: abwählen; rechts ziehen verschiebt die Karte), F12 gedrückt halten: 10-fache Geschwindigkeit, I KI spielt für dich (an/aus; die anderen Spieler sind immer KI), L KI-Entscheidungen in die Konsole, G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
   entlassen dann Träger);
   `--map <name>`, Standard: erste Mehrspieler-Karte; `--peoples amazon,roman,…`: Völker für Spieler, deren Volk die Karte offen lässt (Spieler i: Eintrag i mod Anzahl; ohne Angabe zufällig, Kartenvorgaben 0–3 gelten immer)).
   Figuren sehen aus wie ihr Volk: `SettlerAnimations` löst Typ/Aktion/Ware/Richtung über `data/settlers.json` auf
   (aus JSettlers' `movables*.txt` generiert, `tools/data-import/convert_jsettlers_movables.py`; nicht von Hand ändern). Capture-Läufe ignorieren Eingaben (Tastatur/Maus sind global) und laufen ohne VSync mit 4-facher Geschwindigkeit (verdecktes Fenster wird sonst gedrosselt). und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
   (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse). `HOMESTEAD_CAPTURE_ZOOM=4` und
-  `HOMESTEAD_CAPTURE_FOCUS=<gebäude>` für Nahaufnahmen, `HOMESTEAD_CAPTURE_BATTLE=1` lässt Feinde den Startturm angreifen; am Ende gibt der Lauf Zähler und Gebäudezustände aus.
+  `HOMESTEAD_CAPTURE_FOCUS=<gebäude>` für Nahaufnahmen, `HOMESTEAD_CAPTURE_BATTLE=1` lässt Feinde den Startturm angreifen, `HOMESTEAD_CAPTURE_GEOLOGISTS=1` wandelt Träger um und schickt Geologen ins nächste eigene Gebirge; am Ende gibt der Lauf Zähler und Gebäudezustände aus.
 - `tools/Homestead.Arena` – KI gegen KI ohne Fenster: `dotnet tools/Homestead.Arena/bin/Release/net9.0/Homestead.Arena.dll
   [karte…] [--all] [--minutes 30] [--every 5] [--peoples amazon,asian] [--seed 1] [--log]`; offene Völker zufällig mit festem Seed; gibt je Spieler Land, Gebäude, Siedler, Vorräte und
   hängende Baustellen aus.

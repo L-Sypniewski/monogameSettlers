@@ -22,6 +22,9 @@ public enum Profession
 
     /// <summary>Fights and occupies military buildings (see <see cref="Settler.SoldierType"/>).</summary>
     Soldier,
+
+    /// <summary>Searches mountains for resources and marks them with signs (see <see cref="Economy.Geology"/>).</summary>
+    Geologist,
 }
 
 public enum SoldierType
@@ -48,6 +51,8 @@ public enum Activity
     DrawingWater,
     Fighting,
     Shooting,
+    Surveying,
+    Signing,
 }
 
 public enum SettlerState
@@ -138,7 +143,10 @@ public sealed class Settler
     public bool IsStrolling { get; internal set; }
 
     /// <summary>Idle and free for a job: standing around, or strolling out of the way.</summary>
-    internal bool IsAvailableCarrier => IsCarrier && !HasTask && Carrying is null
+    /// <summary>Becomes a specialist once its current delivery is done: no new tasks meanwhile.</summary>
+    internal bool ConversionPending { get; set; }
+
+    internal bool IsAvailableCarrier => IsCarrier && !HasTask && Carrying is null && !ConversionPending
                                         && (IsStrolling || Destination is null && State != SettlerState.Stepping);
 
     /// <summary>The tool a specialist took up when it was recruited (put down again if it becomes a carrier).</summary>
