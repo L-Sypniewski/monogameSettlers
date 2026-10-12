@@ -92,14 +92,13 @@ public sealed partial class AiPlayer
             Command(mine);
             _nextMilitary = _world.Tick + _config.Military.ThinkTicks;
         }
-        var reserve = Expand(mine);
-        BuildEconomy(mine, reserve);
+        Expand(mine);
+        BuildEconomy(mine);
     }
 
     // ---- economy ----
 
-    /// <param name="reserve">Material kept back for a tower the expansion wants but cannot afford yet.</param>
-    private void BuildEconomy(List<Building> mine, (int Planks, int Stones) reserve)
+    private void BuildEconomy(List<Building> mine)
     {
         if (mine.Count(b => b.State != BuildingState.Finished && !IsMilitary(b)) >= _config.MaxSites)
             return;
@@ -113,11 +112,8 @@ public sealed partial class AiPlayer
             if (mine.Count(b => b.Definition.Name == name) >= count || _catalog.Find(name) is not { } definition)
                 continue;
             bool basic = Basics.Contains(name);
-            // Without quarry stone in the own land, the stones kept for the tower towards it are not to be touched.
-            bool stoneShort = reserve.Stones > 0 && _survey.Own.StoneUnits < _config.MinStoneUnits;
-            if (!Enough(planks, Cost(definition, Material.Plank) + reserve.Planks + (basic ? 0 : keepPlanks))
-                || !Enough(stones, Cost(definition, Material.Stone) + reserve.Stones + (basic ? 0 : keepStones))
-                || stoneShort && Cost(definition, Material.Stone) > 0 && stones - reserve.Stones < Cost(definition, Material.Stone))
+            if (!Enough(planks, Cost(definition, Material.Plank) + (basic ? 0 : keepPlanks))
+                || !Enough(stones, Cost(definition, Material.Stone) + (basic ? 0 : keepStones)))
             {
                 // Wait for the material rather than skip ahead, unless nothing would ever bring it.
                 bool noSupply = Basics.Contains(name) && !mine.Any(b => b.Definition.Name == name);
@@ -161,19 +157,18 @@ public sealed partial class AiPlayer
                || _world.Recruitment.Convertible(Player) < _config.HouseWhenConvertible;
     }
 
-    private bool IsLivingHouse(string name) => name == _config.House || _config.HouseSizes.Contains(name);
+    private bool IsLivingHouse(string name) => name == _config.House || _config.HouseSizes.Any(h => h.Building == name);
 
     /// <summary>
-    /// The living house to build: the biggest one whose planks and stones are on hand houseStockFactor
-    /// times over, otherwise the small one.
+    /// The living house to build: the biggest one the wood and stone production can afford (enough
+    /// finished sawmills and stonecutters, per people in ai.json), otherwise the small one.
     /// </summary>
     private BuildingDefinition? HouseToBuild(List<Building> mine)
     {
-        int planks = Free(Material.Plank, mine), stones = Free(Material.Stone, mine);
-        foreach (string name in _config.HouseSizes)
-            if (_catalog.Find(name) is { } house
-                && planks >= _config.HouseStockFactor * Cost(house, Material.Plank)
-                && stones >= _config.HouseStockFactor * Cost(house, Material.Stone))
+        int sawmills = mine.Count(b => b.Definition.Name == "sawmill" && b.State == BuildingState.Finished);
+        int stonecutters = mine.Count(b => b.Definition.Name == "stonecutter" && b.State == BuildingState.Finished);
+        foreach (var size in _config.HouseSizes)
+            if (sawmills >= size.Sawmills && stonecutters >= size.Stonecutters && _catalog.Find(size.Building) is { } house)
                 return house;
         return _catalog.Find(_config.House);
     }
@@ -405,33 +400,31 @@ public sealed partial class AiPlayer
 
     // ---- expansion ----
 
-    /// <summary>Builds a tower towards what the land lacks. Returns the material to keep back for it if it cannot be afforded yet.</summary>
-    private (int Planks, int Stones) Expand(List<Building> mine)
+    /// <summary>
+    /// Builds a tower towards what the land lacks, if its material is on hand. Nothing is kept back
+    /// for a tower that cannot be afforded yet: planks and stones are made again.
+    /// </summary>
+    private void Expand(List<Building> mine)
     {
         if (_catalog.Find(_config.ExpansionBuilding) is not { } tower)
-            return default;
-        (int Planks, int Stones) cost = (Cost(tower, Material.Plank), Cost(tower, Material.Stone));
-        // Without quarry stone in the own land the next tower towards it is what matters most: its
-        // material stays back even while it cannot be started yet, or the economy would use up the
-        // last stones nobody can replace.
-        bool stoneShort = _survey.Own.StoneUnits < _config.MinStoneUnits
-                          && NearestUnclaimed(c => c.StoneUnits >= 10) is not null;
-        var waiting = stoneShort ? cost : default;
+            return;
         int towerSites = mine.Count(b => IsMilitary(b) && b.State != BuildingState.Finished);
         if (towerSites >= _config.MaxTowerSites)
-            return waiting;
+            return;
         // Somebody has to occupy it.
         int spareSoldiers = _world.Settlers.Count(s => s.Player == Player && s.Profession == Profession.Soldier && !s.HasTask && !s.IsInside);
         int emptyTowers = mine.Count(b => IsMilitary(b) && b.State == BuildingState.Finished && !_world.Military.IsOccupied(b));
         spareSoldiers -= emptyTowers + towerSites;
         if (spareSoldiers <= 0)
-            return waiting;
+            return;
+        (int Planks, int Stones) cost = (Cost(tower, Material.Plank), Cost(tower, Material.Stone));
         int planks = Free(Material.Plank, mine), stones = Free(Material.Stone, mine);
-        // A wanted living house comes before towers: they leave its material (not while stone is short).
-        (int Planks, int Stones) keep = !stoneShort && HouseWanted(mine) && HouseToBuild(mine) is { } house
+        // A wanted living house comes before towers: they leave its material.
+        (int Planks, int Stones) keep = HouseWanted(mine) && HouseToBuild(mine) is { } house
             ? (Cost(house, Material.Plank), Cost(house, Material.Stone))
             : default;
-        bool affordable = Enough(planks, cost.Planks + keep.Planks) && Enough(stones, cost.Stones + keep.Stones);
+        if (!Enough(planks, cost.Planks + keep.Planks) || !Enough(stones, cost.Stones + keep.Stones))
+            return;
 
         // Places an own tower (or tower site) will cover anyway do not need another.
         var military = mine.Where(IsMilitary).Select(b => b.Position).ToList();
@@ -445,21 +438,14 @@ public sealed partial class AiPlayer
                 continue;
             if (NearestUnclaimed(c => wanted(c) && Uncovered(c)) is not { } target)
                 continue;
-            if (!affordable)
-                return need == "land" ? default : cost; // keep the material back for it
             if (PlaceTower(tower, target, mine) is { } site)
             {
                 Note($"expands towards {need} at {target.X},{target.Y}: tower at {site.Position.X},{site.Position.Y}");
                 if (need == "room")
                     _lacksRoom = false;
-                return default;
+                return;
             }
-            // Stone short and known where it is, but no spot yet (the last tower has not claimed its
-            // land): wait for it rather than spend the last stones on a tower elsewhere.
-            if (need == "stone" && stoneShort)
-                return cost;
         }
-        return default;
     }
 
     /// <summary>What the own land lacks, most urgent first, with how to recognize a cell that has it.</summary>

@@ -1,5 +1,5 @@
 {
-  "_comment": "Production balancing (Homestead's own values, not taken from the original). Times in game seconds. Workshop inputs/outputs must match the building's request/offer piles in data/buildings. Mines eat food from their input piles (see mineFood).",
+  "_comment": "Production balancing (Homestead's own values, not taken from the original). Times in game seconds. Workshop inputs/outputs must match the building's request/offer piles in data/buildings. Mines eat food from their input piles (see mineFood). Gatherers: workSeconds at the spot, restSeconds at home, pickupSeconds a pause before picking up what they got (the woodcutter after felling).",
   "workshops": {
     "sawmill": { "inputs": [ "TRUNK" ], "outputs": [ "PLANK" ], "seconds": 6 },
     "mill": { "inputs": [ "CROP" ], "outputs": [ "FLOUR" ], "seconds": 6 },
@@ -11,9 +11,9 @@
     "pig_farm": { "inputs": [ "CROP", "WATER" ], "outputs": [ "PIG" ], "seconds": 12 }
   },
   "gatherers": {
-    "lumberjack": { "action": "CutTree", "output": "TRUNK", "workSeconds": 6, "restSeconds": 4 },
+    "lumberjack": { "action": "CutTree", "output": "TRUNK", "workSeconds": 6, "restSeconds": 4, "pickupSeconds": 4 },
     "stonecutter": { "action": "CutStone", "output": "STONE", "workSeconds": 8, "restSeconds": 4 },
-    "forester": { "action": "PlantTree", "workSeconds": 5, "restSeconds": 8 },
+    "forester": { "action": "PlantTree", "workSeconds": 5, "restSeconds": 3 },
     "fisher": { "action": "Fish", "output": "FISH", "workSeconds": 8, "restSeconds": 6 },
     "waterworks": { "action": "DrawWater", "output": "WATER", "workSeconds": 4, "restSeconds": 4 },
     "farm": { "action": "Farm", "output": "CROP", "workSeconds": 4, "restSeconds": 4 }

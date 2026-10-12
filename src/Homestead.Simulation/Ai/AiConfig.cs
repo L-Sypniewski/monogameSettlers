@@ -31,10 +31,13 @@ public sealed record AiConfig
     /// <summary>A living house is wanted while there are no more carriers than this many per production building.</summary>
     public double CarriersPerProductionBuilding { get; init; } = 2;
 
-    /// <summary>Living houses from big to small: the first whose material is on hand <see cref="HouseStockFactor"/> times is built.</summary>
-    public IReadOnlyList<string> HouseSizes { get; init; } = ["big_livinghouse", "medium_livinghouse"];
+    /// <summary>
+    /// Living houses from big to small, each with the sawmills and stonecutters (finished) it takes:
+    /// the first the player has enough of is built, otherwise <see cref="House"/>.
+    /// </summary>
+    public IReadOnlyList<HouseSize> HouseSizes { get; init; } = [];
 
-    public double HouseStockFactor { get; init; } = 2;
+    public sealed record HouseSize(string Building, int Sawmills, int Stonecutters);
 
     /// <summary>A living house is wanted once fewer carriers than this may still become specialists (carrier reserve).</summary>
     public int HouseWhenConvertible { get; init; } = 4;
@@ -84,9 +87,9 @@ public sealed record AiConfig
             HouseWhenConvertible = root.TryGetProperty("houseWhenConvertible", out var convertible) ? convertible.GetInt32() : 4,
             CarriersPerProductionBuilding = root.TryGetProperty("carriersPerProductionBuilding", out var perBuilding) ? perBuilding.GetDouble() : 2,
             HouseSizes = root.TryGetProperty("houseSizes", out var sizes)
-                ? sizes.EnumerateArray().Select(s => s.GetString()!).ToArray()
-                : ["big_livinghouse", "medium_livinghouse"],
-            HouseStockFactor = root.TryGetProperty("houseStockFactor", out var stockFactor) ? stockFactor.GetDouble() : 2,
+                ? sizes.EnumerateArray().Select(s => new HouseSize(s.GetProperty("building").GetString()!,
+                    s.GetProperty("sawmills").GetInt32(), s.GetProperty("stonecutters").GetInt32())).ToArray()
+                : [],
             StockWhenWaiting = root.GetProperty("stockWhenWaiting").GetInt32(),
             BuildOrder = root.GetProperty("buildOrder").EnumerateArray()
                 .Select(e => (e[0].GetString()!, e[1].GetInt32())).ToArray(),

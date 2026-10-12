@@ -8,8 +8,8 @@ public sealed record ResourceSign(int Player, ResourceType? Resource, int Amount
 
 /// <summary>
 /// Geologists. The player turns carriers into geologists (as far as the carrier reserve allows) and
-/// sends them to a mountain. There a geologist examines field after field: next the nearest field
-/// without a sign (a random one among equally near ones), always within
+/// sends them to a mountain. There a geologist examines field after field, every second one: next the
+/// nearest field with no sign on it or next to it (a random one among equally near ones), always within
 /// <see cref="GeologistRules.SearchRadius"/> of the point he was sent to. Each search leaves a sign with
 /// what lies below; signs fade after a few minutes. When no field is left he is done.
 /// </summary>
@@ -188,8 +188,21 @@ public sealed class Geology
     {
         var geologist = job.Geologist;
         var taken = _jobs.Values.Where(j => j != job).Select(j => j.Field).ToHashSet();
+        // Only every second field: none next to a sign or to a field another geologist goes to.
+        bool Spaced(GridPoint p)
+        {
+            if (_signs.ContainsKey(p) || taken.Contains(p))
+                return false;
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+            {
+                var n = p.Neighbor((Direction)d);
+                if (_signs.ContainsKey(n) || taken.Contains(n))
+                    return false;
+            }
+            return true;
+        }
         bool Free(GridPoint p) =>
-            IsSearchable(p) && !_signs.ContainsKey(p) && !taken.Contains(p) && !job.Skipped.Contains(p)
+            IsSearchable(p) && Spaced(p) && !job.Skipped.Contains(p)
             && _world.Map!.IsWalkable(p) && (!_world.IsOccupied(p) || p == geologist.Position);
 
         var candidates = new List<GridPoint>();

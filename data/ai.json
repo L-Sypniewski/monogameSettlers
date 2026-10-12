@@ -7,12 +7,11 @@
   "freeCarriers": 6,
   "houseWhenConvertible": 4,
   "carriersPerProductionBuilding": 2,
-  "_houseSizesComment": "Which living house: the first of houseSizes whose planks and stones are on hand houseStockFactor times over, otherwise house.",
+  "_houseSizesComment": "Which living house: the first of houseSizes whose sawmills and stonecutters (finished) the player has, otherwise house. Per people below, after what their houses cost (Egyptians build with stone, Asians and Amazons with planks).",
   "houseSizes": [
-    "big_livinghouse",
-    "medium_livinghouse"
+    { "building": "big_livinghouse", "sawmills": 2, "stonecutters": 3 },
+    { "building": "medium_livinghouse", "sawmills": 2, "stonecutters": 2 }
   ],
-  "houseStockFactor": 2,
   "house": "small_livinghouse",
   "_stockComment": "A storehouse is built once a smith or gold melt works and stockWhenWaiting units of goods worth storing (storage.materials in production.json: tools, weapons, gold) lie around and the storehouses have fewer than two free piles.",
   "stockWhenWaiting": 8,
@@ -132,6 +131,10 @@
         ["fisher", 3],
         ["pig_farm", 2],
         ["slaughterhouse", 2]
+      ],
+      "houseSizes": [
+        { "building": "big_livinghouse", "sawmills": 1, "stonecutters": 5 },
+        { "building": "medium_livinghouse", "sawmills": 1, "stonecutters": 3 }
       ]
     },
     "Asian": {
@@ -179,6 +182,10 @@
         ["pig_farm", 2],
         ["slaughterhouse", 2],
         ["stonecutter", 3]
+      ],
+      "houseSizes": [
+        { "building": "big_livinghouse", "sawmills": 3, "stonecutters": 2 },
+        { "building": "medium_livinghouse", "sawmills": 2, "stonecutters": 1 }
       ]
     },
     "Amazon": {
@@ -226,6 +233,10 @@
         ["pig_farm", 2],
         ["slaughterhouse", 2],
         ["stonecutter", 3]
+      ],
+      "houseSizes": [
+        { "building": "big_livinghouse", "sawmills": 3, "stonecutters": 2 },
+        { "building": "medium_livinghouse", "sawmills": 2, "stonecutters": 1 }
       ]
     }
   }

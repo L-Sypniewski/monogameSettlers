@@ -34,7 +34,7 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   Spieler; Logistik/Rekrutierung bedienen nur den eigenen Spieler, `World.TerritoryRules` erzwingt eigenes Land (Bauplatz samt Tür, Stapeln, Bauarbeiterplätzen; Wege aller außer Soldaten und Geologen,
   Erreichbarkeit über Landgebiete je Besitzer in `PathFinder`; Gestrandete gehen heim).
   `Ai/` (`AiPlayer`: Computerspieler mit denselben Befehlen wie ein Mensch, kennt die ganze Karte; baut nach
-  `data/ai.json` und Bedarf (Wohnhaus, solange Träger ≤ 2 × Produktionsgebäude; das größte, dessen Material doppelt vorrätig ist), expandiert mit Türmen gezielt zu fehlenden Rohstoffen; `AiPlayer.Military`: kennt alle feindlichen Soldaten,
+  `data/ai.json` und Bedarf (Wohnhaus, solange Träger ≤ 2 × Produktionsgebäude; Größe nach fertigen Sägewerken/Steinmetzen je Volk; kein Material wird für Türme zurückgehalten), expandiert mit Türmen gezielt zu fehlenden Rohstoffen; `AiPlayer.Military`: kennt alle feindlichen Soldaten,
   Verteidigung zuerst, greift kleinere Trupps an, wenn deutlich überlegen (laufend neu bewertet), verteilt die übrigen
   zur Bewachung nach Bedrohung; `AiPlayer.Campaign`: sammelt Soldaten und erobert feindliche Militärgebäude bei 1,5:1;
   Werte in `ai.json`, je Volk überschreibbar (`civilizations`, dort auch die Build-Order je Volk); `MapSurvey`: Kartenüberblick in Zellen;

@@ -70,12 +70,19 @@ Schwierigkeitsgrad:
 Jedem KI-Gegner wird eine Schwierigkeit leicht/mittel/schwer zugewiesen.
 Leicht:
     - KI weiß nur das, was sie normalerweise sehen sollte. Im eigenen Land, Gegnerpositionen durch Späher, Resourcen durch Geologen
-    - Bildet Geologen aus
+    - Bildet Geologen und Späher aus
+    - Späher werden genutzt, um Gebirge und Steine zu finden
     - Keine Guerilla-Angriffe
     - Keine präventive Verteidigung, nur reaktiv
+    - Soldaten werden irgendwo im Land platziert
 Mittel:
-    - KI weiß nur das, was sie normalerweise sehen sollte. Im eigenen Land, Gegnerpositionen durch Späher, Resourcen durch Geologen
+    - KI weiß nur das, was sie sieht und die Lage von Gebirgen und Steinen. Im eigenen Land, Gegnerpositionen durch Späher, Resourcen durch Geologen
     - Bildet Geologen und Späher
+    - Späher werden genutzt, um Gegner zu finden
+    - Soldaten werden primär an Grenz-Türmen platziert, die zum Gegnerischen Land zeigen
+    - Soldaten reagieren auf nahe feindliche Einheiten (falls entdeckt)
 Schwer:
     - KI weiß alles. (Map, Militär, Rohstoffe)
     - Bildet keine Späher oder Geologen aus.
+    - Soldaten werden primär an Grenz-Türmen platziert, die zu gegnerischen Einheiten
+    - Soldaten reagieren auf nahe feindliche Einheiten

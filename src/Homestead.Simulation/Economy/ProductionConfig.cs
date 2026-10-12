@@ -17,7 +17,8 @@ public enum GatherAction
 
 public sealed record WorkshopRecipe(IReadOnlyList<Material> Inputs, IReadOnlyList<Material> Outputs, int Ticks);
 
-public sealed record GathererRecipe(GatherAction Action, Material? Output, int WorkTicks, int RestTicks);
+/// <param name="PickupTicks">Pause between finishing the work and picking up the result (the woodcutter after felling).</param>
+public sealed record GathererRecipe(GatherAction Action, Material? Output, int WorkTicks, int RestTicks, int PickupTicks = 0);
 
 /// <summary>
 /// A mine: takes ore from the ground within <see cref="Radius"/> of the building. A unit of food (any
@@ -135,7 +136,8 @@ public sealed record ProductionConfig
             g => new GathererRecipe(
                 Enum.Parse<GatherAction>(g.Value.GetProperty("action").GetString()!),
                 g.Value.TryGetProperty("output", out var output) ? Materials.Parse(output.GetString()!) : null,
-                Ticks(g.Value, "workSeconds"), Ticks(g.Value, "restSeconds")));
+                Ticks(g.Value, "workSeconds"), Ticks(g.Value, "restSeconds"),
+                g.Value.TryGetProperty("pickupSeconds", out _) ? Ticks(g.Value, "pickupSeconds") : 0));
         var mineFood = root.GetProperty("mineFood");
         var mines = root.GetProperty("mines").EnumerateObject().Where(m => !m.Name.StartsWith('_')).ToDictionary(
             m => m.Name,

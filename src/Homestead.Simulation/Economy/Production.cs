@@ -115,7 +115,7 @@ public sealed class Production
                 w.Mine is null ? "fetching " + string.Join(" and ", w.Workshop!.Inputs) : "fetching food",
             Phase.Producing when w.Product is { } product => $"making {product}",
             Phase.Producing => w.Mine is null ? "working" : "mining",
-            Phase.ToSpot or Phase.Gathering => "working outside",
+            Phase.ToSpot or Phase.Gathering or Phase.AfterFelling => "working outside",
             Phase.ToOutput or Phase.Dropping => $"bringing {w.Worker?.Carrying} out",
             _ => "going home",
         };
@@ -431,6 +431,13 @@ public sealed class Production
                 FinishGathering(w);
                 break;
 
+            case Phase.AfterFelling:
+                if (--w.TicksLeft > 0)
+                    break;
+                worker!.Carrying = Material.Trunk;
+                DeliverOutput(w);
+                break;
+
             case Phase.ToOutput:
                 if (Arrived(w, out bool stalledOutput))
                     BeginHandling(w, Activity.Dropping, Phase.Dropping);
@@ -621,6 +628,13 @@ public sealed class Production
                 map.SetObjectCode(w.Target, MapObjectCodes.TreeStump);
                 _growing[map.Index(w.Target)] = _world.Tick + _config.StumpTicks; // the stump rots away
                 TreesCut++;
+                if (w.Gatherer.PickupTicks > 0)
+                {
+                    // The tree has fallen: a moment before the trunk is picked up.
+                    w.Phase = Phase.AfterFelling;
+                    w.TicksLeft = w.Gatherer.PickupTicks;
+                    return;
+                }
                 worker.Carrying = Material.Trunk;
                 DeliverOutput(w);
                 return;
@@ -978,6 +992,7 @@ public sealed class Production
         Producing,
         ToSpot,
         Gathering,
+        AfterFelling,
         ToOutput,
         Dropping,
         ToDoorToRest,
