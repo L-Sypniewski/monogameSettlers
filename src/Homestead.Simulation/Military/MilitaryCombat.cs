@@ -8,9 +8,10 @@ namespace Homestead.Simulation.Military;
 /// and the capture of buildings.
 /// </summary>
 /// <remarks>
-/// A fighter looks for the nearest enemy soldier outside the buildings within sight. Melee soldiers
-/// walk up to it and strike from the neighboring field, bowmen shoot from up to their range; one hit
-/// every attack interval. Without an enemy an attacker walks to its target's door. When attackers
+/// A fighter looks for the nearest enemy soldier outside the buildings within sight (also while on a
+/// move or attack order; it stops as soon as the enemy is within reach). Melee soldiers walk up to it
+/// and strike from the neighboring field, bowmen shoot from up to their range; one hit every attack
+/// interval. Near the enemy the way is planned locally around everyone standing (see <see cref="Approach"/>). Without an enemy an attacker walks to its target's door. When attackers
 /// stand near the door, the building sends out one soldier at a time to fight them; bowmen in the
 /// building shoot at enemies in range. An attacker at the door of a building with nobody left
 /// inside or out defending takes it: the building, its soldier places and its land change sides,
@@ -27,6 +28,9 @@ public sealed partial class Military
     private readonly Dictionary<int, long> _nextShot = new();
     private const int UnreachableTicks = 200;
     private const int RetargetTicks = 10;
+
+    /// <summary>Near the enemy, ways are planned around other soldiers within this radius.</summary>
+    private const int CombatSearchRadius = 10;
 
     public int Kills { get; private set; }
 
@@ -221,10 +225,12 @@ public sealed partial class Military
             int distance = PathFinder.Distance(soldier.Position, enemy.Position);
             if (distance <= stats.Range)
             {
+                // Stop after the current step. Walkers are mid-step whenever this runs (movement comes
+                // first in a tick), so waiting for a standstill would let them walk on.
+                if (soldier.Path.Count > 0)
+                    _world.WalkTo(soldier, soldier.StepTarget);
                 if (soldier.State == SettlerState.Stepping)
                     return;
-                if (soldier.Destination is not null)
-                    _world.WalkTo(soldier, soldier.Position); // stop here
                 soldier.Facing = FacingTowards(soldier.Position, enemy.Position);
                 SetActivity(soldier, stats.Range > 1 ? Activity.Shooting : Activity.Fighting);
                 if (_world.Tick >= f.NextHit)
@@ -237,7 +243,7 @@ public sealed partial class Military
             SetActivity(soldier, Activity.None);
             if (soldier.Destination is null || _world.Tick >= f.NextReplan)
             {
-                if (!_world.WalkTo(soldier, enemy.Position))
+                if (!Approach(f, enemy, stats))
                 {
                     // No way there (walled in, other side of the water): leave it for a while.
                     f.Unreachable[enemy.Id] = _world.Tick + UnreachableTicks;
@@ -326,6 +332,78 @@ public sealed partial class Military
         }
         if (recheck)
             f.NextRetarget = _world.Tick + RetargetTicks;
+    }
+
+    /// <summary>
+    /// Plans the way to a field within reach of the enemy. Near the enemy the search stays inside
+    /// <see cref="CombatSearchRadius"/> and treats everyone standing (fighting, waiting, idle; own
+    /// soldiers too) as an obstacle, so a soldier walks around a busy friend instead of queueing
+    /// behind it. When the crowd blocks every way, it goes to the reachable field closest to any
+    /// enemy (and takes that enemy). False if the enemy cannot be reached at all.
+    /// </summary>
+    private bool Approach(Fighter f, Settler enemy, SoldierStats stats)
+    {
+        var soldier = f.Soldier;
+        var start = soldier.StepTarget;
+        if (PathFinder.Distance(start, enemy.Position) > CombatSearchRadius)
+            return _world.WalkTo(soldier, enemy.Position); // still far: the plain way, the crowd is handled on arrival
+
+        var map = _world.Map!;
+        var enemies = EnemiesOf(soldier.Player)
+            .Where(e => PathFinder.Distance(start, e.Position) <= CombatSearchRadius + stats.Range)
+            .ToList();
+        int Reach(GridPoint p) => enemies.Min(e => PathFinder.Distance(p, e.Position));
+
+        var cameFrom = new Dictionary<GridPoint, (GridPoint From, Direction Step)> { [start] = (start, default) };
+        var queue = new Queue<GridPoint>();
+        queue.Enqueue(start);
+        GridPoint? goal = null;
+        var closest = start;
+        int closestReach = Reach(start);
+        while (queue.Count > 0 && goal is null)
+        {
+            var current = queue.Dequeue();
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+            {
+                var next = current.Neighbor((Direction)d);
+                if (cameFrom.ContainsKey(next) || !PathFinder.InCircle(start, next, CombatSearchRadius)
+                    || !map.Contains(next) || !map.IsWalkable(next) || _world.OccupantAt(next) is { State: not SettlerState.Stepping } other && other != soldier)
+                    continue;
+                cameFrom[next] = (current, (Direction)d);
+                if (PathFinder.Distance(next, enemy.Position) <= stats.Range)
+                {
+                    goal = next;
+                    break;
+                }
+                // Breadth first: the first field at a distance is also the nearest to reach.
+                int reach = Reach(next);
+                if (reach < closestReach)
+                {
+                    closest = next;
+                    closestReach = reach;
+                }
+                queue.Enqueue(next);
+            }
+        }
+
+        if (goal is null)
+        {
+            if (closest == start)
+            {
+                // Hemmed in for now: wait here, the crowd moves. Give up only if there is no way at all.
+                _world.WalkTo(soldier, start);
+                return _world.PathFinder!.AreConnected(start, enemy.Position);
+            }
+            goal = closest;
+            f.Enemy = enemies.MinBy(e => PathFinder.Distance(closest, e.Position));
+        }
+
+        var steps = new List<Direction>();
+        for (var p = goal.Value; p != start; p = cameFrom[p].From)
+            steps.Add(cameFrom[p].Step);
+        steps.Reverse();
+        _world.Follow(soldier, steps, goal.Value);
+        return true;
     }
 
     private void Hit(Settler attacker, Settler enemy)

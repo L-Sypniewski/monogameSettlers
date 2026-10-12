@@ -154,7 +154,17 @@ public sealed partial class World
         var path = PathFinder!.FindPath(from, destination);
         if (path is null)
             return false;
+        Follow(settler, path, destination);
+        return true;
+    }
 
+    /// <summary>
+    /// Walks a path planned elsewhere (e.g. around fighting soldiers). Like <see cref="WalkTo"/>, the
+    /// path starts where the settler will be standing next.
+    /// </summary>
+    internal void Follow(Settler settler, IReadOnlyList<Direction> path, GridPoint destination)
+    {
+        settler.IsStrolling = false;
         settler.Path.Clear();
         foreach (var step in path)
             settler.Path.Enqueue(step);
@@ -163,7 +173,6 @@ public sealed partial class World
         settler.WaitingTicks = 0;
         if (settler.State == SettlerState.Waiting)
             settler.State = SettlerState.Idle;
-        return true;
     }
 
     private void AdvanceStep(Settler settler)
@@ -360,6 +369,10 @@ public sealed partial class World
 
     /// <summary>Whether a settler stands on (or is stepping onto) the point.</summary>
     public bool IsOccupied(GridPoint p) => _occupant[RequireMap().Index(p)] != NoOccupant;
+
+    /// <summary>The settler standing on (or stepping onto) the point, if any.</summary>
+    internal Settler? OccupantAt(GridPoint p) =>
+        _occupant[RequireMap().Index(p)] is var id and not NoOccupant ? _settlersById[id] : null;
 
     /// <summary>The settler goes into a building through the door it stands on.</summary>
     internal void EnterBuilding(Settler settler)
