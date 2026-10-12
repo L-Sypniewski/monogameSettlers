@@ -91,7 +91,7 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [ ] Startausstattung je Spielstart (Burg/Lager, Waren, Siedler wie im Original)
    - [ ] Auf- und Ablegen animieren; Wege (beschleunigen das Laufen)
    - [x] Baustellen: Tür und Stapelplätze müssen frei sein (sonst nie belieferbar); Lager hält eine Ware zusammen
-   - [ ] Lager nimmt nur 6 Warenarten (6 Stapelplätze) – sollte alle aufnehmen
+   - [x] Lager nimmt beliebig viele Warenarten (öffnet bei Bedarf weitere Stapelplätze ringsum)
    - [ ] Fußabdrücke: JSettlers-Daten sind etwas großzügiger als die Begehbarkeit der Originalkarten
 4. **Wirtschaft:** Warenketten, Produktion, Rohstoffe. ← *begonnen*
    - [x] Produktions-Balancing als Datei (`data/production.json`, eigene Werte)
@@ -117,6 +117,9 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [x] Gebiet: besetzte Gebäude beanspruchen Land (Radien aus den Originalkarten, 98,8 % deckungsgleich),
      Grenzpfähle in Spielerfarbe, Bauen nur auf eigenem Land
    - [x] Spielertrennung in Logistik, Rekrutierung, Baustellen
-   - [ ] Angriff, Nahkampf, Bogenschützen, Eroberung von Gebäuden
+   - [x] Angriff (Soldaten aus Gebäuden in Reichweite, einer bleibt), Nahkampf, Bogenschützen (auch vom Turm),
+     Verteidiger an der Tür, Eroberung mit Gebietswechsel; Gebäude auf verlorenem Land gehen unter
+   - [ ] Kampfwerte an Originalverhalten angleichen (derzeit eigene Werte in `data/military.json`)
+   - [ ] Angriffs-Auswahl wie im Original (Anzahl/Typen wählen), Sterbe-Animation
    - [ ] Soldaten-Stufen durch Gold/Tempel, Heiler
 6. **KI**

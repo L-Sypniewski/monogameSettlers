@@ -159,6 +159,7 @@ public sealed partial class World
         var building = Register(definition, player, position, BuildingState.Finished);
         foreach (var p in building.BlockedPoints)
             map.AddBlocker(p);
+        MoveOffBlocked(building.BlockedPoints.ToList());
         CreateOperatingPiles(building);
         return building;
     }
@@ -222,6 +223,7 @@ public sealed partial class World
             map.SetTerrain(p, TerrainType.Flattened);
             map.AddBlocker(p);
         }
+        MoveOffBlocked(building.BlockedPoints.ToList());
         building.Unlevelled.Clear();
         building.State = BuildingState.Constructing;
         if (building.BuildStepsTotal == 0)

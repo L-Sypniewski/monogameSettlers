@@ -46,6 +46,8 @@ public enum Activity
     Harvesting,
     Fishing,
     DrawingWater,
+    Fighting,
+    Shooting,
 }
 
 public enum SettlerState
@@ -80,6 +82,11 @@ public sealed class Settler
     public int Player { get; internal set; }
 
     public SoldierType? SoldierType { get; internal set; }
+
+    /// <summary>Soldiers: health left (see <c>data/military.json</c>); 0 for everyone else.</summary>
+    public float Health { get; internal set; }
+
+    public bool IsDead { get; internal set; }
 
     /// <summary>Soldier rank 1-3.</summary>
     public int Level { get; internal set; } = 1;

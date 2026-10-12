@@ -30,7 +30,7 @@ public sealed class Building
 
     public BuildingDefinition Definition { get; }
 
-    public int Player { get; }
+    public int Player { get; internal set; }
 
     /// <summary>Anchor point; all definition offsets are relative to it.</summary>
     public GridPoint Position { get; }

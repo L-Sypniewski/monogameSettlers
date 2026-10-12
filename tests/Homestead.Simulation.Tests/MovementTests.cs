@@ -163,4 +163,18 @@ public class MovementTests(ITestOutputHelper output)
         right = new GridPoint(26, 10);
         return map;
     }
+
+    [Fact]
+    public void Settlers_on_the_ground_of_a_new_building_are_put_beside_it()
+    {
+        var world = new World(new GameMap(60), Economy.ProductionConfig.None);
+        var sawmill = Buildings.BuildingCatalog.Load(Buildings.Civilization.Roman)["sawmill"];
+        var at = new GridPoint(30, 30);
+        var settler = world.Spawn(at + sawmill.Blocked[0])!;
+
+        Assert.NotNull(world.PlaceBuilding(sawmill, 0, at));
+
+        Assert.True(world.Map!.IsWalkable(settler.Position));
+        Assert.True(world.WalkTo(settler, new GridPoint(5, 5)));
+    }
 }

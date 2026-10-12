@@ -161,6 +161,16 @@ public sealed class MapGame : Game
         }
     }
 
+    /// <summary>A small bar above a wounded soldier: green for the health left, red for the rest.</summary>
+    private void DrawHealthBar(Settler soldier, SoldierType type, float alpha)
+    {
+        float left = Math.Clamp(soldier.Health / _world.Military.Config.MaxHealth(type, soldier.Level), 0, 1);
+        var anchor = SettlerRenderer.Anchor(soldier, _terrain, alpha);
+        var bar = new Rectangle((int)anchor.X - 8, (int)anchor.Y - 34, 16, 2);
+        _spriteBatch.Draw(_pixel, bar, Color.DarkRed);
+        _spriteBatch.Draw(_pixel, new Rectangle(bar.X, bar.Y, (int)(bar.Width * left), bar.Height), Color.LimeGreen);
+    }
+
     /// <summary>Border posts of grid row <paramref name="y"/>: owned points next to land of another owner.</summary>
     private void DrawBorderRow(int y, RectangleF visible)
     {
@@ -277,6 +287,12 @@ public sealed class MapGame : Game
             _message = DemoEconomy.Create(_world, _romans, ScreenToGrid(cursorScreen), _random);
         if (Pressed(Keys.M))
             SpawnWanderers(ScreenToGrid(cursorScreen));
+        if (Pressed(Keys.F) && _world.BuildingAt(ScreenToGrid(cursorScreen)) is { } target)
+        {
+            // F: attack the enemy military building under the cursor with player 1's soldiers nearby.
+            int sent = _world.Military.Attack(0, target);
+            _message = sent > 0 ? $"{sent} soldiers attack {target.Definition.Name}" : "no soldiers in range or not an enemy military building";
+        }
         if (Pressed(Keys.K))
         {
             // Test soldiers: two of each kind, for player 0 (with Shift for player 1).
@@ -459,7 +475,11 @@ public sealed class MapGame : Game
                     _terrain, color, _time);
             }
             foreach (var settler in settlersByRow[y])
+            {
                 _settlerRenderer.Draw(_spriteBatch, settler, _terrain, alpha, PlayerColors.Of(settler.Player));
+                if (settler.SoldierType is { } type && settler.Health < _world.Military.Config.MaxHealth(type, settler.Level))
+                    DrawHealthBar(settler, type, alpha);
+            }
         }
 
         if (_selected is not null)
@@ -539,6 +559,15 @@ public sealed class MapGame : Game
                 var start = _selected!.Position;
                 Console.WriteLine(DemoEconomy.Create(_world, _romans, start, _random));
                 _selectedBuilding = _world.Buildings.FirstOrDefault(b => b.Definition.Name == (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") ?? "lumberjack"));
+                // HOMESTEAD_CAPTURE_BATTLE=1: enemy soldiers attack the start tower.
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE") == "1"
+                    && _world.Buildings.FirstOrDefault(b => b.Definition.Name == "big_tower" && b.Player == 0) is { } tower)
+                {
+                    foreach (var type in Enum.GetValues<SoldierType>())
+                        for (int i = 0; i < 3; i++)
+                            _world.SpawnSoldier(new GridPoint(start.X + 22 + i, start.Y + 4), type, player: 1);
+                    _world.Military.Attack(1, tower);
+                }
                 if (_zoom > 1 && _selectedBuilding is not null)
                     _camera = ToWorld(_selectedBuilding.Position);
                 DemoEconomy.PlaceNear(_world, _romans["medium_livinghouse"], new GridPoint(start.X + 10, start.Y - 4), _random);
@@ -552,6 +581,7 @@ public sealed class MapGame : Game
                 Console.WriteLine($"buildings: {string.Join(", ", _world.Buildings.Where(b => b.Exists).Select(b => $"{b.Definition.Name}@{b.Position.X},{b.Position.Y}"))}");
                 Console.WriteLine($"produced {production.Produced}, crop {production.CropHarvested}/{production.FieldsSown}, fish {production.FishCaught}, " +
                                   $"water {production.WaterDrawn}, ore {production.OreMined}, tools {production.ToolsMade}; " +
+                                  $"kills {_world.Military.Kills}, captures {_world.Military.Captures}; " +
                                   $"residents {_world.Housing.Released}, settlers {_world.Settlers.Count}; diggers {_world.Settlers.Count(s => s.Profession == Profession.Digger)}, builders {_world.Settlers.Count(s => s.Profession == Profession.Builder)}; problems: " +
                                   string.Join(", ", production.Problems.Select(kv => $"{kv.Key} {kv.Value}x")));
                 var carriers = _world.Settlers.Where(c => c.IsCarrier && !c.IsInside).ToList();

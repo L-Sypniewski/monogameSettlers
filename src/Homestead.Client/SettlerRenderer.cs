@@ -16,6 +16,7 @@ public sealed class SettlerRenderer : IDisposable
     private const int CarrierFile = 10; // Roman settlers
     private const int WorkerFile = 11;  // Roman specialists
     private const int SoldierFile = 12; // Roman soldiers
+    private const int BowmanShootFirst = 24; // levels 1-3: 24, 25, 26; 6 directions x 24 frames
 
     // Roman specialists in file 11 (tables from JSettlers' movables, MIT).
     private const int DiggerWalk = 13;
@@ -106,6 +107,15 @@ public sealed class SettlerRenderer : IDisposable
                     QuarterBlock(settler.Facing) * SettlerSprites.FramesPerDirection + work % SettlerSprites.FramesPerDirection);
             case Activity.Fishing:
                 return (Sprites(WorkerFile, FisherCastFirst + SettlerSprites.Block(settler.Facing)), work % SettlerSprites.FramesPerDirection);
+            case Activity.Fighting:
+                // Melee animations are laid out like walk sequences (JSettlers' movables, MIT).
+                return (Sprites(SoldierFile, FightSequence(settler)), WalkLayoutAction(settler, work));
+            case Activity.Shooting:
+            {
+                var sprites = Sprites(SoldierFile, BowmanShootFirst + Math.Clamp(settler.Level, 1, 3) - 1);
+                int perBlock = Math.Max(1, sprites.FrameCount / DirectionExtensions.Count);
+                return (sprites, SettlerSprites.Block(settler.Facing) * perBlock + work % perBlock);
+            }
             case Activity.DrawingWater:
             {
                 bool east = settler.Facing is Direction.East or Direction.SouthEast or Direction.NorthEast;
@@ -144,6 +154,10 @@ public sealed class SettlerRenderer : IDisposable
         (SoldierType.Bowman, 2) => 23,
         _ => 22,
     };
+
+    /// <summary>Melee animations per type and level: swordsman 12-14, pikeman 18-20 (file 12).</summary>
+    private static int FightSequence(Settler soldier) =>
+        (soldier.SoldierType == SoldierType.Pikeman ? 18 : 12) + Math.Clamp(soldier.Level, 1, 3) - 1;
 
     /// <summary>
     /// Walk frames are computed for 12 frames per direction; some sequences (the farmer) have 13.

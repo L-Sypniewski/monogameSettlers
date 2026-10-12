@@ -157,6 +157,85 @@ public class MilitaryTests(ITestOutputHelper output)
         Assert.True(agree >= claimed * 0.98);
     }
 
+    [Fact]
+    public void Two_soldiers_of_different_players_fight_until_one_is_dead()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools);
+        var red = world.SpawnSoldier(new GridPoint(20, 30), SoldierType.Swordsman, level: 3)!;
+        var blue = world.SpawnSoldier(new GridPoint(26, 30), SoldierType.Swordsman, level: 1, player: 1)!;
+
+        Run(world, 3_000, stopWhen: () => red.IsDead || blue.IsDead);
+
+        Assert.True(blue.IsDead, "the level 3 swordsman wins");
+        Assert.False(red.IsDead);
+        Assert.True(red.Health < world.Military.Config.MaxHealth(SoldierType.Swordsman, 3));
+        Assert.Equal(1, world.Military.Kills);
+        Assert.DoesNotContain(blue, world.Settlers);
+        Run(world, 50);
+        Assert.False(red.HasTask, "back to idle after the fight");
+    }
+
+    [Fact]
+    public void Bowmen_in_a_tower_shoot_at_enemies_in_range()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools);
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 40))!;
+        SpawnSoldiers(world, SoldierType.Bowman, 2, new GridPoint(45, 50));
+        Run(world, 3_000, stopWhen: () => world.Military.Occupants(tower).Count(s => s is not null) == 2);
+        var enemy = world.SpawnSoldier(new GridPoint(46, 40), SoldierType.Pikeman, player: 1)!; // 6 fields away
+
+        Run(world, 3_000, stopWhen: () => enemy.IsDead);
+
+        Assert.True(enemy.IsDead);
+        Assert.Equal(2, world.Military.Occupants(tower).Count(s => s is not null));
+    }
+
+    [Fact]
+    public void Attackers_take_an_enemy_tower_with_its_land()
+    {
+        var map = new GameMap(120);
+        var world = new World(map, TestConfig.NoTools);
+        var enemyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(80, 60))!;
+        var enemyMill = world.PlaceBuilding(Romans["mill"], 1, new GridPoint(95, 70))!;
+        world.SpawnSoldier(enemyTower.Door, SoldierType.Swordsman, player: 1);
+        Run(world, 2_000, stopWhen: () => world.Military.IsOccupied(enemyTower));
+        Assert.Equal(1, map.OwnerAt(new GridPoint(100, 60)));
+
+        var ownTower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(45, 60), force: true)!;
+        SpawnSoldiers(world, SoldierType.Swordsman, 5, new GridPoint(52, 68));
+        Run(world, 3_000, stopWhen: () => world.Military.Occupants(ownTower).Count(s => s is not null) == 1 && world.Settlers.Count(s => s.Player == 0 && !s.HasTask && !s.IsInside) == 4);
+        int sent = world.Military.Attack(0, enemyTower);
+        Assert.Equal(4, sent); // the one in the own tower stays
+
+        Run(world, 20_000, stopWhen: () => enemyTower.Player == 0);
+
+        Assert.Equal(0, enemyTower.Player);
+        Assert.True(world.Military.IsOccupied(enemyTower));
+        Assert.Equal(1, world.Military.Captures);
+        Assert.Equal(0, map.OwnerAt(new GridPoint(100, 60)));
+        Assert.False(enemyMill.Exists, "the enemy mill stood on land that changed sides");
+        Assert.DoesNotContain(world.Settlers, s => s.Player == 1 && s.Profession == Profession.Soldier);
+    }
+
+    [Fact]
+    public void A_defender_goes_back_into_its_place_after_winning()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools);
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 40))!;
+        world.SpawnSoldier(new GridPoint(50, 50), SoldierType.Swordsman, level: 3);
+        Run(world, 3_000, stopWhen: () => world.Military.IsOccupied(tower));
+        var attacker = world.SpawnSoldier(new GridPoint(60, 60), SoldierType.Swordsman, player: 1)!;
+        var enemyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(65, 25), force: true)!;
+        world.Military.Attack(1, tower);
+
+        Run(world, 10_000, stopWhen: () => attacker.IsDead && world.Military.Occupants(tower).Any(s => s is not null));
+
+        Assert.True(attacker.IsDead);
+        Assert.Equal(0, tower.Player);
+        Assert.Single(world.Military.Occupants(tower), s => s is not null);
+        Assert.NotNull(enemyTower);
+    }
+
     private static void Spawn(World world, int count, GridPoint near)
     {
         for (int i = 0; i < count; i++)

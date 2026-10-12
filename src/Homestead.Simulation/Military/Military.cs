@@ -17,7 +17,7 @@ namespace Homestead.Simulation.Military;
 /// Watchdog: a soldier or trainee that makes no progress towards the door for <see cref="StallTicks"/>
 /// is released and the place called again.
 /// </remarks>
-public sealed class Military
+public sealed partial class Military
 {
     public const int StallTicks = 400;
     private const int DispatchInterval = 10;
@@ -72,6 +72,7 @@ public sealed class Military
             AdvanceBarrack(barrack);
         foreach (var garrison in _garrisons.Values.ToList())
             AdvanceGarrison(garrison);
+        TickCombat();
     }
 
     private void Discover()
@@ -129,6 +130,7 @@ public sealed class Military
             trainee.Profession = Profession.Soldier;
             trainee.SoldierType = b.Becomes;
             trainee.Level = 1;
+            trainee.Health = _config.MaxHealth(b.Becomes, 1);
             trainee.HasTask = false;
             SoldiersTrained++;
             b.Trainee = null;
@@ -181,7 +183,7 @@ public sealed class Military
         var pathFinder = _world.PathFinder!;
         for (int i = 0; i < g.Places.Length; i++)
         {
-            if (g.Places[i] is not null || g.Coming.ContainsKey(i))
+            if (g.Places[i] is not null || g.Coming.ContainsKey(i) || g.Defending.ContainsKey(i))
                 continue;
             var place = g.Building.Definition.Occupiers[i];
             var soldier = _world.Settlers
@@ -207,6 +209,11 @@ public sealed class Military
         }
         foreach (var (place, (soldier, watch)) in g.Coming.ToList())
         {
+            if (soldier.IsDead)
+            {
+                g.Coming.Remove(place);
+                continue;
+            }
             if (!Arrived(soldier, g.Building.Door, watch, out bool stalled))
             {
                 if (stalled)
@@ -233,6 +240,7 @@ public sealed class Military
     {
         foreach (var place in g.Coming.Keys.ToList())
             Release(g, place);
+        g.Defending.Clear();
         bool occupied = false;
         for (int i = 0; i < g.Places.Length; i++)
         {
@@ -329,6 +337,9 @@ public sealed class Military
         public Building Building { get; } = building;
         public Settler?[] Places { get; } = new Settler?[building.Definition.Occupiers.Count];
         public Dictionary<int, (Settler Soldier, WalkWatch Watch)> Coming { get; } = new();
+
+        /// <summary>Soldiers out of their place to fight attackers at the door (by place).</summary>
+        public Dictionary<int, Settler> Defending { get; } = new();
     }
 
     private sealed class Barrack(Building building)

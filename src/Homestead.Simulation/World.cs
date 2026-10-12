@@ -38,6 +38,8 @@ public sealed partial class World
     private const int NoOccupant = -1;
 
     private readonly List<Settler> _settlers = new();
+    private readonly Dictionary<int, Settler> _settlersById = new();
+    private int _nextSettlerId;
     private readonly int[] _occupant;
 
     public World(GameMap? map = null, ProductionConfig? production = null, MilitaryConfig? military = null)
@@ -125,8 +127,9 @@ public sealed partial class World
         var free = NearestFree(near, radius: 10);
         if (free is not { } position)
             return null;
-        var settler = new Settler(_settlers.Count, position) { Profession = profession, Player = player };
+        var settler = new Settler(_nextSettlerId++, position) { Profession = profession, Player = player };
         _settlers.Add(settler);
+        _settlersById[settler.Id] = settler;
         _occupant[map.Index(position)] = settler.Id;
         return settler;
     }
@@ -138,6 +141,7 @@ public sealed partial class World
             return null;
         soldier.SoldierType = type;
         soldier.Level = Math.Clamp(level, 1, 3);
+        soldier.Health = Military.Config.MaxHealth(type, soldier.Level);
         return soldier;
     }
 
@@ -202,7 +206,7 @@ public sealed partial class World
             return;
         }
 
-        var other = _settlers[occupantId];
+        var other = _settlersById[occupantId];
         if (other.WantsToMove && other.Position.Neighbor(other.NextStep!.Value) == settler.Position)
         {
             Swap(settler, other);
@@ -325,6 +329,35 @@ public sealed partial class World
         return null;
     }
 
+    /// <summary>
+    /// Settlers standing on points that just became blocked (a building placed or levelled over them)
+    /// are put on the nearest free field; otherwise they would be walled in for good.
+    /// </summary>
+    internal void MoveOffBlocked(IReadOnlyCollection<GridPoint> points)
+    {
+        var map = RequireMap();
+        var blocked = points.ToHashSet();
+        foreach (var settler in _settlers)
+        {
+            if (settler.IsInside || !blocked.Contains(settler.Position) && !blocked.Contains(settler.StepTarget))
+                continue;
+            foreach (var p in new[] { settler.Position, settler.StepTarget })
+                if (_occupant[map.Index(p)] == settler.Id)
+                    _occupant[map.Index(p)] = NoOccupant;
+            if (NearestFree(settler.Position, radius: 12) is not { } free)
+                continue;
+            var destination = settler.Destination;
+            settler.State = SettlerState.Idle;
+            settler.TicksIntoStep = 0;
+            settler.Path.Clear();
+            settler.Destination = null;
+            settler.Position = free;
+            _occupant[map.Index(free)] = settler.Id;
+            if (destination is { } d && d != free)
+                WalkTo(settler, d);
+        }
+    }
+
     /// <summary>Whether a settler stands on (or is stepping onto) the point.</summary>
     public bool IsOccupied(GridPoint p) => _occupant[RequireMap().Index(p)] != NoOccupant;
 
@@ -345,6 +378,22 @@ public sealed partial class World
         int index = RequireMap().Index(settler.Position);
         if (_occupant[index] == NoOccupant)
             _occupant[index] = settler.Id;
+    }
+
+    /// <summary>The settler dies: it leaves the world and frees its fields.</summary>
+    internal void Remove(Settler settler)
+    {
+        if (settler.IsDead)
+            return;
+        var map = RequireMap();
+        foreach (var p in new[] { settler.Position, settler.StepTarget })
+            if (map.Contains(p) && _occupant[map.Index(p)] == settler.Id)
+                _occupant[map.Index(p)] = NoOccupant;
+        settler.IsDead = true;
+        settler.Path.Clear();
+        settler.Destination = null;
+        _settlers.Remove(settler);
+        _settlersById.Remove(settler.Id);
     }
 
     private GameMap RequireMap() => Map ?? throw new InvalidOperationException("This world has no map.");
