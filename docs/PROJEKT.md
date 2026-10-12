@@ -82,7 +82,7 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
      Bauarbeiter verbauen gelieferte Materialien, Baufortschritt sichtbar; Platzier-Modus im Client (P)
    - [x] Lager als Quelle (Waren aus dem Lager an Baustellen und Gebäude); Reihenfolge Baustelle → Produktion → Lager
    - [x] Weitere Festlauf-Fälle gefunden und behoben (gegenseitiges Wegschieben an Stapeln, Kreisen um Gedränge)
-   - [ ] Untätige Träger verteilen sich (stehen derzeit gesammelt im Lagerhof)
+   - [x] Untätige Träger verteilen sich (verlassen Lagerhof, Gebäudeumfeld und Gedränge; bleiben sofort verfügbar)
    - [x] Planierer/Bauarbeiter entstehen aus Trägern + Werkzeug (Schaufel/Hammer)
    - [ ] Startausstattung je Spielstart (Burg/Lager, Waren, Siedler wie im Original)
    - [ ] Auf- und Ablegen animieren; Wege (beschleunigen das Laufen)

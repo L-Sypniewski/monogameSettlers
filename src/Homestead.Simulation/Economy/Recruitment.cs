@@ -41,8 +41,7 @@ public sealed class Recruitment
     {
         var pathFinder = _world.PathFinder!;
         var carriers = _world.Settlers
-            .Where(s => s.Profession == Profession.Carrier && !s.HasTask && s.Carrying is null && s.Destination is null
-                        && s.State != SettlerState.Stepping && pathFinder.AreConnected(s.Position, workplace))
+            .Where(s => s.IsAvailableCarrier && pathFinder.AreConnected(s.Position, workplace))
             .ToList();
         if (carriers.Count == 0)
             return null;

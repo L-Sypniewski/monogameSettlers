@@ -21,7 +21,8 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   `Buildings/` (Definitionen aus `data/buildings/*.json`, Gebäude, `Construction`: Planierer/Bauarbeiter),
   `Economy/` (Waren, Stapel, `Logistics` mit Watchdog; `Problems` zählt Abbruchgründe; `Production`:
   Werkstätten, Minen, Schmiede und Sammler, Werte aus `data/production.json`; `Recruitment`: Träger
-  holen ihr Werkzeug und werden Spezialisten – Tests ohne Werkzeugthema nutzen `TestConfig.NoTools`),
+  holen ihr Werkzeug und werden Spezialisten – Tests ohne Werkzeugthema nutzen `TestConfig.NoTools`;
+  `Idling`: untätige Träger gehen aus dem Weg),
   `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern).
 - `data/` – Spieldaten (keine Original-Assets), wird neben jedes Programm kopiert. `production.json` ist
   unser eigenes Balancing (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration). Gebäudedaten sind aus
@@ -30,7 +31,7 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   (sonst bestehen sie ohne Prüfung). `dotnet test`
 - `src/Homestead.Client` – MonoGame-Spiel. Szenen: `--scene map` (Standard, Originalkarte mit Figuren:
   Klick wählt/schickt, N neuer Träger, M 50 Wanderer, G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude);
-  `--map <name>`). Capture-Läufe ohne VSync mit 4-facher Geschwindigkeit (verdecktes Fenster wird sonst gedrosselt). und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
+  `--map <name>`). Capture-Läufe ignorieren Eingaben (Tastatur/Maus sind global) und laufen ohne VSync mit 4-facher Geschwindigkeit (verdecktes Fenster wird sonst gedrosselt). und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
   (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse).
 - `tools/Homestead.AssetTool` – CLI: `scan` (alle Bilder testweise dekodieren), `export`, `sheet` (PNG),
   `maps`, `resources` (Statistik der Bodenschätze), `minimap`.

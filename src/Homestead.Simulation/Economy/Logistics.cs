@@ -66,8 +66,7 @@ public sealed class Logistics
     private void Dispatch()
     {
         var idleCarriers = _world.Settlers
-            .Where(s => s.IsCarrier && !_jobs.ContainsKey(s.Id) && s.Destination is null && s.Carrying is null
-                        && s.State != SettlerState.Stepping)
+            .Where(s => s.IsAvailableCarrier && !_jobs.ContainsKey(s.Id))
             .ToList();
         if (idleCarriers.Count == 0)
             return;

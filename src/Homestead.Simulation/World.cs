@@ -47,6 +47,7 @@ public sealed partial class World
         var config = production ?? (map is null ? ProductionConfig.None : ProductionConfig.Load());
         Recruitment = new Recruitment(this, config);
         Production = new Production(this, config);
+        Idling = new Idling(this);
         if (map is not null)
         {
             PathFinder = new PathFinder(map);
@@ -103,6 +104,7 @@ public sealed partial class World
             Recruitment.Tick();
             Construction.Tick();
             Production.Tick();
+            Idling.Tick();
         }
         foreach (var settler in _settlers)
             if (settler.IsWorking)
@@ -127,6 +129,7 @@ public sealed partial class World
     /// <summary>Orders a settler to walk somewhere. Returns false if the target cannot be reached.</summary>
     public bool WalkTo(Settler settler, GridPoint destination)
     {
+        settler.IsStrolling = false;
         // Plan from where the settler will be standing next.
         var from = settler.StepTarget;
         var path = PathFinder!.FindPath(from, destination);

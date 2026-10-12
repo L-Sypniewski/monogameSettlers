@@ -144,7 +144,9 @@ public sealed class MapGame : Game
 
     protected override void Update(GameTime gameTime)
     {
-        HandleInput(gameTime);
+        // Capture runs ignore input: keyboard and mouse state are global and would leak in from other windows.
+        if (_captureDirectory is null)
+            HandleInput(gameTime);
 
         // Capture runs use fixed frame times at 4x speed, so long processes fit into a short run.
         var elapsed = _captureDirectory is null ? gameTime.ElapsedGameTime : TimeSpan.FromSeconds(4 / 60.0);

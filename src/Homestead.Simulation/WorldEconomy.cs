@@ -31,8 +31,10 @@ public sealed partial class World
 
     public Recruitment Recruitment { get; }
 
+    public Idling Idling { get; }
+
     /// <summary>Not part of a building, its surroundings or a pile (free for trees, work spots, ...).</summary>
-    internal bool IsFreeGround(GridPoint p)
+    public bool IsFreeGround(GridPoint p)
     {
         var map = RequireMap();
         if (!map.Contains(p))

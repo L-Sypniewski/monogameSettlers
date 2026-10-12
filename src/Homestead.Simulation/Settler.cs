@@ -109,6 +109,13 @@ public sealed class Settler
     /// <summary>The good in the settler's hands, if any.</summary>
     public Material? Carrying { get; internal set; }
 
+    /// <summary>An idle carrier walking out of the way (see <see cref="Economy.Idling"/>); free for any job.</summary>
+    public bool IsStrolling { get; internal set; }
+
+    /// <summary>Idle and free for a job: standing around, or strolling out of the way.</summary>
+    internal bool IsAvailableCarrier => IsCarrier && !HasTask && Carrying is null
+                                        && (IsStrolling || Destination is null && State != SettlerState.Stepping);
+
     /// <summary>The tool a specialist took up when it was recruited (put down again if it becomes a carrier).</summary>
     public Material? Tool { get; internal set; }
 

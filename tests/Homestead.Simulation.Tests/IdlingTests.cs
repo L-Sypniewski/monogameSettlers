@@ -1,0 +1,59 @@
+using Homestead.Simulation.Buildings;
+using Homestead.Simulation.Economy;
+using Homestead.Simulation.Map;
+
+namespace Homestead.Simulation.Tests;
+
+public class IdlingTests
+{
+    private static readonly BuildingCatalog Romans = BuildingCatalog.Load(Civilization.Roman);
+
+    [Fact]
+    public void Idle_carriers_leave_the_storehouse_yard()
+    {
+        var world = new World(new GameMap(70), ProductionConfig.None);
+        var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(35, 35))!;
+        foreach (var pile in stock.Piles)
+            for (int i = 0; i < 4; i++)
+                world.Spawn(pile.Position, Profession.Carrier);
+        Assert.Contains(world.Settlers, s => !IsOutOfTheWay(world, s));
+
+        Run(world, 1_000);
+
+        Assert.True(world.Idling.Strolls > 0);
+        Assert.All(world.Settlers, s => Assert.True(IsOutOfTheWay(world, s), $"carrier at {s.Position} still in the way"));
+    }
+
+    [Fact]
+    public void A_strolling_carrier_takes_a_job_at_once()
+    {
+        var world = new World(new GameMap(70), ProductionConfig.None);
+        var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(35, 35))!;
+        var carrier = world.Spawn(stock.Piles[0].Position, Profession.Carrier)!;
+        Run(world, 1_000, stopWhen: () => carrier.IsStrolling);
+        Assert.True(carrier.IsStrolling);
+
+        world.AddLooseGoods(new GridPoint(10, 10), Material.Plank, 1);
+        Run(world, 10);
+
+        Assert.Contains(world.Logistics.Jobs, j => j.Carrier == carrier);
+        Assert.False(carrier.IsStrolling);
+    }
+
+    /// <summary>Not on a building's ground or surroundings, not next to a pile.</summary>
+    private static bool IsOutOfTheWay(World world, Settler s)
+    {
+        if (!world.IsFreeGround(s.Position))
+            return false;
+        for (int d = 0; d < DirectionExtensions.Count; d++)
+            if (world.Map!.Contains(s.Position.Neighbor((Direction)d)) && world.PileAt(s.Position.Neighbor((Direction)d)) is not null)
+                return false;
+        return true;
+    }
+
+    private static void Run(World world, int ticks, Func<bool>? stopWhen = null)
+    {
+        for (int t = 0; t < ticks && stopWhen?.Invoke() != true; t++)
+            world.Step();
+    }
+}
