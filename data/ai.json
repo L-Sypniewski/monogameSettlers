@@ -1,0 +1,32 @@
+{
+  "_comment": "AI players (Homestead's own). The AI knows the whole map. Every thinkSeconds it starts at most one building: the first entry of buildOrder whose count it has not reached and which it can place (enough free planks and stones, a fitting spot on own land). Entries that need a resource (trees, stones, ore, water, fish) are skipped while the own land lacks it - the expansion then builds towers towards it.",
+  "thinkSeconds": 1,
+  "maxSites": 4,
+  "maxTowerSites": 1,
+  "_housingComment": "A living house is started when fewer carriers than freeCarriers are available (residents still to come count as available).",
+  "freeCarriers": 6,
+  "house": "small_livinghouse",
+  "_stockComment": "A storehouse is built once a smith or gold melt works and stockWhenWaiting units of goods worth storing (storage.materials in production.json: tools, weapons, gold) lie around and the storehouses have fewer than two free piles.",
+  "stockWhenWaiting": 8,
+  "buildOrder": [
+    ["lumberjack", 1], ["sawmill", 1], ["stonecutter", 1], ["forester", 1], ["lumberjack", 2], ["stonecutter", 2],
+    ["fisher", 1], ["coalmine", 1], ["ironmine", 1],
+    ["waterworks", 1], ["farm", 1], ["mill", 1], ["baker", 1], ["ironmelt", 1], ["toolsmith", 1],
+    ["lumberjack", 3], ["forester", 2], ["sawmill", 2], ["stonecutter", 3],
+    ["weaponsmith", 1], ["barrack", 1],
+    ["pig_farm", 1], ["slaughterhouse", 1], ["farm", 2], ["waterworks", 2], ["fisher", 2],
+    ["coalmine", 2], ["ironmine", 2], ["ironmelt", 2], ["weaponsmith", 2],
+    ["lumberjack", 4], ["forester", 3],
+    ["farm", 3], ["mill", 2], ["baker", 2], ["coalmine", 3], ["fisher", 3], ["pig_farm", 2], ["slaughterhouse", 2]
+  ],
+  "_expansionComment": "Towers towards what the own land lacks, in this order: quarry stone below minStoneUnits, none of the listed ores, stone below wantedStoneUnits, trees below minTrees, no water; towards free land when a building found no room; with spareSoldiersForLand idle soldiers and landStock planks and stones beyond the tower's cost simply towards the nearest free land. The tower goes to the own-land spot nearest the target. While a needed tower cannot be afforded, the economy keeps its planks and stones back.",
+  "expansion": {
+    "building": "tower",
+    "minStoneUnits": 40,
+    "wantedStoneUnits": 150,
+    "minTrees": 20,
+    "ores": [ "Coal", "IronOre" ],
+    "spareSoldiersForLand": 4,
+    "landStock": 10
+  }
+}

@@ -58,7 +58,7 @@ public class ConstructionTests(ITestOutputHelper output)
     [Fact]
     public void Storehouse_supplies_construction_sites()
     {
-        var world = new World(new GameMap(80));
+        var world = new World(new GameMap(80), TestConfig.StoreAll);
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(20, 20))!;
         world.AddLooseGoods(new GridPoint(10, 40), Material.Plank, 6);
         world.AddLooseGoods(new GridPoint(12, 40), Material.Stone, 6);

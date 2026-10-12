@@ -39,7 +39,8 @@ public static class OriginalScenario
         _ => (Profession.Carrier, null, 1),
     };
 
-    public sealed record LoadReport(int Buildings, int Piles, int Settlers, IReadOnlyList<string> Skipped);
+    /// <param name="Catalogs">Building catalog (civilization) of every player of the map.</param>
+    public sealed record LoadReport(int Buildings, int Piles, int Settlers, IReadOnlyList<string> Skipped, IReadOnlyList<BuildingCatalog> Catalogs);
 
     public static (World World, LoadReport Report) Load(OriginalMap original, string? dataDirectory = null)
     {
@@ -114,6 +115,7 @@ public static class OriginalScenario
             piles = world.Piles.Count();
         }
 
-        return (world, new LoadReport(buildings, piles, settlers, skipped));
+        var playerCatalogs = Enumerable.Range(0, original.Players.Count).Select(CatalogOf).ToArray();
+        return (world, new LoadReport(buildings, piles, settlers, skipped, playerCatalogs));
     }
 }

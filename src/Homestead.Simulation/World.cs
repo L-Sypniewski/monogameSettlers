@@ -42,6 +42,9 @@ public sealed partial class World
     private int _nextSettlerId;
     private readonly int[] _occupant;
 
+    /// <summary>Computer players; each acts for its own player in every tick.</summary>
+    public List<Ai.AiPlayer> AiPlayers { get; } = new();
+
     public World(GameMap? map = null, ProductionConfig? production = null, MilitaryConfig? military = null)
     {
         Map = map;
@@ -112,6 +115,8 @@ public sealed partial class World
             Military.Tick();
             Housing.Tick();
             Idling.Tick();
+            foreach (var ai in AiPlayers)
+                ai.Tick();
         }
         foreach (var settler in _settlers)
             if (settler.IsWorking)

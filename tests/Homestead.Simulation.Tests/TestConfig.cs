@@ -4,6 +4,12 @@ namespace Homestead.Simulation.Tests;
 
 internal static class TestConfig
 {
-    /// <summary>The real balancing, but every trade works without a tool (tests that are not about tools).</summary>
-    public static ProductionConfig NoTools { get; } = ProductionConfig.Load() with { Tools = new Dictionary<string, Material>() };
+    /// <summary>
+    /// The real balancing, but storehouses take every material: tests use a storehouse to collect and
+    /// count what was produced.
+    /// </summary>
+    public static ProductionConfig StoreAll { get; } = ProductionConfig.Load() with { StoredMaterials = null };
+
+    /// <summary>Like <see cref="StoreAll"/>, and every trade works without a tool (tests that are not about tools).</summary>
+    public static ProductionConfig NoTools { get; } = StoreAll with { Tools = new Dictionary<string, Material>() };
 }

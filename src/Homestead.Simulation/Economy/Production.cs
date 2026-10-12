@@ -425,21 +425,23 @@ public sealed class Production
     }
 
     /// <summary>Workplaces still waiting for a worker whose trade needs this tool.</summary>
-    internal int WaitingFor(Material tool) => _workplaces.Values.Count(w =>
-        w.Phase is Phase.NeedsWorker && _world.Recruitment.ToolFor(w.Building.Definition.Worker) == tool);
+    internal int WaitingFor(Material tool, int player) => _workplaces.Values.Count(w =>
+        w.Building.Player == player && w.Phase is Phase.NeedsWorker && _world.Recruitment.ToolFor(w.Building.Definition.Worker) == tool);
 
     /// <summary>
     /// What a smith makes next: the tool most short for waiting workplaces and construction, otherwise
     /// the product with the fewest units around while below the stock target; null to rest.
     /// </summary>
-    private Material? ChooseProduct(SmithRecipe smith)
+    private Material? ChooseProduct(SmithRecipe smith, int player)
     {
+        // Only the smith's own player counts: another player's tools are no use here.
+        var piles = _world.Piles.Where(p => _world.BelongsTo(p, player)).ToList();
         Material? best = null;
         int bestShortage = 0;
         foreach (var product in smith.Products)
         {
-            int free = _world.Piles.Where(p => p.Material == product).Sum(p => p.Available);
-            int shortage = WaitingFor(product) + _world.Construction.WaitingFor(product) - free;
+            int free = piles.Where(p => p.Material == product).Sum(p => p.Available);
+            int shortage = WaitingFor(product, player) + _world.Construction.WaitingFor(product, player) - free;
             if (shortage > bestShortage)
             {
                 best = product;
@@ -450,7 +452,7 @@ public sealed class Production
             return best;
 
         var (fewest, count) = smith.Products
-            .Select(m => (m, _world.Piles.Where(p => p.Material == m).Sum(p => p.Count) + _world.Settlers.Count(s => s.Carrying == m)))
+            .Select(m => (m, piles.Where(p => p.Material == m).Sum(p => p.Count) + _world.Settlers.Count(s => s.Player == player && s.Carrying == m)))
             .MinBy(x => x.Item2);
         return count < smith.KeepInStock ? fewest : null;
     }
@@ -460,7 +462,7 @@ public sealed class Production
         var piles = w.Building.Piles;
         if (w.Smith is { } smith)
         {
-            w.Product = ChooseProduct(smith);
+            w.Product = ChooseProduct(smith, w.Building.Player);
             if (w.Product is null)
             {
                 w.Waiting = "everything in stock, resting";
@@ -855,7 +857,10 @@ public sealed class Production
         worker.Carrying = null;
     }
 
-    /// <summary>The worker turns back into a carrier; the building will call a new one.</summary>
+    /// <summary>
+    /// The worker leaves the building without a job. It keeps its trade and tool for good (as in the
+    /// original): the next building of its trade takes it before recruiting a carrier.
+    /// </summary>
     private void ReleaseWorker(Workplace w)
     {
         if (w.Worker is { } worker)
@@ -864,11 +869,6 @@ public sealed class Production
                 _world.LeaveBuilding(worker);
             StopActivity(worker);
             DropCarried(worker);
-            if (worker.Tool is { } tool)
-                _world.DropGoods(worker.Position, tool);
-            worker.Tool = null;
-            worker.Profession = Profession.Carrier;
-            worker.Trade = null;
             worker.Workplace = null;
             worker.HasTask = false;
             if (worker.Destination is not null)

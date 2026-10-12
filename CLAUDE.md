@@ -19,15 +19,20 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   `Map/GameMap` (Gelände, Objekte, Begehbarkeit), `Pathfinding/PathFinder` (A*), `World`/`Settler`
   (Bewegung: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf – siehe Kommentar in `World`).
   `Buildings/` (Definitionen aus `data/buildings/*.json`, Gebäude, `Construction`: Planierer/Bauarbeiter),
-  `Economy/` (Waren, Stapel, `Logistics` mit Watchdog; `Problems` zählt Abbruchgründe; `Production`:
+  `Economy/` (Waren, Stapel, `Logistics` mit Watchdog; ins Lager kommen nur die Waren aus `storage.materials`
+  in `production.json` (Werkzeuge, Waffen, Gold), alles andere bleibt am Ausgabestapel des Erzeugers (8; voll → er wartet); `Problems` zählt Abbruchgründe; `Production`:
   Werkstätten, Minen, Schmiede und Sammler, Werte aus `data/production.json`; `Housing`: Wohnhäuser
   entlassen Träger; `Recruitment`: Träger
   holen ihr Werkzeug und werden Spezialisten – Tests ohne Werkzeugthema nutzen `TestConfig.NoTools`;
-  `Idling`: untätige Träger gehen aus dem Weg),
+  `Idling`: untätige Träger, Soldaten, Planierer, Bauarbeiter und arbeitslose Fachleute gehen aus dem Weg;
+  wird ein Gebäude abgerissen, behält der Arbeiter Beruf und Werkzeug und übernimmt das nächste Gebäude seines Berufs),
   `Military/` (Kaserne bildet Soldaten aus, Militärgebäude rufen Soldaten, besetzte beanspruchen Land;
   `MilitaryCombat`: Angriff, Kampf, Verteidigung, Eroberung; nahe am Feind lokale Wegsuche (Radius `combatPathRadius`) um stehende/kämpfende Figuren herum;
   Werte in `data/military.json`, Gebietsradien aus den Originalkarten gemessen). Siedler und Gebäude haben einen
   Spieler; Logistik/Rekrutierung bedienen nur den eigenen Spieler, `World.TerritoryRules` erzwingt eigenes Land.
+  `Ai/` (`AiPlayer`: Computerspieler mit denselben Befehlen wie ein Mensch, kennt die ganze Karte; baut nach
+  `data/ai.json` und Bedarf, expandiert mit Türmen gezielt zu fehlenden Rohstoffen; `MapSurvey`: Kartenüberblick in Zellen;
+  `World.AiPlayers` werden in jedem Tick angestoßen).
   `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern; Mehrspieler-Karten ohne Gebäude bekommen
   über `StartSetup` für jeden Spieler die gleiche Startausstattung aus `data/start.json`).
 - `data/` – Spieldaten (keine Original-Assets), wird neben jedes Programm kopiert. `production.json` ist
@@ -37,11 +42,14 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   (sonst bestehen sie ohne Prüfung). `dotnet test`
 - `src/Homestead.Client` – MonoGame-Spiel. Szenen: `--scene map` (Standard, Originalkarte mit Figuren:
   Klick wählt/schickt Figuren, Klick auf ein Gebäude zeigt Zustand + Arbeitsbereich, N neuer Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), F Angriff auf das feindliche
-  Militärgebäude unter dem Mauszeiger, Rahmen ziehen wählt eigene Soldaten (Klick: hinschicken/angreifen), G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
+  Militärgebäude unter dem Mauszeiger, Rahmen ziehen wählt eigene Soldaten (Klick: hinschicken/angreifen), I KI spielt für dich (an/aus; die anderen Spieler sind immer KI), L KI-Entscheidungen in die Konsole, G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
   entlassen dann Träger);
   `--map <name>`, Standard: erste Mehrspieler-Karte). Capture-Läufe ignorieren Eingaben (Tastatur/Maus sind global) und laufen ohne VSync mit 4-facher Geschwindigkeit (verdecktes Fenster wird sonst gedrosselt). und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
   (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse). `HOMESTEAD_CAPTURE_ZOOM=4` und
   `HOMESTEAD_CAPTURE_FOCUS=<gebäude>` für Nahaufnahmen, `HOMESTEAD_CAPTURE_BATTLE=1` lässt Feinde den Startturm angreifen; am Ende gibt der Lauf Zähler und Gebäudezustände aus.
+- `tools/Homestead.Arena` – KI gegen KI ohne Fenster: `dotnet tools/Homestead.Arena/bin/Release/net9.0/Homestead.Arena.dll
+  [karte…] [--all] [--minutes 30] [--every 5] [--log]`; gibt je Spieler Land, Gebäude, Siedler, Vorräte und
+  hängende Baustellen aus.
 - `tools/Homestead.AssetTool` – CLI: `scan` (alle Bilder testweise dekodieren), `export`, `sheet` (PNG),
   `maps`, `resources` (Statistik der Bodenschätze), `minimap`.
 

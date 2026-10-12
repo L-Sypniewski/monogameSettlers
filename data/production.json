@@ -19,11 +19,11 @@
     "farm": { "action": "Farm", "output": "CROP", "workSeconds": 4, "restSeconds": 4 }
   },
   "mines": {
-    "coalmine": { "resource": "Coal", "output": "COAL", "seconds": 10, "radius": 3 },
-    "ironmine": { "resource": "IronOre", "output": "IRONORE", "seconds": 10, "radius": 3 },
-    "goldmine": { "resource": "GoldOre", "output": "GOLDORE", "seconds": 10, "radius": 3 },
-    "gemsmine": { "resource": "Gems", "output": "GEMS", "seconds": 10, "radius": 3 },
-    "sulfurmine": { "resource": "Sulfur", "output": "SULFUR", "seconds": 10, "radius": 3 }
+    "coalmine": { "prefersFood": "BREAD", "resource": "Coal", "output": "COAL", "seconds": 10, "radius": 3 },
+    "ironmine": { "prefersFood": "MEAT", "resource": "IronOre", "output": "IRONORE", "seconds": 10, "radius": 3 },
+    "goldmine": { "prefersFood": "FISH", "resource": "GoldOre", "output": "GOLDORE", "seconds": 10, "radius": 3 },
+    "gemsmine": { "prefersFood": "FISH", "resource": "Gems", "output": "GEMS", "seconds": 10, "radius": 3 },
+    "sulfurmine": { "prefersFood": "FISH", "resource": "Sulfur", "output": "SULFUR", "seconds": 10, "radius": 3 }
   },
   "smiths": {
     "_comment": "One product per cycle: tools somebody waits for first, otherwise the product with the fewest units around while below keepInStock; with everything in stock the smith rests.",
@@ -45,8 +45,10 @@
     "FISHERMAN": "FISHINGROD"
   },
   "storage": {
-    "_comment": "Units per storehouse pile; a storehouse has six piles, each holding one material at a time.",
-    "pileCapacity": 40
+    "_comment": "Units per storehouse pile; a storehouse has six piles, each holding one material at a time. A full storehouse takes nothing more: goods then wait at the producers.",
+    "pileCapacity": 8,
+    "_materialsComment": "What carriers bring to storehouses. Everything else stays at its producer (output pile of 8; the producer waits when it is full) and is fetched from there when needed.",
+    "materials": [ "GOLD", "AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD", "SWORD", "BOW", "SPEAR" ]
   },
   "housing": {
     "_comment": "Carriers a finished living house sends out through its door, one every intervalSeconds. Houses that come with a loaded map do not (the map lists its settlers itself).",

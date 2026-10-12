@@ -27,8 +27,8 @@ public sealed class Construction
     private readonly World _world;
     private readonly Dictionary<int, Assignment> _assignments = new();
     private readonly List<Recruit> _recruits = new();
-    private int _missingDiggers;
-    private int _missingBuilders;
+    private readonly Dictionary<int, int> _missingDiggers = new();
+    private readonly Dictionary<int, int> _missingBuilders = new();
 
     internal Construction(World world)
     {
@@ -38,9 +38,9 @@ public sealed class Construction
     public int Assigned => _assignments.Count;
 
     /// <summary>Diggers/builders the sites still lack and cannot recruit because the tool is missing.</summary>
-    internal int WaitingFor(Material tool) =>
-        (_world.Recruitment.ToolFor(DiggerTrade) == tool ? _missingDiggers : 0)
-        + (_world.Recruitment.ToolFor(BuilderTrade) == tool ? _missingBuilders : 0);
+    internal int WaitingFor(Material tool, int player) =>
+        (_world.Recruitment.ToolFor(DiggerTrade) == tool ? _missingDiggers.GetValueOrDefault(player) : 0)
+        + (_world.Recruitment.ToolFor(BuilderTrade) == tool ? _missingBuilders.GetValueOrDefault(player) : 0);
 
     internal void Tick()
     {
@@ -57,14 +57,15 @@ public sealed class Construction
     private void RecruitWorkers()
     {
         _recruits.RemoveAll(r => r.State != RecruitState.FetchingTool);
-        _missingDiggers = _missingBuilders = 0;
+        _missingDiggers.Clear();
+        _missingBuilders.Clear();
         foreach (var sites in _world.Buildings.Where(b => b.Exists && b.State != BuildingState.Finished).GroupBy(b => b.Player))
         {
             int player = sites.Key;
-            _missingDiggers += Recruit(Profession.Digger, DiggerTrade, player, sites.ToList(), site => site.State == BuildingState.Flattening
+            _missingDiggers[player] = Recruit(Profession.Digger, DiggerTrade, player, sites.ToList(), site => site.State == BuildingState.Flattening
                 ? Math.Min(MaxDiggersPerSite, site.Unlevelled.Count) - _assignments.Values.Count(a => a.Site == site)
                 : 0);
-            _missingBuilders += Recruit(Profession.Builder, BuilderTrade, player, sites.ToList(), site => site.State == BuildingState.Constructing
+            _missingBuilders[player] = Recruit(Profession.Builder, BuilderTrade, player, sites.ToList(), site => site.State == BuildingState.Constructing
                 ? site.Definition.BuilderSpots.Count - _assignments.Values.Count(a => a.Site == site)
                 : 0);
         }
@@ -101,7 +102,7 @@ public sealed class Construction
         foreach (var worker in _world.Settlers)
         {
             if (worker.Profession is not (Profession.Digger or Profession.Builder)
-                || _assignments.ContainsKey(worker.Id) || worker.Destination is not null || worker.State == SettlerState.Stepping)
+                || _assignments.ContainsKey(worker.Id) || !worker.IsStrolling && (worker.Destination is not null || worker.State == SettlerState.Stepping))
                 continue;
 
             Assignment? best = null;

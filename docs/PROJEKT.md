@@ -109,7 +109,7 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [ ] Winzer, Imker, Reisbauer, Eselzucht
    - [ ] Minen-Anzeige (Vorrat/erschöpft) im Spiel
    - [x] Werkzeuge: Träger werden nur mit Werkzeug zu Spezialisten (Tabelle in `production.json`);
-     Entlassene legen ihr Werkzeug ab
+     wird ihr Gebäude abgerissen, behalten sie Beruf und Werkzeug und übernehmen das nächste Gebäude ihres Berufs
    - [x] Werkzeug- und Waffenschmied: fehlende Werkzeuge zuerst, sonst kleiner Vorrat je Ware
    - [ ] Schmied-Auswahl durch den Spieler (Wunschliste/Anteile)
 5. **Kampf** ← *begonnen*
@@ -122,6 +122,20 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
      Verteidiger an der Tür, Eroberung mit Gebietswechsel; Gebäude auf verlorenem Land gehen unter
    - [ ] Kampfwerte an Originalverhalten angleichen (derzeit eigene Werte in `data/military.json`)
    - [x] Soldaten wechseln auf nähere Gegner (Nachbarfeld sofort); Rahmenauswahl, Laufbefehl mit Vorrang für Feinde
+   - [x] Kampf-Wegsuche im Umkreis (`combatPathRadius`) um stehende/kämpfende Figuren herum; Laufende greifen in Sichtweite an
    - [ ] Angriffs-Auswahl wie im Original (Anzahl/Typen wählen), Sterbe-Animation
    - [ ] Soldaten-Stufen durch Gold/Tempel, Heiler
-6. **KI**
+6. **KI** ← *begonnen*
+   - [x] Gerüst: `Ai/AiPlayer` je Computerspieler, gleiche Befehle wie ein Mensch, kennt die ganze Karte
+     (kein Erkunden, wie im Original); Werte und Bauliste in `data/ai.json`
+   - [x] Wirtschaft: Bauliste plus Bedarf (Wohnhaus bei Trägermangel, Werkzeugschmied bei fehlendem Werkzeug,
+     Nahrung für hungrige Minen, neuer Steinmetz/Holzfäller, wenn die alten nichts mehr finden); Standort
+     am Rohstoff bzw. nahe der Heimat; Vorrat für einen Steinmetz bleibt immer übrig; Abriss erschöpfter Gebäude
+   - [x] Strategische Expansion (nicht im Original): Türme gezielt Richtung fehlender Steine, Erze, Bäume,
+     Wasser oder Platz – damit kein Spiel mangels Gebirge/Steinen im Startgebiet stehen bleibt
+   - [x] Lagerhaus erst, wenn ein Schmied/die Goldschmelze in Menge produziert (eingelagert werden nur Werkzeuge,
+     Waffen, Gold – einstellbar in `production.json`; Lagerstapel fassen 8)
+   - [x] `tools/Homestead.Arena`: KI gegen KI ohne Fenster auf allen Mehrspieler-Karten, Kennzahlen und
+     hängende Baustellen
+   - [ ] Militär: verteidigen, angreifen, wenn überlegen
+   - [ ] Feinere Wirtschaftssteuerung (Anteile statt fester Liste, Waffen/Gold, Mehrzweck-Lager)

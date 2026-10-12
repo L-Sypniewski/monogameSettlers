@@ -40,6 +40,18 @@ public sealed class Recruitment
     internal Recruit? Start(Profession profession, string? trade, GridPoint workplace, int player)
     {
         var pathFinder = _world.PathFinder!;
+        // A worker of the trade without a workplace (its building was torn down) comes first: it keeps
+        // its trade and tool for good.
+        if (trade is not null)
+        {
+            var jobless = _world.Settlers
+                .Where(s => s.Profession == profession && s.Trade == trade && s.Workplace is null && !s.HasTask && !s.IsInside
+                            && s.Player == player && pathFinder.AreConnected(s.Position, workplace))
+                .MinBy(s => PathFinder.Distance(s.Position, workplace));
+            if (jobless is not null)
+                return new Recruit(jobless, profession, trade, null) { State = RecruitState.Done };
+        }
+
         var carriers = _world.Settlers
             .Where(s => s.IsAvailableCarrier && s.Player == player && pathFinder.AreConnected(s.Position, workplace))
             .ToList();

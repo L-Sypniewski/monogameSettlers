@@ -13,7 +13,7 @@ public class ToolTests
     {
         var map = new GameMap(70);
         map.SetObject(new GridPoint(25, 42), MapObjectKind.Tree);
-        var world = new World(map);
+        var world = new World(map, TestConfig.StoreAll);
         var lumberjack = world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(30, 30))!;
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50))!;
         Spawn(world, 3, new GridPoint(40, 40));
@@ -37,7 +37,7 @@ public class ToolTests
     }
 
     [Fact]
-    public void A_dismissed_worker_puts_its_tool_down()
+    public void A_dismissed_worker_keeps_trade_and_tool_and_takes_the_next_job_of_its_trade()
     {
         var world = new World(new GameMap(70));
         var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(30, 30))!;
@@ -49,9 +49,16 @@ public class ToolTests
         world.RemoveBuilding(sawmill);
         Run(world, 20);
 
-        Assert.Equal(Profession.Carrier, worker.Profession);
-        Assert.Null(worker.Tool);
-        Assert.Contains(world.Piles, p => p.Material == Material.Saw && p.Count == 1);
+        Assert.Equal(Profession.Worker, worker.Profession);
+        Assert.Equal(Material.Saw, worker.Tool);
+        Assert.Null(worker.Workplace);
+        Assert.False(worker.HasTask);
+        Assert.DoesNotContain(world.Piles, p => p.Material == Material.Saw && p.Count > 0);
+
+        // No saw left: the new sawmill can only get the old sawmiller.
+        var second = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(50, 30))!;
+        Run(world, 3_000, stopWhen: () => world.Production.WorkerOf(second)?.IsInside == true);
+        Assert.Same(worker, world.Production.WorkerOf(second));
     }
 
     [Fact]

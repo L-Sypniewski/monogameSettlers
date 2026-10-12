@@ -60,7 +60,15 @@ public sealed record ProductionConfig
     public int RegenerateTicks { get; init; }
 
     /// <summary>Units one storehouse pile holds (a storehouse has six piles).</summary>
-    public int StoragePileCapacity { get; init; } = 40;
+    public int StoragePileCapacity { get; init; } = Materials.MaxPileSize;
+
+    /// <summary>
+    /// Materials carriers bring to storehouses (null = all). Everything else stays at its producer's
+    /// output pile until somebody needs it.
+    /// </summary>
+    public IReadOnlySet<Material>? StoredMaterials { get; init; }
+
+    public bool IsStored(Material material) => StoredMaterials?.Contains(material) != false;
 
     /// <summary>Carriers a living house releases once it is finished (by building name).</summary>
     public IReadOnlyDictionary<string, int> Residents { get; init; } = new Dictionary<string, int>();
@@ -122,6 +130,8 @@ public sealed record ProductionConfig
             Smiths = smiths,
             Tools = tools,
             StoragePileCapacity = root.GetProperty("storage").GetProperty("pileCapacity").GetInt32(),
+            StoredMaterials = root.GetProperty("storage").GetProperty("materials").EnumerateArray()
+                .Select(m => Materials.Parse(m.GetString()!)!.Value).ToHashSet(),
             Residents = housing.GetProperty("residents").EnumerateObject().ToDictionary(r => r.Name, r => r.Value.GetInt32()),
             ResidentIntervalTicks = Ticks(housing, "intervalSeconds"),
             TreeGrowTicks = Ticks(root.GetProperty("trees"), "growSeconds"),

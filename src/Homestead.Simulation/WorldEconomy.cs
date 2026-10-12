@@ -134,6 +134,8 @@ public sealed partial class World
             if (!map.Contains(p) || !map.IsWalkable(p) || _footprints.ContainsKey(map.Index(p)))
                 return Fail("door or pile place blocked", out reason);
         }
+        if (!DoorLeadsOut(definition, position))
+            return Fail("the door would lead nowhere", out reason);
         reason = "";
         return true;
 
@@ -142,6 +144,35 @@ public sealed partial class World
             reason = why;
             return false;
         }
+    }
+
+    /// <summary>
+    /// Whether one can still walk away from the door once the building stands: a small flood fill from
+    /// the door around the footprint. Found by the AI: a stonecutter against the blocked ring of a
+    /// quarry stone, its door opening into a pocket between the building and the stone.
+    /// </summary>
+    private bool DoorLeadsOut(BuildingDefinition definition, GridPoint position)
+    {
+        const int Enough = 60;
+        var map = RequireMap();
+        var footprint = definition.Blocked.Select(o => position + o).ToHashSet();
+        var door = position + definition.Door;
+        var seen = new HashSet<GridPoint> { door };
+        var queue = new Queue<GridPoint>(seen);
+        while (queue.Count > 0)
+        {
+            var p = queue.Dequeue();
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+            {
+                var n = p.Neighbor((Direction)d);
+                if (!map.IsWalkable(n) || footprint.Contains(n) || _footprints.ContainsKey(map.Index(n)) || !seen.Add(n))
+                    continue;
+                if (seen.Count >= Enough)
+                    return true;
+                queue.Enqueue(n);
+            }
+        }
+        return false;
     }
 
     /// <summary>
@@ -313,35 +344,6 @@ public sealed partial class World
         }
         _buildings.Add(building);
         return building;
-    }
-
-    /// <summary>Most storehouse piles one storehouse may have, including the extra ones.</summary>
-    public const int MaxStoragePiles = 24;
-
-    /// <summary>
-    /// A storehouse keeps one empty pile so a new material always finds room: when its last empty pile
-    /// is taken, it opens another one on a free point of its surroundings (up to <see cref="MaxStoragePiles"/>).
-    /// </summary>
-    internal void KeepStorageRoom()
-    {
-        var map = RequireMap();
-        foreach (var building in _buildings)
-        {
-            if (!building.Exists || building.State != BuildingState.Finished)
-                continue;
-            var storage = building.Piles.Where(p => p.Role == PileRole.Storage).ToList();
-            if (storage.Count == 0 || storage.Count >= MaxStoragePiles || storage.Any(p => p.Material is null))
-                continue;
-            var door = building.Door;
-            var spot = building.Definition.Protected
-                .Select(o => building.Position + o)
-                .Where(p => p != door && map.IsWalkable(p) && !_pilesByPoint.ContainsKey(map.Index(p)) && !_footprints.ContainsKey(map.Index(p)))
-                .OrderBy(p => PathFinder.Distance(p, storage[0].Position))
-                .Cast<GridPoint?>()
-                .FirstOrDefault();
-            if (spot is { } s)
-                AddPile(new Pile(_nextPileId++, s, PileRole.Storage, null, Production.Config.StoragePileCapacity, building), building);
-        }
     }
 
     private void CreateOperatingPiles(Building building)

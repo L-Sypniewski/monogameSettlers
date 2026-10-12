@@ -117,7 +117,7 @@ public class ProductionTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Worker_of_a_removed_building_becomes_a_carrier_again()
+    public void Worker_of_a_removed_building_leaves_it_and_keeps_its_trade()
     {
         var map = new GameMap(70);
         for (int i = 0; i < 6; i++)
@@ -131,7 +131,8 @@ public class ProductionTests(ITestOutputHelper output)
         world.RemoveBuilding(lumberjack);
         Run(world, 100);
 
-        Assert.Equal(Profession.Carrier, worker.Profession);
+        Assert.Equal(Profession.Worker, worker.Profession);
+        Assert.Null(worker.Workplace);
         Assert.False(worker.IsInside);
         Assert.Null(worker.Carrying);
         Assert.False(worker.HasTask);

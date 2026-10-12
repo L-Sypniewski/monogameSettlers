@@ -4,6 +4,7 @@ using Homestead.Assets.Maps;
 using Homestead.Client.MapObjects;
 using Homestead.Client.Terrain;
 using Homestead.Simulation;
+using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Pathfinding;
@@ -65,6 +66,10 @@ public sealed class MapGame : Game
     private Vector2? _dragStart;
     private const float DragThreshold = 6;
     private string _message = "";
+    private IReadOnlyList<BuildingCatalog> _playerCatalogs = [];
+
+    /// <summary>The AI playing for player 1 (key I), if on.</summary>
+    private AiPlayer? _ownAi;
     private TimeSpan _accumulator;
     private TimeSpan _time;
 
@@ -135,6 +140,11 @@ public sealed class MapGame : Game
         _gameMap.PointChanged += OnPointChanged;
         _objects = new MapObjectLayer(GraphicsDevice, _gfx.Open(MapObjectCatalog.GfxFile), _map.Area, _terrain);
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
+        // Every other player is a computer player.
+        _playerCatalogs = report.Catalogs;
+        _ownAi = null;
+        for (int player = 1; player < report.Catalogs.Count; player++)
+            _world.AiPlayers.Add(new AiPlayer(_world, report.Catalogs[player], player));
         _wanderers.Clear();
         _start = _map.Players.Count > 0
             ? new GridPoint(_map.Players[0].StartX, _map.Players[0].StartY)
@@ -243,6 +253,7 @@ public sealed class MapGame : Game
                        $"{logistics.Delivered} delivered, {logistics.DroppedOnTheWay} dropped · " +
                        $"residents {_world.Housing.Released} · pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
                        $"{_gameMap.TerrainAt(cursor)}{(_gameMap.IsWalkable(cursor) ? "" : " (blocked)")}" +
+                       (_ownAi is { Log.Count: > 0 } ? $" · AI: {_ownAi.Log[^1]}" : "") +
                        (_message.Length > 0 ? $" · {_message}" : "");
         base.Update(gameTime);
     }
@@ -295,6 +306,31 @@ public sealed class MapGame : Game
             _showObjects = !_showObjects;
         if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen), Profession.Carrier) is { } spawned)
             _selected = spawned;
+        if (Pressed(Keys.I))
+        {
+            if (_ownAi is null && _playerCatalogs.Count > 0)
+            {
+                _ownAi = new AiPlayer(_world, _playerCatalogs[0], 0);
+                _world.AiPlayers.Add(_ownAi);
+                _message = "the AI plays for you (I: stop)";
+            }
+            else if (_ownAi is not null)
+            {
+                _world.AiPlayers.Remove(_ownAi);
+                _ownAi = null;
+                _message = "you play again";
+            }
+        }
+        if (Pressed(Keys.L))
+        {
+            foreach (var ai in _world.AiPlayers.OrderBy(a => a.Player))
+            {
+                Console.WriteLine($"-- AI player {ai.Player + 1}, land {ai.Land}");
+                foreach (string line in ai.Log)
+                    Console.WriteLine("   " + line);
+            }
+            _message = "AI decisions written to the console";
+        }
         if (Pressed(Keys.G))
             _message = DemoEconomy.Create(_world, _romans, ScreenToGrid(cursorScreen), _random);
         if (Pressed(Keys.M))

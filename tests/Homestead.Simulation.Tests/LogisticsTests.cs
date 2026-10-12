@@ -229,9 +229,8 @@ public class LogisticsTests(ITestOutputHelper output)
         for (int t = 0; t < 10_000 && (world.Piles.Any(p => p.Role == PileRole.Loose && p.Count > 0) || world.Logistics.Jobs.Count > 0); t++)
             world.Step();
 
-        var blades = stock.Piles.Where(p => p.Material == Material.Blade && p.Count > 0).ToList();
-        Assert.Equal(12, blades.Sum(p => p.Count));
-        Assert.Single(blades); // one pile holds 40, not spread over all six piles
+        var blades = stock.Piles.Where(p => p.Material == Material.Blade && p.Count > 0).Select(p => p.Count).Order().ToList();
+        Assert.Equal([4, 8], blades); // one pile filled up first, not spread over all six piles
     }
 
     [Fact]
@@ -249,7 +248,7 @@ public class LogisticsTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void A_storehouse_takes_more_materials_than_it_has_piles()
+    public void A_full_storehouse_takes_nothing_more()
     {
         var world = new World(new GameMap(70), ProductionConfig.None);
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(35, 35))!;
@@ -262,7 +261,31 @@ public class LogisticsTests(ITestOutputHelper output)
         for (int t = 0; t < 20_000 && (world.Piles.Any(p => p.Role == PileRole.Loose && p.Count > 0) || world.Logistics.Jobs.Count > 0); t++)
             world.Step();
 
-        Assert.All(materials, m => Assert.Equal(3, stock.Piles.Where(p => p.Material == m).Sum(p => p.Count)));
-        Assert.Contains(stock.Piles, p => p.Role == PileRole.Storage && p.Material is null); // still room for a new one
+        // Six piles, one material each: two materials find no room and stay where they are.
+        Assert.Equal(6, stock.Piles.Count(p => p.Role == PileRole.Storage));
+        Assert.Equal(6, materials.Count(m => stock.Piles.Where(p => p.Material == m).Sum(p => p.Count) == 3));
+        Assert.Equal(2, world.Piles.Count(p => p.Role == PileRole.Loose && p.Count == 3));
+    }
+
+    [Fact]
+    public void Only_tools_weapons_and_gold_go_to_the_storehouse()
+    {
+        var world = new World(new GameMap(60), ProductionConfig.Load());
+        var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(30, 30))!;
+        world.AddLooseGoods(new GridPoint(10, 10), Material.Axe, 2);
+        world.AddLooseGoods(new GridPoint(12, 10), Material.Sword, 3);
+        world.AddLooseGoods(new GridPoint(14, 10), Material.Plank, 4);
+        world.AddLooseGoods(new GridPoint(16, 10), Material.Stone, 5);
+        for (int i = 0; i < 4; i++)
+            world.Spawn(new GridPoint(15 + i, 45), Profession.Carrier);
+
+        Run(world, 5000);
+
+        Assert.Equal(2, stock.Piles.Where(p => p.Material == Material.Axe).Sum(p => p.Count));
+        Assert.Equal(3, stock.Piles.Where(p => p.Material == Material.Sword).Sum(p => p.Count));
+        // Planks and stones stay where they are until somebody needs them.
+        Assert.DoesNotContain(stock.Piles, p => p.Material is Material.Plank or Material.Stone);
+        Assert.Equal(4, world.PileAt(new GridPoint(14, 10))!.Count);
+        Assert.Equal(5, world.PileAt(new GridPoint(16, 10))!.Count);
     }
 }

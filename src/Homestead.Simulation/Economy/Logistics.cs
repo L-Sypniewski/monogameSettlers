@@ -65,7 +65,6 @@ public sealed class Logistics
 
     private void Dispatch()
     {
-        _world.KeepStorageRoom();
         var idleCarriers = _world.Settlers
             .Where(s => s.IsAvailableCarrier && !_jobs.ContainsKey(s.Id))
             .ToList();
@@ -96,6 +95,8 @@ public sealed class Logistics
             {
                 if (offer.Available <= 0 || offer.Material is not { } material || !request.Accepts(material)
                     || offer.Owner == request.Owner || !_world.BelongsTo(offer, player))
+                    continue;
+                if (request.Role == PileRole.Storage && !_world.Production.Config.IsStored(material))
                     continue;
                 // Storehouse to storehouse would only shuffle goods around.
                 if (offer.Role == PileRole.Storage && request.Role == PileRole.Storage)
