@@ -7,7 +7,7 @@
   "soldiers": {
     "Swordsman": { "health": 100, "damage": 12, "attackSeconds": 1.0, "range": 1 },
     "Pikeman": { "health": 130, "damage": 9, "attackSeconds": 1.0, "range": 1 },
-    "Bowman": { "health": 80, "damage": 7, "attackSeconds": 1.5, "range": 8 }
+    "Bowman": { "health": 80, "damage": 7, "attackSeconds": 1.5, "range": 20 }
   },
   "levelBonus": [ 1.0, 1.3, 1.7 ],
   "sightRange": 10,

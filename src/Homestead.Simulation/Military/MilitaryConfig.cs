@@ -27,6 +27,9 @@ public sealed record MilitaryConfig
     /// <summary>An attack takes soldiers from own buildings within this distance of the target.</summary>
     public required int AttackRange { get; init; }
 
+    /// <summary>How far a soldier of the type notices enemies: the sight range, or its shooting range if further.</summary>
+    public int Sight(SoldierType type) => Math.Max(SightRange, Soldiers[type].Range);
+
     public float MaxHealth(SoldierType type, int level) => Soldiers[type].Health * Bonus(level);
 
     public float Damage(SoldierType type, int level) => Soldiers[type].Damage * Bonus(level);

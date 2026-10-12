@@ -30,7 +30,7 @@ public sealed partial class Military
     private const int RetargetTicks = 10;
 
     /// <summary>Near the enemy, ways are planned around other soldiers within this radius.</summary>
-    private const int CombatSearchRadius = 10;
+    private const int CombatSearchRadius = 20;
 
     public int Kills { get; private set; }
 
@@ -157,7 +157,7 @@ public sealed partial class Military
     private void EngageIdleSoldiers()
     {
         foreach (var soldier in _world.Settlers.Where(s => s.Profession == Profession.Soldier && !s.HasTask && !s.IsInside).ToList())
-            if (NearestEnemy(soldier.Position, soldier.Player, _config.SightRange) is not null)
+            if (NearestEnemy(soldier.Position, soldier.Player, _config.Sight(soldier.SoldierType!.Value)) is not null)
             {
                 soldier.HasTask = true;
                 _fighters[soldier.Id] = new Fighter(soldier);
@@ -310,7 +310,7 @@ public sealed partial class Military
     private void ChooseEnemy(Fighter f, SoldierStats stats)
     {
         var soldier = f.Soldier;
-        if (f.Enemy is { } current && (current.IsDead || current.IsInside || PathFinder.Distance(soldier.Position, current.Position) > _config.SightRange + 4))
+        if (f.Enemy is { } current && (current.IsDead || current.IsInside || PathFinder.Distance(soldier.Position, current.Position) > _config.Sight(soldier.SoldierType!.Value) + 4))
             f.Enemy = null;
 
         int currentDistance = f.Enemy is { } e ? PathFinder.Distance(soldier.Position, e.Position) : int.MaxValue;
@@ -319,7 +319,7 @@ public sealed partial class Military
         bool recheck = f.Enemy is null || _world.Tick >= f.NextRetarget;
         var candidates = EnemiesOf(soldier.Player)
             .Select(x => (Enemy: x, Distance: PathFinder.Distance(soldier.Position, x.Position)))
-            .Where(x => x.Distance <= (recheck ? _config.SightRange : stats.Range)
+            .Where(x => x.Distance <= (recheck ? _config.Sight(soldier.SoldierType!.Value) : stats.Range)
                         && !(f.Unreachable.TryGetValue(x.Enemy.Id, out long until) && until > _world.Tick))
             .ToList();
         if (candidates.Count == 0)
