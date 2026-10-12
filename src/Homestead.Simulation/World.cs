@@ -1,5 +1,6 @@
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
+using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Military;
 using Homestead.Simulation.Pathfinding;
@@ -42,10 +43,18 @@ public sealed partial class World
     private int _nextSettlerId;
     private readonly int[] _occupant;
 
+    /// <summary>Mana, temples, priests and spells.</summary>
+    public Magic.Magic Magic { get; }
+
+    /// <summary>People of each player (index = player), where known (loaded maps); Romans otherwise.</summary>
+    public IReadOnlyList<Civilization> Peoples { get; set; } = [];
+
+    public Civilization PeopleOf(int player) => player < Peoples.Count ? Peoples[player] : Civilization.Roman;
+
     /// <summary>Computer players; each acts for its own player in every tick.</summary>
     public List<Ai.AiPlayer> AiPlayers { get; } = new();
 
-    public World(GameMap? map = null, ProductionConfig? production = null, MilitaryConfig? military = null)
+    public World(GameMap? map = null, ProductionConfig? production = null, MilitaryConfig? military = null, MagicConfig? magic = null)
     {
         Map = map;
         Logistics = new Logistics(this);
@@ -57,6 +66,7 @@ public sealed partial class World
         Housing = new Housing(this, config);
         Geology = new Geology(this, config);
         Military = new Military.Military(this, military ?? MilitaryConfig.Load());
+        Magic = new Magic.Magic(this, magic ?? (map is null ? MagicConfig.None : MagicConfig.Load()));
         if (map is not null)
         {
             PathFinder = new PathFinder(map);
@@ -97,8 +107,9 @@ public sealed partial class World
             if (settler.State == SettlerState.Stepping)
                 AdvanceStep(settler);
 
+        // Frozen by a spell: finish the current step, then stand still.
         foreach (var settler in _settlers)
-            if (settler.WantsToMove)
+            if (settler.WantsToMove && settler.FrozenUntil <= Tick)
                 TryStartStep(settler);
 
         // After a pass-through a settler may stand on a field it does not own; claim it once free.
@@ -116,6 +127,7 @@ public sealed partial class World
             Military.Tick();
             Housing.Tick();
             Geology.Tick();
+            Magic.Tick();
             Idling.Tick();
             foreach (var ai in AiPlayers)
                 ai.Tick();
@@ -168,8 +180,8 @@ public sealed partial class World
     /// <summary>Whether the player's people can walk from a to b (on its own land with territory rules).</summary>
     internal bool Reachable(int player, GridPoint a, GridPoint b) => PathFinder!.AreConnected(a, b, TerritoryRules ? player : null);
 
-    /// <summary>Soldiers and geologists may go and stay outside the own land.</summary>
-    internal static bool RoamsFreely(Settler settler) => settler.Profession is Profession.Soldier or Profession.Geologist;
+    /// <summary>Soldiers, priests and geologists may go and stay outside the own land.</summary>
+    internal static bool RoamsFreely(Settler settler) => settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist;
 
     /// <summary>Whether the settler can walk to <paramref name="target"/> (see <see cref="LandOf"/>).</summary>
     internal bool Reachable(Settler settler, GridPoint target) => PathFinder!.AreConnected(settler.Position, target, LandOf(settler));
@@ -390,6 +402,25 @@ public sealed partial class World
             if (destination is { } d && d != free)
                 WalkTo(settler, d);
         }
+    }
+
+    /// <summary>Puts a settler straight onto a free point (spell), dropping its way.</summary>
+    internal bool Teleport(Settler settler, GridPoint to)
+    {
+        var map = RequireMap();
+        if (settler.IsInside || !map.IsWalkable(to) || _occupant[map.Index(to)] != NoOccupant)
+            return false;
+        foreach (var p in new[] { settler.Position, settler.StepTarget })
+            if (_occupant[map.Index(p)] == settler.Id)
+                _occupant[map.Index(p)] = NoOccupant;
+        settler.State = SettlerState.Idle;
+        settler.TicksIntoStep = 0;
+        settler.Path.Clear();
+        settler.Destination = null;
+        settler.IsStrolling = false;
+        settler.Position = to;
+        _occupant[map.Index(to)] = settler.Id;
+        return true;
     }
 
     /// <summary>Whether a settler stands on (or is stepping onto) the point.</summary>

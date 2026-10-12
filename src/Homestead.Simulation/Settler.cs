@@ -25,6 +25,9 @@ public enum Profession
 
     /// <summary>Searches mountains for resources and marks them with signs (see <see cref="Economy.Geology"/>).</summary>
     Geologist,
+
+    /// <summary>Comes from the big temple and casts its people's spell (see <see cref="Magic.Magic"/>).</summary>
+    Priest,
 }
 
 public enum SoldierType
@@ -53,6 +56,7 @@ public enum Activity
     Shooting,
     Surveying,
     Signing,
+    Casting,
 }
 
 public enum SettlerState
@@ -95,6 +99,21 @@ public sealed class Settler
 
     /// <summary>Soldier rank 1-3.</summary>
     public int Level { get; internal set; } = 1;
+
+    /// <summary>
+    /// The people the settler looks like when it differs from its player's: priests (their temple's) and
+    /// soldiers won over by a spell (they keep their own people, only the color changes).
+    /// </summary>
+    public Civilization? People { get; internal set; }
+
+    /// <summary>Frozen by a spell until this tick: neither walks nor fights.</summary>
+    public long FrozenUntil { get; internal set; }
+
+    /// <summary>Strikes faster (spell) until this tick.</summary>
+    public long HastedUntil { get; internal set; }
+
+    /// <summary>How many times as fast it strikes while hasted.</summary>
+    internal double HasteFactor { get; set; } = 1;
 
     /// <summary>The grid point the settler stands on, or leaves during a step.</summary>
     public GridPoint Position { get; internal set; }

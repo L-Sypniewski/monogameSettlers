@@ -1,9 +1,5 @@
 todo:
 
-IDLE-SOLDATEN:
-Wenn sie ein Ziel sehen, sollten sie nach dem Kampf dahin zurücklaufen, wo sie standen, als sie das letzte mal idle waren
-Wenn ein Verbündeter in der Nähe (5 Felder) angegriffen wird, sollten sie zur Unterstützung kommen. (Verhindert, dass man mit Bogenschützen einzelne Soldaten aus einer Gruppe wegsnipert)
-
 GEBÄUDE:
 x größerer Platzbedarf, damit die Gebäude nicht überschneiden und genug Platz lassen für Siedler und Optik
 
@@ -13,14 +9,14 @@ x Höhenunterschiede geringer, auf 50% reduzieren.
 GAMEPLAY:
 x Beim Selektieren und kommandieren der Soldaten soll die Zielkoordinate mit der Höhe verrechnet werden.
 x 30% aller Träger (gezählt werden alle derzeitigen Fachkräfte + Träger) wird reserviert und darf niemals zu einem Soldaten oder einer Fachkraft werden. Für die KI heißt es dann, Wohnhäuser höher zu priorisieren
-Tasten 1-9: Gruppierte Einheiten auswählen
+x Tasten 1-9: Gruppierte Einheiten auswählen
 x Erzwungener Befehl: Wenn zum Rechtsklick noch Strg gedrückt ist, erhält der Lauf-Befehl oberste Priorität.
 
 x Bei selektierten Soldaten:
 x Rechtsklick, um einen Befehl zu erteilen
 x Linksklick, um die Soldaten wieder abzuwählen
-Ctrl+1-9: Gruppe erstellen. Gruppe soll oben rechts als kleines Icon eingeblendet werden
-Shift+Auswahl von Einheuten: Einheiten der aktuellen Auswahl hinzufügen
+x Ctrl+1-9: Gruppe erstellen. Gruppe soll oben rechts als kleines Icon eingeblendet werden. Auf dem Icon steht die Nummer (1-9) und die Anzahl der Soldaten in dieser Gruppe. Auf Klick dieses Icons werden diese Einheiten wieder ausgewählt.
+x Shift+Auswahl von Einheuten: Einheiten der aktuellen Auswahl hinzufügen
 x Völker-spezifische Einheiten/Siedler anzeigen
 x Amazonen mit einbinden
 
@@ -66,6 +62,34 @@ Simulation:
 Militärisches Verhalten (ai.military und ai.attack) gegeneinander simulieren.
 Verschiedene Build-Orders testen
 
+Holy Shit:
+x Nach der einfachen build-order (Soldaten können gebaut werden, Nahrungskette komplett) wird der große Tempel gebaut.
+x Der große Tempel spawnt alle 5 Minuten und direkt nach Fertigstellung einen priester des entsprechenden Volkes.
+Der Priester kriegt pro Volk vorerst einen Zauber:
+x - Römer: Barbaren bekehren (5 gegnerische Einheiten im Bereich wechseln die Seite. Im Gegensatz zum Originalspiel wechseln sie nur die Farbe. Eine Amazone wird nicht auf einmal zum Römer.. das hat mich schon immer gestört)
+x - Asiaten: Samuraischwert (Im Bereich greifen die Soldaten 10 Sekunden lang schneller an)
+x - Amazonen: Einfrieren, ich kenne den Namen nicht. (Im Bereich werden alle gegnerischen Einheiten auf der Stelle für 10 Sekunden eingefroren)
+x - Ägypter: Zerstreuen (8 gegnerische Einheiten im Bereich werden zufällig auf der Karte verteilt)
+
+Kosten: 
+x Jeder Zauber kostet Mana. Im Gegenzug zum Originalspiel bleiben die Kosten konstant.
+x Reichweite der Zauber ist die der Bogenschützen
+x Gezaubert wird nur im Kampf
+x Die KI schleppt Priester in den Gruppen mit. Priester bleiben in den Kämpfen immer hinten.
+
+Mana und Aufwertungen:
+x Nach dem großen Tempel wird die manaproduktion gestartet.
+x Amazonen: Imker -> kleiner Tempel, bringt 1 Mana
+x Asiaten: Reis (An Sümpfen anbaubar) -> Brennerei -> kleiner Tempel, bringt 2 Mana
+x Römer: Winzer, wächst schneller an Hängen, Höhenunterschieden zwischen Tiles -> kleiner Tempel, bringt 1 Mana
+x Ägypter: Getreide ->  Brauerei -> kleiner Tempel, bringt 1 Mana
+
+Kosten für die nächste Aufwertung steigt nach jeder Aufwertung.
+10 -> 20 -> 30 -> 40 -> 50 -> 60
+Dabei müssen erst alle Klassen (Schwert/Bogen/Speer) auf Feldwebel und können erst danach auf Hauptmann aufgewertet werden.
+Das Aufwertungsmenü gibt es, wenn man einen kleinen Tempel auswählt.
+
+
 Schwierigkeitsgrad:
 Jedem KI-Gegner wird eine Schwierigkeit leicht/mittel/schwer zugewiesen.
 Leicht:
@@ -85,4 +109,4 @@ Schwer:
     - KI weiß alles. (Map, Militär, Rohstoffe)
     - Bildet keine Späher oder Geologen aus.
     - Soldaten werden primär an Grenz-Türmen platziert, die zu gegnerischen Einheiten
-    - Soldaten reagieren auf nahe feindliche Einheiten
+    - Soldaten reagieren auf nahe, feindliche Einheiten

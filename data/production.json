@@ -8,7 +8,10 @@
     "ironmelt": { "inputs": [ "IRONORE", "COAL" ], "outputs": [ "IRON" ], "seconds": 8 },
     "goldmelt": { "inputs": [ "GOLDORE", "COAL" ], "outputs": [ "GOLD" ], "seconds": 8 },
     "charcoal_burner": { "inputs": [ "PLANK" ], "outputs": [ "COAL" ], "seconds": 10 },
-    "pig_farm": { "inputs": [ "CROP", "WATER" ], "outputs": [ "PIG" ], "seconds": 12 }
+    "pig_farm": { "inputs": [ "CROP", "WATER" ], "outputs": [ "PIG" ], "seconds": 12 },
+    "distillery": { "inputs": [ "RICE", "COAL" ], "outputs": [ "LIQUOR" ], "seconds": 10 },
+    "brewery": { "inputs": [ "CROP", "WATER" ], "outputs": [ "KEG" ], "seconds": 10 },
+    "mead_brewery": { "inputs": [ "HONEY", "WATER" ], "outputs": [ "MEAD" ], "seconds": 10 }
   },
   "gatherers": {
     "lumberjack": { "action": "CutTree", "output": "TRUNK", "workSeconds": 6, "restSeconds": 4, "pickupSeconds": 4 },
@@ -16,12 +19,16 @@
     "forester": { "action": "PlantTree", "workSeconds": 5, "restSeconds": 3 },
     "fisher": { "action": "Fish", "output": "FISH", "workSeconds": 8, "restSeconds": 6 },
     "waterworks": { "action": "DrawWater", "output": "WATER", "workSeconds": 4, "restSeconds": 4 },
-    "farm": { "action": "Farm", "output": "CROP", "workSeconds": 4, "restSeconds": 4 }
+    "farm": { "action": "Farm", "output": "CROP", "workSeconds": 4, "restSeconds": 4 },
+    "winegrower": { "action": "Farm", "crop": "wine", "output": "WINE", "workSeconds": 4, "restSeconds": 4 },
+    "rice_farm": { "action": "Farm", "crop": "rice", "output": "RICE", "workSeconds": 4, "restSeconds": 4 },
+    "beekeeping": { "action": "Farm", "crop": "honey", "output": "HONEY", "workSeconds": 4, "restSeconds": 4 }
   },
   "mineFood": {
-    "_comment": "Trips into the mine one unit of food lasts: the mine's prefersFood lasts preferredRuns trips, any other food otherRuns.",
+    "_comment": "Trips into the mine one unit of food lasts: the mine's prefersFood lasts preferredRuns trips, any other food otherRuns. pileCapacity: units each food pile of a mine holds.",
     "preferredRuns": 8,
-    "otherRuns": 2
+    "otherRuns": 2,
+    "pileCapacity": 4
   },
   "mines": {
     "coalmine": { "prefersFood": "BREAD", "resource": "Coal", "output": "COAL", "seconds": 10, "radius": 3 },
@@ -79,7 +86,13 @@
     "payback": 0.5
   },
   "trees": { "growSeconds": 150, "stumpSeconds": 60 },
-  "grain": { "growSeconds": 100 },
+  "crops": {
+    "_comment": "What farm-like gatherers sow and harvest: growSeconds from sowing to ripe, on these grounds. regrows: starts over after the harvest instead of leaving free ground (vines, beehives). slopeBonus: grows up to (1 + slopeBonus) times as fast where the height to a neighbor differs by slopeHeight or more (vines on hillsides).",
+    "grain": { "growSeconds": 100, "ground": [ "Grass" ] },
+    "wine": { "growSeconds": 140, "ground": [ "Grass", "MountainBorderOuter" ], "regrows": true, "slopeBonus": 1.0, "slopeHeight": 4 },
+    "rice": { "growSeconds": 120, "ground": [ "Mud", "MudBorder", "MudBorderOuter", "MoorBorderOuter" ] },
+    "honey": { "growSeconds": 120, "ground": [ "Grass" ], "regrows": true }
+  },
   "stones": { "stonesPerCut": 1 },
   "resources": {
     "_comment": "Mountains and waters: a field of the original maps holds an amount of 0-15 (mostly 8). orePerAmount/fishPerAmount = units per amount step, so a mine's stock scales with it. regenerateSeconds: a depleted field regains one step this often (0 = never).",

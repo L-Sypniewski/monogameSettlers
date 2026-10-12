@@ -165,7 +165,7 @@ public sealed partial class AiPlayer
         EnemyGroups = groups;
         foreach (var strike in _strikes.ToList())
         {
-            strike.Soldiers.RemoveAll(s => s.IsDead || s.IsInside);
+            strike.Soldiers.RemoveAll(s => s.IsDead || s.IsInside || s.Player != Player); // also won over by a spell
             var group = groups.FirstOrDefault(g => g.Soldiers.Any(strike.Targets.Contains))
                         ?? groups.Where(g => PathFinder.Distance(g.Center, strike.Center) <= config.GroupRadius * 2)
                             .MinBy(g => PathFinder.Distance(g.Center, strike.Center));

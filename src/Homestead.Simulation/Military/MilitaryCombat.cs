@@ -144,8 +144,9 @@ public sealed partial class Military
             Advance(fighter);
     }
 
+    /// <summary>Enemy soldiers and priests outside the buildings: who can be fought.</summary>
     private IEnumerable<Settler> EnemiesOf(int player) =>
-        _world.Settlers.Where(s => s.Profession == Profession.Soldier && s.Player != player && !s.IsInside && !s.IsDead);
+        _world.Settlers.Where(s => s.Profession is Profession.Soldier or Profession.Priest && s.Player != player && !s.IsInside && !s.IsDead);
 
     private Settler? NearestEnemy(GridPoint from, int player, int range) =>
         EnemiesOf(player).Where(e => PathFinder.Distance(from, e.Position) <= range)
@@ -215,6 +216,12 @@ public sealed partial class Military
             return;
         }
         var stats = _config.Soldiers[soldier.SoldierType!.Value];
+        // Frozen by a spell: stands still, strikes nobody.
+        if (soldier.FrozenUntil > _world.Tick)
+        {
+            SetActivity(soldier, Activity.None);
+            return;
+        }
 
         if (f.Forced)
             f.Enemy = null;
@@ -237,7 +244,10 @@ public sealed partial class Military
                 if (_world.Tick >= f.NextHit)
                 {
                     Hit(soldier, enemy);
-                    f.NextHit = _world.Tick + stats.AttackTicks;
+                    // Hasted by a spell: strikes faster.
+                    f.NextHit = _world.Tick + (soldier.HastedUntil > _world.Tick
+                        ? Math.Max(1, (int)Math.Round(stats.AttackTicks / soldier.HasteFactor))
+                        : stats.AttackTicks);
                 }
                 return;
             }
@@ -311,7 +321,8 @@ public sealed partial class Military
     private void ChooseEnemy(Fighter f, SoldierStats stats)
     {
         var soldier = f.Soldier;
-        if (f.Enemy is { } current && (current.IsDead || current.IsInside || PathFinder.Distance(soldier.Position, current.Position) > _config.Sight(soldier.SoldierType!.Value) + 4))
+        // Gone, inside, or won over by a spell: look for another one.
+        if (f.Enemy is { } current && (current.IsDead || current.IsInside || current.Player == soldier.Player || PathFinder.Distance(soldier.Position, current.Position) > _config.Sight(soldier.SoldierType!.Value) + 4))
             f.Enemy = null;
 
         int currentDistance = f.Enemy is { } e ? PathFinder.Distance(soldier.Position, e.Position) : int.MaxValue;
@@ -416,6 +427,17 @@ public sealed partial class Military
 
     private void Kill(Settler soldier)
     {
+        Release(soldier);
+        _world.Remove(soldier);
+        Kills++;
+    }
+
+    /// <summary>
+    /// The soldier drops every order and place it was on its way to (it dies, changes sides or is put
+    /// elsewhere by a spell); it stands idle afterwards.
+    /// </summary>
+    internal void Release(Settler soldier)
+    {
         _fighters.Remove(soldier.Id);
         _nextShot.Remove(soldier.Id);
         foreach (var g in _garrisons.Values)
@@ -427,8 +449,10 @@ public sealed partial class Military
                 if (coming.Soldier == soldier)
                     g.Coming.Remove(place);
         }
-        _world.Remove(soldier);
-        Kills++;
+        SetActivity(soldier, Activity.None);
+        soldier.HasTask = false;
+        if (!soldier.IsDead && !soldier.IsInside && soldier.Destination is not null)
+            _world.WalkTo(soldier, soldier.StepTarget);
     }
 
     /// <summary>The attacker takes the building: it changes sides with its land.</summary>

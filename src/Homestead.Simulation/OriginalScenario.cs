@@ -128,6 +128,7 @@ public static class OriginalScenario
 
         world.Housing.SettleStartPopulation();
         var playerCatalogs = Enumerable.Range(0, original.Players.Count).Select(CatalogOf).ToArray();
+        world.Peoples = playerCatalogs.Select(c => c.Civilization).ToArray();
         return (world, new LoadReport(buildings, piles, settlers, skipped, playerCatalogs));
     }
 }

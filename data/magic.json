@@ -1,0 +1,18 @@
+{
+  "_comment": "Homestead's own magic balancing. The big temple sends out a priest of its people as soon as it is finished and then every priestSeconds. Small temples turn their people's drink into mana for their player, one unit every templeSeconds (mana per unit below). Each people's priests know one spell for now; it costs a constant amount of mana (unlike the original). A spell works on the soldiers within radius of the point it is cast at; that point must be within the bowmen's range of the priest (data/military.json) and there must be a fight there (soldiers of two players in the area). Priests can be attacked (health).",
+  "bigTemple": "big_temple",
+  "priestSeconds": 300,
+  "temple": "temple",
+  "templeSeconds": 6,
+  "mana": { "WINE": 1, "MEAD": 1, "KEG": 1, "LIQUOR": 2 },
+  "priestHealth": 60,
+  "radius": 5,
+  "castSeconds": 1.5,
+  "_spellsComment": "name: shown in the menu. Convert: up to count enemy soldiers change sides (they keep their people, only the color changes). Haste: own soldiers strike factor times as fast for seconds. Freeze: every enemy soldier and priest stands still for seconds (neither walks nor fights). Scatter: up to count enemy soldiers are put on random free points of the map.",
+  "spells": {
+    "Roman": { "spell": "Convert", "name": "Barbaren bekehren", "cost": 20, "count": 5 },
+    "Asian": { "spell": "Haste", "name": "Samuraischwert", "cost": 10, "seconds": 10, "factor": 2 },
+    "Amazon": { "spell": "Freeze", "name": "Einfrieren", "cost": 15, "seconds": 10 },
+    "Egyptian": { "spell": "Scatter", "name": "Zerstreuen", "cost": 20, "count": 8 }
+  }
+}

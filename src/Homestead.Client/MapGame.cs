@@ -6,6 +6,7 @@ using Homestead.Client.Terrain;
 using Homestead.Simulation;
 using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
+using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Pathfinding;
 using Microsoft.Xna.Framework;
@@ -45,6 +46,11 @@ public sealed class MapGame : Game
     private BuildingDefinition[] _placeable = [];
     private BuildMenu? _buildMenu;
     private readonly ConversionMenu _conversionMenu = new();
+    private readonly SpellMenu _spellMenu = new();
+
+    /// <summary>The spell button was clicked: the next click on the map casts it.</summary>
+    private bool _aiming;
+    private ControlGroups _controlGroups = new();
     private readonly BuildingInfo _buildingInfo = new();
     private UiFont _font = null!;
     private int _placeIndex;
@@ -182,6 +188,7 @@ public sealed class MapGame : Game
             : new GridPoint(_map.Area.Size / 2, _map.Area.Size / 2);
         _selected = null;
         _group.Clear();
+        _controlGroups = new ControlGroups();
         _selectedBuilding = null;
         _camera = ToWorld(_start);
     }
@@ -286,7 +293,7 @@ public sealed class MapGame : Game
                        $"produced {production.Produced}, trees {production.TreesCut}/{production.TreesPlanted}, stones {production.StonesCut}, " +
                        $"crop {production.CropHarvested}/{production.FieldsSown}, fish {production.FishCaught}, water {production.WaterDrawn}, ore {production.OreMined}, tools {production.ToolsMade} · " +
                        $"{logistics.Delivered} delivered, {logistics.DroppedOnTheWay} dropped · " +
-                       $"residents {_world.Housing.Released} · pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
+                       $"residents {_world.Housing.Released} · mana {_world.Magic.Mana(0)} · pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
                        $"{_gameMap.TerrainAt(cursor)}{(_gameMap.IsWalkable(cursor) ? "" : " (blocked)")}" +
                        (_ownAi is { Log.Count: > 0 } ? $" · AI: {_ownAi.Log[^1]}" : "") +
                        (_message.Length > 0 ? $" · {_message}" : "");
@@ -341,13 +348,29 @@ public sealed class MapGame : Game
 
         if (Pressed(Keys.Escape))
         {
-            if (_placing)
+            if (_aiming)
+                _aiming = false;
+            else if (_placing)
                 _placing = false;
             else
                 Exit();
         }
         if (Pressed(Keys.F11))
             ToggleFullScreen();
+        // Groups: Ctrl+1-9 stores the selection, 1-9 selects the group again.
+        bool control = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
+        for (int i = 0; i < ControlGroups.Count; i++)
+        {
+            if (!Pressed(Keys.D1 + i) && !Pressed(Keys.NumPad1 + i))
+                continue;
+            if (control)
+            {
+                _controlGroups.Store(i, _group);
+                _message = _group.Count > 0 ? $"group {i + 1}: {_group.Count} selected" : $"group {i + 1} cleared";
+            }
+            else
+                SelectGroup(i);
+        }
         if (Pressed(Keys.P))
             _placing = !_placing;
         if (_placing && Pressed(Keys.E))
@@ -415,7 +438,23 @@ public sealed class MapGame : Game
         // menu (a click chooses a category or the building to place).
         bool onMenu = BuildMenu.Contains(cursorScreen);
         bool released = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is null;
-        if (CarriersSelected)
+        // The group icons at the top right: a click selects the group.
+        _controlGroups.Update();
+        int? groupIcon = _controlGroups.GroupAt(cursorScreen, GraphicsDevice.Viewport.Width);
+        if (groupIcon is { } clickedGroup && released)
+            SelectGroup(clickedGroup);
+        onMenu |= groupIcon is not null;
+        if (!PriestsSelected)
+            _aiming = false;
+        if (PriestsSelected)
+        {
+            if (onMenu && released && _spellMenu.Contains(cursorScreen))
+            {
+                _aiming = !_aiming && _world.Magic.SpellOf(0) is { } spell && _world.Magic.Mana(0) >= spell.Cost;
+                _message = _aiming ? "click on a fight to cast" : "not enough mana";
+            }
+        }
+        else if (CarriersSelected)
         {
             if (onMenu && _conversionMenu.EntryAt(cursorScreen) is { } entry)
             {
@@ -517,6 +556,22 @@ public sealed class MapGame : Game
             return;
         }
 
+        if (_aiming)
+        {
+            _aiming = false;
+            var aimedAt = ScreenToGrid(screen);
+            _message = _world.Magic.Cast(_group, aimedAt) switch
+            {
+                CastResult.Started => $"casting {_world.Magic.SpellOf(0)?.Name} at {aimedAt.X},{aimedAt.Y}",
+                CastResult.NoMana => "not enough mana",
+                CastResult.NoFight => "spells work only where there is a fight",
+                CastResult.Unreachable => "no way there",
+                CastResult.NoPriest => "all priests are busy",
+                _ => "this people knows no spell",
+            };
+            return;
+        }
+
         float alpha = TickAlpha;
         var world = Vector2.Transform(screen, Matrix.Invert(View));
         // Settler sprites stand above their anchor; compare with the body center.
@@ -527,10 +582,13 @@ public sealed class MapGame : Game
             .Select(t => t.Settler)
             .FirstOrDefault();
         // Own soldiers, geologists and idle carriers can be selected; other trades not at all.
+        // Shift adds to the selection (by priority, if the kinds differ) instead of replacing it.
+        bool adding = ShiftDown(Keyboard.GetState());
         if (hit is { Player: 0 } && Selectable(hit))
         {
+            var selection = ByPriority(adding ? _group.Append(hit) : [hit]);
             _group.Clear();
-            _group.Add(hit);
+            _group.AddRange(selection);
             _selected = null;
             _selectedBuilding = null;
             _message = SelectionHint();
@@ -546,7 +604,9 @@ public sealed class MapGame : Game
             return;
         }
 
-        // The selection gets its orders by right click; a left click elsewhere deselects it.
+        // The selection gets its orders by right click; a left click elsewhere deselects it (not with Shift).
+        if (_group.Count > 0 && adding)
+            return;
         if (_group.Count > 0)
         {
             _group.Clear();
@@ -577,14 +637,39 @@ public sealed class MapGame : Game
         _message = _world.WalkTo(_selected, target) ? $"walking to {target.X},{target.Y}" : "unreachable";
     }
 
-    /// <summary>Own settlers that can be selected: soldiers, geologists and carriers with nothing to do.</summary>
+    /// <summary>Selects the members of a group that can be selected now (not inside a building).</summary>
+    private void SelectGroup(int index)
+    {
+        _group.Clear();
+        _group.AddRange(_controlGroups.Members(index).Where(s => !s.IsInside && Selectable(s)));
+        _selected = null;
+        _selectedBuilding = null;
+        _message = _group.Count > 0 ? SelectionHint() : $"group {index + 1}: nobody to select";
+    }
+
+    /// <summary>Selection by priority: the soldiers among the settlers if there are any, else the geologists, else the carriers.</summary>
+    private static List<Settler> ByPriority(IEnumerable<Settler> settlers)
+    {
+        var list = settlers.Distinct().ToList();
+        foreach (var profession in new[] { Profession.Soldier, Profession.Priest, Profession.Geologist, Profession.Carrier })
+            if (list.Where(s => s.Profession == profession).ToList() is { Count: > 0 } chosen)
+                return chosen;
+        return [];
+    }
+
+    private static bool ShiftDown(KeyboardState keys) => keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift);
+
+    /// <summary>Own settlers that can be selected: soldiers, priests, geologists and carriers with nothing to do.</summary>
     private static bool Selectable(Settler s) =>
-        s.Profession is Profession.Soldier or Profession.Geologist || s.IsAvailableCarrier;
+        s.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist || s.IsAvailableCarrier;
 
     private List<Settler> SelectedSoldiers() => _group.Where(s => s.Profession == Profession.Soldier).ToList();
 
     /// <summary>A building is selected: the menu at the left shows what there is to know about it.</summary>
-    private bool ShowsBuildingInfo => _selectedBuilding is { Exists: true } && !_placing && !CarriersSelected;
+    private bool ShowsBuildingInfo => _selectedBuilding is { Exists: true } && !_placing && !CarriersSelected && !PriestsSelected;
+
+    /// <summary>Only priests are selected: the menu at the left offers their spell.</summary>
+    private bool PriestsSelected => _group.Count > 0 && _group.All(s => s.Profession == Profession.Priest);
 
     /// <summary>Only carriers are selected: the menu at the left offers what they can become.</summary>
     private bool CarriersSelected => _group.Count > 0 && _group.All(s => s.Profession == Profession.Carrier);
@@ -593,6 +678,7 @@ public sealed class MapGame : Game
     {
         Profession.Soldier => $"{_group.Count} soldiers selected (right click: go there / attack, left click: deselect)",
         Profession.Geologist => $"{_group.Count} geologists selected (right click on a mountain: search there)",
+        Profession.Priest => $"{_group.Count} priests selected (menu at the left: cast the spell, right click: go there)",
         _ => $"{_group.Count} carriers selected (menu at the left: convert them)",
     };
 
@@ -613,14 +699,21 @@ public sealed class MapGame : Game
     /// </summary>
     private void Command(Vector2 screen)
     {
-        // Right click while placing: no building chosen any more.
-        if (_placing)
+        // Right click while placing (or aiming): no building (spell) chosen any more.
+        if (_placing || _aiming)
         {
-            _placing = false;
+            _placing = _aiming = false;
             _message = "";
             return;
         }
         var clicked = ScreenToGrid(screen);
+        var priests = _group.Where(s => s.Profession == Profession.Priest && !_world.Magic.IsBusy(s)).ToList();
+        if (priests.Count > 0)
+        {
+            int walking = priests.Count(p => _world.WalkTo(p, clicked));
+            _message = walking > 0 ? $"{walking} priests to {clicked.X},{clicked.Y}" : "no way there";
+            return;
+        }
         var geologists = _group.Where(s => s.Profession == Profession.Geologist).ToList();
         if (geologists.Count > 0)
         {
@@ -647,7 +740,7 @@ public sealed class MapGame : Game
 
     /// <summary>
     /// Selects the own settlers (outside buildings) inside the box between two screen points: the
-    /// soldiers if there are any, else the geologists, else the carriers.
+    /// soldiers if there are any, else the geologists, else the carriers. With Shift they join the selection.
     /// </summary>
     private void SelectInBox(Vector2 from, Vector2 to)
     {
@@ -661,13 +754,10 @@ public sealed class MapGame : Game
             .Where(s => SettlerRenderer.Anchor(s, _terrain, alpha) - new Vector2(0, 10) is var p
                         && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y)
             .ToList();
+        // Shift adds to the selection.
+        var selection = ByPriority(ShiftDown(Keyboard.GetState()) ? _group.Concat(inBox) : inBox);
         _group.Clear();
-        foreach (var profession in new[] { Profession.Soldier, Profession.Geologist, Profession.Carrier })
-            if (inBox.Where(s => s.Profession == profession).ToList() is { Count: > 0 } chosen)
-            {
-                _group.AddRange(chosen);
-                break;
-            }
+        _group.AddRange(selection);
         _selected = null;
         _selectedBuilding = null;
         _message = SelectionHint();
@@ -799,6 +889,7 @@ public sealed class MapGame : Game
             DrawSelectionMarker(settler, alpha);
         if (_dragStart is { } boxStart && !_placing)
             DrawSelectionBox(boxStart, Mouse.GetState().Position.ToVector2());
+        DrawMagic(alpha);
         if (_placing && !BuildMenu.Contains(Mouse.GetState().Position.ToVector2()))
         {
             var at = ScreenToGrid(Mouse.GetState().Position.ToVector2());
@@ -812,9 +903,14 @@ public sealed class MapGame : Game
         _spriteBatch.End();
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, _font, _settlerRenderer, Own.Civilization, _group,
+            Mouse.GetState().Position.ToVector2());
         if (ShowsBuildingInfo)
             _buildingInfo.Draw(_spriteBatch, _pixel, viewport.Height, _font, _economyRenderer, _world, _selectedBuilding!, 0,
                 Mouse.GetState().Position.ToVector2());
+        else if (PriestsSelected)
+            _spellMenu.Draw(_spriteBatch, _pixel, viewport.Height, _font, _settlerRenderer, Own.Civilization, _world.Magic.SpellOf(0),
+                _world.Magic.Mana(0), _aiming, Mouse.GetState().Position.ToVector2());
         else if (CarriersSelected)
             _conversionMenu.Draw(_spriteBatch, _pixel, viewport.Height, _settlerRenderer, Own.Civilization, Mouse.GetState().Position.ToVector2());
         else
@@ -825,6 +921,55 @@ public sealed class MapGame : Game
             Capture(target);
 
         base.Draw(gameTime);
+    }
+
+    /// <summary>
+    /// Spells: the area while aiming (white where there is a fight, red elsewhere), a ring in the spell's
+    /// color where one took effect, and a mark above frozen (blue) and hasted (orange) soldiers.
+    /// </summary>
+    private void DrawMagic(float alpha)
+    {
+        int radius = _world.Magic.Config.Radius;
+        if (_aiming && !BuildMenu.Contains(Mouse.GetState().Position.ToVector2()))
+        {
+            var target = ScreenToGrid(Mouse.GetState().Position.ToVector2());
+            DrawRing(target, radius, _world.Magic.IsFight(target) ? Color.White : Color.Red);
+        }
+        foreach (var effect in _world.Magic.Effects)
+        {
+            float age = (_world.Tick - effect.Tick + alpha) / SpellEffect.ShowTicks;
+            var color = effect.Kind switch
+            {
+                SpellKind.Convert => Color.Gold,
+                SpellKind.Haste => Color.OrangeRed,
+                SpellKind.Freeze => Color.DeepSkyBlue,
+                _ => Color.MediumPurple,
+            };
+            DrawRing(effect.Target, Math.Max(1, (int)Math.Round(effect.Radius * Math.Min(1, age * 2))), color * (1 - age));
+        }
+        foreach (var settler in _world.Settlers)
+        {
+            if (settler.IsInside)
+                continue;
+            var mark = settler.FrozenUntil > _world.Tick ? Color.DeepSkyBlue : settler.HastedUntil > _world.Tick ? Color.OrangeRed : (Color?)null;
+            if (mark is { } c)
+            {
+                var anchor = SettlerRenderer.Anchor(settler, _terrain, alpha);
+                _spriteBatch.Draw(_pixel, new Rectangle((int)anchor.X - 2, (int)anchor.Y - 36, 5, 5), c);
+            }
+        }
+    }
+
+    /// <summary>Dots on the points at <paramref name="radius"/> from <paramref name="center"/>.</summary>
+    private void DrawRing(GridPoint center, int radius, Color color)
+    {
+        foreach (var p in PathFinder.Circle(center, radius + 1))
+        {
+            if (!_gameMap.Contains(p) || PathFinder.InCircle(center, p, radius - 1) || !PathFinder.InCircle(center, p, radius))
+                continue;
+            var position = ToWorld(p);
+            _spriteBatch.Draw(_pixel, new Rectangle((int)position.X - 2, (int)position.Y - 2, 4, 4), color);
+        }
     }
 
     /// <summary>Dots along the remaining path of a settler.</summary>
@@ -912,12 +1057,55 @@ public sealed class MapGame : Game
         }
     }
 
+    /// <summary>
+    /// HOMESTEAD_CAPTURE_MAGIC=1: a big temple and the own people's mana chain next to the start, mana,
+    /// a fight nearby, and the priest casts its spell there.
+    /// </summary>
+    private void CaptureMagic(int frame)
+    {
+        var battle = _world.Buildings.FirstOrDefault(b => b.Definition.Name == "big_temple") is { } temple
+            ? temple.Position + new GridPoint(8, 6)
+            : new GridPoint(_start.X + 16, _start.Y + 8);
+        if (frame == 1)
+        {
+            // Before the demo economy takes the room.
+            var chain = Own.Civilization switch
+            {
+                Civilization.Roman => new[] { "big_temple", "winegrower", "temple" },
+                Civilization.Asian => ["big_temple", "rice_farm", "distillery", "temple"],
+                Civilization.Egyptian => ["big_temple", "brewery", "temple"],
+                _ => ["big_temple", "beekeeping", "mead_brewery", "temple"],
+            };
+            for (int i = 0; i < chain.Length; i++)
+                Console.WriteLine($"magic: {chain[i]} " + (DemoEconomy.PlaceNear(_world, Own[chain[i]], new GridPoint(_start.X - 12 + i * 8, _start.Y - 12), _random) is { } b
+                    ? $"at {b.Position.X},{b.Position.Y}" : "does not fit"));
+            _world.Magic.AddMana(0, 100);
+        }
+        else if (frame == 200)
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                _world.SpawnSoldier(new GridPoint(battle.X - 1, battle.Y - 5 + i), SoldierType.Swordsman, level: 3);
+                _world.SpawnSoldier(new GridPoint(battle.X + 1, battle.Y - 5 + i), SoldierType.Swordsman, level: 3, player: 1);
+            }
+            _camera = ToWorld(battle);
+        }
+        else if (frame == 240)
+        {
+            _group.Clear();
+            _group.AddRange(_world.Settlers.Where(s => s.Player == 0 && s.Profession == Profession.Priest));
+            Console.WriteLine($"magic: {_group.Count} priests, mana {_world.Magic.Mana(0)}, cast: {_world.Magic.Cast(_group, battle)}");
+        }
+    }
+
     private void Capture(RenderTarget2D target)
     {
         GraphicsDevice.SetRenderTarget(null);
         // HOMESTEAD_CAPTURE_STRIKE=1: the focused building comes down (dust), carriers without room strike.
         bool strike = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_STRIKE") == "1";
-        if (_capturedFrames % 120 == 119 || strike && _capturedFrames is 1202 or 1206)
+        bool magic = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MAGIC") == "1";
+        if (_capturedFrames % 120 == 119 || strike && _capturedFrames is 1202 or 1206
+            || magic && _world.Magic.Effects.Count > 0 && _capturedFrames % 6 == 0)
         {
             using var stream = File.Create(Path.Combine(_captureDirectory!, $"{_map.Name}_{_capturedFrames:D4}.png"));
             target.SaveAsPng(stream, target.Width, target.Height);
@@ -926,6 +1114,8 @@ public sealed class MapGame : Game
 
         if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_GEOLOGISTS") == "1")
             CaptureGeologists(_capturedFrames + 1);
+        if (magic)
+            CaptureMagic(_capturedFrames + 1);
         switch (++_capturedFrames)
         {
             case 1:
@@ -976,6 +1166,7 @@ public sealed class MapGame : Game
                                   $"residents {_world.Housing.Released}, room {_world.Housing.Room(0)} for {_world.Housing.Needing(0)}, striking {_world.Housing.Striking(0)}, settlers {_world.Settlers.Count}; diggers {_world.Settlers.Count(s => s.Profession == Profession.Digger)}, builders {_world.Settlers.Count(s => s.Profession == Profession.Builder)}; problems: " +
                                   string.Join(", ", production.Problems.Select(kv => $"{kv.Key} {kv.Value}x")));
                 var carriers = _world.Settlers.Where(c => c.IsCarrier && !c.IsInside).ToList();
+                Console.WriteLine($"magic: mana {_world.Magic.Mana(0)}, priests sent {_world.Magic.PriestsSent}, spells {_world.Magic.SpellsCast}");
                 Console.WriteLine($"carriers {carriers.Count}: with a task {carriers.Count(c => c.HasTask)}, strolling {carriers.Count(c => c.IsStrolling)}, " +
                                   $"idle on building ground {carriers.Count(c => !c.HasTask && !c.IsStrolling && c.Destination is null && !_world.IsFreeGround(c.Position))}");
                 foreach (var building in _world.Buildings.Where(b => b.Exists && b.Player == 0))

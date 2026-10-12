@@ -19,6 +19,9 @@ public static class MapObjectCatalog
     private const int SmallTreeSequence = 22;
     private const int ResourceStoneSequence = 31;
     private const int GrainSequence = 23;       // 0-7 growing to ripe (JSettlers' MapObjectDrawer, MIT)
+    private const int RiceSequence = 24;        // 0-5 growing (seen in the file)
+    private const int WineSequence = 25;        // 0 dead, 1-2 growing, 3 with grapes (JSettlers' MapObjectDrawer, MIT)
+    private const int FirstFlower = 15;         // flowers 1-3 in the decoration sequence (codes 50-52)
 
     public static MapObjectSprite? Resolve(byte code) => code switch
     {
@@ -38,6 +41,13 @@ public static class MapObjectCatalog
         >= 111 and <= 114 => new(SmallStoneSequence, code - 111 + 8, false),
         // Grain fields: Homestead's own codes (see MapObjectCodes), one image per growing stage.
         >= 200 and <= 207 => new(GrainSequence, code - 200, false),
+        >= 208 and <= 210 => new(WineSequence, code - 207, false),
+        211 => new(RiceSequence, 1, false),
+        212 => new(RiceSequence, 2, false),
+        213 => new(RiceSequence, 4, false),
+        214 => new(RiceSequence, 5, false),
+        // Beehives: no image found yet; flowers stand in for them.
+        >= 215 and <= 218 => new(DecorationSequence, FirstFlower + Math.Min(2, code - 215), false),
         // 192 occurs often but is unknown; 85-110 never occur.
         _ => null,
     };

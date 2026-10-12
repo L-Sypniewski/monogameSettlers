@@ -11,14 +11,32 @@ public enum GatherAction
     Fish,
     DrawWater,
 
-    /// <summary>Harvest ripe grain, otherwise sow a new field.</summary>
+    /// <summary>Harvest a ripe field of the gatherer's crop (grain, vines, rice, beehives), otherwise sow a new one.</summary>
     Farm,
+}
+
+/// <summary>
+/// Something a farm-like gatherer sows and harvests: object codes <see cref="First"/> (just sown) up to
+/// <see cref="Ripe"/>, growing in <see cref="GrowTicks"/> on the given <see cref="Ground"/>. A crop that
+/// <see cref="Regrows"/> starts over after the harvest (vines, beehives) instead of leaving free ground.
+/// With <see cref="SlopeBonus"/> it grows faster on slopes: up to (1 + bonus) times as fast where the
+/// height to a neighbor differs by <see cref="SlopeHeight"/> or more.
+/// </summary>
+public sealed record CropRecipe(byte First, byte Ripe, int GrowTicks, IReadOnlySet<TerrainType> Ground, bool Regrows = false,
+    double SlopeBonus = 0, int SlopeHeight = 4)
+{
+    public bool Contains(byte code) => code >= First && code <= Ripe;
+
+    public static readonly CropRecipe Grain = new(MapObjectCodes.FirstGrain, MapObjectCodes.RipeGrain, 100 * World.TicksPerSecond,
+        new HashSet<TerrainType> { TerrainType.Grass });
 }
 
 public sealed record WorkshopRecipe(IReadOnlyList<Material> Inputs, IReadOnlyList<Material> Outputs, int Ticks);
 
 /// <param name="PickupTicks">Pause between finishing the work and picking up the result (the woodcutter after felling).</param>
-public sealed record GathererRecipe(GatherAction Action, Material? Output, int WorkTicks, int RestTicks, int PickupTicks = 0);
+/// <param name="Crop">Farm: what is sown and harvested (see <see cref="ProductionConfig.Crops"/>).</param>
+public sealed record GathererRecipe(GatherAction Action, Material? Output, int WorkTicks, int RestTicks, int PickupTicks = 0,
+    string Crop = "grain");
 
 /// <summary>
 /// A mine: takes ore from the ground within <see cref="Radius"/> of the building. A unit of food (any
@@ -56,8 +74,15 @@ public sealed record ProductionConfig
     public int StumpTicks { get; init; } = 60 * World.TicksPerSecond;
     public required int StonesPerCut { get; init; }
 
-    /// <summary>Time from sowing to ripe grain.</summary>
-    public int GrainGrowTicks { get; init; } = 100 * World.TicksPerSecond;
+    /// <summary>Crops of the farm-like gatherers by name (grain, wine, rice, honey).</summary>
+    public IReadOnlyDictionary<string, CropRecipe> Crops { get; init; } = new Dictionary<string, CropRecipe> { ["grain"] = CropRecipe.Grain };
+
+    /// <summary>The crop a field code belongs to, if any.</summary>
+    public CropRecipe? CropOf(byte code) => Crops.Values.FirstOrDefault(c => c.Contains(code));
+
+    /// <summary>A copy with another grow time for one crop (tests).</summary>
+    public ProductionConfig WithCropGrowTicks(string crop, int ticks) =>
+        this with { Crops = Crops.ToDictionary(c => c.Key, c => c.Key == crop ? c.Value with { GrowTicks = ticks } : c.Value) };
 
     /// <summary>Ore units a mine gets per amount step of a field (original maps: 0-15 per field).</summary>
     public int OrePerAmount { get; init; } = 1;
@@ -80,6 +105,9 @@ public sealed record ProductionConfig
     /// <summary>How geologists search (see <see cref="Geology"/>).</summary>
     public GeologistRules Geologists { get; init; } = new(10, 3 * World.TicksPerSecond, 2 * World.TicksPerSecond,
         4 * 60 * World.TicksPerSecond, 9 * 60 * World.TicksPerSecond);
+
+    /// <summary>Units of food one food pile of a mine holds.</summary>
+    public int MineFoodPileCapacity { get; init; } = Materials.MaxPileSize;
 
     /// <summary>Units one storehouse pile holds (a storehouse has six piles).</summary>
     public int StoragePileCapacity { get; init; } = Materials.MaxPileSize;
@@ -140,7 +168,22 @@ public sealed record ProductionConfig
                 Enum.Parse<GatherAction>(g.Value.GetProperty("action").GetString()!),
                 g.Value.TryGetProperty("output", out var output) ? Materials.Parse(output.GetString()!) : null,
                 Ticks(g.Value, "workSeconds"), Ticks(g.Value, "restSeconds"),
-                g.Value.TryGetProperty("pickupSeconds", out _) ? Ticks(g.Value, "pickupSeconds") : 0));
+                g.Value.TryGetProperty("pickupSeconds", out _) ? Ticks(g.Value, "pickupSeconds") : 0,
+                g.Value.TryGetProperty("crop", out var crop) ? crop.GetString()! : "grain"));
+        var codes = new Dictionary<string, (byte First, byte Ripe)>
+        {
+            ["grain"] = (MapObjectCodes.FirstGrain, MapObjectCodes.RipeGrain),
+            ["wine"] = (MapObjectCodes.FirstWine, MapObjectCodes.RipeWine),
+            ["rice"] = (MapObjectCodes.FirstRice, MapObjectCodes.RipeRice),
+            ["honey"] = (MapObjectCodes.FirstHive, MapObjectCodes.FullHive),
+        };
+        var crops = root.GetProperty("crops").EnumerateObject().Where(c => !c.Name.StartsWith('_')).ToDictionary(
+            c => c.Name,
+            c => new CropRecipe(codes[c.Name].First, codes[c.Name].Ripe, Ticks(c.Value, "growSeconds"),
+                c.Value.GetProperty("ground").EnumerateArray().Select(t => Enum.Parse<TerrainType>(t.GetString()!)).ToHashSet(),
+                c.Value.TryGetProperty("regrows", out var regrows) && regrows.GetBoolean(),
+                c.Value.TryGetProperty("slopeBonus", out var slope) ? slope.GetDouble() : 0,
+                c.Value.TryGetProperty("slopeHeight", out var slopeHeight) ? slopeHeight.GetInt32() : 4));
         var mineFood = root.GetProperty("mineFood");
         var mines = root.GetProperty("mines").EnumerateObject().Where(m => !m.Name.StartsWith('_')).ToDictionary(
             m => m.Name,
@@ -173,6 +216,7 @@ public sealed record ProductionConfig
             Smiths = smiths,
             Tools = tools,
             StoragePileCapacity = root.GetProperty("storage").GetProperty("pileCapacity").GetInt32(),
+            MineFoodPileCapacity = mineFood.TryGetProperty("pileCapacity", out var foodPile) ? foodPile.GetInt32() : Materials.MaxPileSize,
             KeptCarriers = root.GetProperty("recruitment").GetProperty("keptCarriers").GetDouble(),
             BuildingMargin = root.GetProperty("placement").GetProperty("margin").GetInt32(),
             StoredMaterials = root.GetProperty("storage").GetProperty("materials").EnumerateArray()
@@ -181,7 +225,7 @@ public sealed record ProductionConfig
             ResidentIntervalTicks = Ticks(housing, "intervalSeconds"),
             TreeGrowTicks = Ticks(root.GetProperty("trees"), "growSeconds"),
             StumpTicks = root.GetProperty("trees").TryGetProperty("stumpSeconds", out _) ? Ticks(root.GetProperty("trees"), "stumpSeconds") : 60 * World.TicksPerSecond,
-            GrainGrowTicks = Ticks(root.GetProperty("grain"), "growSeconds"),
+            Crops = crops,
             StonesPerCut = root.GetProperty("stones").GetProperty("stonesPerCut").GetInt32(),
             OrePerAmount = resources.GetProperty("orePerAmount").GetInt32(),
             FishPerAmount = resources.GetProperty("fishPerAmount").GetInt32(),

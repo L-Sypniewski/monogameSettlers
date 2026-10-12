@@ -92,9 +92,41 @@ public class FoodAndMiningTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Waterworks_draws_water()
+    public void A_mine_takes_at_most_four_units_of_each_food()
+    {
+        var map = new GameMap(70);
+        map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 8);
+        var world = new World(map, TestConfig.NoTools with { MineFoodPileCapacity = 4 });
+        var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
+        world.AddLooseGoods(new GridPoint(10, 50), Material.Bread, 8);
+        Spawn(world, Profession.Carrier, 4, new GridPoint(20, 20));
+
+        Run(world, 3_000);
+
+        var bread = mine.Piles.Single(p => p.Material == Material.Bread);
+        Assert.Equal(4, bread.Capacity);
+        Assert.True(bread.Count <= 4);
+        Assert.True(Total(world, Material.Bread) - bread.Count >= 3, "the rest stays outside the mine (the miner eats one)");
+    }
+
+    [Fact]
+    public void Waterworks_draws_water_from_the_river_not_the_lake()
     {
         var map = LakeMap(70, fishAmount: 0);
+        var world = new World(map, TestConfig.NoTools);
+        world.PlaceBuilding(Romans["waterworks"], 0, new GridPoint(40, 45));
+        world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 25));
+        Spawn(world, Profession.Carrier, 3, new GridPoint(45, 40));
+
+        Run(world, 3_000);
+
+        Assert.Equal(0, world.Production.WaterDrawn);
+    }
+
+    [Fact]
+    public void Waterworks_draws_water()
+    {
+        var map = LakeMap(70, fishAmount: 0, river: true);
         var world = new World(map, TestConfig.NoTools);
         world.PlaceBuilding(Romans["waterworks"], 0, new GridPoint(40, 45));
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 25))!;
@@ -109,7 +141,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
     public void Farmer_sows_grain_that_ripens_and_harvests_it()
     {
         var map = new GameMap(70);
-        var world = new World(map, TestConfig.NoTools with { GrainGrowTicks = 700 });
+        var world = new World(map, TestConfig.NoTools.WithCropGrowTicks("grain", 700));
         var farm = world.PlaceBuilding(Romans["farm"], 0, new GridPoint(30, 20))!;
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(55, 25))!;
         Spawn(world, Profession.Carrier, 3, new GridPoint(45, 40));
@@ -128,7 +160,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
     [Fact]
     public void Food_chain_feeds_a_coal_mine()
     {
-        var map = LakeMap(110, fishAmount: 0);
+        var map = LakeMap(110, fishAmount: 0, river: true);
         for (int dy = -3; dy <= 3; dy++)
         for (int dx = -3; dx <= 3; dx++)
             map.SetResource(new GridPoint(80 + dx, 80 + dy), ResourceType.Coal, 8);
@@ -148,14 +180,22 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         Assert.True(Count(stock, Material.Coal) >= 3);
     }
 
-    /// <summary>Grass map with a lake (x 5-24, y 30-69) holding fish of the given amount.</summary>
-    private static GameMap LakeMap(int size, int fishAmount)
+    /// <summary>
+    /// Grass map with a lake (x 5-24, y 30-69) holding fish of the given amount; with
+    /// <paramref name="river"/> a river runs along its east shore (x 25-26).
+    /// </summary>
+    private static GameMap LakeMap(int size, int fishAmount, bool river = false)
     {
         var map = new GameMap(size);
         for (int y = 30; y < 70; y++)
-        for (int x = 5; x < 25; x++)
+        for (int x = 5; x < (river ? 27 : 25); x++)
         {
             var p = new GridPoint(x + y / 2 - 15, y); // keep the lake upright on screen
+            if (x >= 25)
+            {
+                map.SetTerrain(p, TerrainType.River);
+                continue;
+            }
             map.SetTerrain(p, TerrainType.Water);
             map.SetResource(p, ResourceType.Fish, fishAmount);
         }

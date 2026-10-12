@@ -15,11 +15,15 @@ internal sealed class MapSurvey
     private readonly GameMap _map;
     private readonly int _player;
 
+    /// <summary>Ground rice grows on (see the crops in production.json).</summary>
+    private readonly IReadOnlySet<TerrainType> _swamp;
+
     public MapSurvey(World world, int player)
     {
         _world = world;
         var map = _map = world.Map!;
         _player = player;
+        _swamp = world.Production.Config.Crops.TryGetValue("rice", out var rice) ? rice.Ground : new HashSet<TerrainType>();
         CellsPerSide = (map.Size + CellSize - 1) / CellSize;
         Cells = new Cell[CellsPerSide * CellsPerSide];
         for (int i = 0; i < Cells.Length; i++)
@@ -62,6 +66,7 @@ internal sealed class MapSurvey
             byte code = _map.ObjectCodeAt(p);
             var terrain = _map.TerrainAt(p);
             bool water = terrain is TerrainType.Water or TerrainType.River;
+            bool swamp = _swamp.Contains(terrain);
             var (type, amount) = _map.ResourceAt(p);
             int trees = MapObjectCodes.IsAdultTree(code) ? 1 : 0;
             int stone = MapObjectCodes.StoneLeft(code);
@@ -77,6 +82,10 @@ internal sealed class MapSurvey
                 target.Fish += fish;
                 if (water)
                     target.Water++;
+                if (terrain == TerrainType.River)
+                    target.River++;
+                if (swamp && code == MapObjectCodes.None)
+                    target.Swamp++;
                 if (ore > 0)
                     target.Ore[(int)type] += ore;
                 if (_map.IsWalkable(p) && !water)
@@ -109,7 +118,14 @@ internal sealed class MapSurvey
         public int Buildable { get; set; }
         public int Trees { get; set; }
         public int StoneUnits { get; set; }
+        /// <summary>Water of any kind (sea, lakes and rivers).</summary>
         public int Water { get; set; }
+
+        /// <summary>River points: waterworks draw from these only.</summary>
+        public int River { get; set; }
+
+        /// <summary>Free swampy ground where rice grows.</summary>
+        public int Swamp { get; set; }
         public int Fish { get; set; }
         public int[] Ore { get; } = new int[ResourceTypes];
 
@@ -118,7 +134,7 @@ internal sealed class MapSurvey
         public void Clear()
         {
             Anchor = null;
-            Own = Foreign = Walkable = Buildable = Trees = StoneUnits = Water = Fish = 0;
+            Own = Foreign = Walkable = Buildable = Trees = StoneUnits = Water = River = Swamp = Fish = 0;
             Array.Clear(Ore);
         }
     }

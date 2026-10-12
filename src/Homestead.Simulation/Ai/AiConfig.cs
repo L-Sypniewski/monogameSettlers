@@ -21,6 +21,13 @@ public sealed record AiConfig
 
     public required AttackRules Attack { get; init; }
 
+    /// <summary>Priests (see <c>magic</c> in ai.json).</summary>
+    public MagicRules Magic { get; init; } = new(6, 3);
+
+    /// <param name="PriestDistance">How far behind the soldiers (towards home) priests stay.</param>
+    /// <param name="MinTargets">A spell is cast where it hits at least this many soldiers.</param>
+    public sealed record MagicRules(int PriestDistance, int MinTargets);
+
     /// <summary>Campaigns against enemy military buildings (see <c>attack</c> in ai.json).</summary>
     public sealed record AttackRules(double Ratio, int DefenseRadius, int PathClearance, int GatherTicks, int MinSoldiers);
     public required int MaxSites { get; init; }
@@ -55,6 +62,12 @@ public sealed record AiConfig
     public required int SpareSoldiersForLand { get; init; }
     public required int LandStock { get; init; }
 
+    /// <summary>
+    /// Largest share of water among the unclaimed points a new tower would take. Spots above it are passed
+    /// over; for a needed resource the spot with the least water is taken if none is below.
+    /// </summary>
+    public double MaxWaterShare { get; init; } = 0.4;
+
     public static AiConfig Load(string? dataDirectory = null, Civilization? civilization = null)
     {
         string path = Path.Combine(dataDirectory ?? BuildingCatalog.DefaultDataDirectory, "ai.json");
@@ -84,6 +97,9 @@ public sealed record AiConfig
                 military.GetProperty("threatRange").GetInt32(),
                 military.GetProperty("guardDistance").GetInt32(),
                 military.TryGetProperty("retreatRatio", out var retreat) ? retreat.GetDouble() : 1.0),
+            Magic = root.TryGetProperty("magic", out var magic)
+                ? new MagicRules(magic.GetProperty("priestDistance").GetInt32(), magic.GetProperty("minTargets").GetInt32())
+                : new MagicRules(6, 3),
             MaxTowerSites = root.GetProperty("maxTowerSites").GetInt32(),
             FreeCarriers = root.GetProperty("freeCarriers").GetInt32(),
             House = root.GetProperty("house").GetString()!,
@@ -104,6 +120,7 @@ public sealed record AiConfig
             MinTrees = expansion.GetProperty("minTrees").GetInt32(),
             SpareSoldiersForLand = expansion.GetProperty("spareSoldiersForLand").GetInt32(),
             LandStock = expansion.GetProperty("landStock").GetInt32(),
+            MaxWaterShare = expansion.TryGetProperty("maxWaterShare", out var waterShare) ? waterShare.GetDouble() : 0.4,
             Ores = expansion.GetProperty("ores").EnumerateArray().Select(o => Enum.Parse<ResourceType>(o.GetString()!)).ToArray(),
         };
     }

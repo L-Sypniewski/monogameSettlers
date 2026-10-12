@@ -80,10 +80,11 @@ void Print(World world, long tick)
         int Stock(Material m) => world.Piles.Where(x => x.Material == m && x.Role != PileRole.Request && world.BelongsTo(x, p)).Sum(x => x.Count);
         var kinds = own.Where(b => b.State == BuildingState.Finished).GroupBy(b => b.Definition.Name)
             .OrderBy(g => g.Key).Select(g => g.Count() > 1 ? $"{g.Key} {g.Count()}" : g.Key);
-        Console.WriteLine($"   P{p + 1}: land {ai.Land} (free {ai.FreeLand}), {finished} buildings + {own.Count - finished} sites, " +
+        Console.WriteLine($"   P{p + 1}: land {ai.Land} (free {ai.FreeLand}, water {100 * ai.WaterLand / Math.Max(1, ai.Land)}%), {finished} buildings + {own.Count - finished} sites, " +
                           $"settlers {settlers.Count} (carriers {settlers.Count(s => s.Profession == Profession.Carrier)}, soldiers {settlers.Count(s => s.Profession == Profession.Soldier)}), " +
                           $"room {world.Housing.Room(p)} for {world.Housing.Needing(p)} (striking {world.Housing.Striking(p)}), " +
-                          $"plank {Stock(Material.Plank)} stone {Stock(Material.Stone)} coal {Stock(Material.Coal)} iron {Stock(Material.Iron)}");
+                          $"plank {Stock(Material.Plank)} stone {Stock(Material.Stone)} coal {Stock(Material.Coal)} iron {Stock(Material.Iron)}, " +
+                          $"mana {world.Magic.Mana(p)}, priests {settlers.Count(s => s.Profession == Profession.Priest)}");
         Console.WriteLine($"       {string.Join(", ", kinds)}");
         foreach (var site in own.Where(b => b.State != BuildingState.Finished && tick - siteSince[b.Id] >= 10 * 60 * World.TicksPerSecond))
             Console.WriteLine($"       STUCK for {(tick - siteSince[site.Id]) / World.TicksPerSecond / 60} min: {site.Definition.Name} at {site.Position.X},{site.Position.Y}: {world.StatusOf(site)}");

@@ -68,6 +68,9 @@ public sealed partial class AiPlayer
     /// <summary>Free building land on the own land at the last survey.</summary>
     public int FreeLand => _survey.Own.Buildable;
 
+    /// <summary>Water (sea, lakes, rivers) on the own land at the last survey.</summary>
+    public int WaterLand => _survey.Own.Water;
+
     internal void Tick()
     {
         if ((_world.Tick + Player * 7) % _config.ThinkTicks != 0)
@@ -88,6 +91,7 @@ public sealed partial class AiPlayer
         mine.RemoveAll(b => !b.Exists);
         FollowStrikes(mine);
         FollowCampaign();
+        LeadPriests();
         if (_world.Tick >= _nextMilitary)
         {
             Command(mine);
@@ -126,7 +130,7 @@ public sealed partial class AiPlayer
                 NoteOnce(name, $"cannot build {name}: nothing to work on in own land");
                 continue; // the expansion goes for it
             }
-            if (Place(definition, anchor) is { } site)
+            if ((Place(definition, anchor) ?? PlaceWhereRoomy(definition)) is { } site)
             {
                 _reported.Remove(name);
                 Note($"builds {name} at {site.Position.X},{site.Position.Y}");
@@ -269,7 +273,8 @@ public sealed partial class AiPlayer
             "lumberjack" => BestOwnCell(c => c.Trees, mine, name, spacing: 10),
             "stonecutter" => BestOwnCell(c => c.StoneUnits, mine, name, spacing: 10),
             "fisher" => BestOwnCell(c => c.Fish, mine, name, spacing: 10),
-            "waterworks" => BestOwnCell(c => c.Water, mine, name, spacing: 6),
+            "waterworks" => BestOwnCell(c => c.River, mine, name, spacing: 6),
+            "rice_farm" => BestOwnCell(c => c.Swamp, mine, name, spacing: 12),
             "forester" => mine.Where(b => b.Definition.Name == "lumberjack")
                               .OrderBy(l => mine.Count(f => f.Definition.Name == "forester" && PathFinder.Distance(f.Position, l.Position) < 12))
                               .Select(l => (GridPoint?)l.Position).FirstOrDefault() ?? _home!.Position,
@@ -316,7 +321,7 @@ public sealed partial class AiPlayer
 
     /// <summary>Buildings that go where their resource is, not where their chain is.</summary>
     private bool IsResourceBound(string name) =>
-        _world.Production.Config.Mines.ContainsKey(name) || name is "lumberjack" or "stonecutter" or "fisher" or "waterworks" or "forester";
+        _world.Production.Config.Mines.ContainsKey(name) || name is "lumberjack" or "stonecutter" or "fisher" or "waterworks" or "forester" or "rice_farm";
 
     /// <summary>
     /// Own cell with the most of something (closer to home counts more); cells next to a building of
@@ -332,6 +337,23 @@ public sealed partial class AiPlayer
             .OrderByDescending(x => x.Score)
             .FirstOrDefault();
         return best.Cell?.Center;
+    }
+
+    private readonly Dictionary<string, long> _nextRoomySearch = new();
+
+    /// <summary>
+    /// No spot near the chain (big buildings in a crowded town): the own cells with the most free land
+    /// are tried, at most once a minute per building, as it takes a while.
+    /// </summary>
+    private Building? PlaceWhereRoomy(BuildingDefinition definition)
+    {
+        if (IsResourceBound(definition.Name) || _world.Tick < _nextRoomySearch.GetValueOrDefault(definition.Name))
+            return null;
+        _nextRoomySearch[definition.Name] = _world.Tick + 60 * World.TicksPerSecond;
+        foreach (var cell in _survey.Cells.Where(c => c.Own > 0).OrderByDescending(c => c.OwnPart!.Buildable).Take(5))
+            if (Place(definition, cell.Center) is { } site)
+                return site;
+        return null;
     }
 
     /// <summary>A construction site on the free own-land spot nearest the anchor that suits the building.</summary>
@@ -375,9 +397,14 @@ public sealed partial class AiPlayer
             "lumberjack" => Around(p, 10, q => MapObjectCodes.IsAdultTree(map.ObjectCodeAt(q)) ? 1 : 0) >= 3,
             "stonecutter" => Around(p, 10, q => MapObjectCodes.StoneLeft(map.ObjectCodeAt(q))) > 0,
             "fisher" => Around(p, 8, q => IsWater(q) ? map.ResourceAmount(q, ResourceType.Fish) : 0) > 0,
-            "waterworks" => Around(p, 6, q => IsWater(q) ? 1 : 0) > 0,
+            "waterworks" => Around(p, 6, q => map.TerrainAt(q) == TerrainType.River ? 1 : 0) > 0,
             "farm" => Around(p + (definition.WorkCenter ?? default), 6,
                 q => map.TerrainAt(q) == TerrainType.Grass && map.ObjectCodeAt(q) == MapObjectCodes.None && _world.IsFreeGround(q) ? 1 : 0) >= 20,
+            // Vines, rice and beehives: enough free ground of their kind around.
+            _ when _world.Production.Config.Gatherers.TryGetValue(definition.Name, out var gatherer) && gatherer.Action == GatherAction.Farm
+                   && _world.Production.Config.Crops.TryGetValue(gatherer.Crop, out var crop) =>
+                Around(p + (definition.WorkCenter ?? default), definition.WorkRadius ?? 6,
+                    q => crop.Ground.Contains(map.TerrainAt(q)) && map.ObjectCodeAt(q) == MapObjectCodes.None && _world.IsFreeGround(q) ? 1 : 0) >= 10,
             _ => true,
         };
     }
@@ -458,7 +485,7 @@ public sealed partial class AiPlayer
                 continue;
             if (NearestUnclaimed(c => wanted(c) && Uncovered(c)) is not { } target)
                 continue;
-            if (PlaceTower(tower, target, mine) is { } site)
+            if (PlaceTower(tower, target, mine, resource: need is not ("land" or "room")) is { } site)
             {
                 Note($"expands towards {need} at {target.X},{target.Y}: tower at {site.Position.X},{site.Position.Y}");
                 if (need == "room")
@@ -486,8 +513,11 @@ public sealed partial class AiPlayer
             yield return ("stone", c => c.StoneUnits >= 10);
         if (own.Trees < _config.MinTrees)
             yield return ("trees", c => c.Trees >= 10);
-        if (own.Water == 0)
-            yield return ("water", c => c.Water > 0);
+        if (own.River == 0)
+            yield return ("water", c => c.River > 0);
+        // Rice wants swampy ground (Asians' mana).
+        if (own.Swamp < 20 && _config.BuildOrder.Any(b => b.Building == "rice_farm"))
+            yield return ("swamp", c => c.Swamp >= 20);
         if (_lacksRoom)
             yield return ("room", roomy);
         // Nothing lacking: soldiers to spare still take land, as a player would.
@@ -508,22 +538,68 @@ public sealed partial class AiPlayer
             .FirstOrDefault();
     }
 
-    /// <summary>A tower on the own-land spot nearest the target, if that gets the land closer to it.</summary>
-    private Building? PlaceTower(BuildingDefinition tower, GridPoint target, List<Building> mine)
+    /// <summary>
+    /// A tower on the own-land spot nearest the target, if that gets the land closer to it. Spots whose new
+    /// land would be mostly water are passed over (<see cref="AiConfig.MaxWaterShare"/>); towards a
+    /// <paramref name="resource"/> the spot with the least water is taken if every spot has too much.
+    /// </summary>
+    private Building? PlaceTower(BuildingDefinition tower, GridPoint target, List<Building> mine, bool resource)
     {
         var map = _world.Map!;
-        var pathFinder = _world.PathFinder!;
         int closest = mine.Where(IsMilitary).Select(b => PathFinder.Distance(b.Position, target)).DefaultIfEmpty(int.MaxValue).Min();
+        int radius = (int)_world.Military.Config.Territory.GetValueOrDefault(tower.Name, 20);
+        GridPoint? leastWater = null;
+        double leastShare = double.MaxValue;
         foreach (var offset in Spiral)
         {
             var p = target + offset;
             if (PathFinder.Distance(p, target) + 6 > closest)
-                return null;
-            if (map.Contains(p) && map.OwnerAt(p) == Player && _world.CanPlace(tower, p, out _, Player)
-                && _world.Reachable(Player, _home!.Door, p + tower.Door))
+                break;
+            if (!map.Contains(p) || map.OwnerAt(p) != Player || !_world.CanPlace(tower, p, out _, Player)
+                || !_world.Reachable(Player, _home!.Door, p + tower.Door))
+                continue;
+            double share = WaterShare(p, radius);
+            if (share <= _config.MaxWaterShare)
                 return _world.PlaceConstructionSite(tower, Player, p);
+            if (share < leastShare)
+                (leastWater, leastShare) = (p, share);
+        }
+        if (resource && leastWater is { } spot)
+        {
+            Note($"tower at {spot.X},{spot.Y} takes {leastShare:P0} water");
+            return _world.PlaceConstructionSite(tower, Player, spot);
         }
         return null;
+    }
+
+    /// <summary>Share of water among the unclaimed points within <paramref name="radius"/> (every other point sampled).</summary>
+    private double WaterShare(GridPoint center, int radius)
+    {
+        var map = _world.Map!;
+        int unclaimed = 0, water = 0;
+        foreach (var offset in TerritorySample(radius))
+        {
+            var p = center + offset;
+            if (!map.Contains(p) || map.OwnerAt(p) is not null)
+                continue;
+            unclaimed++;
+            if (IsWater(p))
+                water++;
+        }
+        return unclaimed == 0 ? 0 : (double)water / unclaimed;
+    }
+
+    private static readonly Dictionary<int, GridPoint[]> TerritorySamples = new();
+
+    private static GridPoint[] TerritorySample(int radius)
+    {
+        lock (TerritorySamples)
+        {
+            if (!TerritorySamples.TryGetValue(radius, out var sample))
+                TerritorySamples[radius] = sample = PathFinder.Circle(new GridPoint(0, 0), radius)
+                    .Where(o => (o.X & 1) == 0 && (o.Y & 1) == 0).ToArray();
+            return sample;
+        }
     }
 
     private static bool IsMilitary(Building b) => b.Definition.Occupiers.Count > 0;

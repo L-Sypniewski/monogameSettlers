@@ -75,6 +75,8 @@ public sealed partial class World
         }
         if (Military.Status(building) is { } military)
             return military;
+        if (Magic.Status(building) is { } magic)
+            return magic;
         if (Production.Status(building) is { } status)
             return status;
         if (Housing.ResidentsLeft(building) is { } left)
@@ -391,7 +393,10 @@ public sealed partial class World
         foreach (var pile in definition.RequestPiles)
         {
             var role = pile.Material is null ? PileRole.Storage : PileRole.Request;
-            int capacity = role == PileRole.Storage ? Production.Config.StoragePileCapacity : Materials.MaxPileSize;
+            // Mines take only food; each food pile holds a few units, so the food spreads over more mines.
+            int capacity = role == PileRole.Storage ? Production.Config.StoragePileCapacity
+                : Production.Config.Mines.ContainsKey(definition.Name) ? Production.Config.MineFoodPileCapacity
+                : Materials.MaxPileSize;
             AddPile(new Pile(_nextPileId++, building.Position + pile.Offset, role, pile.Material, capacity, building), building);
         }
         foreach (var pile in definition.OfferPiles)

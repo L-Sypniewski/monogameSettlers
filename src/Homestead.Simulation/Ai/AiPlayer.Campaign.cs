@@ -71,7 +71,7 @@ public sealed partial class AiPlayer
         if (_campaign is not { } c)
             return;
         var rules = _config.Attack;
-        c.Soldiers.RemoveAll(s => s.IsDead || s.IsInside);
+        c.Soldiers.RemoveAll(s => s.IsDead || s.IsInside || s.Player != Player); // also won over by a spell
         var target = c.Target;
         if (!target.Exists || target.Player == Player || c.Soldiers.Count == 0)
         {

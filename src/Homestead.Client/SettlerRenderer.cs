@@ -76,6 +76,10 @@ public sealed class SettlerRenderer : IDisposable
         int work = (int)((settler.ActivityTicks + tickAlpha) * WorkFramesPerTick);
         if (WorkAction(settler.Activity) is { } action && Find(settler, action, settler.Facing) is { } animation)
             return (Sprites(animation), animation.Cycle(work));
+        // Winegrowers, rice farmers and beekeepers plant with ACTION1 and a plant in their hands.
+        if (settler.Activity == Activity.Sowing && TypeOf(settler) is { } planter
+            && Resolve(PeopleOf(settler), planter, "ACTION1", "PLANT", settler.Facing) is { } planting)
+            return (Sprites(planting), planting.Cycle(work));
         if (settler.IsStriking && settler.State != SettlerState.Stepping && Strike(settler, work) is { } strike)
             return strike;
         if (settler.State == SettlerState.Stepping)
@@ -92,7 +96,7 @@ public sealed class SettlerRenderer : IDisposable
     {
         if (Find(settler, action, facing) is { } own)
             return (Sprites(own), frame(own));
-        var people = _peopleOf(settler.Player);
+        var people = PeopleOf(settler);
         if (Resolve(people, "BEARER", action, SettlerAnimations.MaterialName(settler.Carrying), facing) is { } carrier
             && settler.Profession != Profession.None)
             return (Sprites(carrier), frame(carrier));
@@ -116,7 +120,7 @@ public sealed class SettlerRenderer : IDisposable
     /// </summary>
     private (SettlerSprites Sprites, int Frame)? Strike(Settler settler, int work)
     {
-        var people = _peopleOf(settler.Player);
+        var people = PeopleOf(settler);
         SettlerAnimation? Own(string action) =>
             _animations.Find(people, "BEARER", action, "NO_MATERIAL", settler.Facing) is { } a && Exists(a) ? a : null;
         if (Own("HOMELESS1") is { } start && work < start.Duration)
@@ -134,14 +138,17 @@ public sealed class SettlerRenderer : IDisposable
         Activity.Sowing or Activity.Signing => "ACTION2",
         Activity.Digging or Activity.Building or Activity.Chopping or Activity.Mining or Activity.Planting
             or Activity.Harvesting or Activity.Fishing or Activity.DrawingWater or Activity.Fighting
-            or Activity.Shooting or Activity.Surveying => "ACTION1",
+            or Activity.Shooting or Activity.Surveying or Activity.Casting => "ACTION1",
         _ => null,
     };
 
     private SettlerAnimation? Find(Settler settler, string action, Direction facing) =>
         TypeOf(settler) is { } type
-            ? Resolve(_peopleOf(settler.Player), type, action, MaterialOf(settler, type), facing)
+            ? Resolve(PeopleOf(settler), type, action, MaterialOf(settler, type), facing)
             : null;
+
+    /// <summary>The people a settler looks like: its own (priests, won-over soldiers), else its player's.</summary>
+    private Civilization PeopleOf(Settler settler) => settler.People ?? _peopleOf(settler.Player);
 
     /// <summary>
     /// The animation for a people, else the Romans' (like JSettlers: not every people has every sequence).
@@ -156,7 +163,7 @@ public sealed class SettlerRenderer : IDisposable
         return null;
     }
 
-    private static string? TypeOf(Settler settler) => settler.Profession switch
+    internal static string? TypeOf(Settler settler) => settler.Profession switch
     {
         Profession.Carrier => "BEARER",
         Profession.Digger => "DIGGER",
@@ -164,6 +171,7 @@ public sealed class SettlerRenderer : IDisposable
         Profession.Soldier => $"{(settler.SoldierType ?? SoldierType.Swordsman).ToString().ToUpperInvariant()}_L{Math.Clamp(settler.Level, 1, 3)}",
         Profession.Worker => settler.Trade,
         Profession.Geologist => "GEOLOGIST",
+        Profession.Priest => "MAGE",
         _ => null,
     };
 

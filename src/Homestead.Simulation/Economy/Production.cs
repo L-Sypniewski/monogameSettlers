@@ -32,14 +32,13 @@ public sealed class Production
     private const int DefaultRadius = 12;
     private const int ExhaustedRetryTicks = 200;
     private const int RecruitInterval = 10;
-    private const int GrainStages = MapObjectCodes.RipeGrain - MapObjectCodes.FirstGrain;
 
     private readonly World _world;
     private readonly ProductionConfig _config;
     private readonly Dictionary<int, Workplace> _workplaces = new();
     private readonly HashSet<int> _reservedTargets = new();
     private readonly Dictionary<int, long> _unreachableUntil = new();
-    /// <summary>Saplings and grain (by point index) and when they change next.</summary>
+    /// <summary>Saplings and crops (by point index) and when they change next.</summary>
     private readonly Dictionary<int, long> _growing = new();
 
     /// <summary>Stones already taken at the current size of a quarry stone (see StonesPerCut).</summary>
@@ -187,7 +186,7 @@ public sealed class Production
         }
     }
 
-    /// <summary>Saplings become trees; grain grows stage by stage; stumps of felled trees disappear.</summary>
+    /// <summary>Saplings become trees; crops grow stage by stage; stumps of felled trees disappear.</summary>
     private void Grow()
     {
         var map = _world.Map!;
@@ -205,16 +204,35 @@ public sealed class Production
                 map.SetObjectCode(p, (byte)(MapObjectCodes.FirstTree + _random.Next(MapObjectCodes.LastTree - MapObjectCodes.FirstTree + 1)));
                 TreesGrown++;
             }
-            else if (code is >= MapObjectCodes.FirstGrain and < MapObjectCodes.RipeGrain)
+            else if (_config.CropOf(code) is { } crop && code < crop.Ripe)
             {
                 map.SetObjectCode(p, (byte)(code + 1));
-                if (code + 1 < MapObjectCodes.RipeGrain)
-                    _growing[index] = _world.Tick + GrainStageTicks;
+                if (code + 1 < crop.Ripe)
+                    _growing[index] = _world.Tick + StageTicks(crop, p);
             }
         }
     }
 
-    private int GrainStageTicks => Math.Max(1, _config.GrainGrowTicks / GrainStages);
+    /// <summary>Time for one growing stage of a crop at a point (faster on slopes for crops with a slope bonus).</summary>
+    private int StageTicks(CropRecipe crop, GridPoint p)
+    {
+        double ticks = (double)crop.GrowTicks / Math.Max(1, crop.Ripe - crop.First);
+        if (crop.SlopeBonus > 0)
+        {
+            var map = _world.Map!;
+            int slope = 0;
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+            {
+                var n = p.Neighbor((Direction)d);
+                if (map.Contains(n))
+                    slope = Math.Max(slope, Math.Abs(map.HeightAt(n) - map.HeightAt(p)));
+            }
+            ticks /= 1 + crop.SlopeBonus * Math.Min(1.0, (double)slope / Math.Max(1, crop.SlopeHeight));
+        }
+        return Math.Max(1, (int)Math.Round(ticks));
+    }
+
+    private CropRecipe CropOf(Workplace w) => _config.Crops[w.Gatherer!.Crop];
 
     /// <summary>Depleted fields regain one amount step every <see cref="ProductionConfig.RegenerateTicks"/>.</summary>
     private void Regenerate()
@@ -485,6 +503,10 @@ public sealed class Production
     {
         if (_world.Recruitment.Start(Profession.Worker, w.Building.Definition.Worker, w.Building.Door, w.Building.Player) is not { } recruit)
             return;
+        // A jobless worker of the trade comes at once: taken now, or another building of its trade would
+        // take it in the same tick and two workplaces would drive one worker.
+        if (recruit.State == RecruitState.Done)
+            recruit.Settler.HasTask = true;
         w.Recruit = recruit;
         w.Phase = Phase.Recruiting;
     }
@@ -604,7 +626,7 @@ public sealed class Production
                 GatherAction.CutStone => "no stone in range",
                 GatherAction.PlantTree => "no free ground to plant on",
                 GatherAction.Fish => "no fish in range",
-                GatherAction.DrawWater => "no water in range",
+                GatherAction.DrawWater => "no river in range",
                 _ => "no field to sow or harvest",
             };
             w.TicksLeft = RetryTicks;
@@ -673,20 +695,24 @@ public sealed class Production
                 worker.Carrying = Material.Fish;
                 DeliverOutput(w);
                 return;
-            case GatherAction.DrawWater when IsWater(w.Target):
+            case GatherAction.DrawWater when IsRiver(w.Target):
                 WaterDrawn++;
                 worker.Carrying = Material.Water;
                 DeliverOutput(w);
                 return;
-            case GatherAction.Farm when code == MapObjectCodes.RipeGrain:
-                map.SetObjectCode(w.Target, MapObjectCodes.None);
+            case GatherAction.Farm when code == CropOf(w).Ripe:
+                // Vines and beehives start over, grain and rice leave free ground.
+                var crop = CropOf(w);
+                map.SetObjectCode(w.Target, crop.Regrows ? crop.First : MapObjectCodes.None);
+                if (crop.Regrows)
+                    _growing[map.Index(w.Target)] = _world.Tick + StageTicks(crop, w.Target);
                 CropHarvested++;
-                worker.Carrying = Material.Crop;
+                worker.Carrying = w.Gatherer.Output ?? Material.Crop;
                 DeliverOutput(w);
                 return;
-            case GatherAction.Farm when CanSow(w.Target, ignoreWorker: worker):
-                map.SetObjectCode(w.Target, MapObjectCodes.FirstGrain);
-                _growing[map.Index(w.Target)] = _world.Tick + GrainStageTicks;
+            case GatherAction.Farm when CanSow(w.Target, CropOf(w), ignoreWorker: worker):
+                map.SetObjectCode(w.Target, CropOf(w).First);
+                _growing[map.Index(w.Target)] = _world.Tick + StageTicks(CropOf(w), w.Target);
                 FieldsSown++;
                 break;
             default:
@@ -718,8 +744,8 @@ public sealed class Production
 
     /// <summary>
     /// Nearest usable target in the work radius: an adult tree with a free neighbor to stand on,
-    /// a quarry stone with a reachable spot two fields away (its ring is blocked), water (with fish)
-    /// next to the shore, ripe grain, or a free spot to plant or sow on (randomized a little so
+    /// a quarry stone with a reachable spot two fields away (its ring is blocked), water with fish
+    /// next to the shore, a river (waterworks), ripe grain, or a free spot to plant or sow on (randomized a little so
     /// forests and fields spread).
     /// </summary>
     private (GridPoint Target, GridPoint Spot, Direction Facing)? FindTarget(Workplace w, GatherAction action)
@@ -761,9 +787,9 @@ public sealed class Production
                 Want.Stone => MapObjectCodes.StoneLeft(map.ObjectCodeAt(p)) > 0,
                 Want.TreeSpot => CanPlant(p),
                 Want.Fish => map.ResourceAmount(p, ResourceType.Fish) > 0 && IsWater(p),
-                Want.Water => IsWater(p),
-                Want.RipeGrain => map.ObjectCodeAt(p) == MapObjectCodes.RipeGrain,
-                Want.FreeField => CanSow(p, ignoreWorker: null),
+                Want.Water => IsRiver(p),
+                Want.RipeGrain => map.ObjectCodeAt(p) == CropOf(w).Ripe,
+                Want.FreeField => CanSow(p, CropOf(w), ignoreWorker: null),
                 _ => false,
             };
             if (!fits)
@@ -797,12 +823,15 @@ public sealed class Production
 
     private bool IsWater(GridPoint p) => _world.Map!.TerrainAt(p) is TerrainType.Water or TerrainType.River;
 
-    /// <summary>Free grass for a new grain field (fields may touch each other).</summary>
-    private bool CanSow(GridPoint p, Settler? ignoreWorker)
+    /// <summary>Waterworks draw fresh water from rivers only, not from the sea.</summary>
+    private bool IsRiver(GridPoint p) => _world.Map!.TerrainAt(p) == TerrainType.River;
+
+    /// <summary>Free ground of the crop's kind for a new field (fields may touch each other).</summary>
+    private bool CanSow(GridPoint p, CropRecipe crop, Settler? ignoreWorker)
     {
         var map = _world.Map!;
         return map.Contains(p) && map.IsWalkable(p) && map.ObjectCodeAt(p) == MapObjectCodes.None
-               && map.TerrainAt(p) == TerrainType.Grass && _world.IsFreeGround(p)
+               && crop.Ground.Contains(map.TerrainAt(p)) && _world.IsFreeGround(p)
                && (!_world.IsOccupied(p) || ignoreWorker is not null && ignoreWorker.Position == p);
     }
 
@@ -866,7 +895,7 @@ public sealed class Production
         GatherAction.CutStone => Activity.Mining,
         GatherAction.Fish => Activity.Fishing,
         GatherAction.DrawWater => Activity.DrawingWater,
-        GatherAction.Farm => _world.Map!.ObjectCodeAt(w.Target) == MapObjectCodes.RipeGrain ? Activity.Harvesting : Activity.Sowing,
+        GatherAction.Farm => _world.Map!.ObjectCodeAt(w.Target) == CropOf(w).Ripe ? Activity.Harvesting : Activity.Sowing,
         _ => Activity.Planting,
     };
 

@@ -128,6 +128,22 @@ public sealed class BuildingCatalog
         _ => throw new FormatException($"Unknown direction '{name}'."),
     };
 
+    /// <summary>
+    /// The door, moved off the building's ground where the data put it inside (Roman and Amazon temples):
+    /// to the nearest point outside, searching downwards first (doors face the viewer).
+    /// </summary>
+    private static GridPoint OutsideDoor(GridPoint door, IReadOnlyList<GridPoint> blocked)
+    {
+        var footprint = blocked.ToHashSet();
+        for (int step = 0; step < 8; step++)
+        {
+            foreach (var candidate in new[] { door + new GridPoint(step, step), door + new GridPoint(0, step), door + new GridPoint(step, 0) })
+                if (!footprint.Contains(candidate))
+                    return candidate;
+        }
+        return door;
+    }
+
     private static BuildingDefinition Parse(string name, Civilization civilization, JsonElement b)
     {
         static GridPoint Point(JsonElement e) => new(e[0].GetInt32(), e[1].GetInt32());
@@ -161,7 +177,7 @@ public sealed class BuildingCatalog
             Worker = b.GetProperty("worker").ValueKind == JsonValueKind.String ? b.GetProperty("worker").GetString() : null,
             Blocked = Points(b.GetProperty("blocked")),
             Protected = Points(b.GetProperty("protected")),
-            Door = Point(b.GetProperty("door")),
+            Door = OutsideDoor(Point(b.GetProperty("door")), Points(b.GetProperty("blocked"))),
             Ground = b.GetProperty("ground").EnumerateArray().Select(g => g.GetString()!).ToHashSet(),
             BuilderSpots = builderSpots,
             BuildMarks = b.GetProperty("positions").TryGetProperty("buildmark", out var marks)

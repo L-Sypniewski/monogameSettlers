@@ -42,7 +42,7 @@ public sealed class Recruitment
         int carriers = 0, specialists = 0;
         foreach (var s in _world.Settlers)
         {
-            if (s.Player != player || s.Profession == Profession.Soldier)
+            if (s.Player != player || s.Profession is Profession.Soldier or Profession.Priest)
                 continue;
             if (s.IsCarrier && !_active.Any(r => r.Settler == s))
                 carriers++;

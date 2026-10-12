@@ -13,7 +13,7 @@ public enum MapObjectKind : byte
     /// <summary>Quarry stone that stonecutters can mine.</summary>
     ResourceStone,
 
-    /// <summary>Grain field of a farm (walkable, but nothing else may be put there).</summary>
+    /// <summary>Field of a farm, vine, rice or beehive (walkable, but nothing else may be put there).</summary>
     Field,
 
     /// <summary>Codes we do not know yet.</summary>
@@ -45,6 +45,21 @@ public static class MapObjectCodes
     public const byte FirstGrain = 200;
     public const byte RipeGrain = 207;
 
+    /// <summary>Vines (winegrower): 208-209 growing, 210 ripe.</summary>
+    public const byte FirstWine = 208;
+    public const byte RipeWine = 210;
+
+    /// <summary>Rice (rice farmer, on swampy ground): 211-213 growing, 214 ripe.</summary>
+    public const byte FirstRice = 211;
+    public const byte RipeRice = 214;
+
+    /// <summary>Beehives (beekeeper): 215-217 filling, 218 full of honey.</summary>
+    public const byte FirstHive = 215;
+    public const byte FullHive = 218;
+
+    /// <summary>Last of Homestead's own field codes.</summary>
+    public const byte LastField = FullHive;
+
     public static bool IsAdultTree(byte code) => code is >= FirstTree and <= LastTree;
 
     /// <summary>Stone units left in a quarry stone (0 for anything else).</summary>
@@ -71,7 +86,7 @@ public static class MapObjectKinds
         // 127 is the depleted stone (rubble): the maps never mark it as blocking.
         >= 115 and <= 126 => MapObjectKind.ResourceStone,
         127 => MapObjectKind.Decoration,
-        >= MapObjectCodes.FirstGrain and <= MapObjectCodes.RipeGrain => MapObjectKind.Field,
+        >= MapObjectCodes.FirstGrain and <= MapObjectCodes.LastField => MapObjectKind.Field,
         _ => MapObjectKind.Unknown,
     };
 }
