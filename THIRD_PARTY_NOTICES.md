@@ -7,7 +7,8 @@ https://github.com/paulwedeck/settlers-remake
 Used as a reference for the original file formats (GFX images, maps) and terrain rendering.
 The C# code was written independently; the following data tables and rules were ported:
 
-- Torso/shadow alignment rules (`src/Homestead.Assets/Gfx/GfxFile.cs`, from `AdvancedDatFileReader`)
+- Torso/shadow alignment rules (`src/Homestead.Assets/Gfx/GfxFile.cs`, from `AdvancedDatFileReader` and the
+  `ShadowMapping*` classes; the building shadows of the Egyptians, Asians and Amazons are paired by us)
 - Landscape type mapping and image numbers (`src/Homestead.Client/Terrain/TerrainKind.cs`,
   from `ELandscapeType` and `OriginalLandscape`)
 - Building definitions for all four civilizations (`data/buildings/*.json`: footprints, doors,
@@ -22,6 +23,9 @@ The C# code was written independently; the following data tables and rules were 
   post images (`SettlerRenderer.cs`, `EconomyRenderer.cs`), original settler type codes (`OriginalScenario.cs`,
   from `EOriginalMapSettlersType`), tools per trade (`data/production.json`, from `EMovableType`)
 - Start equipment per start level for multiplayer maps (`data/start.json`, from `EMapStartResources`)
+- Settler animations of all four peoples (`data/settlers.json`: type, action, carried material and
+  direction to file, sequence and frames, with JSettlers' priority rules in `SettlerAnimations.cs`), converted
+  from `movables*.txt` by `tools/data-import/convert_jsettlers_movables.py`
 - Build menu categories and their buildings (`data/ui.json`, from `EBuildingsCategory`)
 - Original map object names (`docs/formate/map.md`, from `EOriginalMapObjectType`)
 - Terrain texture atlas layout, transition table and triangle texture orientation

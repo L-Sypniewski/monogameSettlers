@@ -42,7 +42,12 @@ public static class OriginalScenario
     /// <param name="Catalogs">Building catalog (civilization) of every player of the map.</param>
     public sealed record LoadReport(int Buildings, int Piles, int Settlers, IReadOnlyList<string> Skipped, IReadOnlyList<BuildingCatalog> Catalogs);
 
-    public static (World World, LoadReport Report) Load(OriginalMap original, string? dataDirectory = null)
+    /// <param name="freeChoice">
+    /// Peoples for players whose people the map leaves open (most multiplayer maps): player i gets
+    /// entry i modulo the count. Without it they are Romans.
+    /// </param>
+    public static (World World, LoadReport Report) Load(OriginalMap original, string? dataDirectory = null,
+        IReadOnlyList<Civilization>? freeChoice = null)
     {
         var map = GameMap.FromOriginal(original.Area);
         var world = new World(map) { TerritoryRules = true };
@@ -53,7 +58,7 @@ public static class OriginalScenario
         {
             var civilization = player < original.Players.Count && original.Players[player].Tribe is >= 0 and <= 3
                 ? (Civilization)original.Players[player].Tribe
-                : Civilization.Roman;
+                : freeChoice is { Count: > 0 } ? freeChoice[player % freeChoice.Count] : Civilization.Roman;
             if (!catalogs.TryGetValue(civilization, out var catalog))
                 catalogs[civilization] = catalog = BuildingCatalog.Load(civilization, dataDirectory);
             return catalog;

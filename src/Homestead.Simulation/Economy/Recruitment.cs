@@ -33,7 +33,10 @@ public sealed class Recruitment
     /// carriers and specialists (<see cref="ProductionConfig.KeptCarriers"/>) always stays a carrier.
     /// Carriers on their way to fetch a tool count as specialists already.
     /// </summary>
-    public bool MayConvert(int player)
+    public bool MayConvert(int player) => Convertible(player) > 0;
+
+    /// <summary>How many more carriers of the player may become specialists or soldiers (see <see cref="MayConvert"/>).</summary>
+    public int Convertible(int player)
     {
         int carriers = 0, specialists = 0;
         foreach (var s in _world.Settlers)
@@ -45,7 +48,8 @@ public sealed class Recruitment
             else
                 specialists++;
         }
-        return carriers - 1 >= Math.Ceiling(_config.KeptCarriers * (carriers + specialists));
+        // Each conversion moves one settler from carriers to specialists; the total stays the same.
+        return Math.Max(0, carriers - (int)Math.Ceiling(_config.KeptCarriers * (carriers + specialists)));
     }
 
     public Material? ToolFor(string? trade) => trade is not null && _config.Tools.TryGetValue(trade, out var tool) ? tool : null;

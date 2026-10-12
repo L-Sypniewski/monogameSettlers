@@ -81,6 +81,17 @@ public sealed class Production
     public bool HasWorker(Building building) =>
         _workplaces.GetValueOrDefault(building.Id) is { Worker: not null, Phase: not (Phase.NeedsWorker or Phase.Recruiting or Phase.WorkerComing) };
 
+    /// <summary>
+    /// The player's production buildings that will need a worker from the carriers: construction sites
+    /// and finished buildings whose worker has not been recruited yet.
+    /// </summary>
+    public int AwaitingWorkers(int player) => _world.Buildings.Count(b =>
+        b.Exists && b.Player == player && Produces(b.Definition.Name)
+        && (b.State != BuildingState.Finished || _workplaces.GetValueOrDefault(b.Id) is null or { Phase: Phase.NeedsWorker }));
+
+    private bool Produces(string name) =>
+        _config.Workshops.ContainsKey(name) || _config.Smiths.ContainsKey(name) || _config.Mines.ContainsKey(name) || _config.Gatherers.ContainsKey(name);
+
     /// <summary>What the workplace is doing or waiting for (null for buildings without production).</summary>
     public string? Status(Building building)
     {

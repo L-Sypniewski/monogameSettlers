@@ -27,6 +27,9 @@ public sealed record AiConfig
     public required int MaxTowerSites { get; init; }
     public required int FreeCarriers { get; init; }
     public required string House { get; init; }
+
+    /// <summary>A living house is wanted once fewer carriers than this may still become specialists (carrier reserve).</summary>
+    public int HouseWhenConvertible { get; init; } = 4;
     public required int StockWhenWaiting { get; init; }
     public required IReadOnlyList<(string Building, int Count)> BuildOrder { get; init; }
     public required string ExpansionBuilding { get; init; }
@@ -70,6 +73,7 @@ public sealed record AiConfig
             MaxTowerSites = root.GetProperty("maxTowerSites").GetInt32(),
             FreeCarriers = root.GetProperty("freeCarriers").GetInt32(),
             House = root.GetProperty("house").GetString()!,
+            HouseWhenConvertible = root.TryGetProperty("houseWhenConvertible", out var convertible) ? convertible.GetInt32() : 4,
             StockWhenWaiting = root.GetProperty("stockWhenWaiting").GetInt32(),
             BuildOrder = root.GetProperty("buildOrder").EnumerateArray()
                 .Select(e => (e[0].GetString()!, e[1].GetInt32())).ToArray(),

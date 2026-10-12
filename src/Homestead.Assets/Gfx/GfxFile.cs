@@ -175,9 +175,33 @@ public sealed class GfxFile
                 shadow[i] = i < shadows ? i : -1;
         }
 
-        if (shadowGap == 26)
+        if (shadowGap == 26 && torsos == 0)
         {
-            // Building files (13, 43).
+            // Amazon buildings (43): in order up to the market place, then shifted. Our own pairing
+            // (body and shadow outlines compared); JSettlers treats 43 like 13, which puts the
+            // weaponsmith's large shadow under the goldmelt.
+            shadow[34] = 36; // hospital
+            shadow[35] = 34; // temple
+            shadow[36] = 35; // big temple
+            for (int i = 39; i < settlers; i++)
+                shadow[i] = -1;
+            shadow[47] = 39; // dockyard
+        }
+        else if (shadowGap == 11 && settlers is 48 or 50)
+        {
+            // Egyptian (23) and Asian (33) buildings: in order up to the market place, whose shadow is
+            // part of its image; the buildings after it use the shadow one earlier. Our own pairing
+            // (bottom edges of body and shadow compared); JSettlers keeps them in order.
+            int market = settlers == 48 ? 28 : 31, last = settlers == 48 ? 35 : 37;
+            shadow[market] = -1;
+            for (int i = market + 1; i <= last; i++)
+                shadow[i] = i - 1;
+            for (int i = last + 1; i < settlers; i++)
+                shadow[i] = -1;
+        }
+        else if (shadowGap == 26)
+        {
+            // Roman buildings (13).
             for (int i = 0; i < 27; i++)
                 shadow[i] = shadow[i + 3];
             for (int i = 27; i < 36; i++)
@@ -202,6 +226,18 @@ public sealed class GfxFile
             // Roman specialists (11).
             for (int i = 171; i >= 13; i--)
                 shadow[i] = shadow[i - 13];
+        }
+        else if (shadows == 26 && settlers == 39)
+        {
+            // Egyptian soldiers (22; JSettlers' ShadowMapping22).
+            for (int i = 0; i < settlers; i++)
+                shadow[i] = i is 1 or (>= 8 and <= 13) ? -1 : i == 0 ? 19 : i < 14 ? i + 18 : i - 14;
+        }
+        else if (shadows == 26 && settlers == 32)
+        {
+            // Amazon soldiers (42; JSettlers' ShadowMapping42).
+            for (int i = 0; i < settlers; i++)
+                shadow[i] = i <= 6 ? i + 19 : i - 6;
         }
 
         for (int i = 0; i < settlers; i++)

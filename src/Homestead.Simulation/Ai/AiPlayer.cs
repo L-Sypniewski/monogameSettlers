@@ -103,7 +103,7 @@ public sealed partial class AiPlayer
     {
         if (mine.Count(b => b.State != BuildingState.Finished && !IsMilitary(b)) >= _config.MaxSites)
             return;
-        int planks = Free(Material.Plank, mine) - reserve.Planks, stones = Free(Material.Stone, mine) - reserve.Stones;
+        int planks = Free(Material.Plank, mine), stones = Free(Material.Stone, mine);
         // Everything but the basic producers leaves enough for a new stonecutter: a player out of
         // stones with no stonecutter it can afford would be stuck for good.
         var cutter = _catalog.Find("stonecutter");
@@ -113,7 +113,8 @@ public sealed partial class AiPlayer
             if (mine.Count(b => b.Definition.Name == name) >= count || _catalog.Find(name) is not { } definition)
                 continue;
             bool basic = Basics.Contains(name);
-            if (planks - (basic ? 0 : keepPlanks) < Cost(definition, Material.Plank) || stones - (basic ? 0 : keepStones) < Cost(definition, Material.Stone))
+            if (!Enough(planks, Cost(definition, Material.Plank) + reserve.Planks + (basic ? 0 : keepPlanks))
+                || !Enough(stones, Cost(definition, Material.Stone) + reserve.Stones + (basic ? 0 : keepStones)))
             {
                 // Wait for the material rather than skip ahead, unless nothing would ever bring it.
                 bool noSupply = Basics.Contains(name) && !mine.Any(b => b.Definition.Name == name);
@@ -137,13 +138,23 @@ public sealed partial class AiPlayer
         }
     }
 
-    private IEnumerable<(string Name, int Count)> Wishes(List<Building> mine)
+    /// <summary>
+    /// Short of carriers, or the carrier reserve (nearly) stops recruiting: a living house comes first.
+    /// Waiting until no carrier may convert any more is too late: the plank and stone makers may then
+    /// lack workers for good, and the house its material.
+    /// </summary>
+    private bool HouseWanted(List<Building> mine)
     {
+        if (mine.Any(b => b.Definition.Name == _config.House && b.State != BuildingState.Finished))
+            return false;
         int carriers = _world.Settlers.Count(s => s.Player == Player && s.IsAvailableCarrier)
                        + mine.Sum(b => _world.Housing.ResidentsLeft(b) ?? 0);
-        bool houseComing = mine.Any(b => b.Definition.Name == _config.House && b.State != BuildingState.Finished);
-        // Short of carriers, or the carrier reserve stops recruiting: a living house first.
-        if ((carriers < _config.FreeCarriers || !_world.Recruitment.MayConvert(Player)) && !houseComing)
+        return carriers < _config.FreeCarriers || _world.Recruitment.Convertible(Player) < _config.HouseWhenConvertible;
+    }
+
+    private IEnumerable<(string Name, int Count)> Wishes(List<Building> mine)
+    {
+        if (HouseWanted(mine))
             yield return (_config.House, mine.Count(b => b.Definition.Name == _config.House) + 1);
         // A storehouse only once goods worth storing (tools, weapons, gold) are made in numbers and
         // pile up, and the storehouses there are have no room left for them.
@@ -194,6 +205,14 @@ public sealed partial class AiPlayer
 
     private static int Cost(BuildingDefinition definition, Material material) =>
         definition.ConstructionPiles.Where(p => p.Material == material).Sum(p => p.Required);
+
+    /// <summary>
+    /// Whether <paramref name="free"/> units cover <paramref name="needed"/> (cost plus what is kept back),
+    /// asking for at most one full pile: a producer keeps no more than that and then waits (only tools,
+    /// weapons and gold are stored), so with a single sawmill an Asian farm (9 planks) would never be
+    /// started. The rest comes while the site is levelled.
+    /// </summary>
+    private static bool Enough(int free, int needed) => free >= Math.Min(needed, Materials.MaxPileSize);
 
     /// <summary>
     /// Where a building should go: next to what it works on, otherwise near home. Null if that is
@@ -367,18 +386,22 @@ public sealed partial class AiPlayer
         if (spareSoldiers <= 0)
             return default;
         (int Planks, int Stones) cost = (Cost(tower, Material.Plank), Cost(tower, Material.Stone));
-        bool affordable = Free(Material.Plank, mine) >= cost.Planks && Free(Material.Stone, mine) >= cost.Stones;
+        int planks = Free(Material.Plank, mine), stones = Free(Material.Stone, mine);
+        // A wanted living house comes before towers: they leave its material.
+        (int Planks, int Stones) keep = HouseWanted(mine) && _catalog.Find(_config.House) is { } house
+            ? (Cost(house, Material.Plank), Cost(house, Material.Stone))
+            : default;
+        bool affordable = Enough(planks, cost.Planks + keep.Planks) && Enough(stones, cost.Stones + keep.Stones);
 
         // Places an own tower (or tower site) will cover anyway do not need another.
         var military = mine.Where(IsMilitary).Select(b => b.Position).ToList();
         int covered = (int)(_world.Military.Config.Territory.GetValueOrDefault(tower.Name, 20) * 0.7);
         bool Uncovered(MapSurvey.Cell c) => military.All(m => PathFinder.Distance(m, c.Center) > covered);
-        int planks = Free(Material.Plank, mine), stones = Free(Material.Stone, mine);
 
         foreach (var (need, wanted) in Needs(spareSoldiers))
         {
             // Plain land only from a full store: what the economy needs comes first.
-            if (need == "land" && (planks < cost.Planks + _config.LandStock || stones < cost.Stones + _config.LandStock))
+            if (need == "land" && (planks - keep.Planks < cost.Planks + _config.LandStock || stones - keep.Stones < cost.Stones + _config.LandStock))
                 continue;
             if (NearestUnclaimed(c => wanted(c) && Uncovered(c)) is not { } target)
                 continue;

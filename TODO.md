@@ -21,8 +21,8 @@ x Rechtsklick, um einen Befehl zu erteilen
 x Linksklick, um die Soldaten wieder abzuwählen
 Ctrl+1-9: Gruppe erstellen. Gruppe soll oben rechts als kleines Icon eingeblendet werden
 Shift+Auswahl von Einheuten: Einheiten der aktuellen Auswahl hinzufügen
-Völker-spezifische Einheiten/Siedler anzeigen
-Amazonen mit einbinden
+x Völker-spezifische Einheiten/Siedler anzeigen
+x Amazonen mit einbinden
 
 KI:
 x Die KI sollte freien Bauplatz ebenfalls wie eine Resource behandeln und die Einnahme von neuer Baufläche anstreben.
@@ -49,6 +49,7 @@ x Zusätzliche/spezifische KI-Regeln in json auslagern (wie es bereits schon gem
 
 UI:
 x Erstmal simpel: Links am Rand ein Menü mit den selben Kategorien wie im Originalspiel. Darunter die entsprechenden Bauoptionen. Jede Bauoption als Icon anzeigen.
+Solange F12 gedrückt ist, erhöht sich die Spielgeschwindigkeit auf das 10-fache
 
 Tweaks:
 Balancing abweichend vom Originalspiel konfigurierbar:

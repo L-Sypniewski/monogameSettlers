@@ -1,7 +1,7 @@
 using Homestead.Assets.Gfx;
 using Homestead.Client.Terrain;
 using Homestead.Simulation;
-using Homestead.Simulation.Economy;
+using Homestead.Simulation.Buildings;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -9,47 +9,28 @@ namespace Homestead.Client;
 
 /// <summary>
 /// Draws simulation settlers: interpolates between ticks, follows terrain height and picks the
-/// walk or stand frame. Carriers show the good they carry; other settlers get a varied look.
+/// animation of the settler's people from <see cref="SettlerAnimations"/> (type, action, carried good,
+/// direction). Specialists without an own animation look like carriers; settlers without a profession get a varied look.
 /// </summary>
 public sealed class SettlerRenderer : IDisposable
 {
-    private const int CarrierFile = 10; // Roman settlers
-    private const int WorkerFile = 11;  // Roman specialists
-    private const int SoldierFile = 12; // Roman soldiers
-    private const int BowmanShootFirst = 24; // levels 1-3: 24, 25, 26; 6 directions x 24 frames
-
-    // Roman specialists in file 11 (tables from JSettlers' movables, MIT).
-    private const int DiggerWalk = 13;
-    private const int DiggerDigFirst = 206; // one sequence per direction, 12 frames
-    private const int BuilderWalk = 21;
-    private const int BuilderBuild = 22;    // walk layout: 6 directions x 12 frames
-
-    private const int LumberjackChop = 30;      // 12 frames, all directions
-    private const int LumberjackChopFrames = 12;
-    private const int StonecutterWork = 25;     // walk layout
-    private const int ForesterPlant = 36;       // 27 frames west, 27 frames east
-    private const int ForesterPlantFrames = 27;
-    private const int FarmerSowFirst = 94;      // one sequence each for SW, NW, NE, SE; 12 frames
-    private const int FarmerHarvest = 99;       // 4 blocks (SW, NW, NE, SE) of 12 frames
-    private const int FisherCastFirst = 101;    // one sequence per direction, 12 frames
-    private const int WaterworkerDrawWest = 156; // 14 frames; 157 for the eastern directions
-
     private const float WorkFramesPerTick = 0.5f;
 
     private readonly GraphicsDevice _device;
     private readonly GfxDirectory _gfx;
-    private readonly int[] _walkSequences;
+    private readonly SettlerAnimations _animations;
+    private readonly Func<int, Civilization> _peopleOf;
+    private readonly Dictionary<int, int[]> _walkSequences = new();
+    private readonly Dictionary<SettlerAnimation, bool> _exists = new();
     private readonly Dictionary<(int File, int Sequence), SettlerSprites> _sprites = new();
 
-    public SettlerRenderer(GraphicsDevice device, GfxDirectory gfx)
+    /// <param name="peopleOf">People (civilization) of a player: settlers look like their people's.</param>
+    public SettlerRenderer(GraphicsDevice device, GfxDirectory gfx, SettlerAnimations animations, Func<int, Civilization> peopleOf)
     {
         _device = device;
         _gfx = gfx;
-        // Varied looks for settlers without a profession: the leading carrier sequences.
-        var carriers = gfx.Open(CarrierFile);
-        _walkSequences = Enumerable.Range(0, carriers.SettlerCount)
-            .TakeWhile(s => carriers.GetSettlerFrameCount(s) == DirectionExtensions.Count * SettlerSprites.FramesPerDirection)
-            .ToArray();
+        _animations = animations;
+        _peopleOf = peopleOf;
     }
 
     /// <summary>Screen anchor (feet) of a settler in world pixels.</summary>
@@ -68,8 +49,8 @@ public sealed class SettlerRenderer : IDisposable
     /// <summary>A settler standing at a given screen position (soldiers on a tower).</summary>
     public void DrawStanding(SpriteBatch batch, Settler settler, Vector2 anchor, Direction facing, Color playerColor)
     {
-        var sprites = WalkSprites(settler);
-        sprites.Draw(batch, FitToBlocks(sprites, SettlerSprites.StandFrame(facing)), anchor, 1, playerColor);
+        var (sprites, frame) = Look(settler, "NO_ACTION", facing, a => a.Start, 0);
+        sprites.Draw(batch, frame, anchor, 1, playerColor);
     }
 
     public void Draw(SpriteBatch batch, Settler settler, TerrainMesh terrain, float tickAlpha, Color playerColor)
@@ -81,144 +62,102 @@ public sealed class SettlerRenderer : IDisposable
     private (SettlerSprites Sprites, int Frame) Frame(Settler settler, float tickAlpha)
     {
         int work = (int)((settler.ActivityTicks + tickAlpha) * WorkFramesPerTick);
-        switch (settler.Activity)
+        if (WorkAction(settler.Activity) is { } action && Find(settler, action, settler.Facing) is { } animation)
+            return (Sprites(animation), animation.Cycle(work));
+        if (settler.State == SettlerState.Stepping)
         {
-            case Activity.Digging:
-            {
-                var sprites = Sprites(WorkerFile, DiggerDigFirst + SettlerSprites.Block(settler.Facing));
-                return (sprites, work % Math.Max(1, sprites.FrameCount));
-            }
-            case Activity.Building:
-                return (Sprites(WorkerFile, BuilderBuild), WalkLayoutAction(settler, work));
-            case Activity.Chopping:
-                return (Sprites(WorkerFile, LumberjackChop), work % LumberjackChopFrames);
-            case Activity.Mining:
-                return (Sprites(WorkerFile, StonecutterWork), WalkLayoutAction(settler, work));
-            case Activity.Planting:
-            {
-                // One animation for the western, one for the eastern directions.
-                bool east = settler.Facing is Direction.East or Direction.SouthEast or Direction.NorthEast;
-                return (Sprites(WorkerFile, ForesterPlant), (east ? ForesterPlantFrames : 0) + work % ForesterPlantFrames);
-            }
-            case Activity.Sowing:
-                return (Sprites(WorkerFile, FarmerSowFirst + QuarterBlock(settler.Facing)), work % SettlerSprites.FramesPerDirection);
-            case Activity.Harvesting:
-                return (Sprites(WorkerFile, FarmerHarvest),
-                    QuarterBlock(settler.Facing) * SettlerSprites.FramesPerDirection + work % SettlerSprites.FramesPerDirection);
-            case Activity.Fishing:
-                return (Sprites(WorkerFile, FisherCastFirst + SettlerSprites.Block(settler.Facing)), work % SettlerSprites.FramesPerDirection);
-            case Activity.Fighting:
-                // Melee animations are laid out like walk sequences (JSettlers' movables, MIT).
-                return (Sprites(SoldierFile, FightSequence(settler)), WalkLayoutAction(settler, work));
-            case Activity.Shooting:
-            {
-                var sprites = Sprites(SoldierFile, BowmanShootFirst + Math.Clamp(settler.Level, 1, 3) - 1);
-                int perBlock = Math.Max(1, sprites.FrameCount / DirectionExtensions.Count);
-                return (sprites, SettlerSprites.Block(settler.Facing) * perBlock + work % perBlock);
-            }
-            case Activity.DrawingWater:
-            {
-                bool east = settler.Facing is Direction.East or Direction.SouthEast or Direction.NorthEast;
-                var sprites = Sprites(WorkerFile, WaterworkerDrawWest + (east ? 1 : 0));
-                return (sprites, work % Math.Max(1, sprites.FrameCount));
-            }
+            float progress = StepProgress(settler, tickAlpha);
+            return Look(settler, "WALKING", settler.Facing, a => a.Frame(progress),
+                SettlerSprites.WalkFrame(settler.Facing, progress));
         }
-
-        var walk = WalkSprites(settler);
-        int frame = settler.State == SettlerState.Stepping
-            ? SettlerSprites.WalkFrame(settler.Facing, StepProgress(settler, tickAlpha))
-            : SettlerSprites.StandFrame(settler.Facing);
-        return (walk, FitToBlocks(walk, frame));
+        return Look(settler, "NO_ACTION", settler.Facing, a => a.Start, SettlerSprites.StandFrame(settler.Facing));
     }
 
-    private SettlerSprites WalkSprites(Settler settler) => settler.Profession switch
-        {
-            Profession.Carrier => Sprites(CarrierFile, CarrierSequence(settler.Carrying)),
-            Profession.Digger => Sprites(WorkerFile, DiggerWalk),
-            Profession.Builder => Sprites(WorkerFile, BuilderWalk),
-            Profession.Worker => WorkerWalk(settler),
-            Profession.Soldier => Sprites(SoldierFile, SoldierSequence(settler)),
-            _ => Sprites(CarrierFile, _walkSequences[settler.Id % _walkSequences.Length]),
-        };
-
-    /// <summary>Roman soldier walk animations per type and level (file 12; JSettlers' movables, MIT).</summary>
-    private static int SoldierSequence(Settler soldier) => (soldier.SoldierType, soldier.Level) switch
+    /// <summary>Walking or standing: the settler's own animation, else a carrier's, else a varied carrier look.</summary>
+    private (SettlerSprites Sprites, int Frame) Look(Settler settler, string action, Direction facing, Func<SettlerAnimation, int> frame, int plainFrame)
     {
-        (SoldierType.Swordsman, 1) => 9,
-        (SoldierType.Swordsman, 2) => 11,
-        (SoldierType.Swordsman, _) => 10,
-        (SoldierType.Pikeman, 1) => 15,
-        (SoldierType.Pikeman, 2) => 17,
-        (SoldierType.Pikeman, _) => 16,
-        (SoldierType.Bowman, 1) => 21,
-        (SoldierType.Bowman, 2) => 23,
-        _ => 22,
+        if (Find(settler, action, facing) is { } own)
+            return (Sprites(own), frame(own));
+        var people = _peopleOf(settler.Player);
+        if (Resolve(people, "BEARER", action, SettlerAnimations.MaterialName(settler.Carrying), facing) is { } carrier
+            && settler.Profession != Profession.None)
+            return (Sprites(carrier), frame(carrier));
+        // Settlers without a profession: one of the leading carrier sequences of the people.
+        int file = ((int)people + 1) * 10;
+        var looks = WalkSequences(file);
+        return (Sprites(file, looks[settler.Id % looks.Length]), plainFrame);
+    }
+
+    /// <summary>The action of an activity in the animation tables.</summary>
+    private static string? WorkAction(Activity activity) => activity switch
+    {
+        Activity.Sowing => "ACTION2",
+        Activity.Digging or Activity.Building or Activity.Chopping or Activity.Mining or Activity.Planting
+            or Activity.Harvesting or Activity.Fishing or Activity.DrawingWater or Activity.Fighting
+            or Activity.Shooting => "ACTION1",
+        _ => null,
     };
 
-    /// <summary>Melee animations per type and level: swordsman 12-14, pikeman 18-20 (file 12).</summary>
-    private static int FightSequence(Settler soldier) =>
-        (soldier.SoldierType == SoldierType.Pikeman ? 18 : 12) + Math.Clamp(soldier.Level, 1, 3) - 1;
+    private SettlerAnimation? Find(Settler settler, string action, Direction facing) =>
+        TypeOf(settler) is { } type
+            ? Resolve(_peopleOf(settler.Player), type, action, MaterialOf(settler, type), facing)
+            : null;
 
     /// <summary>
-    /// Walk frames are computed for 12 frames per direction; some sequences (the farmer) have 13.
-    /// Stretches the cycle onto the actual block length.
+    /// The animation for a people, else the Romans' (like JSettlers: not every people has every sequence).
+    /// Some work animations exist for four directions only (SW, NW, NE, SE): west and east use the nearer one.
     /// </summary>
-    private static int FitToBlocks(SettlerSprites sprites, int frame)
+    private SettlerAnimation? Resolve(Civilization people, string type, string action, string material, Direction facing)
     {
-        int perBlock = sprites.FrameCount / DirectionExtensions.Count;
-        if (perBlock == SettlerSprites.FramesPerDirection || perBlock < 2)
-            return frame;
-        int block = frame / SettlerSprites.FramesPerDirection, inner = frame % SettlerSprites.FramesPerDirection;
-        return block * perBlock + (inner == 0 ? 0 : 1 + (inner - 1) * (perBlock - 1) / SettlerSprites.WalkCycleFrames);
+        foreach (var p in people == Civilization.Roman ? [people] : new[] { people, Civilization.Roman })
+        foreach (var direction in new[] { facing, facing switch { Direction.West => Direction.SouthWest, Direction.East => Direction.SouthEast, _ => facing } })
+            if (_animations.Find(p, type, action, material, direction) is { } animation && Exists(animation))
+                return animation;
+        return null;
     }
 
-    /// <summary>Animations with only four directions: SW, NW, NE, SE (west and east fall to the nearer one).</summary>
-    private static int QuarterBlock(Direction facing) => facing switch
+    private static string? TypeOf(Settler settler) => settler.Profession switch
     {
-        Direction.SouthWest or Direction.West => 0,
-        Direction.NorthWest => 1,
-        Direction.NorthEast => 2,
-        _ => 3,
+        Profession.Carrier => "BEARER",
+        Profession.Digger => "DIGGER",
+        Profession.Builder => "BRICKLAYER",
+        Profession.Soldier => $"{(settler.SoldierType ?? SoldierType.Swordsman).ToString().ToUpperInvariant()}_L{Math.Clamp(settler.Level, 1, 3)}",
+        Profession.Worker => settler.Trade,
+        _ => null,
     };
 
-    /// <summary>Work animations laid out like walk sequences: 6 direction blocks of 12 frames.</summary>
-    private static int WalkLayoutAction(Settler settler, int work) =>
-        SettlerSprites.Block(settler.Facing) * SettlerSprites.FramesPerDirection + 1 + work % SettlerSprites.WalkCycleFrames;
+    /// <summary>Carried material; a waterworker without water carries his empty bucket.</summary>
+    private static string MaterialOf(Settler settler, string type) =>
+        type == "WATERWORKER" && settler.Carrying is null ? "EMPTY_BUCKET" : SettlerAnimations.MaterialName(settler.Carrying);
 
-    /// <summary>Specialists with their own walk animations; others look like carriers with the good they hold.</summary>
-    private SettlerSprites WorkerWalk(Settler settler) => (settler.Trade, settler.Carrying) switch
+    private bool Exists(SettlerAnimation animation)
     {
-        ("LUMBERJACK", Material.Trunk) => Sprites(WorkerFile, 31),
-        ("LUMBERJACK", _) => Sprites(WorkerFile, 29),
-        ("STONECUTTER", Material.Stone) => Sprites(WorkerFile, 26),
-        ("STONECUTTER", _) => Sprites(WorkerFile, 24),
-        ("FORESTER", _) => Sprites(WorkerFile, 34),
-        ("SAWMILLER", Material.Trunk) => Sprites(WorkerFile, 16),
-        ("SAWMILLER", Material.Plank) => Sprites(WorkerFile, 14),
-        ("SAWMILLER", _) => Sprites(WorkerFile, 19),
-        ("FARMER", Material.Crop) => Sprites(WorkerFile, 87),
-        ("FARMER", _) => Sprites(WorkerFile, 90),
-        ("FISHERMAN", Material.Fish) => Sprites(WorkerFile, 113),
-        ("FISHERMAN", _) => Sprites(WorkerFile, 100),
-        ("WATERWORKER", Material.Water) => Sprites(WorkerFile, 155),
-        ("WATERWORKER", _) => Sprites(WorkerFile, 154),
-        ("MINER", Material.Coal) => Sprites(WorkerFile, 49),
-        ("MINER", Material.GoldOre) => Sprites(WorkerFile, 51),
-        ("MINER", Material.IronOre) => Sprites(WorkerFile, 53),
-        ("MINER", _) => Sprites(WorkerFile, 55),
-        ("MILLER", Material.Crop) => Sprites(WorkerFile, 74),
-        ("MILLER", Material.Flour) => Sprites(WorkerFile, 75),
-        ("MILLER", _) => Sprites(WorkerFile, 69),
-        ("SLAUGHTERER", Material.Meat) => Sprites(WorkerFile, 81),
-        ("SLAUGHTERER", Material.Pig) => Sprites(WorkerFile, 84),
-        ("SLAUGHTERER", _) => Sprites(WorkerFile, 78),
-        ("BAKER", Material.Bread) => Sprites(WorkerFile, 127),
-        ("BAKER", Material.Flour) => Sprites(WorkerFile, 132),
-        ("BAKER", Material.Water) => Sprites(WorkerFile, 133),
-        ("BAKER", _) => Sprites(WorkerFile, 134),
-        ("SMITH", _) => Sprites(WorkerFile, 40),
-        _ => Sprites(CarrierFile, CarrierSequence(settler.Carrying)),
-    };
+        if (!_exists.TryGetValue(animation, out bool exists))
+        {
+            exists = _gfx.FileNumbers.Contains(animation.File);
+            if (exists)
+            {
+                var file = _gfx.Open(animation.File);
+                exists = animation.Sequence < file.SettlerCount && animation.LastFrame < file.GetSettlerFrameCount(animation.Sequence);
+            }
+            _exists[animation] = exists;
+        }
+        return exists;
+    }
+
+    /// <summary>The leading carrier sequences of a file: walk sequences with 6 directions of 12 frames.</summary>
+    private int[] WalkSequences(int file)
+    {
+        if (!_walkSequences.TryGetValue(file, out var sequences))
+        {
+            var carriers = _gfx.Open(file);
+            _walkSequences[file] = sequences = Enumerable.Range(0, carriers.SettlerCount)
+                .TakeWhile(s => carriers.GetSettlerFrameCount(s) == DirectionExtensions.Count * SettlerSprites.FramesPerDirection)
+                .DefaultIfEmpty(0)
+                .ToArray();
+        }
+        return sequences;
+    }
 
     private static float StepProgress(Settler settler, float tickAlpha) =>
         Math.Clamp((settler.TicksIntoStep + tickAlpha) / World.StepTicks, 0, 1);
@@ -226,50 +165,14 @@ public sealed class SettlerRenderer : IDisposable
     private static Vector2 ToWorld(GridPoint p, TerrainMesh terrain) =>
         ScreenProjection.ToWorld(p.X, p.Y, terrain.HeightAt(p.X, p.Y));
 
+    private SettlerSprites Sprites(SettlerAnimation animation) => Sprites(animation.File, animation.Sequence);
+
     private SettlerSprites Sprites(int file, int sequence)
     {
         if (!_sprites.TryGetValue((file, sequence), out var sprites))
             _sprites[(file, sequence)] = sprites = new SettlerSprites(_device, _gfx.Open(file), sequence);
         return sprites;
     }
-
-    /// <summary>Roman carrier animation per carried good (file 10). Table from JSettlers' movables (MIT).</summary>
-    private static int CarrierSequence(Material? material) => material switch
-    {
-        null => 0,
-        Material.Plank => 1,
-        Material.Stone => 2,
-        Material.Pig => 3,
-        Material.Trunk => 4,
-        Material.Bread => 5,
-        Material.Coal => 6,
-        Material.GoldOre => 7,
-        Material.IronOre => 8,
-        Material.Fish => 9,
-        Material.Meat => 10,
-        Material.Crop => 11,
-        Material.Flour => 12,
-        Material.Iron => 13,
-        Material.Gold => 14,
-        Material.Water => 15,
-        Material.Hammer => 16,
-        Material.Pick => 17,
-        Material.FishingRod => 18,
-        Material.Scythe => 19,
-        Material.Saw => 20,
-        Material.Blade => 21,
-        Material.Bow => 22,
-        Material.Spear => 23,
-        Material.Sword => 24,
-        Material.Axe => 35,
-        Material.Wine => 54,
-        Material.Keg or Material.Liquor => 55,
-        Material.GunPowder => 56,
-        Material.Gems => 57,
-        Material.Rice => 58,
-        Material.Sulfur => 59,
-        _ => 0,
-    };
 
     public void Dispose()
     {

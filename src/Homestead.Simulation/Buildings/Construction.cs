@@ -80,7 +80,13 @@ public sealed class Construction
         int idle = _world.Settlers.Count(s => s.Profession == profession && s.Player == player && !_assignments.ContainsKey(s.Id));
         int coming = _recruits.Count(r => r.Profession == profession && r.Settler.Player == player);
         int missing = wanted - idle - coming;
-        while (missing > 0)
+        // Diggers and builders leave the carrier reserve's last conversions to the workers of the
+        // buildings under way: otherwise they take them all and the finished buildings stay empty.
+        // One of each is always allowed, else those buildings would never be built.
+        int headroom = _world.Recruitment.Convertible(player) - _world.Production.AwaitingWorkers(player);
+        if (headroom <= 0 && !_world.Settlers.Any(s => s.Profession == profession && s.Player == player))
+            headroom = 1;
+        while (missing > 0 && headroom-- > 0)
         {
             var site = sites.First(s => freeSpots(s) > 0);
             if (_world.Recruitment.Start(profession, trade, site.Door, site.Player) is not { } recruit)

@@ -8,15 +8,20 @@ using Homestead.Simulation.Economy;
 
 // AI against AI without a window: every player of a map is an AI player, the game runs as fast as
 // it can, and every few game minutes the players' key figures are printed.
-//   Homestead.Arena [map names...] [--all] [--minutes N] [--every N] [--log]
+//   Homestead.Arena [map names...] [--all] [--minutes N] [--every N] [--peoples amazon,roman] [--log]
 // Without map names: the first multiplayer map without start buildings. --all: every such map.
+// --peoples: peoples for players the map leaves open (player i: entry i mod count; default Romans).
 
-string[] valueOptions = ["--minutes", "--every"];
+string[] valueOptions = ["--minutes", "--every", "--peoples"];
 var names = args.Where((a, i) => !a.StartsWith("--") && (i == 0 || !valueOptions.Contains(args[i - 1]))).ToList();
 int minutes = IntOption("--minutes", 30);
 int every = IntOption("--every", 5);
 bool all = args.Contains("--all");
 bool showLog = args.Contains("--log");
+int peoplesAt = Array.IndexOf(args, "--peoples");
+var peoples = peoplesAt >= 0 && peoplesAt + 1 < args.Length
+    ? args[peoplesAt + 1].Split(',').Select(p => Enum.Parse<Civilization>(p.Trim(), ignoreCase: true)).ToArray()
+    : null;
 
 var installation = GameInstallation.Locate();
 var maps = installation.MapFiles
@@ -31,10 +36,11 @@ var siteSince = new Dictionary<int, long>();
 foreach (var (file, original) in maps)
 {
     siteSince.Clear();
-    var (world, report) = OriginalScenario.Load(original);
+    var (world, report) = OriginalScenario.Load(original, freeChoice: peoples);
     for (int player = 0; player < report.Catalogs.Count; player++)
         world.AiPlayers.Add(new AiPlayer(world, report.Catalogs[player], player));
-    Console.WriteLine($"== {Path.GetFileNameWithoutExtension(file)}: {report.Catalogs.Count} players, map {world.Map!.Size}");
+    Console.WriteLine($"== {Path.GetFileNameWithoutExtension(file)}: {report.Catalogs.Count} players " +
+                      $"({string.Join(", ", report.Catalogs.Select(c => c.Civilization))}), map {world.Map!.Size}");
 
     var watch = Stopwatch.StartNew();
     long ticks = (long)minutes * 60 * World.TicksPerSecond;

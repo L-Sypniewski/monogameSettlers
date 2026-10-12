@@ -36,9 +36,10 @@ public sealed class MapGame : Game
     private readonly string[] _mapFiles;
     private readonly string? _captureDirectory;
     private readonly Random _random = new(1);
-    private readonly BuildingCatalog _romans = BuildingCatalog.Load(Civilization.Roman);
+    private readonly IReadOnlyList<Civilization>? _peoples;
+    private BuildingCatalog? _romans;
     private BuildingDefinition[] _placeable = [];
-    private BuildMenu _buildMenu = null!;
+    private BuildMenu? _buildMenu;
     private int _placeIndex;
     private bool _placing;
 
@@ -83,9 +84,12 @@ public sealed class MapGame : Game
     private MouseState _previousMouse;
     private int _capturedFrames;
 
-    public MapGame(GameInstallation installation, GfxDirectory gfx, string? mapName, string? captureDirectory)
+    /// <param name="peoples">Peoples for the players whose people the map leaves open (see <see cref="OriginalScenario.Load"/>).</param>
+    public MapGame(GameInstallation installation, GfxDirectory gfx, string? mapName, string? captureDirectory,
+        IReadOnlyList<Civilization>? peoples = null)
     {
         _gfx = gfx;
+        _peoples = peoples;
         _captureDirectory = captureDirectory;
         _mapFiles = installation.MapFiles.ToArray();
         // Default: the first multiplayer map (equal start equipment for every player).
@@ -122,13 +126,26 @@ public sealed class MapGame : Game
             VertexColorEnabled = true,
             LightingEnabled = false,
         };
-        _settlerRenderer = new SettlerRenderer(GraphicsDevice, _gfx);
-        _placeable = _romans.All.Where(b => b.ConstructionPiles.Count > 0 && b.ConstructionImage is not null)
+        _settlerRenderer = new SettlerRenderer(GraphicsDevice, _gfx, SettlerAnimations.Load(),
+            player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
+        _economyRenderer = new EconomyRenderer(GraphicsDevice, _gfx);
+        LoadMap(_mapIndex);
+    }
+
+    /// <summary>Building catalog of the own player (player 1): the people the map gives or the chosen one.</summary>
+    private BuildingCatalog Own => _playerCatalogs.Count > 0 ? _playerCatalogs[0] : _romans ??= BuildingCatalog.Load(Civilization.Roman);
+
+    /// <summary>Build menu and placeable buildings of the own people.</summary>
+    private void UsePeople(BuildingCatalog catalog)
+    {
+        if (_buildMenu is not null && _placeable.FirstOrDefault()?.Civilization == catalog.Civilization)
+            return;
+        _buildMenu?.Dispose();
+        _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog);
+        _placeable = catalog.All.Where(b => b.ConstructionPiles.Count > 0 && b.ConstructionImage is not null)
             .OrderBy(b => b.Name).ToArray();
         _placeIndex = Math.Max(0, Array.FindIndex(_placeable, b => b.Name == "lumberjack"));
-        _economyRenderer = new EconomyRenderer(GraphicsDevice, _gfx);
-        _buildMenu = new BuildMenu(GraphicsDevice, _gfx, _romans);
-        LoadMap(_mapIndex);
+        _placing = false;
     }
 
     private void LoadMap(int index)
@@ -138,13 +155,14 @@ public sealed class MapGame : Game
         _objects?.Dispose();
         _map = OriginalMap.Open(_mapFiles[_mapIndex]);
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
-        (_world, var report) = OriginalScenario.Load(_map);
+        (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples);
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
         _objects = new MapObjectLayer(GraphicsDevice, _gfx.Open(MapObjectCatalog.GfxFile), _map.Area, _terrain);
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         // Every other player is a computer player.
         _playerCatalogs = report.Catalogs;
+        UsePeople(Own);
         _ownAi = null;
         for (int player = 1; player < report.Catalogs.Count; player++)
             _world.AiPlayers.Add(new AiPlayer(_world, report.Catalogs[player], player));
@@ -335,7 +353,7 @@ public sealed class MapGame : Game
             _message = "AI decisions written to the console";
         }
         if (Pressed(Keys.G))
-            _message = DemoEconomy.Create(_world, _romans, ScreenToGrid(cursorScreen), _random);
+            _message = DemoEconomy.Create(_world, Own, ScreenToGrid(cursorScreen), _random);
         if (Pressed(Keys.M))
             SpawnWanderers(ScreenToGrid(cursorScreen));
         if (Pressed(Keys.F) && _world.BuildingAt(ScreenToGrid(cursorScreen)) is { } target)
@@ -359,12 +377,12 @@ public sealed class MapGame : Game
         // The build menu at the left edge: a click chooses a category or the building to place.
         bool onMenu = BuildMenu.Contains(cursorScreen);
         if (onMenu && mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is null
-            && _buildMenu.Click(cursorScreen) is { } chosen)
+            && _buildMenu!.Click(cursorScreen) is { } chosen)
         {
             _placeIndex = Math.Max(0, Array.IndexOf(_placeable, chosen));
             _placing = true;
         }
-        if (onMenu && _buildMenu.BuildingAt(cursorScreen) is { } hovered)
+        if (onMenu && _buildMenu!.BuildingAt(cursorScreen) is { } hovered)
             _message = hovered.Name;
 
         // Left button: a click on release, or a selection box when dragged.
@@ -657,7 +675,7 @@ public sealed class MapGame : Game
         _spriteBatch.End();
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-        _buildMenu.Draw(_spriteBatch, _pixel, viewport.Height, _placing ? _placeable[_placeIndex] : null, Mouse.GetState().Position.ToVector2());
+        _buildMenu!.Draw(_spriteBatch, _pixel, viewport.Height, _placing ? _placeable[_placeIndex] : null, Mouse.GetState().Position.ToVector2());
         _spriteBatch.End();
 
         if (target is not null)
@@ -739,7 +757,7 @@ public sealed class MapGame : Game
                 _zoom = float.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_ZOOM"),
                     System.Globalization.CultureInfo.InvariantCulture, out float zoom) ? zoom : 1;
                 var start = _start;
-                Console.WriteLine(DemoEconomy.Create(_world, _romans, start, _random));
+                Console.WriteLine(DemoEconomy.Create(_world, Own, start, _random));
                 _selectedBuilding = _world.Buildings.FirstOrDefault(b => b.Definition.Name == (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") ?? "lumberjack"));
                 // HOMESTEAD_CAPTURE_BATTLE=1: enemy soldiers attack the start tower.
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE") == "1"
@@ -752,10 +770,10 @@ public sealed class MapGame : Game
                 }
                 if (_zoom > 1 && _selectedBuilding is not null)
                     _camera = ToWorld(_selectedBuilding.Position);
-                DemoEconomy.PlaceNear(_world, _romans["medium_livinghouse"], new GridPoint(start.X + 10, start.Y - 4), _random);
+                DemoEconomy.PlaceNear(_world, Own["medium_livinghouse"], new GridPoint(start.X + 10, start.Y - 4), _random);
                 foreach (var (name, dx, dy) in new[] { ("lumberjack", -14, 10), ("forester", 8, 16), ("stonecutter", -4, 22) })
                     for (int r = 0; r < 12; r++)
-                        if (_world.PlaceConstructionSite(_romans[name], 0, new GridPoint(start.X + dx + r, start.Y + dy)) is not null)
+                        if (_world.PlaceConstructionSite(Own[name], 0, new GridPoint(start.X + dx + r, start.Y + dy)) is not null)
                             break;
                 break;
             case 3600:
@@ -781,6 +799,7 @@ public sealed class MapGame : Game
         _terrain.Dispose();
         _objects.Dispose();
         _settlerRenderer.Dispose();
+        _buildMenu?.Dispose();
         _economyRenderer.Dispose();
         _atlas.Dispose();
         _effect.Dispose();
