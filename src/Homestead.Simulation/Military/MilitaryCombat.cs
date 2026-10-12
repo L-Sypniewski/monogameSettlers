@@ -229,7 +229,7 @@ public sealed partial class Military
                 if (soldier.State == SettlerState.Stepping)
                     return;
                 soldier.Facing = FacingTowards(soldier.Position, enemy.Position);
-                SetActivity(soldier, stats.Range > 1 ? Activity.Shooting : Activity.Fighting);
+                SetActivity(soldier, soldier.SoldierType == SoldierType.Bowman ? Activity.Shooting : Activity.Fighting);
                 if (_world.Tick >= f.NextHit)
                 {
                     Hit(soldier, enemy);

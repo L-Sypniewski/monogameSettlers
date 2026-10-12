@@ -11,7 +11,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
     private static readonly BuildingCatalog Romans = BuildingCatalog.Load(Civilization.Roman);
 
     [Fact]
-    public void Mine_turns_one_food_into_one_ore_until_the_ground_is_empty()
+    public void Mine_digs_until_the_ground_is_empty_and_one_bread_lasts_a_coal_miner_eight_trips()
     {
         var map = new GameMap(70);
         map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 2);
@@ -32,10 +32,28 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         Assert.True(world.Production.IsExhausted(mine));
         Assert.Equal(0, map.ResourceAmount(new GridPoint(31, 29), ResourceType.Coal));
         Assert.Equal(5, map.ResourceAmount(new GridPoint(29, 31), ResourceType.IronOre));
-        Assert.Equal(4, Total(world, Material.Bread)); // the rest waits, an exhausted mine eats nothing
+        Assert.Equal(7, Total(world, Material.Bread)); // one bread for four trips; an exhausted mine eats nothing
 
         Run(world, 2_000);
-        Assert.Equal(4, Total(world, Material.Bread));
+        Assert.Equal(7, Total(world, Material.Bread));
+    }
+
+    [Fact]
+    public void Other_food_lasts_a_miner_only_two_trips()
+    {
+        var map = new GameMap(70);
+        map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 2);
+        var world = new World(map, TestConfig.NoTools with { OrePerAmount = 2 });
+        var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
+        Assert.True(mine.Piles.Any(p => p.Material == Material.Fish), "the Roman coal mine takes fish");
+        world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50));
+        world.AddLooseGoods(new GridPoint(10, 50), Material.Fish, 8);
+        Spawn(world, Profession.Carrier, 4, new GridPoint(20, 20));
+
+        Run(world, 20_000, stopWhen: () => world.Production.IsExhausted(mine) && world.Logistics.Jobs.Count == 0);
+
+        Assert.Equal(4, world.Production.OreMined);
+        Assert.Equal(8 - 2, Total(world, Material.Fish));
     }
 
     [Fact]

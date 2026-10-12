@@ -4,8 +4,9 @@ using Homestead.Simulation.Pathfinding;
 namespace Homestead.Simulation.Economy;
 
 /// <summary>
-/// Matches requests (input piles with space) with offers (loose and output piles) and hands the
-/// transports to idle carriers.
+/// Matches offers (loose, output and storehouse piles) with requests (input piles with space) and hands
+/// the transports to idle carriers: for each unit first the kind of target, then the nearest one
+/// (see <see cref="ChooseTarget"/>).
 /// </summary>
 /// <remarks>
 /// Every transport reserves a unit at the source and space at the target, so no two carriers go
@@ -32,6 +33,7 @@ public sealed class Logistics
 
     private readonly World _world;
     private readonly Dictionary<int, TransportJob> _jobs = new();
+    private readonly Random _random = new(7);
 
     internal Logistics(World world)
     {
@@ -70,71 +72,100 @@ public sealed class Logistics
             .ToList();
         if (idleCarriers.Count == 0)
             return;
-
-        var offers = _world.Piles.Where(p => p.Available > 0).ToList();
-        if (offers.Count == 0)
+        var offers = _world.Piles.Where(p => p.Available > 0 && p.Material is not null).OrderBy(p => p.Id).ToList();
+        var requests = _world.Piles.Where(p => p.Space > 0 && p.Owner is { Exists: true }).ToList();
+        if (offers.Count == 0 || requests.Count == 0)
             return;
 
-        // Construction sites first, then production input, then the storehouse.
-        var requests = _world.Piles
-            .Where(p => p.Space > 0 && p.Owner?.Exists != false)
-            .OrderBy(p => p.Role == PileRole.Storage ? 2 : p.Owner?.State == BuildingState.Finished ? 1 : 0)
-            .ThenBy(p => p.Id)
-            .ToList();
-
         var pathFinder = _world.PathFinder!;
-        foreach (var request in requests)
+        foreach (var offer in offers)
         {
+            while (offer.Available > 0 && idleCarriers.Count > 0)
+            {
+                var players = idleCarriers.Select(c => c.Player).ToHashSet();
+                if (ChooseTarget(offer, requests, players) is not { } target)
+                    break;
+                int player = target.Owner!.Player;
+                var carrier = idleCarriers
+                    .Where(c => c.Player == player && pathFinder.AreConnected(c.Position, offer.Position))
+                    .MinBy(c => PathFinder.Distance(c.Position, offer.Position));
+                if (carrier is null)
+                    break;
+                idleCarriers.Remove(carrier);
+                Start(carrier, offer, target);
+            }
             if (idleCarriers.Count == 0)
                 break;
-            int player = request.Owner?.Player ?? 0;
-
-            Pile? source = null;
-            int sourceDistance = int.MaxValue;
-            foreach (var offer in offers)
-            {
-                if (offer.Available <= 0 || offer.Material is not { } material || !request.Accepts(material)
-                    || offer.Owner == request.Owner || !_world.BelongsTo(offer, player))
-                    continue;
-                if (request.Role == PileRole.Storage && !_world.Production.Config.IsStored(material))
-                    continue;
-                // Storehouse to storehouse would only shuffle goods around.
-                if (offer.Role == PileRole.Storage && request.Role == PileRole.Storage)
-                    continue;
-                // An empty storehouse pile starts a new material only if no pile there holds it with room
-                // left; otherwise one material spreads over all piles and the storehouse is full.
-                if (request is { Role: PileRole.Storage, Material: null } && request.Owner!.Piles.Any(o =>
-                        o != request && o.Role == PileRole.Storage && o.Material == material && o.Space > 0))
-                    continue;
-                int distance = PathFinder.Distance(offer.Position, request.Position);
-                if (distance < sourceDistance && pathFinder.AreConnected(offer.Position, request.Position))
-                {
-                    source = offer;
-                    sourceDistance = distance;
-                }
-            }
-            if (source is null)
-                continue;
-
-            Settler? carrier = null;
-            int carrierDistance = int.MaxValue;
-            foreach (var candidate in idleCarriers)
-            {
-                if (candidate.Player != player)
-                    continue;
-                int distance = PathFinder.Distance(candidate.Position, source.Position);
-                if (distance < carrierDistance && pathFinder.AreConnected(candidate.Position, source.Position))
-                {
-                    carrier = candidate;
-                    carrierDistance = distance;
-                }
-            }
-            if (carrier is null)
-                continue;
-
-            idleCarriers.Remove(carrier);
-            Start(carrier, source, request);
         }
+    }
+
+    /// <summary>
+    /// Where a unit of the offer goes. First the kind of target: construction sites, then buildings
+    /// that use it, then the storehouse; among buildings, goods with a distribution rule
+    /// (<see cref="ProductionConfig.Distribution"/>, e.g. food for mines 90:10) draw the building type
+    /// by its weight. Then the nearest target of that kind with room.
+    /// </summary>
+    private Pile? ChooseTarget(Pile offer, List<Pile> requests, HashSet<int> players)
+    {
+        var material = offer.Material!.Value;
+        var candidates = requests.Where(r => r.Space > 0 && r.Accepts(material) && r.Owner != offer.Owner
+                                             && players.Contains(r.Owner!.Player) && _world.BelongsTo(offer, r.Owner.Player)
+                                             && Allowed(offer, r, material)).ToList();
+        if (candidates.Count == 0)
+            return null;
+
+        var pathFinder = _world.PathFinder!;
+        foreach (var kind in candidates.GroupBy(Kind).OrderBy(g => g.Key))
+        {
+            var targets = kind.ToList();
+            if (kind.Key == 1 && _world.Production.Config.Distribution.TryGetValue(material, out var weights))
+            {
+                string type = DrawType(targets.Select(t => t.Owner!.Definition.Name).Distinct().ToList(), weights);
+                var ofType = targets.Where(t => t.Owner!.Definition.Name == type).ToList();
+                if (Nearest(ofType) is { } drawn)
+                    return drawn;
+            }
+            if (Nearest(targets) is { } nearest)
+                return nearest;
+        }
+        return null;
+
+        Pile? Nearest(IEnumerable<Pile> targets) => targets
+            .OrderBy(t => PathFinder.Distance(offer.Position, t.Position))
+            .FirstOrDefault(t => pathFinder.AreConnected(offer.Position, t.Position));
+
+        static int Kind(Pile request) => request.Role == PileRole.Storage ? 2 : request.Owner!.State == BuildingState.Finished ? 1 : 0;
+    }
+
+    private bool Allowed(Pile offer, Pile request, Material material)
+    {
+        if (request.Role != PileRole.Storage)
+            return true;
+        if (!_world.Production.Config.IsStored(material))
+            return false;
+        // Storehouse to storehouse would only shuffle goods around.
+        if (offer.Role == PileRole.Storage)
+            return false;
+        // An empty storehouse pile starts a new material only if no pile there holds it with room
+        // left; otherwise one material spreads over all piles and the storehouse is full.
+        return !(request.Material is null && request.Owner!.Piles.Any(o =>
+            o != request && o.Role == PileRole.Storage && o.Material == material && o.Space > 0));
+    }
+
+    /// <summary>A building type drawn by weight; types without a weight only when none has one.</summary>
+    private string DrawType(List<string> types, IReadOnlyDictionary<string, int> weights)
+    {
+        int total = types.Sum(t => weights.GetValueOrDefault(t));
+        if (total <= 0)
+            return types[_random.Next(types.Count)];
+        int roll = _random.Next(total);
+        foreach (string type in types)
+        {
+            roll -= weights.GetValueOrDefault(type);
+            if (roll < 0)
+                return type;
+        }
+        return types[^1];
     }
 
     private void Start(Settler carrier, Pile source, Pile target)

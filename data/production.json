@@ -1,5 +1,5 @@
 {
-  "_comment": "Production balancing (Homestead's own values, not taken from the original). Times in game seconds. Workshop inputs/outputs must match the building's request/offer piles in data/buildings. Mines eat one unit of whatever food their input piles hold per ore.",
+  "_comment": "Production balancing (Homestead's own values, not taken from the original). Times in game seconds. Workshop inputs/outputs must match the building's request/offer piles in data/buildings. Mines eat food from their input piles (see mineFood).",
   "workshops": {
     "sawmill": { "inputs": [ "TRUNK" ], "outputs": [ "PLANK" ], "seconds": 6 },
     "mill": { "inputs": [ "CROP" ], "outputs": [ "FLOUR" ], "seconds": 6 },
@@ -18,6 +18,11 @@
     "waterworks": { "action": "DrawWater", "output": "WATER", "workSeconds": 4, "restSeconds": 4 },
     "farm": { "action": "Farm", "output": "CROP", "workSeconds": 4, "restSeconds": 4 }
   },
+  "mineFood": {
+    "_comment": "Trips into the mine one unit of food lasts: the mine's prefersFood lasts preferredRuns trips, any other food otherRuns.",
+    "preferredRuns": 8,
+    "otherRuns": 2
+  },
   "mines": {
     "coalmine": { "prefersFood": "BREAD", "resource": "Coal", "output": "COAL", "seconds": 10, "radius": 3 },
     "ironmine": { "prefersFood": "MEAT", "resource": "IronOre", "output": "IRONORE", "seconds": 10, "radius": 3 },
@@ -25,9 +30,15 @@
     "gemsmine": { "prefersFood": "FISH", "resource": "Gems", "output": "GEMS", "seconds": 10, "radius": 3 },
     "sulfurmine": { "prefersFood": "FISH", "resource": "Sulfur", "output": "SULFUR", "seconds": 10, "radius": 3 }
   },
+  "distribution": {
+    "_comment": "How a material is shared among the building types that use it (weights by building name; types not listed get nothing while a listed one wants it). The type is drawn first, then the nearest building of that type with room gets it. Materials not listed go to the nearest user. Construction sites always come first, storehouses last.",
+    "BREAD": { "coalmine": 90, "ironmine": 10, "goldmine": 10, "gemsmine": 10, "sulfurmine": 10 },
+    "MEAT": { "ironmine": 90, "coalmine": 10, "goldmine": 10, "gemsmine": 10, "sulfurmine": 10 },
+    "FISH": { "goldmine": 90, "gemsmine": 90, "sulfurmine": 90, "coalmine": 10, "ironmine": 10 }
+  },
   "smiths": {
-    "_comment": "One product per cycle: tools somebody waits for first, otherwise the product with the fewest units around while below keepInStock; with everything in stock the smith rests.",
-    "toolsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD" ], "seconds": 10, "keepInStock": 2 },
+    "_comment": "One product per cycle: tools somebody waits for (and nobody has) first, otherwise the product with the fewest units around while below keepInStock; otherwise the smith rests. The toolsmith keeps no stock: it makes only what is needed right now (until the player can choose).",
+    "toolsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD" ], "seconds": 10, "keepInStock": 0 },
     "weaponsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "SWORD", "BOW", "SPEAR" ], "seconds": 10, "keepInStock": 8 }
   },
   "tools": {

@@ -20,10 +20,15 @@ public sealed record WorkshopRecipe(IReadOnlyList<Material> Inputs, IReadOnlyLis
 public sealed record GathererRecipe(GatherAction Action, Material? Output, int WorkTicks, int RestTicks);
 
 /// <summary>
-/// A mine: eats one unit of food (any of the building's input piles, they differ per civilization)
-/// per ore taken from the ground within <see cref="Radius"/> of the building.
+/// A mine: takes ore from the ground within <see cref="Radius"/> of the building. A unit of food (any
+/// of the building's input piles, they differ per civilization) lasts <see cref="PreferredRuns"/>
+/// trips into the mine if it is the <see cref="PreferredFood"/>, otherwise <see cref="OtherRuns"/>.
 /// </summary>
-public sealed record MineRecipe(ResourceType Resource, Material Output, int Ticks, int Radius);
+public sealed record MineRecipe(ResourceType Resource, Material Output, int Ticks, int Radius,
+    Material? PreferredFood = null, int PreferredRuns = 1, int OtherRuns = 1)
+{
+    public int RunsFor(Material food) => food == PreferredFood ? PreferredRuns : OtherRuns;
+}
 
 /// <summary>
 /// A smith: like a workshop, but it chooses one of several <see cref="Products"/> per cycle (tools that
@@ -70,6 +75,13 @@ public sealed record ProductionConfig
 
     public bool IsStored(Material material) => StoredMaterials?.Contains(material) != false;
 
+    /// <summary>
+    /// Distribution of a material among building types that use it (weights by building name, like
+    /// the original's 90:10 for food to mines). Materials without an entry go to the nearest user.
+    /// </summary>
+    public IReadOnlyDictionary<Material, IReadOnlyDictionary<string, int>> Distribution { get; init; } =
+        new Dictionary<Material, IReadOnlyDictionary<string, int>>();
+
     /// <summary>Carriers a living house releases once it is finished (by building name).</summary>
     public IReadOnlyDictionary<string, int> Residents { get; init; } = new Dictionary<string, int>();
 
@@ -105,13 +117,17 @@ public sealed record ProductionConfig
                 Enum.Parse<GatherAction>(g.Value.GetProperty("action").GetString()!),
                 g.Value.TryGetProperty("output", out var output) ? Materials.Parse(output.GetString()!) : null,
                 Ticks(g.Value, "workSeconds"), Ticks(g.Value, "restSeconds")));
-        var mines = root.GetProperty("mines").EnumerateObject().ToDictionary(
+        var mineFood = root.GetProperty("mineFood");
+        var mines = root.GetProperty("mines").EnumerateObject().Where(m => !m.Name.StartsWith('_')).ToDictionary(
             m => m.Name,
             m => new MineRecipe(
                 Enum.Parse<ResourceType>(m.Value.GetProperty("resource").GetString()!),
                 Material(m.Value.GetProperty("output")),
                 Ticks(m.Value, "seconds"),
-                m.Value.GetProperty("radius").GetInt32()));
+                m.Value.GetProperty("radius").GetInt32(),
+                m.Value.TryGetProperty("prefersFood", out var preferred) ? Material(preferred) : null,
+                mineFood.GetProperty("preferredRuns").GetInt32(),
+                mineFood.GetProperty("otherRuns").GetInt32()));
         var smiths = root.GetProperty("smiths").EnumerateObject().Where(m => !m.Name.StartsWith('_')).ToDictionary(
             m => m.Name,
             m => new SmithRecipe(MaterialList(m.Value.GetProperty("inputs")), MaterialList(m.Value.GetProperty("products")),
@@ -127,6 +143,9 @@ public sealed record ProductionConfig
             Workshops = workshops,
             Gatherers = gatherers,
             Mines = mines,
+            Distribution = root.GetProperty("distribution").EnumerateObject().Where(d => !d.Name.StartsWith('_')).ToDictionary(
+                d => Materials.Parse(d.Name)!.Value,
+                d => (IReadOnlyDictionary<string, int>)d.Value.EnumerateObject().ToDictionary(w => w.Name, w => w.Value.GetInt32())),
             Smiths = smiths,
             Tools = tools,
             StoragePileCapacity = root.GetProperty("storage").GetProperty("pileCapacity").GetInt32(),

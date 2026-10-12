@@ -19,7 +19,8 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   `Map/GameMap` (Gelände, Objekte, Begehbarkeit), `Pathfinding/PathFinder` (A*), `World`/`Settler`
   (Bewegung: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf – siehe Kommentar in `World`).
   `Buildings/` (Definitionen aus `data/buildings/*.json`, Gebäude, `Construction`: Planierer/Bauarbeiter),
-  `Economy/` (Waren, Stapel, `Logistics` mit Watchdog; ins Lager kommen nur die Waren aus `storage.materials`
+  `Economy/` (Waren, Stapel, `Logistics` mit Watchdog – je Ware erst die Zielart (Baustelle, Gebäude, Lager;
+  Gebäudetyp nach `distribution`-Gewichten, z. B. Nahrung an Minen 90:10), dann das nächste Ziel mit Platz; ins Lager kommen nur die Waren aus `storage.materials`
   in `production.json` (Werkzeuge, Waffen, Gold), alles andere bleibt am Ausgabestapel des Erzeugers (8; voll → er wartet); `Problems` zählt Abbruchgründe; `Production`:
   Werkstätten, Minen, Schmiede und Sammler, Werte aus `data/production.json`; `Housing`: Wohnhäuser
   entlassen Träger; `Recruitment`: Träger

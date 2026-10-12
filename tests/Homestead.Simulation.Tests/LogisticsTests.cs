@@ -288,4 +288,39 @@ public class LogisticsTests(ITestOutputHelper output)
         Assert.Equal(4, world.PileAt(new GridPoint(14, 10))!.Count);
         Assert.Equal(5, world.PileAt(new GridPoint(16, 10))!.Count);
     }
+
+    [Fact]
+    public void Food_goes_to_mines_by_the_distribution_weights()
+    {
+        // No ore in the ground: the mines only collect their food.
+        var world = new World(new GameMap(80), ProductionConfig.Load());
+        var coal = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(25, 30))!;
+        var iron = world.PlaceBuilding(Romans["ironmine"], 0, new GridPoint(55, 30))!;
+        world.AddLooseGoods(new GridPoint(40, 50), Material.Bread, 8);
+        for (int i = 0; i < 8; i++)
+            world.Spawn(new GridPoint(36 + i, 55), Profession.Carrier);
+
+        Run(world, 3000);
+
+        int toCoal = coal.Piles.Where(p => p.Material == Material.Bread).Sum(p => p.Count);
+        int toIron = iron.Piles.Where(p => p.Material == Material.Bread).Sum(p => p.Count);
+        Assert.Equal(8, toCoal + toIron);
+        Assert.True(toCoal >= 6, $"bread goes mostly to the coal mine (90:10): {toCoal} to coal, {toIron} to iron");
+    }
+
+    [Fact]
+    public void Goods_go_to_the_nearest_building_of_the_drawn_type()
+    {
+        var world = new World(new GameMap(90), ProductionConfig.Load());
+        var near = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(25, 30))!;
+        var far = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(70, 30))!;
+        world.AddLooseGoods(new GridPoint(30, 45), Material.Bread, 5);
+        for (int i = 0; i < 5; i++)
+            world.Spawn(new GridPoint(40 + i, 55), Profession.Carrier);
+
+        Run(world, 3000);
+
+        Assert.Equal(5, near.Piles.Where(p => p.Material == Material.Bread).Sum(p => p.Count));
+        Assert.DoesNotContain(far.Piles, p => p.Material == Material.Bread && p.Count > 0);
+    }
 }

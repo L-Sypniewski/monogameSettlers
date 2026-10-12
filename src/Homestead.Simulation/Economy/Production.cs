@@ -14,7 +14,8 @@ namespace Homestead.Simulation.Economy;
 /// <see cref="Recruitment"/>) and walks it to the door. A smith picks its product each cycle
 /// (<see cref="ChooseProduct"/>) and puts it down at its drop position for the carriers.
 /// Workshop cycle: leave, fetch each input from the input piles, go in, work, bring the output to
-/// the output pile, go in. A mine works the same with one unit of any food as input; the ore comes
+/// the output pile, go in. A mine works the same with food as input (one unit lasts several trips,
+/// see <see cref="MineRecipe"/>); the ore comes
 /// from the richest field around it (see <see cref="ProductionConfig.OrePerAmount"/>). Gatherer
 /// cycle: rest inside, walk to a target in the work radius, work there, bring the result (if any)
 /// to the output pile, go in.
@@ -318,6 +319,8 @@ public sealed class Production
             case Phase.ToDoorToWork:
                 if (Arrived(w, out bool stalledWork))
                 {
+                    if (w.Mine is { } fed && worker!.Carrying is { } meal)
+                        w.FoodRuns = fed.RunsFor(meal);
                     worker!.Carrying = null;
                     _world.EnterBuilding(worker);
                     w.Phase = Phase.Producing;
@@ -344,6 +347,7 @@ public sealed class Production
                     }
                     TakeResource(field, _config.OrePerAmount);
                     OreMined++;
+                    w.FoodRuns--;
                 }
                 else if (w.Smith is not null)
                 {
@@ -481,15 +485,30 @@ public sealed class Production
             }
         }
         w.Inputs.Clear();
-        if (w.Mine is not null)
+        if (w.Mine is { } mine)
         {
             w.Exhausted = FindOre(w) is null;
-            // Any food will do; take from the fullest pile so the kinds get used evenly.
-            var food = piles.Where(p => p.Role == PileRole.Request && p.Count > 0).MaxBy(p => p.Count);
-            if (w.Exhausted || food is null)
+            if (w.Exhausted)
             {
-                w.Waiting = w.Exhausted ? "mine is exhausted" : "waiting for food";
-                w.TicksLeft = w.Exhausted ? ExhaustedRetryTicks : RetryTicks;
+                w.Waiting = "mine is exhausted";
+                w.TicksLeft = ExhaustedRetryTicks;
+                return;
+            }
+            if (w.FoodRuns > 0)
+            {
+                // Still fed from the last meal: straight back into the mine.
+                w.Waiting = null;
+                w.Phase = Phase.Producing;
+                w.TicksLeft = recipe.Ticks;
+                return;
+            }
+            // The preferred food first, otherwise the fullest pile so the kinds get used evenly.
+            var food = piles.Where(p => p.Role == PileRole.Request && p.Count > 0)
+                .OrderByDescending(p => p.Material == mine.PreferredFood).ThenByDescending(p => p.Count).FirstOrDefault();
+            if (food is null)
+            {
+                w.Waiting = "waiting for food";
+                w.TicksLeft = RetryTicks;
                 return;
             }
             w.Inputs.Enqueue(food);
@@ -934,6 +953,9 @@ public sealed class Production
         /// <summary>Smith: what the current cycle makes.</summary>
         public Material? Product { get; set; }
         public Recruit? Recruit { get; set; }
+
+        /// <summary>Mine: trips into the mine left before the worker has to eat again.</summary>
+        public int FoodRuns { get; set; }
 
         /// <summary>Mine: nothing left in the ground on the last try.</summary>
         public bool Exhausted { get; set; }

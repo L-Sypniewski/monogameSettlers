@@ -149,6 +149,28 @@ public class ToolTests
         Assert.Contains(world.Piles, p => p.Material == Material.Saw && p.Count == 1);
     }
 
+    [Fact]
+    public void Toolsmith_makes_only_what_is_needed_right_now()
+    {
+        var map = new GameMap(80);
+        map.SetObject(new GridPoint(60, 62), MapObjectKind.Tree);
+        var world = new World(map, ProductionConfig.Load());
+        world.PlaceBuilding(Romans["toolsmith"], 0, new GridPoint(30, 30));
+        world.AddLooseGoods(new GridPoint(40, 20), Material.Hammer, 1);
+        world.AddLooseGoods(new GridPoint(20, 50), Material.Iron, 5);
+        world.AddLooseGoods(new GridPoint(22, 50), Material.Coal, 5);
+        Spawn(world, 4, new GridPoint(40, 40));
+
+        Run(world, 6_000);
+        Assert.Equal(0, world.Production.ToolsMade); // nobody needs anything
+
+        world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(60, 55));
+        Run(world, 20_000, stopWhen: () => world.Production.ToolsMade == 1);
+        Run(world, 4_000);
+
+        Assert.Equal(1, world.Production.ToolsMade); // one axe for the woodcutter, then rest again
+    }
+
     private static void Spawn(World world, int count, GridPoint near)
     {
         for (int i = 0; i < count; i++)

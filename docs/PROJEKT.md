@@ -110,7 +110,10 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [ ] Minen-Anzeige (Vorrat/erschöpft) im Spiel
    - [x] Werkzeuge: Träger werden nur mit Werkzeug zu Spezialisten (Tabelle in `production.json`);
      wird ihr Gebäude abgerissen, behalten sie Beruf und Werkzeug und übernehmen das nächste Gebäude ihres Berufs
-   - [x] Werkzeug- und Waffenschmied: fehlende Werkzeuge zuerst, sonst kleiner Vorrat je Ware
+   - [x] Werkzeug- und Waffenschmied: Werkzeugschmied macht nur, was gerade gebraucht wird und fehlt;
+     Waffenschmied hält einen Vorrat
+   - [x] Minen-Nahrung: Lieblingsnahrung reicht für 8 Gänge, andere für 2 (`mineFood`, `prefersFood`)
+   - [x] Verteilung: erst Zielart (Baustelle, Gebäudetyp nach Gewicht wie 90:10, Lager), dann nächstes Ziel
    - [ ] Schmied-Auswahl durch den Spieler (Wunschliste/Anteile)
 5. **Kampf** ← *begonnen*
    - [x] Soldaten: Kaserne macht aus Träger + Waffe Schwertkämpfer/Pikenier/Bogenschütze; Kartensoldaten mit Stufe
