@@ -65,6 +65,7 @@ public sealed class Logistics
 
     private void Dispatch()
     {
+        _world.KeepStorageRoom();
         var idleCarriers = _world.Settlers
             .Where(s => s.IsAvailableCarrier && !_jobs.ContainsKey(s.Id))
             .ToList();

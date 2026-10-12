@@ -57,23 +57,27 @@ public sealed class Construction
     private void RecruitWorkers()
     {
         _recruits.RemoveAll(r => r.State != RecruitState.FetchingTool);
-        var sites = _world.Buildings.Where(b => b.Exists && b.State != BuildingState.Finished).ToList();
-        _missingDiggers = Recruit(Profession.Digger, DiggerTrade, sites, site => site.State == BuildingState.Flattening
-            ? Math.Min(MaxDiggersPerSite, site.Unlevelled.Count) - _assignments.Values.Count(a => a.Site == site)
-            : 0);
-        _missingBuilders = Recruit(Profession.Builder, BuilderTrade, sites, site => site.State == BuildingState.Constructing
-            ? site.Definition.BuilderSpots.Count - _assignments.Values.Count(a => a.Site == site)
-            : 0);
+        _missingDiggers = _missingBuilders = 0;
+        foreach (var sites in _world.Buildings.Where(b => b.Exists && b.State != BuildingState.Finished).GroupBy(b => b.Player))
+        {
+            int player = sites.Key;
+            _missingDiggers += Recruit(Profession.Digger, DiggerTrade, player, sites.ToList(), site => site.State == BuildingState.Flattening
+                ? Math.Min(MaxDiggersPerSite, site.Unlevelled.Count) - _assignments.Values.Count(a => a.Site == site)
+                : 0);
+            _missingBuilders += Recruit(Profession.Builder, BuilderTrade, player, sites.ToList(), site => site.State == BuildingState.Constructing
+                ? site.Definition.BuilderSpots.Count - _assignments.Values.Count(a => a.Site == site)
+                : 0);
+        }
     }
 
     /// <summary>Starts recruitments for the shortfall; returns how many could not be started.</summary>
-    private int Recruit(Profession profession, string trade, List<Building> sites, Func<Building, int> freeSpots)
+    private int Recruit(Profession profession, string trade, int player, List<Building> sites, Func<Building, int> freeSpots)
     {
         if (_world.Recruitment.ToolFor(trade) is null)
             return 0;
         int wanted = sites.Sum(s => Math.Max(0, freeSpots(s)));
-        int idle = _world.Settlers.Count(s => s.Profession == profession && !_assignments.ContainsKey(s.Id));
-        int coming = _recruits.Count(r => r.Profession == profession);
+        int idle = _world.Settlers.Count(s => s.Profession == profession && s.Player == player && !_assignments.ContainsKey(s.Id));
+        int coming = _recruits.Count(r => r.Profession == profession && r.Settler.Player == player);
         int missing = wanted - idle - coming;
         while (missing > 0)
         {

@@ -78,6 +78,25 @@ public class ToolTests
     }
 
     [Fact]
+    public void Idle_diggers_of_another_player_do_not_keep_a_site_from_recruiting()
+    {
+        var map = new GameMap(70);
+        for (int y = 30; y < 50; y++)
+        for (int x = 20; x < 45; x++)
+            map.SetHeight(new GridPoint(x, y), (x * 7 + y * 3) % 5);
+        var world = new World(map);
+        var site = world.PlaceConstructionSite(Romans["sawmill"], 0, new GridPoint(30, 40))!;
+        world.Spawn(new GridPoint(60, 60), Profession.Digger, player: 1);
+        world.AddLooseGoods(new GridPoint(10, 20), Material.Blade, 1);
+        Spawn(world, 2, new GridPoint(45, 55));
+
+        Run(world, 5_000, stopWhen: () => site.State != BuildingState.Flattening);
+
+        Assert.NotEqual(BuildingState.Flattening, site.State);
+        Assert.Contains(world.Settlers, s => s.Profession == Profession.Digger && s.Player == 0);
+    }
+
+    [Fact]
     public void Toolsmith_makes_the_missing_axe_first()
     {
         var map = new GameMap(80);

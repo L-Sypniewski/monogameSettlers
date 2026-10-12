@@ -247,4 +247,22 @@ public class LogisticsTests(ITestOutputHelper output)
         Assert.False(world.CanPlace(Romans["sawmill"], at, out string reason));
         Assert.Equal("door or pile place blocked", reason);
     }
+
+    [Fact]
+    public void A_storehouse_takes_more_materials_than_it_has_piles()
+    {
+        var world = new World(new GameMap(70), ProductionConfig.None);
+        var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(35, 35))!;
+        var materials = new[] { Material.Blade, Material.Axe, Material.Pick, Material.Saw, Material.Stone, Material.Plank, Material.Trunk, Material.Coal };
+        for (int i = 0; i < materials.Length; i++)
+            world.AddLooseGoods(new GridPoint(10 + 2 * i, 15), materials[i], 3);
+        for (int i = 0; i < 8; i++)
+            world.Spawn(new GridPoint(20 + i, 55), Profession.Carrier);
+
+        for (int t = 0; t < 20_000 && (world.Piles.Any(p => p.Role == PileRole.Loose && p.Count > 0) || world.Logistics.Jobs.Count > 0); t++)
+            world.Step();
+
+        Assert.All(materials, m => Assert.Equal(3, stock.Piles.Where(p => p.Material == m).Sum(p => p.Count)));
+        Assert.Contains(stock.Piles, p => p.Role == PileRole.Storage && p.Material is null); // still room for a new one
+    }
 }
