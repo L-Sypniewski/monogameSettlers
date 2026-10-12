@@ -6,6 +6,7 @@ using Homestead.Client.Terrain;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Map;
+using Homestead.Simulation.Pathfinding;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -55,6 +56,7 @@ public sealed class MapGame : Game
     private World _world = null!;
     private readonly HashSet<int> _wanderers = new();
     private Settler? _selected;
+    private Building? _selectedBuilding;
     private string _message = "";
     private TimeSpan _accumulator;
     private TimeSpan _time;
@@ -140,6 +142,26 @@ public sealed class MapGame : Game
         _objects?.SetCode(p.X, p.Y, _gameMap.ObjectCodeAt(p));
     }
 
+    /// <summary>
+    /// Work area of the selected building as in the original: posts on the borders of four circles at
+    /// a quarter, half, three quarters and the full work radius around the work center.
+    /// </summary>
+    private IEnumerable<(GridPoint Point, int Ring)> WorkAreaMarks()
+    {
+        if (_selectedBuilding is not { Exists: true } building || building.Definition.WorkRadius is not { } radius || radius <= 0)
+            yield break;
+        var center = building.Position + (building.Definition.WorkCenter ?? new GridPoint(0, 0));
+        for (int ring = 0; ring < 4; ring++)
+        {
+            int r = Math.Max(1, (int)Math.Round(radius * (ring + 1) / 4.0));
+            // Border: inside the circle with a neighbor outside.
+            foreach (var p in PathFinder.Circle(center, r))
+                if (_gameMap.Contains(p) && Enumerable.Range(0, DirectionExtensions.Count)
+                        .Any(d => !PathFinder.InCircle(center, p.Neighbor((Direction)d), r)))
+                    yield return (p, ring);
+        }
+    }
+
     private Vector2 ToWorld(GridPoint p) => ScreenProjection.ToWorld(p.X, p.Y, _terrain.HeightAt(p.X, p.Y));
 
     protected override void Update(GameTime gameTime)
@@ -167,6 +189,8 @@ public sealed class MapGame : Game
             _world.CanPlace(definition, cursor, out string reason);
             _message = $"placing {definition.Name} (Q/E change, Shift+click finished, Esc stop){(reason.Length > 0 ? ": " + reason : "")}";
         }
+        if (_selectedBuilding is { } selectedBuilding && !_placing)
+            _message = $"{selectedBuilding.Definition.Name}: {_world.StatusOf(selectedBuilding)}";
         var production = _world.Production;
         Window.Title = $"{_map.Name} · {_world.Settlers.Count} settlers · {logistics.Jobs.Count} transports, " +
                        $"produced {production.Produced}, trees {production.TreesCut}/{production.TreesPlanted}, stones {production.StonesCut}, " +
@@ -286,8 +310,24 @@ public sealed class MapGame : Game
         if (hit is not null)
         {
             _selected = hit;
+            _selectedBuilding = null;
             _wanderers.Remove(hit.Id);
             _message = $"settler {hit.Id} selected";
+            return;
+        }
+
+        // A building: select it (shows its state and work area). Without a selected settler,
+        // clicking elsewhere clears the selection.
+        if (_world.BuildingAt(ScreenToGrid(screen)) is { } building)
+        {
+            _selectedBuilding = building;
+            _selected = null;
+            return;
+        }
+        if (_selectedBuilding is not null && _selected is null)
+        {
+            _selectedBuilding = null;
+            _message = "";
             return;
         }
 
@@ -365,15 +405,21 @@ public sealed class MapGame : Game
         var settlersByRow = _world.Settlers.Where(s => !s.IsInside).ToLookup(SettlerRenderer.DepthRow);
         var buildingsByRow = _world.Buildings.Where(b => b.Exists).ToLookup(EconomyRenderer.DepthRow);
         var pilesByRow = _world.Piles.ToLookup(p => p.Position.Y);
+        var marksByRow = WorkAreaMarks().ToLookup(m => m.Point.Y);
         int rows = _objects.RowCount(visible, out int firstRow);
         for (int y = firstRow; y < firstRow + rows; y++)
         {
+            foreach (var (point, ring) in marksByRow[y])
+                _economyRenderer.DrawWorkAreaMark(_spriteBatch, point, ring, _terrain);
             foreach (var pile in pilesByRow[y])
                 _economyRenderer.DrawPile(_spriteBatch, pile, _terrain);
             if (_showObjects)
                 _objects.DrawRow(_spriteBatch, y, visible, _time);
             foreach (var building in buildingsByRow[y])
+            {
                 _economyRenderer.DrawBuilding(_spriteBatch, building, _terrain, PlayerColor);
+                _economyRenderer.DrawFlag(_spriteBatch, building, _world.Production.HasWorker(building), _terrain, PlayerColor, _time);
+            }
             foreach (var settler in settlersByRow[y])
                 _settlerRenderer.Draw(_spriteBatch, settler, _terrain, alpha, PlayerColor);
         }
@@ -449,9 +495,14 @@ public sealed class MapGame : Game
         switch (++_capturedFrames)
         {
             case 1:
-                _zoom = 1;
+                // HOMESTEAD_CAPTURE_ZOOM: closer look at details (flags, marks) in a capture run.
+                _zoom = float.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_ZOOM"),
+                    System.Globalization.CultureInfo.InvariantCulture, out float zoom) ? zoom : 1;
                 var start = _selected!.Position;
                 Console.WriteLine(DemoEconomy.Create(_world, _romans, start, _random));
+                _selectedBuilding = _world.Buildings.FirstOrDefault(b => b.Definition.Name == (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") ?? "lumberjack"));
+                if (_zoom > 1 && _selectedBuilding is not null)
+                    _camera = ToWorld(_selectedBuilding.Position);
                 DemoEconomy.PlaceNear(_world, _romans["medium_livinghouse"], new GridPoint(start.X + 10, start.Y - 4), _random);
                 foreach (var (name, dx, dy) in new[] { ("lumberjack", -14, 10), ("forester", 8, 16), ("stonecutter", -4, 22) })
                     for (int r = 0; r < 12; r++)
@@ -465,6 +516,11 @@ public sealed class MapGame : Game
                                   $"water {production.WaterDrawn}, ore {production.OreMined}, tools {production.ToolsMade}; " +
                                   $"residents {_world.Housing.Released}, settlers {_world.Settlers.Count}; diggers {_world.Settlers.Count(s => s.Profession == Profession.Digger)}, builders {_world.Settlers.Count(s => s.Profession == Profession.Builder)}; problems: " +
                                   string.Join(", ", production.Problems.Select(kv => $"{kv.Key} {kv.Value}x")));
+                var carriers = _world.Settlers.Where(c => c.IsCarrier && !c.IsInside).ToList();
+                Console.WriteLine($"carriers {carriers.Count}: with a task {carriers.Count(c => c.HasTask)}, strolling {carriers.Count(c => c.IsStrolling)}, " +
+                                  $"idle on building ground {carriers.Count(c => !c.HasTask && !c.IsStrolling && c.Destination is null && !_world.IsFreeGround(c.Position))}");
+                foreach (var building in _world.Buildings.Where(b => b.Exists && b.Player == 0))
+                    Console.WriteLine($"  {building.Definition.Name}@{building.Position.X},{building.Position.Y}: {_world.StatusOf(building)}");
                 Exit();
                 break;
         }

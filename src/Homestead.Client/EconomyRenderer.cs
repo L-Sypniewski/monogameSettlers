@@ -13,6 +13,15 @@ public sealed class EconomyRenderer : IDisposable
 {
     private const int PileFile = 1;
 
+    // Flags and work area marks (JSettlers' MapObjectDrawer, MIT): waving flag in the player color,
+    // on the roof of an occupied workplace or at the door of buildings without a worker.
+    private const int FlagFile = 13;
+    private const int DoorFlagSequence = 63;
+    private const int RoofFlagSequence = 64;
+    private const float FlagFramesPerSecond = 10;
+    private const int WorkAreaFile = 1;
+    private const int WorkAreaSequence = 91; // 4 posts, green (inner ring) to red (outer ring)
+
     private readonly GraphicsDevice _device;
     private readonly GfxDirectory _gfx;
     private readonly Dictionary<(int File, int Sequence), SettlerSprites> _sprites = new();
@@ -45,6 +54,29 @@ public sealed class EconomyRenderer : IDisposable
                 Sprites(image.File, image.Sequence).Draw(batch, image.Image, anchor, 1, playerColor, visible);
                 break;
         }
+    }
+
+    /// <summary>The building's flag: on the roof once its worker has arrived; at the door if it has no worker.</summary>
+    public void DrawFlag(SpriteBatch batch, Building building, bool hasWorker, TerrainMesh terrain, Color playerColor, TimeSpan time)
+    {
+        if (building.State != BuildingState.Finished || building.Definition.Flag is not { } offset)
+            return;
+        bool workplace = building.Definition.Worker is not null;
+        if (workplace && !hasWorker)
+            return;
+        var sprites = Sprites(FlagFile, workplace ? RoofFlagSequence : DoorFlagSequence);
+        if (sprites.FrameCount == 0)
+            return;
+        int frame = (int)(time.TotalSeconds * FlagFramesPerSecond + building.Id) % sprites.FrameCount;
+        sprites.Draw(batch, frame, Anchor(building.Position + offset, terrain), 1, playerColor);
+    }
+
+    /// <summary>One post of a work area marking; <paramref name="ring"/> 0 (inner) to 3 (outer).</summary>
+    public void DrawWorkAreaMark(SpriteBatch batch, GridPoint p, int ring, TerrainMesh terrain)
+    {
+        var sprites = Sprites(WorkAreaFile, WorkAreaSequence);
+        if (sprites.FrameCount > 0)
+            sprites.Draw(batch, Math.Min(ring, sprites.FrameCount - 1), Anchor(p, terrain), 1, Color.White);
     }
 
     /// <summary>Semi-transparent preview of a building at a position, green if it fits, red if not.</summary>

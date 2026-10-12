@@ -45,6 +45,35 @@ public sealed partial class World
         return !_footprints.ContainsKey(index) && !_protected.ContainsKey(index) && !_pilesByPoint.ContainsKey(index);
     }
 
+    /// <summary>The building or construction site whose footprint covers the point.</summary>
+    public Building? BuildingAt(GridPoint p) =>
+        RequireMap().Contains(p) && _footprints.TryGetValue(RequireMap().Index(p), out var building) && building.Exists ? building : null;
+
+    /// <summary>A short description of what a building is doing, for the player.</summary>
+    public string StatusOf(Building building)
+    {
+        if (!building.Exists)
+            return "gone";
+        switch (building.State)
+        {
+            case BuildingState.Flattening:
+                return $"construction site: levelling the ground, {building.Unlevelled.Count} points left";
+            case BuildingState.Constructing:
+                bool material = building.Piles.Any(p => p.Role == PileRole.Request && p.Count > 0);
+                return $"construction site: {building.BuildStepsDone}/{building.BuildStepsTotal} built" +
+                       (material ? "" : ", waiting for material");
+        }
+        if (Production.Status(building) is { } status)
+            return status;
+        if (Housing.ResidentsLeft(building) is { } left)
+            return left > 0 ? $"{left} residents still to come" : "all residents moved out";
+        var stored = building.Piles.Where(p => p.Role == PileRole.Storage && p.Count > 0 && p.Material is not null)
+            .GroupBy(p => p.Material!.Value).Select(g => $"{g.Sum(p => p.Count)} {g.Key}").ToList();
+        if (building.Piles.Any(p => p.Role == PileRole.Storage))
+            return stored.Count == 0 ? "storehouse: empty" : "storehouse: " + string.Join(", ", stored);
+        return "no function yet";
+    }
+
     public Pile? PileAt(GridPoint p) => _pilesByPoint.GetValueOrDefault(RequireMap().Index(p));
 
     internal bool HasPile(Pile pile) => _pilesByPoint.TryGetValue(RequireMap().Index(pile.Position), out var at) && at == pile;

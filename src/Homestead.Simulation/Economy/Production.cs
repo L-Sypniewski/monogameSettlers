@@ -76,6 +76,33 @@ public sealed class Production
 
     public Settler? WorkerOf(Building building) => _workplaces.GetValueOrDefault(building.Id)?.Worker;
 
+    /// <summary>The worker has arrived and works there (the building shows its flag).</summary>
+    public bool HasWorker(Building building) =>
+        _workplaces.GetValueOrDefault(building.Id) is { Worker: not null, Phase: not (Phase.NeedsWorker or Phase.Recruiting or Phase.WorkerComing) };
+
+    /// <summary>What the workplace is doing or waiting for (null for buildings without production).</summary>
+    public string? Status(Building building)
+    {
+        if (_workplaces.GetValueOrDefault(building.Id) is not { } w)
+            return null;
+        var tool = _world.Recruitment.ToolFor(building.Definition.Worker);
+        return w.Phase switch
+        {
+            Phase.NeedsWorker when tool is { } t && !_world.Recruitment.ToolAvailable(t) => $"no worker: tool missing ({t})",
+            Phase.NeedsWorker => "no worker: no free carrier",
+            Phase.Recruiting when tool is { } t => $"worker is fetching the tool ({t})",
+            Phase.Recruiting or Phase.WorkerComing => "worker is on the way",
+            Phase.Inside => w.Waiting ?? "resting",
+            Phase.ToPile or Phase.PickingUp or Phase.ToDoorToWork =>
+                w.Mine is null ? "fetching " + string.Join(" and ", w.Workshop!.Inputs) : "fetching food",
+            Phase.Producing when w.Product is { } product => $"making {product}",
+            Phase.Producing => w.Mine is null ? "working" : "mining",
+            Phase.ToSpot or Phase.Gathering => "working outside",
+            Phase.ToOutput or Phase.Dropping => $"bringing {w.Worker?.Carrying} out",
+            _ => "going home",
+        };
+    }
+
     /// <summary>A mine that found nothing left to dig on its last try.</summary>
     public bool IsExhausted(Building building) => _workplaces.GetValueOrDefault(building.Id)?.Exhausted == true;
 
@@ -202,18 +229,9 @@ public sealed class Production
             .FirstOrDefault();
     }
 
-    /// <summary>Map points within <paramref name="radius"/> steps of <paramref name="center"/>.</summary>
-    private IEnumerable<GridPoint> Area(GridPoint center, int radius)
-    {
-        var map = _world.Map!;
-        for (int dy = -radius; dy <= radius; dy++)
-        for (int dx = -radius; dx <= radius; dx++)
-        {
-            var p = new GridPoint(center.X + dx, center.Y + dy);
-            if (map.Contains(p) && PathFinder.Distance(center, p) <= radius)
-                yield return p;
-        }
-    }
+    /// <summary>Map points of the round area (work area, mine area) around <paramref name="center"/>.</summary>
+    private IEnumerable<GridPoint> Area(GridPoint center, int radius) =>
+        PathFinder.Circle(center, radius).Where(_world.Map!.Contains);
 
     private void Advance(Workplace w)
     {
@@ -445,6 +463,7 @@ public sealed class Production
             w.Product = ChooseProduct(smith);
             if (w.Product is null)
             {
+                w.Waiting = "everything in stock, resting";
                 w.TicksLeft = RetryTicks;
                 return;
             }
@@ -454,6 +473,7 @@ public sealed class Production
             var output = piles.FirstOrDefault(p => p.Role == PileRole.Offer && p.Material == recipe.Outputs[0]);
             if (output is null || output.Count >= output.Capacity)
             {
+                w.Waiting = "output pile is full";
                 w.TicksLeft = RetryTicks;
                 return;
             }
@@ -466,6 +486,7 @@ public sealed class Production
             var food = piles.Where(p => p.Role == PileRole.Request && p.Count > 0).MaxBy(p => p.Count);
             if (w.Exhausted || food is null)
             {
+                w.Waiting = w.Exhausted ? "mine is exhausted" : "waiting for food";
                 w.TicksLeft = w.Exhausted ? ExhaustedRetryTicks : RetryTicks;
                 return;
             }
@@ -476,11 +497,13 @@ public sealed class Production
             var pile = piles.FirstOrDefault(p => p.Role == PileRole.Request && p.Material == material && p.Count > 0);
             if (pile is null)
             {
+                w.Waiting = $"waiting for {material}";
                 w.TicksLeft = RetryTicks;
                 return;
             }
             w.Inputs.Enqueue(pile);
         }
+        w.Waiting = null;
         _world.LeaveBuilding(w.Worker!);
         if (!WalkTo(w, w.Inputs.Peek().Position, Phase.ToPile))
             GiveUp(w, "input pile unreachable");
@@ -491,9 +514,19 @@ public sealed class Production
         var target = FindTarget(w, recipe.Action);
         if (target is not { } t)
         {
+            w.Waiting = recipe.Action switch
+            {
+                GatherAction.CutTree => "no tree in range",
+                GatherAction.CutStone => "no stone in range",
+                GatherAction.PlantTree => "no free ground to plant on",
+                GatherAction.Fish => "no fish in range",
+                GatherAction.DrawWater => "no water in range",
+                _ => "no field to sow or harvest",
+            };
             w.TicksLeft = RetryTicks;
             return;
         }
+        w.Waiting = null;
         w.Target = t.Target;
         w.Facing = t.Facing;
         _reservedTargets.Add(_world.Map!.Index(t.Target));
@@ -894,6 +927,9 @@ public sealed class Production
         public GathererRecipe? Gatherer { get; } = gatherer;
         public MineRecipe? Mine { get; init; }
         public SmithRecipe? Smith { get; init; }
+
+        /// <summary>Why the last cycle could not start (shown to the player), null while working.</summary>
+        public string? Waiting { get; set; }
 
         /// <summary>Smith: what the current cycle makes.</summary>
         public Material? Product { get; set; }

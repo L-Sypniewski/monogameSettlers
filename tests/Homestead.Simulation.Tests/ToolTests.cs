@@ -21,6 +21,8 @@ public class ToolTests
         Run(world, 1_000);
         Assert.Null(world.Production.WorkerOf(lumberjack));
         Assert.All(world.Settlers, s => Assert.Equal(Profession.Carrier, s.Profession));
+        Assert.Equal("no worker: tool missing (Axe)", world.StatusOf(lumberjack));
+        Assert.False(world.Production.HasWorker(lumberjack));
 
         world.AddLooseGoods(new GridPoint(15, 55), Material.Axe, 1);
         Run(world, 20_000, stopWhen: () => Count(stock, Material.Trunk) == 1);
@@ -28,6 +30,8 @@ public class ToolTests
         var worker = world.Production.WorkerOf(lumberjack);
         Assert.NotNull(worker);
         Assert.Equal(Material.Axe, worker.Tool);
+        Assert.True(world.Production.HasWorker(lumberjack));
+        Assert.Same(lumberjack, world.BuildingAt(lumberjack.Position));
         Assert.Equal(1, Count(stock, Material.Trunk));
         Assert.DoesNotContain(world.Piles, p => p.Material == Material.Axe && p.Count > 0);
     }

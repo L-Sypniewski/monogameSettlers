@@ -43,6 +43,9 @@ public sealed class BuildingDefinition
     /// <summary>How far gatherers (woodcutter, forester, ...) walk from the building, if set in the data.</summary>
     public int? WorkRadius { get; init; }
 
+    /// <summary>Where the building's flag stands (on the roof, or at the door of buildings without a worker).</summary>
+    public GridPoint? Flag { get; init; }
+
     /// <summary>Where a smith puts down what it made (it has no output pile).</summary>
     public GridPoint? DropPosition { get; init; }
 
@@ -146,6 +149,7 @@ public sealed class BuildingCatalog
             WorkRadius = b.TryGetProperty("workradius", out var radius) && int.TryParse(radius.GetString(), out int r) ? r : null,
             WorkCenter = workCenter,
             DropPosition = dropPosition,
+            Flag = b.TryGetProperty("flag", out var flag) ? Point(flag) : null,
             ConstructionPiles = Piles(b.GetProperty("constructionStacks")),
             RequestPiles = Piles(b.GetProperty("requestStacks")),
             OfferPiles = Piles(b.GetProperty("offerStacks")),

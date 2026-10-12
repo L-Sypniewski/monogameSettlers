@@ -104,7 +104,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         var center = farm.Position + farm.Definition.WorkCenter!.Value;
         for (int i = 0; i < map.PointCount; i++)
             if (map.ObjectAt(map.Point(i)) == MapObjectKind.Field)
-                Assert.InRange(PathFinder.Distance(center, map.Point(i)), 0, farm.Definition.WorkRadius!.Value);
+                Assert.True(PathFinder.InCircle(center, map.Point(i), farm.Definition.WorkRadius!.Value));
     }
 
     [Fact]

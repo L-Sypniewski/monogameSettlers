@@ -34,6 +34,31 @@ public sealed class PathFinder
     /// <summary>Number of nodes expanded by the last search (for tests and profiling).</summary>
     public int LastExpandedNodes { get; private set; }
 
+    /// <summary>
+    /// Whether <paramref name="p"/> lies in the round area of <paramref name="radius"/> around
+    /// <paramref name="center"/>: straight-line distance on the hex grid, where all six neighbors are at 1
+    /// (squared: dx² + dy² − dx·dy, as in JSettlers' MapCircle). Work areas are such circles.
+    /// </summary>
+    public static bool InCircle(GridPoint center, GridPoint p, int radius)
+    {
+        int dx = p.X - center.X, dy = p.Y - center.Y;
+        return dx * dx + dy * dy - dx * dy <= radius * radius;
+    }
+
+    /// <summary>All points of the circle (see <see cref="InCircle"/>), map bounds not checked.</summary>
+    public static IEnumerable<GridPoint> Circle(GridPoint center, int radius)
+    {
+        // |dx| and |dy| can exceed the radius by up to 2/√3 in the diagonal directions.
+        int reach = radius * 2;
+        for (int dy = -reach; dy <= reach; dy++)
+        for (int dx = -reach; dx <= reach; dx++)
+        {
+            var p = new GridPoint(center.X + dx, center.Y + dy);
+            if (InCircle(center, p, radius))
+                yield return p;
+        }
+    }
+
     /// <summary>Number of steps without obstacles.</summary>
     public static int Distance(GridPoint a, GridPoint b)
     {

@@ -84,6 +84,9 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [x] Weitere Festlauf-Fälle gefunden und behoben (gegenseitiges Wegschieben an Stapeln, Kreisen um Gedränge)
    - [x] Untätige Träger verteilen sich (verlassen Lagerhof, Gebäudeumfeld und Gedränge; bleiben sofort verfügbar)
    - [x] Planierer/Bauarbeiter entstehen aus Trägern + Werkzeug (Schaufel/Hammer)
+   - [x] Gebäude anklicken: Zustand (wartet auf Ware/Werkzeug, nichts in Reichweite, …) und Arbeitsbereich
+     (Original-Markierung, vier Kreise); Fähnchen auf besetzten Gebäuden
+   - [ ] Arbeitsbereich verschieben
    - [x] Wohnhäuser entlassen Träger (klein 10, mittel 30, groß 100; einer pro Sekunde, einstellbar)
    - [ ] Startausstattung je Spielstart (Burg/Lager, Waren, Siedler wie im Original)
    - [ ] Auf- und Ablegen animieren; Wege (beschleunigen das Laufen)
