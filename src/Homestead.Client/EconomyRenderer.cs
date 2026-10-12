@@ -24,6 +24,8 @@ public sealed class EconomyRenderer : IDisposable
     private const int WorkAreaFile = 1;
     private const int WorkAreaSequence = 91; // 4 posts, green (inner ring) to red (outer ring)
     private const int SignFile = 1;            // geologist signs (JSettlers' MapObjectDrawer, MIT)
+    private const int SitePostSequence = 92;   // file 1: posts around a construction site
+    private const int SiteSignSequence = 93;   // file 1: the sign on a construction site
     private const int MaxResourceAmount = 15;  // amount per field in original maps
 
     private readonly GraphicsDevice _device;
@@ -46,6 +48,13 @@ public sealed class EconomyRenderer : IDisposable
     public void DrawBuilding(SpriteBatch batch, Building building, TerrainMesh terrain, Color playerColor)
     {
         var anchor = Anchor(building.Position, terrain);
+        // A construction site is marked from the start: a sign on it and posts around it.
+        if (building.State != BuildingState.Finished)
+        {
+            Sprites(SignFile, SiteSignSequence).Draw(batch, 0, anchor, 1, playerColor);
+            foreach (var mark in building.Definition.BuildMarks)
+                Sprites(SignFile, SitePostSequence).Draw(batch, 0, Anchor(building.Position + mark, terrain), 1, playerColor);
+        }
         switch (building.State)
         {
             case BuildingState.Finished:

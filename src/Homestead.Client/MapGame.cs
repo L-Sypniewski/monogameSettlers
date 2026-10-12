@@ -423,9 +423,9 @@ public sealed class MapGame : Game
                 Click(cursorScreen);
             _dragStart = null;
         }
-        // The selection holds one kind; who died, went inside or changed profession leaves it.
+        // The selection holds one kind; who died, went inside, changed profession or (carriers) got a task leaves it.
         var kind = _group.FirstOrDefault(s => !s.IsDead && !s.IsInside)?.Profession;
-        _group.RemoveAll(s => s.IsDead || s.IsInside || s.Profession != kind);
+        _group.RemoveAll(s => s.IsDead || s.IsInside || s.Profession != kind || s.IsCarrier && !s.IsAvailableCarrier);
 
         float speed = 800 / _zoom * (float)gameTime.ElapsedGameTime.TotalSeconds;
         if (keys.IsKeyDown(Keys.Left) || keys.IsKeyDown(Keys.A))
@@ -470,9 +470,16 @@ public sealed class MapGame : Game
             var at = ScreenToGrid(screen);
             // Shift: finished at once (for testing), otherwise a construction site.
             bool instant = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
-            _message = !_world.CanPlace(definition, at, out string reason) ? $"{definition.Name}: {reason}"
-                : instant ? _world.PlaceBuilding(definition, 0, at) is not null ? $"{definition.Name} placed" : "could not place"
-                : _world.PlaceConstructionSite(definition, 0, at) is not null ? $"{definition.Name} site placed" : "could not place";
+            if (!_world.CanPlace(definition, at, out string reason))
+            {
+                _message = $"{definition.Name}: {reason}";
+                return;
+            }
+            bool placed = instant ? _world.PlaceBuilding(definition, 0, at) is not null : _world.PlaceConstructionSite(definition, 0, at) is not null;
+            _message = !placed ? "could not place" : instant ? $"{definition.Name} placed" : $"{definition.Name} site placed";
+            // Placed: the choice is done (choose again in the build menu for another one).
+            if (placed)
+                _placing = false;
             return;
         }
 
@@ -485,8 +492,8 @@ public sealed class MapGame : Game
             .OrderBy(t => t.Distance)
             .Select(t => t.Settler)
             .FirstOrDefault();
-        // Own soldiers, geologists and carriers join the selection that takes orders; others are only looked at.
-        if (hit is { Player: 0, Profession: Profession.Soldier or Profession.Geologist or Profession.Carrier })
+        // Own soldiers, geologists and idle carriers can be selected; other trades not at all.
+        if (hit is { Player: 0 } && Selectable(hit))
         {
             _group.Clear();
             _group.Add(hit);
@@ -495,7 +502,8 @@ public sealed class MapGame : Game
             _message = SelectionHint();
             return;
         }
-        if (hit is not null && _group.Count == 0)
+        // Wanderers (debug, key M) can still be picked and sent around one by one.
+        if (hit is { Profession: Profession.None } && _group.Count == 0)
         {
             _selected = hit;
             _selectedBuilding = null;
@@ -535,6 +543,10 @@ public sealed class MapGame : Game
         _message = _world.WalkTo(_selected, target) ? $"walking to {target.X},{target.Y}" : "unreachable";
     }
 
+    /// <summary>Own settlers that can be selected: soldiers, geologists and carriers with nothing to do.</summary>
+    private static bool Selectable(Settler s) =>
+        s.Profession is Profession.Soldier or Profession.Geologist || s.IsAvailableCarrier;
+
     private List<Settler> SelectedSoldiers() => _group.Where(s => s.Profession == Profession.Soldier).ToList();
 
     /// <summary>A building is selected: the menu at the left shows what there is to know about it.</summary>
@@ -567,8 +579,13 @@ public sealed class MapGame : Game
     /// </summary>
     private void Command(Vector2 screen)
     {
+        // Right click while placing: no building chosen any more.
         if (_placing)
+        {
+            _placing = false;
+            _message = "";
             return;
+        }
         var clicked = ScreenToGrid(screen);
         var geologists = _group.Where(s => s.Profession == Profession.Geologist).ToList();
         if (geologists.Count > 0)
@@ -606,7 +623,7 @@ public sealed class MapGame : Game
         var min = Vector2.Min(a, b);
         var max = Vector2.Max(a, b);
         float alpha = TickAlpha;
-        var inBox = _world.Settlers.Where(s => s.Player == 0 && !s.IsInside)
+        var inBox = _world.Settlers.Where(s => s.Player == 0 && !s.IsInside && Selectable(s))
             .Where(s => SettlerRenderer.Anchor(s, _terrain, alpha) - new Vector2(0, 10) is var p
                         && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y)
             .ToList();
@@ -894,6 +911,13 @@ public sealed class MapGame : Game
                     for (int r = 0; r < 12; r++)
                         if (_world.PlaceConstructionSite(Own[name], 0, new GridPoint(start.X + dx + r, start.Y + dy)) is not null)
                             break;
+                // HOMESTEAD_CAPTURE_FOCUS=site: a fresh construction site.
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") == "site"
+                    && _world.Buildings.LastOrDefault(b => b.Player == 0 && b.State != BuildingState.Finished) is { } site)
+                {
+                    _selectedBuilding = site;
+                    _camera = ToWorld(site.Position);
+                }
                 break;
             case 3600:
                 var production = _world.Production;

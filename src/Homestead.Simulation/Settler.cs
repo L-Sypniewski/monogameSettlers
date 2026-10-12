@@ -146,7 +146,8 @@ public sealed class Settler
     /// <summary>Becomes a specialist once its current delivery is done: no new tasks meanwhile.</summary>
     internal bool ConversionPending { get; set; }
 
-    internal bool IsAvailableCarrier => IsCarrier && !HasTask && Carrying is null && !ConversionPending
+    /// <summary>A carrier with nothing to do (may be strolling out of the way): free for a new task.</summary>
+    public bool IsAvailableCarrier => IsCarrier && !HasTask && Carrying is null && !ConversionPending
                                         && (IsStrolling || Destination is null && State != SettlerState.Stepping);
 
     /// <summary>The tool a specialist took up when it was recruited (put down again if it becomes a carrier).</summary>

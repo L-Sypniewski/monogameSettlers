@@ -49,6 +49,9 @@ public sealed class BuildingDefinition
 
     public required IReadOnlyList<WorkSpot> BuilderSpots { get; init; }
 
+    /// <summary>Where the posts of a construction site stand (around its ground).</summary>
+    public IReadOnlyList<GridPoint> BuildMarks { get; init; } = [];
+
     /// <summary>How far gatherers (woodcutter, forester, ...) walk from the building, if set in the data.</summary>
     public int? WorkRadius { get; init; }
 
@@ -161,6 +164,9 @@ public sealed class BuildingCatalog
             Door = Point(b.GetProperty("door")),
             Ground = b.GetProperty("ground").EnumerateArray().Select(g => g.GetString()!).ToHashSet(),
             BuilderSpots = builderSpots,
+            BuildMarks = b.GetProperty("positions").TryGetProperty("buildmark", out var marks)
+                ? marks.EnumerateArray().Select(m => new GridPoint(m.GetProperty("dx").GetInt32(), m.GetProperty("dy").GetInt32())).ToArray()
+                : [],
             WorkRadius = b.TryGetProperty("workradius", out var radius) && int.TryParse(radius.GetString(), out int r) ? r : null,
             WorkCenter = workCenter,
             DropPosition = dropPosition,

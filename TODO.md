@@ -70,6 +70,8 @@ Jedem KI-Gegner wird eine Schwierigkeit leicht/mittel/schwer zugewiesen.
 Leicht:
     - KI weiß nur das, was sie normalerweise sehen sollte. Im eigenen Land, Gegnerpositionen durch Späher, Resourcen durch Geologen
     - Bildet Geologen aus
+    - Keine Guerilla-Angriffe
+    - Keine präventive Verteidigung, nur reaktiv
 Mittel:
     - KI weiß nur das, was sie normalerweise sehen sollte. Im eigenen Land, Gegnerpositionen durch Späher, Resourcen durch Geologen
     - Bildet Geologen und Späher
