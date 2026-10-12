@@ -139,23 +139,46 @@ public sealed partial class AiPlayer
     }
 
     /// <summary>
-    /// Short of carriers, or the carrier reserve (nearly) stops recruiting: a living house comes first.
-    /// Waiting until no carrier may convert any more is too late: the plank and stone makers may then
-    /// lack workers for good, and the house its material.
+    /// A living house comes first when carriers run short: fewer free ones than freeCarriers, no more
+    /// carriers in all than carriersPerProductionBuilding per production building (sites included),
+    /// or the carrier reserve (nearly) stops recruiting. Waiting until no carrier may convert any more
+    /// is too late: the plank and stone makers may then lack workers for good, and the house its material.
+    /// Residents still to come count as carriers.
     /// </summary>
     private bool HouseWanted(List<Building> mine)
     {
-        if (mine.Any(b => b.Definition.Name == _config.House && b.State != BuildingState.Finished))
+        if (mine.Any(b => IsLivingHouse(b.Definition.Name) && b.State != BuildingState.Finished))
             return false;
-        int carriers = _world.Settlers.Count(s => s.Player == Player && s.IsAvailableCarrier)
-                       + mine.Sum(b => _world.Housing.ResidentsLeft(b) ?? 0);
-        return carriers < _config.FreeCarriers || _world.Recruitment.Convertible(Player) < _config.HouseWhenConvertible;
+        int coming = mine.Sum(b => _world.Housing.ResidentsLeft(b) ?? 0);
+        int free = _world.Settlers.Count(s => s.Player == Player && s.IsAvailableCarrier) + coming;
+        int carriers = _world.Settlers.Count(s => s.Player == Player && s.IsCarrier) + coming;
+        int producers = mine.Count(b => b.Definition.Worker is not null);
+        return free < _config.FreeCarriers
+               || carriers <= producers * _config.CarriersPerProductionBuilding
+               || _world.Recruitment.Convertible(Player) < _config.HouseWhenConvertible;
+    }
+
+    private bool IsLivingHouse(string name) => name == _config.House || _config.HouseSizes.Contains(name);
+
+    /// <summary>
+    /// The living house to build: the biggest one whose planks and stones are on hand houseStockFactor
+    /// times over, otherwise the small one.
+    /// </summary>
+    private BuildingDefinition? HouseToBuild(List<Building> mine)
+    {
+        int planks = Free(Material.Plank, mine), stones = Free(Material.Stone, mine);
+        foreach (string name in _config.HouseSizes)
+            if (_catalog.Find(name) is { } house
+                && planks >= _config.HouseStockFactor * Cost(house, Material.Plank)
+                && stones >= _config.HouseStockFactor * Cost(house, Material.Stone))
+                return house;
+        return _catalog.Find(_config.House);
     }
 
     private IEnumerable<(string Name, int Count)> Wishes(List<Building> mine)
     {
-        if (HouseWanted(mine))
-            yield return (_config.House, mine.Count(b => b.Definition.Name == _config.House) + 1);
+        if (HouseWanted(mine) && HouseToBuild(mine) is { } house)
+            yield return (house.Name, mine.Count(b => b.Definition.Name == house.Name) + 1);
         // A storehouse only once goods worth storing (tools, weapons, gold) are made in numbers and
         // pile up, and the storehouses there are have no room left for them.
         var storage = mine.Where(b => b.State == BuildingState.Finished).SelectMany(b => b.Piles).Where(p => p.Role == PileRole.Storage).ToList();
@@ -388,7 +411,7 @@ public sealed partial class AiPlayer
         (int Planks, int Stones) cost = (Cost(tower, Material.Plank), Cost(tower, Material.Stone));
         int planks = Free(Material.Plank, mine), stones = Free(Material.Stone, mine);
         // A wanted living house comes before towers: they leave its material.
-        (int Planks, int Stones) keep = HouseWanted(mine) && _catalog.Find(_config.House) is { } house
+        (int Planks, int Stones) keep = HouseWanted(mine) && HouseToBuild(mine) is { } house
             ? (Cost(house, Material.Plank), Cost(house, Material.Stone))
             : default;
         bool affordable = Enough(planks, cost.Planks + keep.Planks) && Enough(stones, cost.Stones + keep.Stones);

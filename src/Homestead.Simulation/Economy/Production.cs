@@ -186,7 +186,7 @@ public sealed class Production
         }
     }
 
-    /// <summary>Saplings become trees; grain grows stage by stage.</summary>
+    /// <summary>Saplings become trees; grain grows stage by stage; stumps of felled trees disappear.</summary>
     private void Grow()
     {
         var map = _world.Map!;
@@ -197,7 +197,9 @@ public sealed class Production
             _growing.Remove(index);
             var p = map.Point(index);
             byte code = map.ObjectCodeAt(p);
-            if (code == MapObjectCodes.Sapling)
+            if (code == MapObjectCodes.TreeStump)
+                map.SetObjectCode(p, MapObjectCodes.None);
+            else if (code == MapObjectCodes.Sapling)
             {
                 map.SetObjectCode(p, (byte)(MapObjectCodes.FirstTree + _random.Next(MapObjectCodes.LastTree - MapObjectCodes.FirstTree + 1)));
                 TreesGrown++;
@@ -617,6 +619,7 @@ public sealed class Production
         {
             case GatherAction.CutTree when MapObjectCodes.IsAdultTree(code):
                 map.SetObjectCode(w.Target, MapObjectCodes.TreeStump);
+                _growing[map.Index(w.Target)] = _world.Tick + _config.StumpTicks; // the stump rots away
                 TreesCut++;
                 worker.Carrying = Material.Trunk;
                 DeliverOutput(w);

@@ -28,6 +28,14 @@ public sealed record AiConfig
     public required int FreeCarriers { get; init; }
     public required string House { get; init; }
 
+    /// <summary>A living house is wanted while there are no more carriers than this many per production building.</summary>
+    public double CarriersPerProductionBuilding { get; init; } = 2;
+
+    /// <summary>Living houses from big to small: the first whose material is on hand <see cref="HouseStockFactor"/> times is built.</summary>
+    public IReadOnlyList<string> HouseSizes { get; init; } = ["big_livinghouse", "medium_livinghouse"];
+
+    public double HouseStockFactor { get; init; } = 2;
+
     /// <summary>A living house is wanted once fewer carriers than this may still become specialists (carrier reserve).</summary>
     public int HouseWhenConvertible { get; init; } = 4;
     public required int StockWhenWaiting { get; init; }
@@ -74,6 +82,11 @@ public sealed record AiConfig
             FreeCarriers = root.GetProperty("freeCarriers").GetInt32(),
             House = root.GetProperty("house").GetString()!,
             HouseWhenConvertible = root.TryGetProperty("houseWhenConvertible", out var convertible) ? convertible.GetInt32() : 4,
+            CarriersPerProductionBuilding = root.TryGetProperty("carriersPerProductionBuilding", out var perBuilding) ? perBuilding.GetDouble() : 2,
+            HouseSizes = root.TryGetProperty("houseSizes", out var sizes)
+                ? sizes.EnumerateArray().Select(s => s.GetString()!).ToArray()
+                : ["big_livinghouse", "medium_livinghouse"],
+            HouseStockFactor = root.TryGetProperty("houseStockFactor", out var stockFactor) ? stockFactor.GetDouble() : 2,
             StockWhenWaiting = root.GetProperty("stockWhenWaiting").GetInt32(),
             BuildOrder = root.GetProperty("buildOrder").EnumerateArray()
                 .Select(e => (e[0].GetString()!, e[1].GetInt32())).ToArray(),

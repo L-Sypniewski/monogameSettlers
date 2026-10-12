@@ -74,7 +74,7 @@
     "residents": { "small_livinghouse": 10, "medium_livinghouse": 30, "big_livinghouse": 100 },
     "intervalSeconds": 1
   },
-  "trees": { "growSeconds": 150 },
+  "trees": { "growSeconds": 150, "stumpSeconds": 60 },
   "grain": { "growSeconds": 100 },
   "stones": { "stonesPerCut": 1 },
   "resources": {

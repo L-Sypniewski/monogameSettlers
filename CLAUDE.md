@@ -34,7 +34,7 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   Spieler; Logistik/Rekrutierung bedienen nur den eigenen Spieler, `World.TerritoryRules` erzwingt eigenes Land (Bauplatz samt Tür, Stapeln, Bauarbeiterplätzen; Wege aller außer Soldaten und Geologen,
   Erreichbarkeit über Landgebiete je Besitzer in `PathFinder`; Gestrandete gehen heim).
   `Ai/` (`AiPlayer`: Computerspieler mit denselben Befehlen wie ein Mensch, kennt die ganze Karte; baut nach
-  `data/ai.json` und Bedarf, expandiert mit Türmen gezielt zu fehlenden Rohstoffen; `AiPlayer.Military`: kennt alle feindlichen Soldaten,
+  `data/ai.json` und Bedarf (Wohnhaus, solange Träger ≤ 2 × Produktionsgebäude; das größte, dessen Material doppelt vorrätig ist), expandiert mit Türmen gezielt zu fehlenden Rohstoffen; `AiPlayer.Military`: kennt alle feindlichen Soldaten,
   Verteidigung zuerst, greift kleinere Trupps an, wenn deutlich überlegen (laufend neu bewertet), verteilt die übrigen
   zur Bewachung nach Bedrohung; `AiPlayer.Campaign`: sammelt Soldaten und erobert feindliche Militärgebäude bei 1,5:1;
   Werte in `ai.json`, je Volk überschreibbar (`civilizations`); `MapSurvey`: Kartenüberblick in Zellen;
@@ -63,7 +63,7 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
 
 ## Kartenobjekte
 `GameMap` speichert je Feld den Original-Objektcode (`MapObjectCodes`); Regeln (Begehbarkeit) und Grafik
-leiten sich beide daraus ab. Laufzeitänderungen: Baumstumpf 41, Setzling 84, Felsgrößen 115→127 (Geröll).
+leiten sich beide daraus ab. Laufzeitänderungen: Baumstumpf 41 (verschwindet nach `trees.stumpSeconds`), Setzling 84, Felsgrößen 115→127 (Geröll).
 Getreide nutzt eigene Codes 200–207 (Wachstumsstufen, 207 reif), die in Originalkarten nicht vorkommen.
 Bodenschätze (Typ + Menge je Feld) liegen ebenfalls in `GameMap` (`ResourceAt`).
 

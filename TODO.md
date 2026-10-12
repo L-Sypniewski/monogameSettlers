@@ -28,7 +28,7 @@ KI:
 x Die KI sollte freien Bauplatz ebenfalls wie eine Resource behandeln und die Einnahme von neuer Baufläche anstreben.
 x Gebäude, die zu einer Wirtschaftskette gehören zB Eisenmine -> Eisenschmelze sollten näher aneinander gebaut werden
 Ist die Wirtschaft komplett, soll erweitert werden. Ziel ist die schnellere Einheitenproduktion. Bevorzugt werden demnach Gebäude, bei denen es ein Engpass gibt.
-Es sollen auch mittlere und größere Wohnhäuser gebaut werden, falls entsprechende Resourcen vorhanden sind
+x Es sollen auch mittlere und größere Wohnhäuser gebaut werden, falls entsprechende Resourcen vorhanden sind
 x Die KI soll auch (vorerst) wissen, wo gegnerische Truppen liegen.
 x Bei Angriffen / Truppenbewegungen soll mit einbezogen werden, ob sich auf dem Weg dahin gegnerische Truppen befinden. Wenn also 2 Soldaten einen alleinstehenden angreifen wollen, muss geprüft werden, ob auf dem Weg dahin noch ein paar Gegner warten.
 x Bei Flucht-manövern oder Rückzügen wird "Erzwungener Befehl" genutzt.

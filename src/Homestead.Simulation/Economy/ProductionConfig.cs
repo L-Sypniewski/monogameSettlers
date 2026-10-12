@@ -50,6 +50,9 @@ public sealed record ProductionConfig
     /// </summary>
     public IReadOnlyDictionary<string, Material> Tools { get; init; } = new Dictionary<string, Material>();
     public required int TreeGrowTicks { get; init; }
+
+    /// <summary>A felled tree's stump stays this long, then the field is free (for the forester) again.</summary>
+    public int StumpTicks { get; init; } = 60 * World.TicksPerSecond;
     public required int StonesPerCut { get; init; }
 
     /// <summary>Time from sowing to ripe grain.</summary>
@@ -172,6 +175,7 @@ public sealed record ProductionConfig
             Residents = housing.GetProperty("residents").EnumerateObject().ToDictionary(r => r.Name, r => r.Value.GetInt32()),
             ResidentIntervalTicks = Ticks(housing, "intervalSeconds"),
             TreeGrowTicks = Ticks(root.GetProperty("trees"), "growSeconds"),
+            StumpTicks = root.GetProperty("trees").TryGetProperty("stumpSeconds", out _) ? Ticks(root.GetProperty("trees"), "stumpSeconds") : 60 * World.TicksPerSecond,
             GrainGrowTicks = Ticks(root.GetProperty("grain"), "growSeconds"),
             StonesPerCut = root.GetProperty("stones").GetProperty("stonesPerCut").GetInt32(),
             OrePerAmount = resources.GetProperty("orePerAmount").GetInt32(),
