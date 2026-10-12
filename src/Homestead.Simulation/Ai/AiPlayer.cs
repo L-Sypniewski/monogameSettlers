@@ -14,8 +14,8 @@ namespace Homestead.Simulation.Ai;
 /// <list type="bullet">
 /// <item>Economy: starts the first building of its wishes it has not got yet and can afford: a living
 /// house when carriers run short, the toolsmith when a worker waits for a tool, then the build order
-/// of <c>data/ai.json</c>. Each building goes next to what it works on (trees, stones, ore, water) or
-/// near the home tower.</item>
+/// of <c>data/ai.json</c>. Each building goes next to what it works on (trees, stones, ore, water),
+/// otherwise into the middle of its production chain, otherwise near the home tower.</item>
 /// <item>Expansion: when the own land lacks quarry stone, ore, trees, water or room, a tower goes to the
 /// own-land spot nearest the closest unclaimed place with it, so a game cannot stall on a start area
 /// without mountains or stones.</item>
@@ -130,7 +130,7 @@ public sealed partial class AiPlayer
                 return;
             }
             NoteOnce(name, $"cannot build {name}: no spot near {anchor.X},{anchor.Y}");
-            if (anchor == _home!.Position)
+            if (!IsResourceBound(name))
                 _lacksRoom = true;
         }
     }
@@ -210,9 +210,42 @@ public sealed partial class AiPlayer
             "forester" => mine.Where(b => b.Definition.Name == "lumberjack")
                               .OrderBy(l => mine.Count(f => f.Definition.Name == "forester" && PathFinder.Distance(f.Position, l.Position) < 12))
                               .Select(l => (GridPoint?)l.Position).FirstOrDefault() ?? _home!.Position,
-            _ => _home!.Position,
+            _ => ChainCenter(definition, mine) ?? _home!.Position,
         };
     }
+
+    /// <summary>
+    /// Where the building's production chain is: the middle of the own buildings that supply what it
+    /// needs or need what it makes (iron mine and coal mine for the iron melt, mill and waterworks for
+    /// the baker). Keeps transport ways short and spreads the economy over the land. Null if there
+    /// are none yet.
+    /// </summary>
+    private GridPoint? ChainCenter(BuildingDefinition definition, List<Building> mine)
+    {
+        var inputs = Inputs(definition);
+        var outputs = Outputs(definition);
+        var related = mine.Where(b => !IsMilitary(b) && !b.Piles.Any(p => p.Role == PileRole.Storage) && b.Definition.Name != definition.Name
+                                      && (Outputs(b.Definition).Overlaps(inputs) || Inputs(b.Definition).Overlaps(outputs)))
+            .ToList();
+        if (related.Count == 0)
+            return null;
+        return new GridPoint((int)Math.Round(related.Average(b => b.Position.X)), (int)Math.Round(related.Average(b => b.Position.Y)));
+    }
+
+    private static HashSet<Material> Inputs(BuildingDefinition definition) =>
+        definition.RequestPiles.Where(p => p.Material is not null).Select(p => p.Material!.Value).ToHashSet();
+
+    private HashSet<Material> Outputs(BuildingDefinition definition)
+    {
+        var outputs = definition.OfferPiles.Where(p => p.Material is not null).Select(p => p.Material!.Value).ToHashSet();
+        if (_world.Production.Config.Smiths.TryGetValue(definition.Name, out var smith))
+            outputs.UnionWith(smith.Products);
+        return outputs;
+    }
+
+    /// <summary>Buildings that go where their resource is, not where their chain is.</summary>
+    private bool IsResourceBound(string name) =>
+        _world.Production.Config.Mines.ContainsKey(name) || name is "lumberjack" or "stonecutter" or "fisher" or "waterworks" or "forester";
 
     /// <summary>
     /// Own cell with the most of something (closer to home counts more); cells next to a building of

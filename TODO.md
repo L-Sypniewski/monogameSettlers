@@ -22,7 +22,7 @@ Shift+Auswahl von Einheuten: Einheiten der aktuellen Auswahl hinzufügen
 
 KI:
 x Die KI sollte freien Bauplatz ebenfalls wie eine Resource behandeln und die Einnahme von neuer Baufläche anstreben.
-Gebäude, die zu einer Wirtschaftskette gehören zB Eisenmine -> Eisenschmelze sollten näher aneinander gebaut werden
+x Gebäude, die zu einer Wirtschaftskette gehören zB Eisenmine -> Eisenschmelze sollten näher aneinander gebaut werden
 Ist die Wirtschaft komplett, soll erweitert werden. Ziel ist die schnellere Einheitenproduktion
 Es sollen auch mittlere und größere Wohnhäuser gebaut werden, falls entsprechende Resourcen vorhanden sind
 x Die KI soll auch (vorerst) wissen, wo gegnerische Truppen liegen.
