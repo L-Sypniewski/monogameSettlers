@@ -53,11 +53,16 @@ public sealed class SettlerRenderer : IDisposable
         sprites.Draw(batch, frame, anchor, 1, playerColor);
     }
 
-    /// <summary>A standing settler of a type and people, e.g. as a menu icon.</summary>
-    public void DrawIcon(SpriteBatch batch, Civilization people, string type, Vector2 anchor, float scale, Color playerColor)
+    /// <summary>A standing settler of a type and people fitted into a box, e.g. as a menu icon.</summary>
+    public void DrawIcon(SpriteBatch batch, Civilization people, string type, Rectangle box, float maxScale, Color playerColor)
     {
-        if (Resolve(people, type, "NO_ACTION", "NO_MATERIAL", Direction.SouthWest) is { } animation)
-            Sprites(animation).Draw(batch, animation.Start, anchor, scale, playerColor);
+        if (Resolve(people, type, "NO_ACTION", "NO_MATERIAL", Direction.SouthWest) is not { } animation)
+            return;
+        var sprites = Sprites(animation);
+        if (sprites.Bounds(animation.Start) is not { } bounds)
+            return;
+        var (anchor, scale) = SettlerSprites.Fit(bounds, box, maxScale);
+        sprites.Draw(batch, animation.Start, anchor, scale, playerColor);
     }
 
     public void Draw(SpriteBatch batch, Settler settler, TerrainMesh terrain, float tickAlpha, Color playerColor)

@@ -121,6 +121,22 @@ public sealed class Production
         };
     }
 
+    /// <summary>Mining runs a mine's hit rate looks back on.</summary>
+    public const int HitRateRuns = 10;
+
+    /// <summary>Share of the mine's last <see cref="HitRateRuns"/> runs that brought ore, in percent (null: not a mine or no run yet).</summary>
+    public int? MineHitRate(Building building) =>
+        _workplaces.GetValueOrDefault(building.Id) is { Mine: not null, RecentRuns.Count: > 0 } w
+            ? (int)Math.Round(100.0 * w.RecentRuns.Count(hit => hit) / w.RecentRuns.Count)
+            : null;
+
+    private static void RecordRun(Workplace w, bool hit)
+    {
+        w.RecentRuns.Enqueue(hit);
+        while (w.RecentRuns.Count > HitRateRuns)
+            w.RecentRuns.Dequeue();
+    }
+
     /// <summary>A mine that found nothing left to dig on its last try.</summary>
     public bool IsExhausted(Building building) => _workplaces.GetValueOrDefault(building.Id)?.Exhausted == true;
 
@@ -368,12 +384,14 @@ public sealed class Production
                     if (FindOre(w) is not { } field)
                     {
                         Report("mine ran out while digging");
+                        RecordRun(w, hit: false);
                         w.Exhausted = true;
                         Rest(w, ExhaustedRetryTicks);
                         break;
                     }
                     if (UsesUp(1, _config.Depletion.Mountain))
                         TakeResource(field, _config.OrePerAmount);
+                    RecordRun(w, hit: true);
                     OreMined++;
                     w.FoodRuns--;
                 }
@@ -518,6 +536,8 @@ public sealed class Production
             w.Exhausted = FindOre(w) is null;
             if (w.Exhausted)
             {
+                // Each try on an exhausted mine counts as a miss.
+                RecordRun(w, hit: false);
                 w.Waiting = "mine is exhausted";
                 w.TicksLeft = ExhaustedRetryTicks;
                 return;
@@ -982,6 +1002,9 @@ public sealed class Production
 
         /// <summary>Why the last cycle could not start (shown to the player), null while working.</summary>
         public string? Waiting { get; set; }
+
+        /// <summary>Mine: outcome of the last runs (true: ore), oldest first.</summary>
+        public Queue<bool> RecentRuns { get; } = new();
 
         /// <summary>Smith: what the current cycle makes.</summary>
         public Material? Product { get; set; }

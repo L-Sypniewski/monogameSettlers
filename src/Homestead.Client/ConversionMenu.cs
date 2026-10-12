@@ -38,8 +38,9 @@ public sealed class ConversionMenu
         {
             var rect = CellRect(i);
             batch.Draw(pixel, rect, rect.Contains(cursor) ? new Color(150, 115, 60) : new Color(80, 62, 38));
-            // The figure's offsets put it left of and above its anchor: shifted so it stands centered in the cell.
-            settlers.DrawIcon(batch, people, Entries[i].Type, new Vector2(rect.Center.X + 12, rect.Bottom - 17), 2f, PlayerColors.Of(0));
+            var inner = rect;
+            inner.Inflate(-6, -6);
+            settlers.DrawIcon(batch, people, Entries[i].Type, inner, 2f, PlayerColors.Of(0));
         }
     }
 }

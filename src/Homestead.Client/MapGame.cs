@@ -44,6 +44,8 @@ public sealed class MapGame : Game
     private BuildingDefinition[] _placeable = [];
     private BuildMenu? _buildMenu;
     private readonly ConversionMenu _conversionMenu = new();
+    private readonly BuildingInfo _buildingInfo = new();
+    private UiFont _font = null!;
     private int _placeIndex;
     private bool _placing;
 
@@ -135,6 +137,7 @@ public sealed class MapGame : Game
         _settlerRenderer = new SettlerRenderer(GraphicsDevice, _gfx, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
         _economyRenderer = new EconomyRenderer(GraphicsDevice, _gfx);
+        _font = new UiFont();
         LoadMap(_mapIndex);
     }
 
@@ -397,7 +400,7 @@ public sealed class MapGame : Game
                     Convert(entry.Profession);
             }
         }
-        else
+        else if (!ShowsBuildingInfo)
         {
             if (onMenu && released && _buildMenu!.Click(cursorScreen) is { } chosen)
             {
@@ -533,6 +536,9 @@ public sealed class MapGame : Game
     }
 
     private List<Settler> SelectedSoldiers() => _group.Where(s => s.Profession == Profession.Soldier).ToList();
+
+    /// <summary>A building is selected: the menu at the left shows what there is to know about it.</summary>
+    private bool ShowsBuildingInfo => _selectedBuilding is { Exists: true } && !_placing && !CarriersSelected;
 
     /// <summary>Only carriers are selected: the menu at the left offers what they can become.</summary>
     private bool CarriersSelected => _group.Count > 0 && _group.All(s => s.Profession == Profession.Carrier);
@@ -752,7 +758,9 @@ public sealed class MapGame : Game
         _spriteBatch.End();
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-        if (CarriersSelected)
+        if (ShowsBuildingInfo)
+            _buildingInfo.Draw(_spriteBatch, _pixel, viewport.Height, _font, _economyRenderer, _world, _selectedBuilding!, 0);
+        else if (CarriersSelected)
             _conversionMenu.Draw(_spriteBatch, _pixel, viewport.Height, _settlerRenderer, Own.Civilization, Mouse.GetState().Position.ToVector2());
         else
             _buildMenu!.Draw(_spriteBatch, _pixel, viewport.Height, _placing ? _placeable[_placeIndex] : null, Mouse.GetState().Position.ToVector2());
@@ -911,6 +919,7 @@ public sealed class MapGame : Game
         _objects.Dispose();
         _settlerRenderer.Dispose();
         _buildMenu?.Dispose();
+        _font.Dispose();
         _economyRenderer.Dispose();
         _atlas.Dispose();
         _effect.Dispose();

@@ -153,6 +153,30 @@ public sealed class EconomyRenderer : IDisposable
         sprites.Draw(batch, frame, anchor, 1, Color.White);
     }
 
+    /// <summary>A building's final image fitted into a box (info panel).</summary>
+    public void DrawBuildingIcon(SpriteBatch batch, BuildingDefinition definition, Rectangle box, Color playerColor)
+    {
+        var layers = definition.FinalImages.Select(i => (Sprites: Sprites(i.File, i.Sequence), Frame: i.Image)).ToList();
+        var bounds = layers.Select(l => l.Sprites.Bounds(l.Frame)).OfType<Rectangle>().ToList();
+        if (bounds.Count == 0)
+            return;
+        var (anchor, scale) = SettlerSprites.Fit(bounds.Aggregate(Rectangle.Union), box, 1f);
+        foreach (var (sprites, frame) in layers)
+            sprites.Draw(batch, frame, anchor, scale, playerColor);
+    }
+
+    /// <summary>A small pile of one unit of a good fitted into a box (info panel).</summary>
+    public void DrawMaterialIcon(SpriteBatch batch, Material material, Rectangle box)
+    {
+        if (StackSequence(material) is not { } sequence)
+            return;
+        var sprites = Sprites(PileFile, sequence);
+        if (sprites.Bounds(0) is not { } bounds)
+            return;
+        var (anchor, scale) = SettlerSprites.Fit(bounds, box, 1.5f);
+        sprites.Draw(batch, 0, anchor, scale, Color.White);
+    }
+
     /// <summary>Pile graphics in GFX file 01 (one image per pile size). Table from JSettlers' EMaterialType (MIT).</summary>
     private static int? StackSequence(Material material) => material switch
     {

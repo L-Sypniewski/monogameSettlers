@@ -1,9 +1,212 @@
 {
   "_comment": "Build menu: the categories of the original's build menu with their buildings, in order (lists as in JSettlers' EBuildingsCategory, MIT). Buildings a people does not have are left out.",
   "buildMenu": [
-    { "name": "Basic", "icon": "lumberjack", "buildings": [ "lumberjack", "sawmill", "stonecutter", "forester", "ironmine", "ironmelt", "goldmine", "goldmelt", "coalmine", "toolsmith", "charcoal_burner", "sulfurmine", "gemsmine" ] },
-    { "name": "Food", "icon": "farm", "buildings": [ "fisher", "farm", "pig_farm", "mill", "slaughterhouse", "baker", "waterworks", "donkey_farm", "winegrower", "brewery", "distillery", "rice_farm", "beekeeping", "mead_brewery" ] },
-    { "name": "Military", "icon": "tower", "buildings": [ "tower", "big_tower", "castle", "lookout_tower", "weaponsmith", "barrack", "dockyard", "hospital" ] },
-    { "name": "Social", "icon": "small_livinghouse", "buildings": [ "small_livinghouse", "medium_livinghouse", "big_livinghouse", "stock", "market_place", "harbor", "temple", "big_temple", "laboratory" ] }
-  ]
+    {
+      "name": "Basic",
+      "icon": "lumberjack",
+      "buildings": [
+        "lumberjack",
+        "sawmill",
+        "stonecutter",
+        "forester",
+        "ironmine",
+        "ironmelt",
+        "goldmine",
+        "goldmelt",
+        "coalmine",
+        "toolsmith",
+        "charcoal_burner",
+        "sulfurmine",
+        "gemsmine"
+      ]
+    },
+    {
+      "name": "Food",
+      "icon": "farm",
+      "buildings": [
+        "fisher",
+        "farm",
+        "pig_farm",
+        "mill",
+        "slaughterhouse",
+        "baker",
+        "waterworks",
+        "donkey_farm",
+        "winegrower",
+        "brewery",
+        "distillery",
+        "rice_farm",
+        "beekeeping",
+        "mead_brewery"
+      ]
+    },
+    {
+      "name": "Military",
+      "icon": "tower",
+      "buildings": [
+        "tower",
+        "big_tower",
+        "castle",
+        "lookout_tower",
+        "weaponsmith",
+        "barrack",
+        "dockyard",
+        "hospital"
+      ]
+    },
+    {
+      "name": "Social",
+      "icon": "small_livinghouse",
+      "buildings": [
+        "small_livinghouse",
+        "medium_livinghouse",
+        "big_livinghouse",
+        "stock",
+        "market_place",
+        "harbor",
+        "temple",
+        "big_temple",
+        "laboratory"
+      ]
+    }
+  ],
+  "_namesComment": "German names of the buildings, shown in the building info panel.",
+  "buildingNames": {
+    "stock": "Lagerhaus",
+    "lumberjack": "Holzfäller",
+    "stonecutter": "Steinmetz",
+    "sawmill": "Sägewerk",
+    "forester": "Förster",
+    "lookout_tower": "Aussichtsturm",
+    "coalmine": "Kohlemine",
+    "goldmine": "Goldmine",
+    "ironmine": "Eisenmine",
+    "gemsmine": "Edelsteinmine",
+    "sulfurmine": "Schwefelmine",
+    "goldmelt": "Goldschmelze",
+    "ironmelt": "Eisenschmelze",
+    "toolsmith": "Werkzeugschmiede",
+    "weaponsmith": "Waffenschmiede",
+    "winegrower": "Weinbauer",
+    "brewery": "Brauerei",
+    "distillery": "Schnapsbrennerei",
+    "mead_brewery": "Metbrauerei",
+    "beekeeping": "Imkerei",
+    "rice_farm": "Reisfarm",
+    "laboratory": "Labor",
+    "charcoal_burner": "Köhlerei",
+    "tower": "Kleiner Turm",
+    "big_tower": "Großer Turm",
+    "castle": "Burg",
+    "barrack": "Kaserne",
+    "hospital": "Heiler",
+    "baker": "Bäckerei",
+    "mill": "Mühle",
+    "slaughterhouse": "Metzgerei",
+    "pig_farm": "Schweinezucht",
+    "farm": "Getreidefarm",
+    "fisher": "Fischerhütte",
+    "waterworks": "Wasserwerk",
+    "donkey_farm": "Eselzucht",
+    "small_livinghouse": "Kleines Wohnhaus",
+    "medium_livinghouse": "Mittleres Wohnhaus",
+    "big_livinghouse": "Großes Wohnhaus",
+    "dockyard": "Werft",
+    "harbor": "Hafen",
+    "market_place": "Marktplatz",
+    "temple": "Kleiner Tempel",
+    "big_temple": "Großer Tempel"
+  },
+  "_statusComment": "Building info panel: the simulation's status text mapped to a short German state. The first entry whose text is contained in the status wins; anything else counts as active. Military buildings show their soldiers instead.",
+  "status": [
+    [
+      "levelling the ground",
+      "Baustelle: Planieren"
+    ],
+    [
+      "waiting for material",
+      "Baustelle: Warte auf Material"
+    ],
+    [
+      "construction site",
+      "Baustelle: Im Bau"
+    ],
+    [
+      "tool missing",
+      "Kein Werkzeug"
+    ],
+    [
+      "no worker",
+      "Kein Arbeiter"
+    ],
+    [
+      "fetching the tool",
+      "Warte auf Arbeiter"
+    ],
+    [
+      "worker is on the way",
+      "Warte auf Arbeiter"
+    ],
+    [
+      "output pile is full",
+      "Ausgabe voll"
+    ],
+    [
+      "waiting for food",
+      "Warte auf Nahrung"
+    ],
+    [
+      "waiting for weapons",
+      "Warte auf Waffen und Träger"
+    ],
+    [
+      "waiting for",
+      "Warte auf Rohstoffe"
+    ],
+    [
+      "mine is exhausted",
+      "Erschöpft"
+    ],
+    [
+      "in range",
+      "Nichts in Reichweite"
+    ],
+    [
+      "no free ground",
+      "Nichts in Reichweite"
+    ],
+    [
+      "no field to sow",
+      "Nichts in Reichweite"
+    ],
+    [
+      "everything in stock",
+      "Alles vorrätig"
+    ],
+    [
+      "training a soldier",
+      "Bildet aus"
+    ],
+    [
+      "recruit is on the way",
+      "Bildet aus"
+    ],
+    [
+      "residents still to come",
+      "Bewohner ziehen ein"
+    ],
+    [
+      "all residents moved out",
+      "Bewohnt"
+    ],
+    [
+      "storehouse",
+      "Lager"
+    ],
+    [
+      "no function yet",
+      "Ohne Funktion"
+    ]
+  ],
+  "activeStatus": "Aktiv"
 }

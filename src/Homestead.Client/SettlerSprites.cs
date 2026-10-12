@@ -60,6 +60,23 @@ public sealed class SettlerSprites : IDisposable
         _torso[frame]?.Draw(batch, anchor, scale, Multiply(playerColor, white), visibleFromBottom);
     }
 
+    /// <summary>The body of a frame relative to its anchor (unscaled); null if the frame is empty.</summary>
+    public Rectangle? Bounds(int frame) =>
+        (uint)frame < (uint)FrameCount && _body[frame] is { } body
+            ? new Rectangle((int)body.Offset.X, (int)body.Offset.Y, body.Texture.Width, body.Texture.Height)
+            : null;
+
+    /// <summary>
+    /// Scale and anchor that fit <paramref name="bounds"/> (relative to the anchor) centered into
+    /// <paramref name="box"/>, at most <paramref name="maxScale"/>.
+    /// </summary>
+    public static (Vector2 Anchor, float Scale) Fit(Rectangle bounds, Rectangle box, float maxScale)
+    {
+        float scale = Math.Min(maxScale, Math.Min(box.Width / (float)Math.Max(1, bounds.Width), box.Height / (float)Math.Max(1, bounds.Height)));
+        var center = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + bounds.Height / 2f);
+        return (new Vector2(box.Center.X, box.Center.Y) - center * scale, scale);
+    }
+
     private static Color Multiply(Color a, Color b) =>
         new(a.R * b.R / 255, a.G * b.G / 255, a.B * b.B / 255, a.A * b.A / 255);
 

@@ -56,3 +56,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## FontStashSharp
+
+https://github.com/FontStashSharp/FontStashSharp — NuGet package `FontStashSharp.MonoGame`, MIT License.
+Renders the menu text at runtime from a TrueType font installed on the system (no font is shipped).
