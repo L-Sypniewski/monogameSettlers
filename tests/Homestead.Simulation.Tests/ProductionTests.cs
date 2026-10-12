@@ -71,7 +71,8 @@ public class ProductionTests(ITestOutputHelper output)
         Run(world, 20_000, stopWhen: () => Count(stock, Material.Trunk) == 3);
 
         Assert.Equal(3, Count(stock, Material.Trunk));
-        Assert.All(trees.Take(3), t => Assert.Equal(MapObjectCodes.TreeStump, map.ObjectCodeAt(t)));
+        // A stump rots away after a while: felled trees leave a stump or, later, free ground.
+        Assert.All(trees.Take(3), t => Assert.Contains(map.ObjectCodeAt(t), new[] { MapObjectCodes.TreeStump, MapObjectCodes.None }));
         Assert.All(trees.Take(3), t => Assert.True(map.IsWalkable(t)));
         Assert.True(MapObjectCodes.IsAdultTree(map.ObjectCodeAt(trees[3])), "The far tree is outside the work radius.");
     }
