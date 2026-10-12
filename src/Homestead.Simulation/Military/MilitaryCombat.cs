@@ -71,14 +71,15 @@ public sealed partial class Military
     /// Orders soldiers (of one player, outside buildings) to a point; they spread over free fields around
     /// it. Enemies in sight on the way are fought first, then they carry on.
     /// </summary>
-    public void Move(IEnumerable<Settler> soldiers, GridPoint destination)
+    /// <param name="retreat">Retreat: walk there without fighting anybody on the way.</param>
+    public void Move(IEnumerable<Settler> soldiers, GridPoint destination, bool retreat = false)
     {
         var list = Commandable(soldiers);
         var spots = FreeSpotsAround(destination, list.Count);
         for (int i = 0; i < list.Count; i++)
         {
             var soldier = list[i];
-            _fighters[soldier.Id] = new Fighter(soldier) { MoveTo = spots.Count > i ? spots[i] : destination };
+            _fighters[soldier.Id] = new Fighter(soldier) { MoveTo = spots.Count > i ? spots[i] : destination, Retreat = retreat };
             soldier.HasTask = true;
         }
     }
@@ -215,7 +216,10 @@ public sealed partial class Military
         }
         var stats = _config.Soldiers[soldier.SoldierType!.Value];
 
-        ChooseEnemy(f, stats);
+        if (f.Retreat)
+            f.Enemy = null;
+        else
+            ChooseEnemy(f, stats);
 
         if (f.Enemy is { } enemy)
         {
@@ -503,5 +507,8 @@ public sealed partial class Military
 
         /// <summary>Move order: where to go when no enemy is around.</summary>
         public GridPoint? MoveTo { get; init; }
+
+        /// <summary>Move order without fighting on the way.</summary>
+        public bool Retreat { get; init; }
     }
 }

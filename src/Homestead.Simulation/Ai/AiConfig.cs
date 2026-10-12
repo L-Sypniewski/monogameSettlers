@@ -10,7 +10,9 @@ public sealed record AiConfig
     public required MilitaryRules Military { get; init; }
 
     /// <summary>The AI's soldiers outside buildings (see <c>military</c> in ai.json).</summary>
-    public sealed record MilitaryRules(int ThinkTicks, int GroupRadius, int StrikeRange, double StrikeRatio, int ThreatRange, int GuardDistance);
+    /// <param name="RetreatRatio">A running strike is called off when the strikers fall below this times the enemy's strength.</param>
+    public sealed record MilitaryRules(int ThinkTicks, int GroupRadius, int StrikeRange, double StrikeRatio, int ThreatRange, int GuardDistance,
+        double RetreatRatio = 1.0);
     public required int MaxSites { get; init; }
     public required int MaxTowerSites { get; init; }
     public required int FreeCarriers { get; init; }
@@ -43,7 +45,8 @@ public sealed record AiConfig
                 military.GetProperty("strikeRange").GetInt32(),
                 military.GetProperty("strikeRatio").GetDouble(),
                 military.GetProperty("threatRange").GetInt32(),
-                military.GetProperty("guardDistance").GetInt32()),
+                military.GetProperty("guardDistance").GetInt32(),
+                military.TryGetProperty("retreatRatio", out var retreat) ? retreat.GetDouble() : 1.0),
             MaxTowerSites = root.GetProperty("maxTowerSites").GetInt32(),
             FreeCarriers = root.GetProperty("freeCarriers").GetInt32(),
             House = root.GetProperty("house").GetString()!,

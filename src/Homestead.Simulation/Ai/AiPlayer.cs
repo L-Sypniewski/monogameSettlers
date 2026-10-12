@@ -85,6 +85,7 @@ public sealed partial class AiPlayer
             return;
         TearDownUseless(mine);
         mine.RemoveAll(b => !b.Exists);
+        FollowStrikes(mine);
         if (_world.Tick >= _nextMilitary)
         {
             Command(mine);
