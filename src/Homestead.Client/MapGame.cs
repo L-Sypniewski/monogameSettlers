@@ -36,6 +36,9 @@ public sealed class MapGame : Game
     private readonly string[] _mapFiles;
     private readonly string? _captureDirectory;
     private readonly Random _random = new(1);
+
+    /// <summary>Draws the peoples of players the map leaves open ("random"): a new draw every game.</summary>
+    private readonly Random _peopleDraw = new();
     private readonly IReadOnlyList<Civilization>? _peoples;
     private BuildingCatalog? _romans;
     private BuildingDefinition[] _placeable = [];
@@ -155,7 +158,7 @@ public sealed class MapGame : Game
         _objects?.Dispose();
         _map = OriginalMap.Open(_mapFiles[_mapIndex]);
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
-        (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples);
+        (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples, random: _peopleDraw);
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
         _objects = new MapObjectLayer(GraphicsDevice, _gfx.Open(MapObjectCatalog.GfxFile), _map.Area, _terrain);

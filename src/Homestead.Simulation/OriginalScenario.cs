@@ -43,12 +43,15 @@ public static class OriginalScenario
     public sealed record LoadReport(int Buildings, int Piles, int Settlers, IReadOnlyList<string> Skipped, IReadOnlyList<BuildingCatalog> Catalogs);
 
     /// <param name="freeChoice">
-    /// Peoples for players whose people the map leaves open (most multiplayer maps): player i gets
-    /// entry i modulo the count. Without it they are Romans.
+    /// Peoples for players whose people the map leaves open ("random" in most multiplayer maps): player i
+    /// gets entry i modulo the count. Without it they get a random people from <paramref name="random"/>,
+    /// without that too they are Romans.
     /// </param>
     public static (World World, LoadReport Report) Load(OriginalMap original, string? dataDirectory = null,
-        IReadOnlyList<Civilization>? freeChoice = null)
+        IReadOnlyList<Civilization>? freeChoice = null, Random? random = null)
     {
+        var peoples = Enum.GetValues<Civilization>();
+        var drawn = new Dictionary<int, Civilization>();
         var map = GameMap.FromOriginal(original.Area);
         var world = new World(map) { TerritoryRules = true };
         var catalogs = new Dictionary<Civilization, BuildingCatalog>();
@@ -58,7 +61,10 @@ public static class OriginalScenario
         {
             var civilization = player < original.Players.Count && original.Players[player].Tribe is >= 0 and <= 3
                 ? (Civilization)original.Players[player].Tribe
-                : freeChoice is { Count: > 0 } ? freeChoice[player % freeChoice.Count] : Civilization.Roman;
+                : freeChoice is { Count: > 0 } ? freeChoice[player % freeChoice.Count]
+                : random is null ? Civilization.Roman
+                : drawn.TryGetValue(player, out var people) ? people
+                : drawn[player] = peoples[random.Next(peoples.Length)];
             if (!catalogs.TryGetValue(civilization, out var catalog))
                 catalogs[civilization] = catalog = BuildingCatalog.Load(civilization, dataDirectory);
             return catalog;

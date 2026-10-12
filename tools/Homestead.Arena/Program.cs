@@ -8,11 +8,12 @@ using Homestead.Simulation.Economy;
 
 // AI against AI without a window: every player of a map is an AI player, the game runs as fast as
 // it can, and every few game minutes the players' key figures are printed.
-//   Homestead.Arena [map names...] [--all] [--minutes N] [--every N] [--peoples amazon,roman] [--log]
+//   Homestead.Arena [map names...] [--all] [--minutes N] [--every N] [--peoples amazon,roman] [--seed N] [--log]
 // Without map names: the first multiplayer map without start buildings. --all: every such map.
-// --peoples: peoples for players the map leaves open (player i: entry i mod count; default Romans).
+// --peoples: peoples for players the map leaves open (player i: entry i mod count). Default: random,
+// with a fixed seed so runs stay comparable (--seed N for another draw).
 
-string[] valueOptions = ["--minutes", "--every", "--peoples"];
+string[] valueOptions = ["--minutes", "--every", "--peoples", "--seed"];
 var names = args.Where((a, i) => !a.StartsWith("--") && (i == 0 || !valueOptions.Contains(args[i - 1]))).ToList();
 int minutes = IntOption("--minutes", 30);
 int every = IntOption("--every", 5);
@@ -36,7 +37,7 @@ var siteSince = new Dictionary<int, long>();
 foreach (var (file, original) in maps)
 {
     siteSince.Clear();
-    var (world, report) = OriginalScenario.Load(original, freeChoice: peoples);
+    var (world, report) = OriginalScenario.Load(original, freeChoice: peoples, random: new Random(IntOption("--seed", 1)));
     for (int player = 0; player < report.Catalogs.Count; player++)
         world.AiPlayers.Add(new AiPlayer(world, report.Catalogs[player], player));
     Console.WriteLine($"== {Path.GetFileNameWithoutExtension(file)}: {report.Catalogs.Count} players " +
