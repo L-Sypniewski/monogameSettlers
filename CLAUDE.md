@@ -32,7 +32,8 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   Werte in `data/military.json`, Gebietsradien aus den Originalkarten gemessen). Siedler und Gebäude haben einen
   Spieler; Logistik/Rekrutierung bedienen nur den eigenen Spieler, `World.TerritoryRules` erzwingt eigenes Land (Bauplatz samt Tür, Stapeln, Bauarbeiterplätzen; Wege aller Nicht-Soldaten).
   `Ai/` (`AiPlayer`: Computerspieler mit denselben Befehlen wie ein Mensch, kennt die ganze Karte; baut nach
-  `data/ai.json` und Bedarf, expandiert mit Türmen gezielt zu fehlenden Rohstoffen; `MapSurvey`: Kartenüberblick in Zellen;
+  `data/ai.json` und Bedarf, expandiert mit Türmen gezielt zu fehlenden Rohstoffen; `AiPlayer.Military`: kennt alle feindlichen Soldaten,
+  greift kleinere Trupps an, wenn deutlich überlegen, verteilt die übrigen zur Bewachung nach Bedrohung; `MapSurvey`: Kartenüberblick in Zellen;
   `World.AiPlayers` werden in jedem Tick angestoßen).
   `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern; Mehrspieler-Karten ohne Gebäude bekommen
   über `StartSetup` für jeden Spieler die gleiche Startausstattung aus `data/start.json`).
@@ -43,7 +44,7 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   (sonst bestehen sie ohne Prüfung). `dotnet test`
 - `src/Homestead.Client` – MonoGame-Spiel. Szenen: `--scene map` (Standard, Originalkarte mit Figuren:
   Klick wählt/schickt Figuren, Klick auf ein Gebäude zeigt Zustand + Arbeitsbereich, N neuer Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), F Angriff auf das feindliche
-  Militärgebäude unter dem Mauszeiger, Rahmen ziehen wählt eigene Soldaten (Klick: hinschicken/angreifen), I KI spielt für dich (an/aus; die anderen Spieler sind immer KI), L KI-Entscheidungen in die Konsole, G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
+  Militärgebäude unter dem Mauszeiger, Rahmen ziehen wählt eigene Soldaten (Rechtsklick: hinschicken/angreifen, Linksklick: abwählen; rechts ziehen verschiebt die Karte), I KI spielt für dich (an/aus; die anderen Spieler sind immer KI), L KI-Entscheidungen in die Konsole, G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
   entlassen dann Träger);
   `--map <name>`, Standard: erste Mehrspieler-Karte). Capture-Läufe ignorieren Eingaben (Tastatur/Maus sind global) und laufen ohne VSync mit 4-facher Geschwindigkeit (verdecktes Fenster wird sonst gedrosselt). und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
   (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse). `HOMESTEAD_CAPTURE_ZOOM=4` und

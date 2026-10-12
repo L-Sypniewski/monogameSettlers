@@ -14,9 +14,9 @@ GAMEPLAY:
 Beim Selektieren und kommandieren der Soldaten soll die Zielkoordinate mit der Höhe verrechnet werden.
 Tasten 1-9: Gruppierte Einheiten auswählen
 
-Bei selektierten Soldaten:
-Rechtsklick, um einen Befehl zu erteilen
-Linksklick, um die Soldaten wieder abzuwählen
+x Bei selektierten Soldaten:
+x Rechtsklick, um einen Befehl zu erteilen
+x Linksklick, um die Soldaten wieder abzuwählen
 Ctrl+1-9: Gruppe erstellen. Gruppe soll oben rechts als kleines Icon eingeblendet werden
 Shift+Auswahl von Einheuten: Einheiten der aktuellen Auswahl hinzufügen
 
@@ -25,12 +25,12 @@ x Die KI sollte freien Bauplatz ebenfalls wie eine Resource behandeln und die Ei
 Gebäude, die zu einer Wirtschaftskette gehören zB Eisenmine -> Eisenschmelze sollten näher aneinander gebaut werden
 Ist die Wirtschaft komplett, soll erweitert werden. Ziel ist die schnellere Einheitenproduktion
 Es sollen auch mittlere und größere Wohnhäuser gebaut werden, falls entsprechende Resourcen vorhanden sind
-Die KI soll auch (vorerst) wissen, wo gegnerische Truppen liegen.
+x Die KI soll auch (vorerst) wissen, wo gegnerische Truppen liegen.
 
 
 KI-Kampf:
-Die KI soll proaktiv guerilla-Angriffe ausführen. Zum Beispiel kleinere Truppen angreifen, falls lukrativ genug
-Die KI soll die Verteidigung des eigenen Landes verteidigen, indem Einheiten dahin verteilt werden, wo gegnerische Einheiten näher sind
+x Die KI soll proaktiv guerilla-Angriffe ausführen. Zum Beispiel kleinere Truppen angreifen, falls lukrativ genug
+x Die KI soll die Verteidigung des eigenen Landes verteidigen, indem Einheiten dahin verteilt werden, wo gegnerische Einheiten näher sind
 Die KI soll Einheiten sammeln, bevor sie ein Ziel angreift
 Die KI soll das gegnerische Land angreifen, wenn sie eine 1,5:1-Überlegenheit hat.
 Die KI soll beim Angriff Ziele am Rand priorisieren, die schlechter verteidigt sind und erreichbar sind, ohne auf Gegner zu stoßen.

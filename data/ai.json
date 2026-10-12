@@ -30,5 +30,14 @@
     "ores": [ "Coal", "IronOre" ],
     "spareSoldiersForLand": 4,
     "landStock": 10
+  },
+  "military": {
+    "_comment": "Idle soldiers outside buildings. The AI knows where every enemy soldier is. Enemy soldiers within groupRadius of each other form a group. Guerilla: a group within strikeRange of an own military building is attacked by the nearest idle soldiers once they have strikeRatio times its strength (health x damage per second). The other idle soldiers guard the own military buildings, shared out by how strong and close the enemy groups within threatRange are; without any threat they gather at home. A soldier within guardDistance of its post stays.",
+    "thinkSeconds": 5,
+    "groupRadius": 6,
+    "strikeRange": 30,
+    "strikeRatio": 1.5,
+    "threatRange": 40,
+    "guardDistance": 10
   }
 }

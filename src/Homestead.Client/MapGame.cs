@@ -64,6 +64,7 @@ public sealed class MapGame : Game
     /// <summary>Soldiers selected with a selection box; a click then sends them (or attacks).</summary>
     private readonly List<Settler> _group = new();
     private Vector2? _dragStart;
+    private Vector2? _rightStart;
     private const float DragThreshold = 6;
     private string _message = "";
     private IReadOnlyList<BuildingCatalog> _playerCatalogs = [];
@@ -377,8 +378,18 @@ public sealed class MapGame : Game
         if (keys.IsKeyDown(Keys.Down) || keys.IsKeyDown(Keys.S))
             _camera.Y += speed;
 
+        // Right button: dragging moves the map, a click gives the selected soldiers their order.
+        if (mouse.RightButton == ButtonState.Pressed && _previousMouse.RightButton == ButtonState.Released
+            && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position))
+            _rightStart = cursorScreen;
         if (mouse.RightButton == ButtonState.Pressed && _previousMouse.RightButton == ButtonState.Pressed)
             _camera -= (mouse.Position - _previousMouse.Position).ToVector2() / _zoom;
+        if (mouse.RightButton == ButtonState.Released && _previousMouse.RightButton == ButtonState.Pressed && _rightStart is { } rightStart)
+        {
+            if (Vector2.Distance(rightStart, cursorScreen) < DragThreshold)
+                Command(cursorScreen);
+            _rightStart = null;
+        }
 
         int wheel = mouse.ScrollWheelValue - _previousMouse.ScrollWheelValue;
         if (wheel != 0)
@@ -425,20 +436,12 @@ public sealed class MapGame : Game
             return;
         }
 
-        // Selected soldiers: attack the enemy military building clicked on, otherwise go there
-        // (fighting enemies they meet on the way).
-        var soldiers = _group.Count > 0 ? _group.ToList()
-            : _selected is { Profession: Profession.Soldier, Player: 0 } soldier ? [soldier] : [];
-        if (soldiers.Count > 0)
+        // Selected soldiers get their orders by right click; a left click elsewhere deselects them.
+        if (SelectedSoldiers().Count > 0)
         {
-            var clicked = ScreenToGrid(screen);
-            if (_world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) > 0)
-            {
-                _message = $"{soldiers.Count} soldiers attack {attacked.Definition.Name}";
-                return;
-            }
-            _world.Military.Move(soldiers, clicked);
-            _message = $"{soldiers.Count} soldiers to {clicked.X},{clicked.Y}";
+            _group.Clear();
+            _selected = null;
+            _message = "";
             return;
         }
 
@@ -464,6 +467,28 @@ public sealed class MapGame : Game
         _message = _world.WalkTo(_selected, target) ? $"walking to {target.X},{target.Y}" : "unreachable";
     }
 
+    private List<Settler> SelectedSoldiers() => _group.Count > 0 ? _group.ToList()
+        : _selected is { Profession: Profession.Soldier, Player: 0 } soldier ? [soldier] : [];
+
+    /// <summary>
+    /// Right click: the selected soldiers attack the enemy military building clicked on, otherwise go
+    /// there (fighting enemies they meet on the way).
+    /// </summary>
+    private void Command(Vector2 screen)
+    {
+        var soldiers = SelectedSoldiers();
+        if (soldiers.Count == 0 || _placing)
+            return;
+        var clicked = ScreenToGrid(screen);
+        if (_world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) > 0)
+        {
+            _message = $"{soldiers.Count} soldiers attack {attacked.Definition.Name}";
+            return;
+        }
+        _world.Military.Move(soldiers, clicked);
+        _message = $"{soldiers.Count} soldiers to {clicked.X},{clicked.Y}";
+    }
+
     /// <summary>Selects the own soldiers (outside buildings) inside the box between two screen points.</summary>
     private void SelectInBox(Vector2 from, Vector2 to)
     {
@@ -479,7 +504,7 @@ public sealed class MapGame : Game
                         && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y));
         _selected = null;
         _selectedBuilding = null;
-        _message = _group.Count > 0 ? $"{_group.Count} soldiers selected (click: go there / attack)" : "";
+        _message = _group.Count > 0 ? $"{_group.Count} soldiers selected (right click: go there / attack, left click: deselect)" : "";
     }
 
     private void SpawnWanderers(GridPoint near)

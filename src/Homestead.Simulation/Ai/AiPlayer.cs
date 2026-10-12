@@ -21,7 +21,7 @@ namespace Homestead.Simulation.Ai;
 /// without mountains or stones.</item>
 /// </list>
 /// </remarks>
-public sealed class AiPlayer
+public sealed partial class AiPlayer
 {
     private const int SurveyTicks = 200;
     private const int SearchRadius = 30;
@@ -85,6 +85,11 @@ public sealed class AiPlayer
             return;
         TearDownUseless(mine);
         mine.RemoveAll(b => !b.Exists);
+        if (_world.Tick >= _nextMilitary)
+        {
+            Command(mine);
+            _nextMilitary = _world.Tick + _config.Military.ThinkTicks;
+        }
         var reserve = Expand(mine);
         BuildEconomy(mine, reserve);
     }

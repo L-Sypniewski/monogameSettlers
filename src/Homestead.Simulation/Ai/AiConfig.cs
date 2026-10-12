@@ -7,6 +7,10 @@ namespace Homestead.Simulation.Ai;
 public sealed record AiConfig
 {
     public required int ThinkTicks { get; init; }
+    public required MilitaryRules Military { get; init; }
+
+    /// <summary>The AI's soldiers outside buildings (see <c>military</c> in ai.json).</summary>
+    public sealed record MilitaryRules(int ThinkTicks, int GroupRadius, int StrikeRange, double StrikeRatio, int ThreatRange, int GuardDistance);
     public required int MaxSites { get; init; }
     public required int MaxTowerSites { get; init; }
     public required int FreeCarriers { get; init; }
@@ -28,10 +32,18 @@ public sealed record AiConfig
         using var document = JsonDocument.Parse(File.ReadAllText(path));
         var root = document.RootElement;
         var expansion = root.GetProperty("expansion");
+        var military = root.GetProperty("military");
         return new AiConfig
         {
             ThinkTicks = Math.Max(1, (int)Math.Round(root.GetProperty("thinkSeconds").GetDouble() * World.TicksPerSecond)),
             MaxSites = root.GetProperty("maxSites").GetInt32(),
+            Military = new MilitaryRules(
+                (int)Math.Round(military.GetProperty("thinkSeconds").GetDouble() * World.TicksPerSecond),
+                military.GetProperty("groupRadius").GetInt32(),
+                military.GetProperty("strikeRange").GetInt32(),
+                military.GetProperty("strikeRatio").GetDouble(),
+                military.GetProperty("threatRange").GetInt32(),
+                military.GetProperty("guardDistance").GetInt32()),
             MaxTowerSites = root.GetProperty("maxTowerSites").GetInt32(),
             FreeCarriers = root.GetProperty("freeCarriers").GetInt32(),
             House = root.GetProperty("house").GetString()!,
