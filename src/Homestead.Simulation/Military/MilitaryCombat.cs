@@ -29,9 +29,6 @@ public sealed partial class Military
     private const int UnreachableTicks = 200;
     private const int RetargetTicks = 10;
 
-    /// <summary>Near the enemy, ways are planned around other soldiers within this radius.</summary>
-    private const int CombatSearchRadius = 15;
-
     public int Kills { get; private set; }
 
     public int Captures { get; private set; }
@@ -336,7 +333,7 @@ public sealed partial class Military
 
     /// <summary>
     /// Plans the way to a field within reach of the enemy. Near the enemy the search stays inside
-    /// <see cref="CombatSearchRadius"/> and treats everyone standing (fighting, waiting, idle; own
+    /// <see cref="MilitaryConfig.CombatPathRadius"/> and treats everyone standing (fighting, waiting, idle; own
     /// soldiers too) as an obstacle, so a soldier walks around a busy friend instead of queueing
     /// behind it. When the crowd blocks every way, it goes to the reachable field closest to any
     /// enemy (and takes that enemy). False if the enemy cannot be reached at all.
@@ -345,12 +342,12 @@ public sealed partial class Military
     {
         var soldier = f.Soldier;
         var start = soldier.StepTarget;
-        if (PathFinder.Distance(start, enemy.Position) > CombatSearchRadius)
+        if (PathFinder.Distance(start, enemy.Position) > _config.CombatPathRadius)
             return _world.WalkTo(soldier, enemy.Position); // still far: the plain way, the crowd is handled on arrival
 
         var map = _world.Map!;
         var enemies = EnemiesOf(soldier.Player)
-            .Where(e => PathFinder.Distance(start, e.Position) <= CombatSearchRadius + stats.Range)
+            .Where(e => PathFinder.Distance(start, e.Position) <= _config.CombatPathRadius + stats.Range)
             .ToList();
         int Reach(GridPoint p) => enemies.Min(e => PathFinder.Distance(p, e.Position));
 
@@ -366,7 +363,7 @@ public sealed partial class Military
             for (int d = 0; d < DirectionExtensions.Count; d++)
             {
                 var next = current.Neighbor((Direction)d);
-                if (cameFrom.ContainsKey(next) || !PathFinder.InCircle(start, next, CombatSearchRadius)
+                if (cameFrom.ContainsKey(next) || !PathFinder.InCircle(start, next, _config.CombatPathRadius)
                     || !map.Contains(next) || !map.IsWalkable(next) || _world.OccupantAt(next) is { State: not SettlerState.Stepping } other && other != soldier)
                     continue;
                 cameFrom[next] = (current, (Direction)d);

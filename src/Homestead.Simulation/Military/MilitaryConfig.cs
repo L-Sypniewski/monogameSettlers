@@ -24,6 +24,9 @@ public sealed record MilitaryConfig
     /// <summary>Soldiers react to enemies within this distance.</summary>
     public required int SightRange { get; init; }
 
+    /// <summary>Near the enemy, ways are planned locally within this radius around everyone standing.</summary>
+    public required int CombatPathRadius { get; init; }
+
     /// <summary>An attack takes soldiers from own buildings within this distance of the target.</summary>
     public required int AttackRange { get; init; }
 
@@ -53,6 +56,7 @@ public sealed record MilitaryConfig
                     (int)Math.Round(s.Value.GetProperty("attackSeconds").GetDouble() * World.TicksPerSecond), s.Value.GetProperty("range").GetInt32())),
             LevelBonus = root.GetProperty("levelBonus").EnumerateArray().Select(v => v.GetSingle()).ToArray(),
             SightRange = root.GetProperty("sightRange").GetInt32(),
+            CombatPathRadius = root.GetProperty("combatPathRadius").GetInt32(),
             AttackRange = root.GetProperty("attackRange").GetInt32(),
         };
     }

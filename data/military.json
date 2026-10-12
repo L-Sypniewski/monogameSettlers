@@ -11,5 +11,7 @@
   },
   "levelBonus": [ 1.0, 1.3, 1.7 ],
   "sightRange": 15,
+  "_combatPathRadiusComment": "Near the enemy, soldiers plan their way within this radius around everyone standing (own soldiers too).",
+  "combatPathRadius": 15,
   "attackRange": 50
 }
