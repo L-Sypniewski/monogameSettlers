@@ -28,6 +28,26 @@ public sealed class Recruitment
     /// <summary>Recruitments whose carrier is still on the way to its tool.</summary>
     public IReadOnlyList<Recruit> Active => _active;
 
+    /// <summary>
+    /// Whether one more carrier of the player may become a specialist or soldier: a share of all its
+    /// carriers and specialists (<see cref="ProductionConfig.KeptCarriers"/>) always stays a carrier.
+    /// Carriers on their way to fetch a tool count as specialists already.
+    /// </summary>
+    public bool MayConvert(int player)
+    {
+        int carriers = 0, specialists = 0;
+        foreach (var s in _world.Settlers)
+        {
+            if (s.Player != player || s.Profession == Profession.Soldier)
+                continue;
+            if (s.IsCarrier && !_active.Any(r => r.Settler == s))
+                carriers++;
+            else
+                specialists++;
+        }
+        return carriers - 1 >= Math.Ceiling(_config.KeptCarriers * (carriers + specialists));
+    }
+
     public Material? ToolFor(string? trade) => trade is not null && _config.Tools.TryGetValue(trade, out var tool) ? tool : null;
 
     /// <summary>Whether a tool of this kind is lying in a pile, not promised to anyone.</summary>
@@ -52,6 +72,8 @@ public sealed class Recruitment
                 return new Recruit(jobless, profession, trade, null) { State = RecruitState.Done };
         }
 
+        if (!MayConvert(player))
+            return null;
         var carriers = _world.Settlers
             .Where(s => s.IsAvailableCarrier && s.Player == player && _world.Reachable(s, workplace))
             .ToList();

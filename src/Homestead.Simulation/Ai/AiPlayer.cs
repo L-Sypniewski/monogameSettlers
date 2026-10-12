@@ -142,7 +142,8 @@ public sealed partial class AiPlayer
         int carriers = _world.Settlers.Count(s => s.Player == Player && s.IsAvailableCarrier)
                        + mine.Sum(b => _world.Housing.ResidentsLeft(b) ?? 0);
         bool houseComing = mine.Any(b => b.Definition.Name == _config.House && b.State != BuildingState.Finished);
-        if (carriers < _config.FreeCarriers && !houseComing)
+        // Short of carriers, or the carrier reserve stops recruiting: a living house first.
+        if ((carriers < _config.FreeCarriers || !_world.Recruitment.MayConvert(Player)) && !houseComing)
             yield return (_config.House, mine.Count(b => b.Definition.Name == _config.House) + 1);
         // A storehouse only once goods worth storing (tools, weapons, gold) are made in numbers and
         // pile up, and the storehouses there are have no room left for them.

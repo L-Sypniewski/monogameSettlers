@@ -41,6 +41,10 @@
     "toolsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD" ], "seconds": 10, "keepInStock": 0 },
     "weaponsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "SWORD", "BOW", "SPEAR" ], "seconds": 10, "keepInStock": 8 }
   },
+  "recruitment": {
+    "_comment": "Share of a player's carriers and specialists (soldiers not counted) that always stays carriers: no carrier becomes a specialist or soldier below it. Living houses bring new ones.",
+    "keptCarriers": 0.3
+  },
   "tools": {
     "_comment": "Tool a carrier must take to become the trade (game knowledge, as in JSettlers' EMovableType). BLADE is the digger's shovel.",
     "LUMBERJACK": "AXE",

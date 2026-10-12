@@ -12,6 +12,7 @@ x Höhenunterschiede geringer, auf 50% reduzieren.
 
 GAMEPLAY:
 Beim Selektieren und kommandieren der Soldaten soll die Zielkoordinate mit der Höhe verrechnet werden.
+x 30% aller Träger (gezählt werden alle derzeitigen Fachkräfte + Träger) wird reserviert und darf niemals zu einem Soldaten oder einer Fachkraft werden. Für die KI heißt es dann, Wohnhäuser höher zu priorisieren
 Tasten 1-9: Gruppierte Einheiten auswählen
 
 x Bei selektierten Soldaten:

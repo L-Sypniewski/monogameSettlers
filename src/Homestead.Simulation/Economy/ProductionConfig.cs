@@ -67,6 +67,9 @@ public sealed record ProductionConfig
     /// <summary>Units one storehouse pile holds (a storehouse has six piles).</summary>
     public int StoragePileCapacity { get; init; } = Materials.MaxPileSize;
 
+    /// <summary>Share of a player's carriers and specialists that always stays carriers (0 = none).</summary>
+    public double KeptCarriers { get; init; }
+
     /// <summary>Fields kept free between a new building and the surroundings of the others.</summary>
     public int BuildingMargin { get; init; }
 
@@ -152,6 +155,7 @@ public sealed record ProductionConfig
             Smiths = smiths,
             Tools = tools,
             StoragePileCapacity = root.GetProperty("storage").GetProperty("pileCapacity").GetInt32(),
+            KeptCarriers = root.GetProperty("recruitment").GetProperty("keptCarriers").GetDouble(),
             BuildingMargin = root.GetProperty("placement").GetProperty("margin").GetInt32(),
             StoredMaterials = root.GetProperty("storage").GetProperty("materials").EnumerateArray()
                 .Select(m => Materials.Parse(m.GetString()!)!.Value).ToHashSet(),

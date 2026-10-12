@@ -92,7 +92,7 @@ public sealed partial class Military
 
     private void CallTrainee(Barrack b)
     {
-        if (!b.Building.Exists || b.Trainee is not null || !HasWeapon(b.Building))
+        if (!b.Building.Exists || b.Trainee is not null || !HasWeapon(b.Building) || !_world.Recruitment.MayConvert(b.Building.Player))
             return;
         var door = b.Building.Door;
         var pathFinder = _world.PathFinder!;
