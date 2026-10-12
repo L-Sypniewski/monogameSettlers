@@ -30,7 +30,7 @@ public sealed partial class Military
     private const int RetargetTicks = 10;
 
     /// <summary>Near the enemy, ways are planned around other soldiers within this radius.</summary>
-    private const int CombatSearchRadius = 20;
+    private const int CombatSearchRadius = 15;
 
     public int Kills { get; private set; }
 
