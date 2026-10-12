@@ -120,6 +120,7 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
    - [x] Angriff (Soldaten aus Gebäuden in Reichweite, einer bleibt), Nahkampf, Bogenschützen (auch vom Turm),
      Verteidiger an der Tür, Eroberung mit Gebietswechsel; Gebäude auf verlorenem Land gehen unter
    - [ ] Kampfwerte an Originalverhalten angleichen (derzeit eigene Werte in `data/military.json`)
+   - [x] Soldaten wechseln auf nähere Gegner (Nachbarfeld sofort); Rahmenauswahl, Laufbefehl mit Vorrang für Feinde
    - [ ] Angriffs-Auswahl wie im Original (Anzahl/Typen wählen), Sterbe-Animation
    - [ ] Soldaten-Stufen durch Gold/Tempel, Heiler
 6. **KI**

@@ -56,6 +56,11 @@ public sealed class MapGame : Game
     private readonly HashSet<int> _wanderers = new();
     private Settler? _selected;
     private Building? _selectedBuilding;
+
+    /// <summary>Soldiers selected with a selection box; a click then sends them (or attacks).</summary>
+    private readonly List<Settler> _group = new();
+    private Vector2? _dragStart;
+    private const float DragThreshold = 6;
     private string _message = "";
     private TimeSpan _accumulator;
     private TimeSpan _time;
@@ -305,9 +310,19 @@ public sealed class MapGame : Game
             _message = $"{soldiers} soldiers for player {player + 1}";
         }
 
+        // Left button: a click on release, or a selection box when dragged.
         if (mouse.LeftButton == ButtonState.Pressed && _previousMouse.LeftButton == ButtonState.Released
             && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position))
-            Click(cursorScreen);
+            _dragStart = cursorScreen;
+        if (mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is { } dragStart)
+        {
+            if (!_placing && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
+                SelectInBox(dragStart, cursorScreen);
+            else
+                Click(cursorScreen);
+            _dragStart = null;
+        }
+        _group.RemoveAll(s => s.IsDead || s.IsInside);
 
         float speed = 800 / _zoom * (float)gameTime.ElapsedGameTime.TotalSeconds;
         if (keys.IsKeyDown(Keys.Left) || keys.IsKeyDown(Keys.A))
@@ -357,12 +372,30 @@ public sealed class MapGame : Game
             .OrderBy(t => t.Distance)
             .Select(t => t.Settler)
             .FirstOrDefault();
-        if (hit is not null)
+        if (hit is not null && (_group.Count == 0 || hit.Player == 0))
         {
             _selected = hit;
             _selectedBuilding = null;
+            _group.Clear();
             _wanderers.Remove(hit.Id);
             _message = $"settler {hit.Id} selected";
+            return;
+        }
+
+        // Selected soldiers: attack the enemy military building clicked on, otherwise go there
+        // (fighting enemies they meet on the way).
+        var soldiers = _group.Count > 0 ? _group.ToList()
+            : _selected is { Profession: Profession.Soldier, Player: 0 } soldier ? [soldier] : [];
+        if (soldiers.Count > 0)
+        {
+            var clicked = ScreenToGrid(screen);
+            if (_world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) > 0)
+            {
+                _message = $"{soldiers.Count} soldiers attack {attacked.Definition.Name}";
+                return;
+            }
+            _world.Military.Move(soldiers, clicked);
+            _message = $"{soldiers.Count} soldiers to {clicked.X},{clicked.Y}";
             return;
         }
 
@@ -386,6 +419,24 @@ public sealed class MapGame : Game
         var target = ScreenToGrid(screen);
         _wanderers.Remove(_selected.Id);
         _message = _world.WalkTo(_selected, target) ? $"walking to {target.X},{target.Y}" : "unreachable";
+    }
+
+    /// <summary>Selects the own soldiers (outside buildings) inside the box between two screen points.</summary>
+    private void SelectInBox(Vector2 from, Vector2 to)
+    {
+        var inverse = Matrix.Invert(View);
+        var a = Vector2.Transform(from, inverse);
+        var b = Vector2.Transform(to, inverse);
+        var min = Vector2.Min(a, b);
+        var max = Vector2.Max(a, b);
+        float alpha = TickAlpha;
+        _group.Clear();
+        _group.AddRange(_world.Settlers.Where(s => s.Profession == Profession.Soldier && s.Player == 0 && !s.IsInside)
+            .Where(s => SettlerRenderer.Anchor(s, _terrain, alpha) - new Vector2(0, 10) is var p
+                        && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y));
+        _selected = null;
+        _selectedBuilding = null;
+        _message = _group.Count > 0 ? $"{_group.Count} soldiers selected (click: go there / attack)" : "";
     }
 
     private void SpawnWanderers(GridPoint near)
@@ -484,6 +535,10 @@ public sealed class MapGame : Game
 
         if (_selected is not null)
             DrawSelectionMarker(_selected, alpha);
+        foreach (var soldier in _group)
+            DrawSelectionMarker(soldier, alpha);
+        if (_dragStart is { } boxStart && !_placing)
+            DrawSelectionBox(boxStart, Mouse.GetState().Position.ToVector2());
         if (_placing)
         {
             var at = ScreenToGrid(Mouse.GetState().Position.ToVector2());
@@ -512,6 +567,24 @@ public sealed class MapGame : Game
             var position = ToWorld(p);
             _spriteBatch.Draw(_pixel, new Rectangle((int)position.X - 1, (int)position.Y - 1, 3, 3), Color.Yellow * 0.8f);
         }
+    }
+
+    /// <summary>Outline of the selection box being dragged (screen points, drawn in world space).</summary>
+    private void DrawSelectionBox(Vector2 from, Vector2 to)
+    {
+        if (Vector2.Distance(from, to) < DragThreshold)
+            return;
+        var inverse = Matrix.Invert(View);
+        var a = Vector2.Transform(from, inverse);
+        var b = Vector2.Transform(to, inverse);
+        var min = Vector2.Min(a, b);
+        var size = Vector2.Max(a, b) - min;
+        float line = 1 / _zoom;
+        var color = Color.White * 0.8f;
+        _spriteBatch.Draw(_pixel, min, null, color, 0, Vector2.Zero, new Vector2(size.X, line), SpriteEffects.None, 0);
+        _spriteBatch.Draw(_pixel, min + new Vector2(0, size.Y), null, color, 0, Vector2.Zero, new Vector2(size.X, line), SpriteEffects.None, 0);
+        _spriteBatch.Draw(_pixel, min, null, color, 0, Vector2.Zero, new Vector2(line, size.Y), SpriteEffects.None, 0);
+        _spriteBatch.Draw(_pixel, min + new Vector2(size.X, 0), null, color, 0, Vector2.Zero, new Vector2(line, size.Y), SpriteEffects.None, 0);
     }
 
     private void DrawSelectionMarker(Settler settler, float alpha)

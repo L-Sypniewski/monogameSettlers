@@ -176,6 +176,40 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_soldier_attacks_an_enemy_that_steps_next_to_it_instead_of_its_far_target()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools);
+        var a = world.SpawnSoldier(new GridPoint(20, 30), SoldierType.Swordsman, level: 3)!;
+        var far = world.SpawnSoldier(new GridPoint(30, 30), SoldierType.Bowman, player: 1)!;
+        Run(world, 12); // a has picked the bowman and walks towards it
+        Assert.True(a.HasTask);
+        var blocker = world.SpawnSoldier(a.StepTarget.Neighbor(Direction.East), SoldierType.Pikeman, player: 1)!;
+        float bowmanHealth = far.Health;
+
+        Run(world, 400, stopWhen: () => blocker.IsDead);
+
+        Assert.True(blocker.IsDead, "the soldier fought the enemy next to it");
+        Assert.Equal(bowmanHealth, far.Health);
+    }
+
+    [Fact]
+    public void Soldiers_sent_through_an_enemy_group_fight_it_and_then_reach_their_destination()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools);
+        var own = Enumerable.Range(0, 4).Select(i => world.SpawnSoldier(new GridPoint(10 + i, 40), SoldierType.Swordsman, level: 3)!).ToList();
+        var enemies = Enumerable.Range(0, 3).Select(i => world.SpawnSoldier(new GridPoint(38 + i, 40), SoldierType.Swordsman, player: 1)!).ToList();
+        var destination = new GridPoint(65, 40);
+
+        world.Military.Move(own, destination);
+        Run(world, 6_000, stopWhen: () => enemies.All(e => e.IsDead) && own.Where(s => !s.IsDead).All(s => !s.HasTask));
+
+        Assert.All(enemies, e => Assert.True(e.IsDead));
+        var survivors = own.Where(s => !s.IsDead).ToList();
+        Assert.NotEmpty(survivors);
+        Assert.All(survivors, s => Assert.InRange(PathFinder.Distance(s.Position, destination), 0, 3));
+    }
+
+    [Fact]
     public void Bowmen_in_a_tower_shoot_at_enemies_in_range()
     {
         var world = new World(new GameMap(80), TestConfig.NoTools);

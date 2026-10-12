@@ -26,6 +26,7 @@ public sealed partial class Military
     private readonly Dictionary<int, Fighter> _fighters = new();
     private readonly Dictionary<int, long> _nextShot = new();
     private const int UnreachableTicks = 200;
+    private const int RetargetTicks = 10;
 
     public int Kills { get; private set; }
 
@@ -63,6 +64,70 @@ public sealed partial class Military
             _fighters[soldier.Id] = new Fighter(soldier) { Target = target };
         }
         return attackers.Count;
+    }
+
+    /// <summary>
+    /// Orders soldiers (of one player, outside buildings) to a point; they spread over free fields around
+    /// it. Enemies in sight on the way are fought first, then they carry on.
+    /// </summary>
+    public void Move(IEnumerable<Settler> soldiers, GridPoint destination)
+    {
+        var list = Commandable(soldiers);
+        var spots = FreeSpotsAround(destination, list.Count);
+        for (int i = 0; i < list.Count; i++)
+        {
+            var soldier = list[i];
+            _fighters[soldier.Id] = new Fighter(soldier) { MoveTo = spots.Count > i ? spots[i] : destination };
+            soldier.HasTask = true;
+        }
+    }
+
+    /// <summary>Orders the given soldiers to attack an enemy military building (enemies on the way first).</summary>
+    public int Attack(IEnumerable<Settler> soldiers, Building target)
+    {
+        if (!target.Exists || !_garrisons.ContainsKey(target.Id))
+            return 0;
+        var list = Commandable(soldiers).Where(s => s.Player != target.Player).ToList();
+        foreach (var soldier in list)
+        {
+            _fighters[soldier.Id] = new Fighter(soldier) { Target = target };
+            soldier.HasTask = true;
+        }
+        return list.Count;
+    }
+
+    /// <summary>Soldiers outside that can take an order; ones walking into a building drop that.</summary>
+    private List<Settler> Commandable(IEnumerable<Settler> soldiers)
+    {
+        var list = soldiers.Where(s => s.Profession == Profession.Soldier && !s.IsDead && !s.IsInside).Distinct().ToList();
+        foreach (var g in _garrisons.Values)
+        {
+            foreach (var (place, coming) in g.Coming.ToList())
+                if (list.Contains(coming.Soldier))
+                    g.Coming.Remove(place);
+            foreach (var (place, defender) in g.Defending.ToList())
+                if (list.Contains(defender))
+                    g.Defending.Remove(place);
+        }
+        foreach (var soldier in list)
+            SetActivity(soldier, Activity.None);
+        return list;
+    }
+
+    /// <summary>Walkable points nearest to <paramref name="center"/>, one per soldier.</summary>
+    private List<GridPoint> FreeSpotsAround(GridPoint center, int count)
+    {
+        var map = _world.Map!;
+        var spots = new List<GridPoint>();
+        for (int r = 0; r <= 12 && spots.Count < count; r++)
+            for (int dy = -r; dy <= r && spots.Count < count; dy++)
+            for (int dx = -r; dx <= r && spots.Count < count; dx++)
+            {
+                var p = new GridPoint(center.X + dx, center.Y + dy);
+                if (PathFinder.Distance(center, p) == r && map.IsWalkable(p))
+                    spots.Add(p);
+            }
+        return spots;
     }
 
     private void TickCombat()
@@ -149,13 +214,7 @@ public sealed partial class Military
         }
         var stats = _config.Soldiers[soldier.SoldierType!.Value];
 
-        // Keep the current enemy while it is in reach, otherwise the nearest reachable one in sight.
-        if (f.Enemy is { } current && (current.IsDead || current.IsInside || PathFinder.Distance(soldier.Position, current.Position) > _config.SightRange + 4))
-            f.Enemy = null;
-        f.Enemy ??= EnemiesOf(soldier.Player)
-            .Where(e => PathFinder.Distance(soldier.Position, e.Position) <= _config.SightRange
-                        && !(f.Unreachable.TryGetValue(e.Id, out long until) && until > _world.Tick))
-            .MinBy(e => PathFinder.Distance(soldier.Position, e.Position));
+        ChooseEnemy(f, stats);
 
         if (f.Enemy is { } enemy)
         {
@@ -211,6 +270,21 @@ public sealed partial class Military
             }
             return;
         }
+        if (f.MoveTo is { } spot)
+        {
+            if (soldier.Position == spot || soldier.Destination is null && PathFinder.Distance(soldier.Position, spot) <= 1 && f.NextReplan > 0)
+            {
+                Dismiss(f);
+                return;
+            }
+            if (soldier.Destination is null || _world.Tick >= f.NextReplan + 10 * ReplanTicks)
+            {
+                if (!_world.WalkTo(soldier, spot))
+                    Dismiss(f);
+                f.NextReplan = _world.Tick;
+            }
+            return;
+        }
         if (f.Home is { } home && _garrisons.TryGetValue(home.Id, out var homeGarrison) && homeGarrison.Defending.Remove(f.HomePlace))
         {
             // Back into the place it came from.
@@ -220,6 +294,38 @@ public sealed partial class Military
             return;
         }
         Dismiss(f);
+    }
+
+    /// <summary>
+    /// Picks the enemy to fight. An enemy already within reach (the neighboring field for melee) is
+    /// attacked at once; every <see cref="RetargetTicks"/> a clearly nearer enemy replaces the current
+    /// one, so a soldier does not wait behind someone who stepped into its way.
+    /// </summary>
+    private void ChooseEnemy(Fighter f, SoldierStats stats)
+    {
+        var soldier = f.Soldier;
+        if (f.Enemy is { } current && (current.IsDead || current.IsInside || PathFinder.Distance(soldier.Position, current.Position) > _config.SightRange + 4))
+            f.Enemy = null;
+
+        int currentDistance = f.Enemy is { } e ? PathFinder.Distance(soldier.Position, e.Position) : int.MaxValue;
+        if (currentDistance <= stats.Range)
+            return;
+        bool recheck = f.Enemy is null || _world.Tick >= f.NextRetarget;
+        var candidates = EnemiesOf(soldier.Player)
+            .Select(x => (Enemy: x, Distance: PathFinder.Distance(soldier.Position, x.Position)))
+            .Where(x => x.Distance <= (recheck ? _config.SightRange : stats.Range)
+                        && !(f.Unreachable.TryGetValue(x.Enemy.Id, out long until) && until > _world.Tick))
+            .ToList();
+        if (candidates.Count == 0)
+            return;
+        var nearest = candidates.MinBy(x => x.Distance);
+        if (nearest.Distance <= stats.Range || nearest.Distance < currentDistance - 1)
+        {
+            f.Enemy = nearest.Enemy;
+            f.NextReplan = 0; // walk towards the new one right away
+        }
+        if (recheck)
+            f.NextRetarget = _world.Tick + RetargetTicks;
     }
 
     private void Hit(Settler attacker, Settler enemy)
@@ -318,5 +424,9 @@ public sealed partial class Military
         public Dictionary<int, long> Unreachable { get; } = new();
         public long NextHit { get; set; }
         public long NextReplan { get; set; }
+        public long NextRetarget { get; set; }
+
+        /// <summary>Move order: where to go when no enemy is around.</summary>
+        public GridPoint? MoveTo { get; init; }
     }
 }
