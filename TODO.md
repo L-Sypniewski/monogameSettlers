@@ -49,11 +49,11 @@ x Zusätzliche/spezifische KI-Regeln in json auslagern (wie es bereits schon gem
 
 UI:
 x Erstmal simpel: Links am Rand ein Menü mit den selben Kategorien wie im Originalspiel. Darunter die entsprechenden Bauoptionen. Jede Bauoption als Icon anzeigen.
-Solange F12 gedrückt ist, erhöht sich die Spielgeschwindigkeit auf das 10-fache
+x Solange F12 gedrückt ist, erhöht sich die Spielgeschwindigkeit auf das 10-fache
 
 Tweaks:
 Balancing abweichend vom Originalspiel konfigurierbar:
-Resourcenverbrauch beim Abbau von Steinen, Erze (alle Rohstoffe in Bergen), Fisch: 100%, 75%, 50%, 25%, 10%, 0% (unendlich). 3 Kategorien, individuell konfigurierbar.
+x Resourcenverbrauch beim Abbau von Steinen, Erze (alle Rohstoffe in Bergen), Fisch: 100%, 75%, 50%, 25%, 10%, 0% (unendlich). 3 Kategorien, individuell konfigurierbar.
 
 Simulation:
 Militärisches Verhalten (ai.military und ai.attack) gegeneinander simulieren.

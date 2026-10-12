@@ -82,5 +82,11 @@
     "orePerAmount": 4,
     "fishPerAmount": 2,
     "regenerateSeconds": 0
+  },
+  "depletion": {
+    "_comment": "Our own balancing: percent of the units taken that use up the ground. stone: quarry stone; mountain: everything mines dig (coal, ores, gems, sulfur); fish. 100 as in the original, e.g. 75, 50, 25, 10; 0 = never runs out.",
+    "stone": 100,
+    "mountain": 100,
+    "fish": 100
   }
 }

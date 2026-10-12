@@ -41,13 +41,13 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern; Mehrspieler-Karten ohne Gebäude bekommen
   über `StartSetup` für jeden Spieler die gleiche Startausstattung aus `data/start.json`).
 - `data/` – Spieldaten (keine Original-Assets), wird neben jedes Programm kopiert. `production.json` ist
-  unser eigenes Balancing (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration). Gebäudedaten sind aus
+  unser eigenes Balancing (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration, `depletion`: wie viel Prozent der Ausbeute Steine, Berge, Fisch verbrauchen – 0 = unendlich). Gebäudedaten sind aus
   JSettlers generiert (`tools/data-import/`); nicht von Hand im generierten JSON ändern.
 - `tests/Homestead.Simulation.Tests` – xUnit; Tests gegen Originalkarten laufen nur mit lokaler Installation
   (sonst bestehen sie ohne Prüfung). `dotnet test`
 - `src/Homestead.Client` – MonoGame-Spiel. Szenen: `--scene map` (Standard, Originalkarte mit Figuren:
   Baumenü links (Kategorien wie im Original aus `data/ui.json`, Icon-Klick startet das Platzieren; Gebäude des eigenen Volks), Klick wählt/schickt Figuren, Klick auf ein Gebäude zeigt Zustand + Arbeitsbereich, N neuer Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), F Angriff auf das feindliche
-  Militärgebäude unter dem Mauszeiger, Rahmen ziehen wählt eigene Soldaten (Rechtsklick: hinschicken/angreifen, Strg+Rechtsklick: erzwungener Laufbefehl ohne Kämpfen, Linksklick: abwählen; rechts ziehen verschiebt die Karte), I KI spielt für dich (an/aus; die anderen Spieler sind immer KI), L KI-Entscheidungen in die Konsole, G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
+  Militärgebäude unter dem Mauszeiger, Rahmen ziehen wählt eigene Soldaten (Rechtsklick: hinschicken/angreifen, Strg+Rechtsklick: erzwungener Laufbefehl ohne Kämpfen, Linksklick: abwählen; rechts ziehen verschiebt die Karte), F12 gedrückt halten: 10-fache Geschwindigkeit, I KI spielt für dich (an/aus; die anderen Spieler sind immer KI), L KI-Entscheidungen in die Konsole, G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
   entlassen dann Träger);
   `--map <name>`, Standard: erste Mehrspieler-Karte; `--peoples amazon,roman,…`: Völker für Spieler, deren Volk die Karte offen lässt (Spieler i: Eintrag i mod Anzahl; ohne Angabe zufällig, Kartenvorgaben 0–3 gelten immer)).
   Figuren sehen aus wie ihr Volk: `SettlerAnimations` löst Typ/Aktion/Ware/Richtung über `data/settlers.json` auf

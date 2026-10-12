@@ -48,6 +48,12 @@ public sealed class Production
     /// <summary>Units already taken at the current amount step of a resource field (see OrePerAmount).</summary>
     private readonly Dictionary<int, int> _resourceTaken = new();
 
+    /// <summary>
+    /// Per kind of resource (stone, mountain, fish): percent points collected towards the next unit that
+    /// uses up the ground. Exactly the configured share counts, without chance.
+    /// </summary>
+    private readonly int[] _depletionDue = new int[3];
+
     /// <summary>Depleted resource fields: their start amount and when they regain the next step.</summary>
     private readonly Dictionary<int, (int Start, long Next)> _regenerating = new();
     private readonly Dictionary<string, int> _problems = new();
@@ -209,6 +215,16 @@ public sealed class Production
         }
     }
 
+    /// <summary>Whether the unit just taken uses up the ground: <paramref name="percent"/> of all units of the kind do.</summary>
+    private bool UsesUp(int kind, int percent)
+    {
+        _depletionDue[kind] += Math.Clamp(percent, 0, 100);
+        if (_depletionDue[kind] < 100)
+            return false;
+        _depletionDue[kind] -= 100;
+        return true;
+    }
+
     /// <summary>Takes one unit from a resource field; every <paramref name="perAmount"/> units lower its amount by one.</summary>
     private void TakeResource(GridPoint p, int perAmount)
     {
@@ -356,7 +372,8 @@ public sealed class Production
                         Rest(w, ExhaustedRetryTicks);
                         break;
                     }
-                    TakeResource(field, _config.OrePerAmount);
+                    if (UsesUp(1, _config.Depletion.Mountain))
+                        TakeResource(field, _config.OrePerAmount);
                     OreMined++;
                     w.FoodRuns--;
                 }
@@ -587,7 +604,7 @@ public sealed class Production
             case GatherAction.CutStone when MapObjectCodes.StoneLeft(code) > 0:
                 // Each of the 13 sizes yields StonesPerCut stones before the rock shrinks.
                 int index = map.Index(w.Target);
-                int cuts = _stoneCuts.GetValueOrDefault(index) + 1;
+                int cuts = _stoneCuts.GetValueOrDefault(index) + (UsesUp(0, _config.Depletion.Stone) ? 1 : 0);
                 if (cuts >= _config.StonesPerCut)
                 {
                     map.SetObjectCode(w.Target, (byte)(code + 1));
@@ -607,7 +624,8 @@ public sealed class Production
                 TreesPlanted++;
                 break;
             case GatherAction.Fish when map.ResourceAmount(w.Target, ResourceType.Fish) > 0:
-                TakeResource(w.Target, _config.FishPerAmount);
+                if (UsesUp(2, _config.Depletion.Fish))
+                    TakeResource(w.Target, _config.FishPerAmount);
                 FishCaught++;
                 worker.Carrying = Material.Fish;
                 DeliverOutput(w);

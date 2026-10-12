@@ -64,6 +64,12 @@ public sealed record ProductionConfig
     /// <summary>Every this many ticks a depleted field regains one amount step (up to its start value); 0 = never.</summary>
     public int RegenerateTicks { get; init; }
 
+    /// <summary>
+    /// Percent of the units taken that use up the ground: quarry stone, everything in mountains (ores,
+    /// coal, gems, sulfur) and fish. 100 as in the original, 0 = never runs out.
+    /// </summary>
+    public Depletion Depletion { get; init; } = new(100, 100, 100);
+
     /// <summary>Units one storehouse pile holds (a storehouse has six piles).</summary>
     public int StoragePileCapacity { get; init; } = Materials.MaxPileSize;
 
@@ -167,6 +173,12 @@ public sealed record ProductionConfig
             OrePerAmount = resources.GetProperty("orePerAmount").GetInt32(),
             FishPerAmount = resources.GetProperty("fishPerAmount").GetInt32(),
             RegenerateTicks = Ticks(resources, "regenerateSeconds"),
+            Depletion = root.TryGetProperty("depletion", out var depletion)
+                ? new Depletion(depletion.GetProperty("stone").GetInt32(), depletion.GetProperty("mountain").GetInt32(), depletion.GetProperty("fish").GetInt32())
+                : new Depletion(100, 100, 100),
         };
     }
 }
+
+/// <summary>Percent of the units taken that use up the ground, per kind of resource (see <see cref="ProductionConfig.Depletion"/>).</summary>
+public sealed record Depletion(int Stone, int Mountain, int Fish);

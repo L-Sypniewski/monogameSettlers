@@ -77,6 +77,8 @@ public sealed class MapGame : Game
     /// <summary>The AI playing for player 1 (key I), if on.</summary>
     private AiPlayer? _ownAi;
     private TimeSpan _accumulator;
+    private const int FastForward = 10;
+    private static readonly TimeSpan MaxBacklog = TimeSpan.FromSeconds(0.5);
     private TimeSpan _time;
 
     private bool _showBlocked;
@@ -251,7 +253,11 @@ public sealed class MapGame : Game
 
         // Capture runs use fixed frame times at 4x speed, so long processes fit into a short run.
         var elapsed = _captureDirectory is null ? gameTime.ElapsedGameTime : TimeSpan.FromSeconds(4 / 60.0);
-        _accumulator += elapsed;
+        // F12 held: the game runs at FastForward times its speed.
+        if (_captureDirectory is null && Keyboard.GetState().IsKeyDown(Keys.F12))
+            elapsed *= FastForward;
+        // Never more than MaxBacklog behind: a slow machine would otherwise fall further back every frame.
+        _accumulator = TimeSpan.FromTicks(Math.Min((_accumulator + elapsed).Ticks, MaxBacklog.Ticks));
         _time += elapsed;
         while (_accumulator >= World.TickDuration)
         {
