@@ -167,6 +167,12 @@ public sealed partial class World
     /// Everyone but soldiers walks on the own land only (with territory rules). Somebody standing
     /// outside it (land lost under its feet) may walk anywhere, so it can come home.
     /// </summary>
+    /// <summary>Whether the player's people can walk from a to b (on its own land with territory rules).</summary>
+    internal bool Reachable(int player, GridPoint a, GridPoint b) => PathFinder!.AreConnected(a, b, TerritoryRules ? player : null);
+
+    /// <summary>Whether the settler can walk to <paramref name="target"/> (see <see cref="LandOf"/>).</summary>
+    internal bool Reachable(Settler settler, GridPoint target) => PathFinder!.AreConnected(settler.Position, target, LandOf(settler));
+
     internal int? LandOf(Settler settler) =>
         TerritoryRules && settler.Profession != Profession.Soldier && Map!.OwnerAt(settler.StepTarget) == settler.Player
             ? settler.Player

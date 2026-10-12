@@ -30,10 +30,13 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   `Military/` (Kaserne bildet Soldaten aus, Militärgebäude rufen Soldaten, besetzte beanspruchen Land;
   `MilitaryCombat`: Angriff, Kampf, Verteidigung, Eroberung; nahe am Feind lokale Wegsuche (Radius `combatPathRadius`) um stehende/kämpfende Figuren herum;
   Werte in `data/military.json`, Gebietsradien aus den Originalkarten gemessen). Siedler und Gebäude haben einen
-  Spieler; Logistik/Rekrutierung bedienen nur den eigenen Spieler, `World.TerritoryRules` erzwingt eigenes Land (Bauplatz samt Tür, Stapeln, Bauarbeiterplätzen; Wege aller Nicht-Soldaten).
+  Spieler; Logistik/Rekrutierung bedienen nur den eigenen Spieler, `World.TerritoryRules` erzwingt eigenes Land (Bauplatz samt Tür, Stapeln, Bauarbeiterplätzen; Wege aller Nicht-Soldaten,
+  Erreichbarkeit über Landgebiete je Besitzer in `PathFinder`; Gestrandete gehen heim).
   `Ai/` (`AiPlayer`: Computerspieler mit denselben Befehlen wie ein Mensch, kennt die ganze Karte; baut nach
   `data/ai.json` und Bedarf, expandiert mit Türmen gezielt zu fehlenden Rohstoffen; `AiPlayer.Military`: kennt alle feindlichen Soldaten,
-  greift kleinere Trupps an, wenn deutlich überlegen, verteilt die übrigen zur Bewachung nach Bedrohung; `MapSurvey`: Kartenüberblick in Zellen;
+  Verteidigung zuerst, greift kleinere Trupps an, wenn deutlich überlegen (laufend neu bewertet), verteilt die übrigen
+  zur Bewachung nach Bedrohung; `AiPlayer.Campaign`: sammelt Soldaten und erobert feindliche Militärgebäude bei 1,5:1;
+  Werte in `ai.json`, je Volk überschreibbar (`civilizations`); `MapSurvey`: Kartenüberblick in Zellen;
   `World.AiPlayers` werden in jedem Tick angestoßen).
   `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern; Mehrspieler-Karten ohne Gebäude bekommen
   über `StartSetup` für jeden Spieler die gleiche Startausstattung aus `data/start.json`).

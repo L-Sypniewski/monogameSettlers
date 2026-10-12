@@ -45,6 +45,15 @@ public sealed class Idling
                 _idleSince.Remove(settler.Id);
                 continue;
             }
+            // Stranded outside the own land (it was lost): home to the nearest own building.
+            if (_world.TerritoryRules && settler.Profession != Profession.Soldier && _world.Map!.OwnerAt(settler.Position) != settler.Player)
+            {
+                var home = _world.Buildings.Where(b => b.Exists && b.Player == settler.Player && _world.Map.OwnerAt(b.Door) == settler.Player)
+                    .MinBy(b => PathFinder.Distance(b.Door, settler.Position));
+                if (home is not null && _world.WalkTo(settler, home.Door))
+                    settler.IsStrolling = true;
+                continue;
+            }
             long since = _idleSince.TryGetValue(settler.Id, out long s) ? s : _idleSince[settler.Id] = _world.Tick;
             if (_world.Tick - since < IdleTicks || IsQuiet(settler.Position, settler))
                 continue;
@@ -108,7 +117,7 @@ public sealed class Idling
             // Keep a field between strollers' destinations too.
             if (taken.Any(t => PathFinder.Distance(t, p) <= 1))
                 continue;
-            if (IsQuiet(p, settler) && pathFinder.AreConnected(from, p))
+            if (IsQuiet(p, settler) && _world.Reachable(settler, p))
                 return p;
         }
         return null;

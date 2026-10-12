@@ -97,7 +97,7 @@ public sealed partial class Military
         var door = b.Building.Door;
         var pathFinder = _world.PathFinder!;
         var trainee = _world.Settlers
-            .Where(s => s.IsAvailableCarrier && s.Player == b.Building.Player && pathFinder.AreConnected(s.Position, door))
+            .Where(s => s.IsAvailableCarrier && s.Player == b.Building.Player && _world.Reachable(s, door))
             .MinBy(s => PathFinder.Distance(s.Position, door));
         if (trainee is null)
             return;

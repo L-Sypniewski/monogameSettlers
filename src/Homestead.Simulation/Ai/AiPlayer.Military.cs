@@ -4,10 +4,12 @@ using Homestead.Simulation.Pathfinding;
 namespace Homestead.Simulation.Ai;
 
 /// <summary>
-/// The AI's soldiers outside buildings. It knows where every enemy soldier is (for now). Idle soldiers
-/// strike enemy groups close to its land when they clearly outnumber them (guerilla; re-checked every
-/// think: follow the group, reinforce, or retreat), the rest stand guard at the own military
-/// buildings, most where enemies are closest.
+/// The AI's soldiers outside buildings. It knows where every enemy soldier is (for now). Defence comes
+/// first: enemies on the own land are fought at once, and enough soldiers stay back against enemies
+/// close to it. Spare soldiers strike enemy groups near the land when they clearly outnumber them
+/// (guerilla) and go on campaigns against enemy military buildings (see AiPlayer.Campaign). Strikes
+/// and campaigns are re-checked every think (follow, reinforce, retreat); afterwards the soldiers go
+/// home. The rest stand guard at the own military buildings, most where enemies are closest.
 /// </summary>
 public sealed partial class AiPlayer
 {
@@ -31,40 +33,71 @@ public sealed partial class AiPlayer
     {
         var config = _config.Military;
         EnemyGroups = FindEnemyGroups(config.GroupRadius);
-        var idle = IdleSoldiers();
-        if (idle.Count == 0)
-            return;
         var military = mine.Where(b => IsMilitary(b) && b.State == BuildingState.Finished).ToList();
         if (military.Count == 0)
             return;
+        var idle = IdleSoldiers();
+        var map = _world.Map!;
+        bool onOwnLand(EnemyGroup g) => map.OwnerAt(g.Center) == Player;
+        bool near(EnemyGroup g, int range) => military.Any(b => PathFinder.Distance(b.Position, g.Center) <= range);
+        bool untargeted(EnemyGroup g) => !_strikes.Any(k => g.Soldiers.Any(k.Targets.Contains));
 
-        // Guerilla: the most worthwhile enemy group near the own land that idle soldiers nearby beat clearly.
-        foreach (var group in EnemyGroups
-                     .Where(g => military.Any(b => PathFinder.Distance(b.Position, g.Center) <= config.StrikeRange)
-                                 && !_strikes.Any(k => g.Soldiers.Any(k.Targets.Contains)))
-                     .OrderBy(g => g.Strength))
+        // Defence first: enemies on the own land are fought with any idle soldier.
+        foreach (var group in EnemyGroups.Where(g => onOwnLand(g) && untargeted(g)).OrderByDescending(g => g.Strength))
+            TryStrike(group, idle, "defends against");
+
+        // Against enemies close to the land enough soldiers stay back; only the rest is spare.
+        double danger = EnemyGroups.Where(g => !onOwnLand(g) && near(g, config.ThreatRange)).Sum(g => g.Strength) * config.StrikeRatio;
+        var guards = new List<Settler>();
+        double kept = 0;
+        foreach (var soldier in idle.OrderBy(s => EnemyGroups.Select(g => PathFinder.Distance(s.Position, g.Center)).DefaultIfEmpty(0).Min()))
         {
-            var near = idle.Where(s => PathFinder.Distance(s.Position, group.Center) <= config.StrikeRange * 2)
-                .OrderBy(s => PathFinder.Distance(s.Position, group.Center)).ToList();
-            var strikers = new List<Settler>();
-            double strength = 0;
-            foreach (var soldier in near)
-            {
-                if (strength >= group.Strength * config.StrikeRatio)
-                    break;
-                strikers.Add(soldier);
-                strength += Strength(soldier);
-            }
-            if (strength < group.Strength * config.StrikeRatio)
-                continue;
-            _world.Military.Move(strikers, group.Center);
-            _strikes.Add(new Strike(strikers, group.Soldiers.ToHashSet(), group.Center));
-            Note($"strikes {group.Soldiers.Count} enemies at {group.Center.X},{group.Center.Y} with {strikers.Count} soldiers");
-            idle.RemoveAll(strikers.Contains);
-            break;
+            if (kept >= danger)
+                break;
+            guards.Add(soldier);
+            kept += Strength(soldier);
         }
+        var spare = idle.Except(guards).ToList();
 
-        // Guard: the rest goes to the own military buildings, more where enemies are close.
+        // Guerilla outside the own land, with spare soldiers only: the weakest worthwhile group first.
+        foreach (var group in EnemyGroups.Where(g => !onOwnLand(g) && near(g, config.StrikeRange) && untargeted(g)).OrderBy(g => g.Strength))
+            if (TryStrike(group, spare, "strikes"))
+                break;
+
+        // A campaign against enemy land, never while enemies stand on the own land.
+        if (_campaign is null && !EnemyGroups.Any(onOwnLand))
+            StartCampaign(military, spare);
+
+        Guard(military, guards.Concat(spare).ToList());
+    }
+
+    /// <summary>Sends the nearest soldiers of <paramref name="pool"/> against the group if they get strikeRatio times its strength.</summary>
+    private bool TryStrike(EnemyGroup group, List<Settler> pool, string verb)
+    {
+        var config = _config.Military;
+        var strikers = new List<Settler>();
+        double strength = 0;
+        foreach (var soldier in pool.Where(s => PathFinder.Distance(s.Position, group.Center) <= config.StrikeRange * 2)
+                     .OrderBy(s => PathFinder.Distance(s.Position, group.Center)))
+        {
+            if (strength >= group.Strength * config.StrikeRatio)
+                break;
+            strikers.Add(soldier);
+            strength += Strength(soldier);
+        }
+        if (strength < group.Strength * config.StrikeRatio)
+            return false;
+        _world.Military.Move(strikers, group.Center);
+        _strikes.Add(new Strike(strikers, group.Soldiers.ToHashSet(), group.Center));
+        Note($"{verb} {group.Soldiers.Count} enemies at {group.Center.X},{group.Center.Y} with {strikers.Count} soldiers");
+        pool.RemoveAll(strikers.Contains);
+        return true;
+    }
+
+    /// <summary>The soldiers guard the own military buildings, more where enemies are close; without a threat at home.</summary>
+    private void Guard(List<Building> military, List<Settler> idle)
+    {
+        var config = _config.Military;
         var threat = military.ToDictionary(b => b, b => EnemyGroups
             .Where(g => PathFinder.Distance(b.Position, g.Center) <= config.ThreatRange)
             .Sum(g => g.Strength / (1 + PathFinder.Distance(b.Position, g.Center))));
@@ -90,10 +123,14 @@ public sealed partial class AiPlayer
         }
     }
 
-    /// <summary>Own soldiers free for orders: outside, idle, not part of a running strike.</summary>
+    /// <summary>Where soldiers go when a strike or campaign is over.</summary>
+    private GridPoint HomeDoor() => _home is { Exists: true } h && h.Player == Player ? h.Door
+        : _world.Buildings.Where(b => b.Exists && b.Player == Player && IsMilitary(b)).Select(b => b.Door).FirstOrDefault();
+
+    /// <summary>Own soldiers free for orders: outside, idle, not part of a running strike or campaign.</summary>
     private List<Settler> IdleSoldiers() => _world.Settlers
         .Where(s => s.Player == Player && s.Profession == Profession.Soldier && !s.HasTask && !s.IsInside && !s.IsDead
-                    && !_strikes.Any(k => k.Soldiers.Contains(s)))
+                    && !_strikes.Any(k => k.Soldiers.Contains(s)) && _campaign?.Soldiers.Contains(s) != true)
         .ToList();
 
     /// <summary>
@@ -115,7 +152,10 @@ public sealed partial class AiPlayer
                             .MinBy(g => PathFinder.Distance(g.Center, strike.Center));
             if (strike.Soldiers.Count == 0 || group is null)
             {
-                _strikes.Remove(strike); // won, or nobody left
+                // Won, or nobody left: the survivors go home.
+                if (strike.Soldiers.Count > 0)
+                    _world.Military.Move(strike.Soldiers, HomeDoor());
+                _strikes.Remove(strike);
                 continue;
             }
             strike.Targets = group.Soldiers.ToHashSet();
@@ -142,8 +182,7 @@ public sealed partial class AiPlayer
                 }
                 else
                 {
-                    var home = _home is { } h && IsMilitary(h) ? h.Door : mine.Where(IsMilitary).Select(b => b.Door).FirstOrDefault();
-                    _world.Military.Move(strike.Soldiers, home, retreat: true);
+                    _world.Military.Move(strike.Soldiers, HomeDoor(), retreat: true);
                     Note($"calls off the strike at {group.Center.X},{group.Center.Y}: {group.Soldiers.Count} enemies are too strong");
                     _strikes.Remove(strike);
                     continue;

@@ -52,7 +52,7 @@ public sealed partial class AiPlayer
     {
         _world = world;
         _catalog = catalog;
-        _config = config ?? AiConfig.Load();
+        _config = config ?? AiConfig.Load(civilization: catalog.Civilization);
         Player = player;
         _survey = new MapSurvey(world, player);
     }
@@ -86,6 +86,7 @@ public sealed partial class AiPlayer
         TearDownUseless(mine);
         mine.RemoveAll(b => !b.Exists);
         FollowStrikes(mine);
+        FollowCampaign();
         if (_world.Tick >= _nextMilitary)
         {
             Command(mine);
@@ -279,7 +280,7 @@ public sealed partial class AiPlayer
                 break;
             var p = anchor + offset;
             if (!map.Contains(p) || map.OwnerAt(p) != Player || !_world.CanPlace(definition, p, out _, Player)
-                || !pathFinder.AreConnected(homeDoor, p + definition.Door))
+                || !_world.Reachable(Player, homeDoor, p + definition.Door))
                 continue;
             if (isMine)
             {
@@ -445,7 +446,7 @@ public sealed partial class AiPlayer
             if (PathFinder.Distance(p, target) + 6 > closest)
                 return null;
             if (map.Contains(p) && map.OwnerAt(p) == Player && _world.CanPlace(tower, p, out _, Player)
-                && pathFinder.AreConnected(_home!.Door, p + tower.Door))
+                && _world.Reachable(Player, _home!.Door, p + tower.Door))
                 return _world.PlaceConstructionSite(tower, Player, p);
         }
         return null;

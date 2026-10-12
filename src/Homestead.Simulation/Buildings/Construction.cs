@@ -115,7 +115,7 @@ public sealed class Construction
                 if (spot is not { } s)
                     continue;
                 int distance = PathFinder.Distance(worker.Position, s.Spot);
-                if (distance < bestDistance && pathFinder.AreConnected(worker.Position, s.Spot))
+                if (distance < bestDistance && _world.Reachable(worker, s.Spot))
                 {
                     best = new Assignment(worker, site, s.Spot, s.Facing);
                     bestDistance = distance;

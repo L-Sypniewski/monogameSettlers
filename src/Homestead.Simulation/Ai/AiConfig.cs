@@ -1,9 +1,14 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Map;
 
 namespace Homestead.Simulation.Ai;
 
-/// <summary>AI balancing, loaded from <c>data/ai.json</c>.</summary>
+/// <summary>
+/// AI balancing, loaded from <c>data/ai.json</c>. Its <c>civilizations</c> section may override any value
+/// per people (objects are merged, other values replaced).
+/// </summary>
 public sealed record AiConfig
 {
     public required int ThinkTicks { get; init; }
@@ -13,6 +18,11 @@ public sealed record AiConfig
     /// <param name="RetreatRatio">A running strike is called off when the strikers fall below this times the enemy's strength.</param>
     public sealed record MilitaryRules(int ThinkTicks, int GroupRadius, int StrikeRange, double StrikeRatio, int ThreatRange, int GuardDistance,
         double RetreatRatio = 1.0);
+
+    public required AttackRules Attack { get; init; }
+
+    /// <summary>Campaigns against enemy military buildings (see <c>attack</c> in ai.json).</summary>
+    public sealed record AttackRules(double Ratio, int DefenseRadius, int PathClearance, int GatherTicks, int MinSoldiers);
     public required int MaxSites { get; init; }
     public required int MaxTowerSites { get; init; }
     public required int FreeCarriers { get; init; }
@@ -28,17 +38,27 @@ public sealed record AiConfig
     public required int SpareSoldiersForLand { get; init; }
     public required int LandStock { get; init; }
 
-    public static AiConfig Load(string? dataDirectory = null)
+    public static AiConfig Load(string? dataDirectory = null, Civilization? civilization = null)
     {
-        string path = Path.Combine(dataDirectory ?? Buildings.BuildingCatalog.DefaultDataDirectory, "ai.json");
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        string path = Path.Combine(dataDirectory ?? BuildingCatalog.DefaultDataDirectory, "ai.json");
+        var node = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        if (civilization is { } people && node["civilizations"]?[people.ToString()] is JsonObject overrides)
+            Merge(node, overrides);
+        using var document = JsonDocument.Parse(node.ToJsonString());
         var root = document.RootElement;
         var expansion = root.GetProperty("expansion");
         var military = root.GetProperty("military");
+        var attack = root.GetProperty("attack");
         return new AiConfig
         {
             ThinkTicks = Math.Max(1, (int)Math.Round(root.GetProperty("thinkSeconds").GetDouble() * World.TicksPerSecond)),
             MaxSites = root.GetProperty("maxSites").GetInt32(),
+            Attack = new AttackRules(
+                attack.GetProperty("ratio").GetDouble(),
+                attack.GetProperty("defenseRadius").GetInt32(),
+                attack.GetProperty("pathClearance").GetInt32(),
+                (int)Math.Round(attack.GetProperty("gatherSeconds").GetDouble() * World.TicksPerSecond),
+                attack.GetProperty("minSoldiers").GetInt32()),
             Military = new MilitaryRules(
                 (int)Math.Round(military.GetProperty("thinkSeconds").GetDouble() * World.TicksPerSecond),
                 military.GetProperty("groupRadius").GetInt32(),
@@ -62,5 +82,17 @@ public sealed record AiConfig
             LandStock = expansion.GetProperty("landStock").GetInt32(),
             Ores = expansion.GetProperty("ores").EnumerateArray().Select(o => Enum.Parse<ResourceType>(o.GetString()!)).ToArray(),
         };
+    }
+
+    /// <summary>Copies the values of <paramref name="overrides"/> into <paramref name="target"/>, merging objects.</summary>
+    private static void Merge(JsonObject target, JsonObject overrides)
+    {
+        foreach (var (key, value) in overrides)
+        {
+            if (value is JsonObject inner && target[key] is JsonObject existing)
+                Merge(existing, inner);
+            else
+                target[key] = value?.DeepClone();
+        }
     }
 }

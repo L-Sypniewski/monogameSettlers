@@ -46,14 +46,14 @@ public sealed class Recruitment
         {
             var jobless = _world.Settlers
                 .Where(s => s.Profession == profession && s.Trade == trade && s.Workplace is null && !s.HasTask && !s.IsInside
-                            && s.Player == player && pathFinder.AreConnected(s.Position, workplace))
+                            && s.Player == player && _world.Reachable(s, workplace))
                 .MinBy(s => PathFinder.Distance(s.Position, workplace));
             if (jobless is not null)
                 return new Recruit(jobless, profession, trade, null) { State = RecruitState.Done };
         }
 
         var carriers = _world.Settlers
-            .Where(s => s.IsAvailableCarrier && s.Player == player && pathFinder.AreConnected(s.Position, workplace))
+            .Where(s => s.IsAvailableCarrier && s.Player == player && _world.Reachable(s, workplace))
             .ToList();
         if (carriers.Count == 0)
             return null;
@@ -68,7 +68,7 @@ public sealed class Recruitment
 
         // The tool nearest to the workplace, then the carrier nearest to the tool.
         var pile = _world.Piles
-            .Where(p => p.Material == tool && p.Available > 0 && _world.BelongsTo(p, player) && pathFinder.AreConnected(p.Position, workplace))
+            .Where(p => p.Material == tool && p.Available > 0 && _world.BelongsTo(p, player) && _world.Reachable(player, p.Position, workplace))
             .MinBy(p => PathFinder.Distance(p.Position, workplace));
         if (pile is null)
             return null;

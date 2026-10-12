@@ -92,9 +92,9 @@ public sealed class Logistics
                     .Where(o => o.Available > 0 && o.Material == material && o.Owner != target.Owner && _world.BelongsTo(o, player)
                                 && Allowed(o, target, material))
                     .OrderBy(o => PathFinder.Distance(o.Position, target.Position))
-                    .FirstOrDefault(o => pathFinder.AreConnected(o.Position, target.Position)) ?? offer;
+                    .FirstOrDefault(o => _world.Reachable(player, o.Position, target.Position)) ?? offer;
                 var carrier = idleCarriers
-                    .Where(c => c.Player == player && pathFinder.AreConnected(c.Position, source.Position))
+                    .Where(c => c.Player == player && _world.Reachable(c, source.Position))
                     .MinBy(c => PathFinder.Distance(c.Position, source.Position));
                 if (carrier is null)
                     break;
@@ -139,7 +139,7 @@ public sealed class Logistics
 
         Pile? Nearest(IEnumerable<Pile> targets) => targets
             .OrderBy(t => PathFinder.Distance(offer.Position, t.Position))
-            .FirstOrDefault(t => pathFinder.AreConnected(offer.Position, t.Position));
+            .FirstOrDefault(t => _world.Reachable(t.Owner!.Player, offer.Position, t.Position));
 
         static int Kind(Pile request) => request.Role == PileRole.Storage ? 2 : request.Owner!.State == BuildingState.Finished ? 1 : 0;
     }

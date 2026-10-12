@@ -704,7 +704,7 @@ public sealed class Production
                 _ => 1,
             };
             var spot = SpotNear(p, reach, door);
-            if (spot is not { } s || !pathFinder.AreConnected(door, s)
+            if (spot is not { } s || !_world.Reachable(w.Building.Player, door, s)
                 || _world.TerritoryRules && map.OwnerAt(s) != w.Building.Player)
                 continue;
             candidates.Add((p, s, s == p ? Direction.SouthWest : FacingTowards(s, p), PathFinder.Distance(door, s)));

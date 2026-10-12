@@ -96,7 +96,17 @@ public sealed class GameMap
     /// <summary>Owner by point index; <see cref="NoOwner"/> for nobody.</summary>
     public byte OwnerAt(int index) => _owner[index];
 
-    public void SetOwner(GridPoint p, int? player) => _owner[Index(p)] = player is { } o ? (byte)o : NoOwner;
+    /// <summary>Changes whenever an owner changes (pathfinding keeps land regions per version).</summary>
+    public int OwnerVersion { get; private set; }
+
+    public void SetOwner(GridPoint p, int? player)
+    {
+        byte value = player is { } o ? (byte)o : NoOwner;
+        if (_owner[Index(p)] == value)
+            return;
+        _owner[Index(p)] = value;
+        OwnerVersion++;
+    }
 
     /// <summary>Resource under the point; amount 0 means there is nothing (left).</summary>
     public (ResourceType Type, int Amount) ResourceAt(GridPoint p) => (_resourceType[Index(p)], _resourceAmount[Index(p)]);

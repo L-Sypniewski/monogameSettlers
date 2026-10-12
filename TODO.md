@@ -23,16 +23,19 @@ Shift+Auswahl von Einheuten: Einheiten der aktuellen Auswahl hinzufügen
 KI:
 x Die KI sollte freien Bauplatz ebenfalls wie eine Resource behandeln und die Einnahme von neuer Baufläche anstreben.
 x Gebäude, die zu einer Wirtschaftskette gehören zB Eisenmine -> Eisenschmelze sollten näher aneinander gebaut werden
-Ist die Wirtschaft komplett, soll erweitert werden. Ziel ist die schnellere Einheitenproduktion
+Ist die Wirtschaft komplett, soll erweitert werden. Ziel ist die schnellere Einheitenproduktion. Bevorzugt werden demnach Gebäude, bei denen es ein Engpass gibt.
 Es sollen auch mittlere und größere Wohnhäuser gebaut werden, falls entsprechende Resourcen vorhanden sind
 x Die KI soll auch (vorerst) wissen, wo gegnerische Truppen liegen.
 
 
 KI-Kampf:
 x Die KI soll proaktiv guerilla-Angriffe ausführen. Zum Beispiel kleinere Truppen angreifen, falls lukrativ genug
+x Falls ein Guerilla-Angriff abgeschlossen ist (erfolgreich oder nicht erfolgreich), kehren Die Soldaten nach hause zurück.
+x Die Verteidigung des eigenen Landes hat oberste Priorität
 x Die KI soll die Verteidigung des eigenen Landes verteidigen, indem Einheiten dahin verteilt werden, wo gegnerische Einheiten näher sind
-Die KI soll Einheiten sammeln, bevor sie ein Ziel angreift
-Die KI soll das gegnerische Land angreifen, wenn sie eine 1,5:1-Überlegenheit hat.
-Die KI soll beim Angriff Ziele am Rand priorisieren, die schlechter verteidigt sind und erreichbar sind, ohne auf Gegner zu stoßen.
+x Die KI soll Einheiten sammeln, bevor sie ein Ziel angreift
+x Die KI soll das gegnerische Land angreifen, wenn sie eine 1,5:1-Überlegenheit hat.
+x Die KI soll beim Angriff Ziele am Rand priorisieren, die schlechter verteidigt sind und erreichbar sind, ohne auf Gegner zu stoßen.
+x Je nach Volk sollen die Werte/Thresholds unterschiedlich konfigurierbar sein können.
 
-Zusätzliche/spezifische KI-Regeln in json auslagern (wie es bereits schon gemacht wurde)
+x Zusätzliche/spezifische KI-Regeln in json auslagern (wie es bereits schon gemacht wurde)
