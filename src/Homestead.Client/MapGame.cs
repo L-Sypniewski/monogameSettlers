@@ -57,6 +57,9 @@ public sealed class MapGame : Game
     private Settler? _selected;
     private Building? _selectedBuilding;
 
+    /// <summary>Start point of player 1 on the current map.</summary>
+    private GridPoint _start;
+
     /// <summary>Soldiers selected with a selection box; a click then sends them (or attacks).</summary>
     private readonly List<Settler> _group = new();
     private Vector2? _dragStart;
@@ -78,8 +81,10 @@ public sealed class MapGame : Game
         _gfx = gfx;
         _captureDirectory = captureDirectory;
         _mapFiles = installation.MapFiles.ToArray();
-        _mapIndex = Math.Max(0, Array.FindIndex(_mapFiles, f =>
-            Path.GetFileNameWithoutExtension(f).Equals(mapName ?? "Italy", StringComparison.OrdinalIgnoreCase)));
+        // Default: the first multiplayer map (equal start equipment for every player).
+        _mapIndex = mapName is null
+            ? Math.Max(0, Array.FindIndex(_mapFiles, f => OriginalMap.Open(f) is { IsSinglePlayer: false, Buildings.Count: 0 }))
+            : Math.Max(0, Array.FindIndex(_mapFiles, f => Path.GetFileNameWithoutExtension(f).Equals(mapName, StringComparison.OrdinalIgnoreCase)));
 
         _graphics = new GraphicsDeviceManager(this)
         {
@@ -131,11 +136,13 @@ public sealed class MapGame : Game
         _objects = new MapObjectLayer(GraphicsDevice, _gfx.Open(MapObjectCatalog.GfxFile), _map.Area, _terrain);
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         _wanderers.Clear();
-        var start = _map.Players.Count > 0
+        _start = _map.Players.Count > 0
             ? new GridPoint(_map.Players[0].StartX, _map.Players[0].StartY)
             : new GridPoint(_map.Area.Size / 2, _map.Area.Size / 2);
-        _selected = _world.Spawn(start, Profession.Carrier);
-        _camera = ToWorld(start);
+        _selected = null;
+        _group.Clear();
+        _selectedBuilding = null;
+        _camera = ToWorld(_start);
     }
 
     /// <summary>Diggers, woodcutters, stonecutters and foresters change the map: keep terrain and objects in sync.</summary>
@@ -629,12 +636,12 @@ public sealed class MapGame : Game
                 // HOMESTEAD_CAPTURE_ZOOM: closer look at details (flags, marks) in a capture run.
                 _zoom = float.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_ZOOM"),
                     System.Globalization.CultureInfo.InvariantCulture, out float zoom) ? zoom : 1;
-                var start = _selected!.Position;
+                var start = _start;
                 Console.WriteLine(DemoEconomy.Create(_world, _romans, start, _random));
                 _selectedBuilding = _world.Buildings.FirstOrDefault(b => b.Definition.Name == (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") ?? "lumberjack"));
                 // HOMESTEAD_CAPTURE_BATTLE=1: enemy soldiers attack the start tower.
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE") == "1"
-                    && _world.Buildings.FirstOrDefault(b => b.Definition.Name == "big_tower" && b.Player == 0) is { } tower)
+                    && _world.Buildings.FirstOrDefault(b => b.Player == 0 && b.Definition.Occupiers.Count > 0) is { } tower)
                 {
                     foreach (var type in Enum.GetValues<SoldierType>())
                         for (int i = 0; i < 3; i++)

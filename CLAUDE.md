@@ -28,7 +28,8 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   `MilitaryCombat`: Angriff, Kampf, Verteidigung, Eroberung;
   Werte in `data/military.json`, Gebietsradien aus den Originalkarten gemessen). Siedler und Gebäude haben einen
   Spieler; Logistik/Rekrutierung bedienen nur den eigenen Spieler, `World.TerritoryRules` erzwingt eigenes Land.
-  `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern).
+  `OriginalScenario` (Karte → Welt mit Gebäuden, Stapeln, Siedlern; Mehrspieler-Karten ohne Gebäude bekommen
+  über `StartSetup` für jeden Spieler die gleiche Startausstattung aus `data/start.json`).
 - `data/` – Spieldaten (keine Original-Assets), wird neben jedes Programm kopiert. `production.json` ist
   unser eigenes Balancing (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration). Gebäudedaten sind aus
   JSettlers generiert (`tools/data-import/`); nicht von Hand im generierten JSON ändern.
@@ -38,7 +39,7 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   Klick wählt/schickt Figuren, Klick auf ein Gebäude zeigt Zustand + Arbeitsbereich, N neuer Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), F Angriff auf das feindliche
   Militärgebäude unter dem Mauszeiger, Rahmen ziehen wählt eigene Soldaten (Klick: hinschicken/angreifen), G Demo-Wirtschaft, P Platzier-Modus (Q/E Gebäude, Shift+Klick sofort fertig – Wohnhäuser
   entlassen dann Träger);
-  `--map <name>`). Capture-Läufe ignorieren Eingaben (Tastatur/Maus sind global) und laufen ohne VSync mit 4-facher Geschwindigkeit (verdecktes Fenster wird sonst gedrosselt). und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
+  `--map <name>`, Standard: erste Mehrspieler-Karte). Capture-Läufe ignorieren Eingaben (Tastatur/Maus sind global) und laufen ohne VSync mit 4-facher Geschwindigkeit (verdecktes Fenster wird sonst gedrosselt). und `--scene walk` (Lauf-PoC). `--capture <dir>` rendert offscreen und speichert PNGs
   (zum Prüfen ohne Fenster; nur in temporäre Verzeichnisse). `HOMESTEAD_CAPTURE_ZOOM=4` und
   `HOMESTEAD_CAPTURE_FOCUS=<gebäude>` für Nahaufnahmen, `HOMESTEAD_CAPTURE_BATTLE=1` lässt Feinde den Startturm angreifen; am Ende gibt der Lauf Zähler und Gebäudezustände aus.
 - `tools/Homestead.AssetTool` – CLI: `scan` (alle Bilder testweise dekodieren), `export`, `sheet` (PNG),

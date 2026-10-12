@@ -98,6 +98,22 @@ public static class OriginalScenario
                 settlers++;
         }
 
+        // Multiplayer maps without start buildings: equal start equipment for every player.
+        if (!original.IsSinglePlayer && original.Buildings.Count == 0)
+        {
+            var setup = StartSetup.Load(dataDirectory);
+            for (int player = 0; player < original.Players.Count; player++)
+            {
+                var start = new GridPoint(original.Players[player].StartX, original.Players[player].StartY);
+                if (setup.Apply(world, CatalogOf(player), player, start, original.StartResources) is not null)
+                    buildings++;
+                else
+                    skipped.Add($"start of player {player + 1} at {start.X},{start.Y}");
+            }
+            settlers = world.Settlers.Count;
+            piles = world.Piles.Count();
+        }
+
         return (world, new LoadReport(buildings, piles, settlers, skipped));
     }
 }

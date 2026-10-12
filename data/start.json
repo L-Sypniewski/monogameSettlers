@@ -1,0 +1,23 @@
+{
+  "_comment": "Start equipment on multiplayer maps without start buildings: per start level of the map (1 low, 2 medium, 3 high) a tower, goods piles and settlers around each player's start point. Lists from JSettlers' EMapStartResources (MIT), which follows the original. Miners and smiths come as carriers plus their tool (that is how specialists come about here); donkeys are left out.",
+  "building": "tower",
+  "levels": {
+    "1": {
+      "goods": [ ["PLANK", 6], ["PLANK", 6], ["STONE", 6], ["STONE", 6], ["BLADE", 5], ["HAMMER", 6], ["AXE", 3], ["PICK", 2], ["SAW", 1] ],
+      "settlers": { "Carrier": 16, "Miner": 2, "Smith": 1, "Swordsman": 6, "Pikeman": 1, "Bowman": 1 }
+    },
+    "2": {
+      "goods": [ ["PLANK", 7], ["PLANK", 6], ["PLANK", 6], ["PLANK", 6], ["STONE", 7], ["STONE", 6], ["STONE", 6], ["STONE", 6],
+                 ["COAL", 8], ["COAL", 7], ["IRONORE", 5], ["FISH", 3], ["BREAD", 7], ["MEAT", 5], ["BLADE", 5], ["BLADE", 5],
+                 ["HAMMER", 8], ["HAMMER", 7], ["AXE", 6], ["PICK", 4], ["SAW", 2], ["SCYTHE", 1], ["FISHINGROD", 1] ],
+      "settlers": { "Carrier": 32, "Miner": 4, "Smith": 2, "Swordsman": 10, "Pikeman": 2, "Bowman": 2 }
+    },
+    "3": {
+      "goods": [ ["PLANK", 8], ["PLANK", 8], ["PLANK", 7], ["PLANK", 7], ["STONE", 8], ["STONE", 8], ["STONE", 8], ["STONE", 7],
+                 ["COAL", 7], ["COAL", 7], ["COAL", 6], ["COAL", 6], ["IRONORE", 6], ["IRONORE", 6], ["FISH", 7], ["BREAD", 8],
+                 ["BREAD", 7], ["MEAT", 8], ["BLADE", 8], ["BLADE", 7], ["HAMMER", 7], ["HAMMER", 6], ["HAMMER", 6], ["HAMMER", 6],
+                 ["AXE", 8], ["PICK", 5], ["SAW", 3], ["SCYTHE", 3], ["FISHINGROD", 2] ],
+      "settlers": { "Carrier": 50, "Miner": 6, "Smith": 3, "Swordsman": 12, "Pikeman": 4, "Bowman": 4 }
+    }
+  }
+}

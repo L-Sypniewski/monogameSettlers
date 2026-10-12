@@ -88,7 +88,8 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
      (Original-Markierung, vier Kreise); Fähnchen auf besetzten Gebäuden
    - [ ] Arbeitsbereich verschieben
    - [x] Wohnhäuser entlassen Träger (klein 10, mittel 30, groß 100; einer pro Sekunde, einstellbar)
-   - [ ] Startausstattung je Spielstart (Burg/Lager, Waren, Siedler wie im Original)
+   - [x] Startausstattung auf Mehrspieler-Karten: Wachturm, Waren, Siedler je Startstufe der Karte, gleich für alle
+     Spieler (`data/start.json`); Einzelspieler-Karten bringen ihre Gebäude selbst mit
    - [ ] Auf- und Ablegen animieren; Wege (beschleunigen das Laufen)
    - [x] Baustellen: Tür und Stapelplätze müssen frei sein (sonst nie belieferbar); Lager hält eine Ware zusammen
    - [x] Lager nimmt beliebig viele Warenarten (öffnet bei Bedarf weitere Stapelplätze ringsum)

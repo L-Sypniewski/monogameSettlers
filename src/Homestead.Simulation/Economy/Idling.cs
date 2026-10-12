@@ -3,7 +3,7 @@ using Homestead.Simulation.Pathfinding;
 namespace Homestead.Simulation.Economy;
 
 /// <summary>
-/// Keeps idle carriers out of the way: one that has had nothing to do for <see cref="IdleTicks"/> and
+/// Keeps idle carriers and soldiers out of the way: one that has had nothing to do for <see cref="IdleTicks"/> and
 /// stands in a busy place (around a building, next to a pile, in a crowd) strolls to a quiet free
 /// field nearby. Strolling carriers stay available: logistics and recruitment can take them any time.
 /// </summary>
@@ -70,7 +70,7 @@ public sealed class Idling
     }
 
     private static bool IsIdle(Settler s) =>
-        s.IsCarrier && !s.HasTask && !s.IsInside && s.Carrying is null && s.Destination is null && s.State != SettlerState.Stepping;
+        (s.IsCarrier || s.Profession == Profession.Soldier) && !s.HasTask && !s.IsInside && s.Carrying is null && s.Destination is null && s.State != SettlerState.Stepping;
 
     /// <summary>Free ground (no building, its surroundings or pile), no pile next to it, at most one neighbor.</summary>
     private bool IsQuiet(GridPoint p, Settler? self)
