@@ -39,6 +39,13 @@ public sealed class StartSetup
         return new StartSetup(root.GetProperty("building").GetString()!, levels);
     }
 
+    /// <summary>Specialists in start.json: profession and trade they start with, carrying their tool (see production.json's tools).</summary>
+    private static readonly (string Name, Profession Profession, string Trade)[] Specialists =
+    [
+        ("Miner", Profession.Worker, "MINER"), ("Smith", Profession.Worker, "SMITH"), ("Stonecutter", Profession.Worker, "STONECUTTER"),
+        ("Builder", Profession.Builder, "BRICKLAYER"), ("Digger", Profession.Digger, "DIGGER"),
+    ];
+
     /// <summary>Equips one player at <paramref name="start"/>. Returns the start building (null if it does not fit).</summary>
     public Building? Apply(World world, BuildingCatalog catalog, int player, GridPoint start, int level)
     {
@@ -51,24 +58,22 @@ public sealed class StartSetup
         if (tower is null)
             return null;
 
-        // Specialists come as carriers with their tool lying ready.
-        var goods = equipment.Goods.ToList();
-        int carriers = equipment.Settlers.GetValueOrDefault("Carrier");
-        foreach (var (trade, tool) in new[] { ("Miner", Material.Pick), ("Smith", Material.Hammer) })
-        {
-            int count = equipment.Settlers.GetValueOrDefault(trade);
-            carriers += count;
-            if (count > 0)
-                goods.Add((tool, count));
-        }
-
         // Soldiers at the door: they occupy the tower right away.
         foreach (var type in Enum.GetValues<SoldierType>())
             for (int i = 0; i < equipment.Settlers.GetValueOrDefault(type.ToString()); i++)
                 world.SpawnSoldier(tower.Door, type, player: player);
-        PlaceGoods(world, tower, goods);
-        for (int i = 0; i < carriers; i++)
+        PlaceGoods(world, tower, equipment.Goods.ToList());
+        for (int i = 0; i < equipment.Settlers.GetValueOrDefault("Carrier"); i++)
             world.Spawn(start + new GridPoint(3, 5), Profession.Carrier, player);
+        // Specialists come equipped: their tools are not in the piles, so no other trade can take them first.
+        // Without a workplace they wait like workers whose building was torn down and take the first one.
+        foreach (var (name, profession, trade) in Specialists)
+            for (int i = 0; i < equipment.Settlers.GetValueOrDefault(name); i++)
+                if (world.Spawn(start + new GridPoint(3, 5), profession, player) is { } specialist)
+                {
+                    specialist.Trade = trade;
+                    specialist.Tool = world.Recruitment.ToolFor(trade);
+                }
         return tower;
     }
 

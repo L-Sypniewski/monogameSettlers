@@ -32,6 +32,7 @@ public sealed class MapGame : Game
 
 
     private readonly GraphicsDeviceManager _graphics;
+    private Point _windowedSize = new(1280, 800);
     private readonly GfxDirectory _gfx;
     private readonly string[] _mapFiles;
     private readonly string? _captureDirectory;
@@ -292,6 +293,27 @@ public sealed class MapGame : Game
         base.Update(gameTime);
     }
 
+    /// <summary>Switches between the window and borderless fullscreen at desktop resolution; the window keeps its size.</summary>
+    private void ToggleFullScreen()
+    {
+        if (_graphics.IsFullScreen)
+        {
+            _graphics.IsFullScreen = false;
+            _graphics.PreferredBackBufferWidth = _windowedSize.X;
+            _graphics.PreferredBackBufferHeight = _windowedSize.Y;
+        }
+        else
+        {
+            _windowedSize = new Point(Window.ClientBounds.Width, Window.ClientBounds.Height);
+            var display = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+            _graphics.HardwareModeSwitch = false;
+            _graphics.IsFullScreen = true;
+            _graphics.PreferredBackBufferWidth = display.Width;
+            _graphics.PreferredBackBufferHeight = display.Height;
+        }
+        _graphics.ApplyChanges();
+    }
+
     private void GiveWanderersNewDestinations()
     {
         foreach (int id in _wanderers)
@@ -324,6 +346,8 @@ public sealed class MapGame : Game
             else
                 Exit();
         }
+        if (Pressed(Keys.F11))
+            ToggleFullScreen();
         if (Pressed(Keys.P))
             _placing = !_placing;
         if (_placing && Pressed(Keys.E))
