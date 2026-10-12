@@ -86,10 +86,10 @@ public sealed partial class World
 
     /// <summary>
     /// Whether the player may use the goods of a pile: piles of its own buildings, and loose goods on
-    /// its own land or on land of nobody.
+    /// its own land (anywhere in worlds without territory).
     /// </summary>
     public bool BelongsTo(Pile pile, int player) =>
-        pile.Owner is { } owner ? owner.Player == player : RequireMap().OwnerAt(pile.Position) is not { } o || o == player;
+        pile.Owner is { } owner ? owner.Player == player : !TerritoryRules || RequireMap().OwnerAt(pile.Position) == player;
 
     public Pile? PileAt(GridPoint p) => _pilesByPoint.GetValueOrDefault(RequireMap().Index(p));
 

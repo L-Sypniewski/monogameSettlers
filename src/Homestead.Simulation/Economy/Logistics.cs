@@ -86,13 +86,20 @@ public sealed class Logistics
                 if (ChooseTarget(offer, requests, players) is not { } target)
                     break;
                 int player = target.Owner!.Player;
+                // The target is chosen; the goods come from the pile of that material nearest to it.
+                var material = offer.Material!.Value;
+                var source = offers
+                    .Where(o => o.Available > 0 && o.Material == material && o.Owner != target.Owner && _world.BelongsTo(o, player)
+                                && Allowed(o, target, material))
+                    .OrderBy(o => PathFinder.Distance(o.Position, target.Position))
+                    .FirstOrDefault(o => pathFinder.AreConnected(o.Position, target.Position)) ?? offer;
                 var carrier = idleCarriers
-                    .Where(c => c.Player == player && pathFinder.AreConnected(c.Position, offer.Position))
-                    .MinBy(c => PathFinder.Distance(c.Position, offer.Position));
+                    .Where(c => c.Player == player && pathFinder.AreConnected(c.Position, source.Position))
+                    .MinBy(c => PathFinder.Distance(c.Position, source.Position));
                 if (carrier is null)
                     break;
                 idleCarriers.Remove(carrier);
-                Start(carrier, offer, target);
+                Start(carrier, source, target);
             }
             if (idleCarriers.Count == 0)
                 break;
