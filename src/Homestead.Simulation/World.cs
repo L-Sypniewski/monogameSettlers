@@ -165,18 +165,21 @@ public sealed partial class World
         return true;
     }
 
-    /// <summary>
-    /// Everyone but soldiers walks on the own land only (with territory rules). Somebody standing
-    /// outside it (land lost under its feet) may walk anywhere, so it can come home.
-    /// </summary>
     /// <summary>Whether the player's people can walk from a to b (on its own land with territory rules).</summary>
     internal bool Reachable(int player, GridPoint a, GridPoint b) => PathFinder!.AreConnected(a, b, TerritoryRules ? player : null);
+
+    /// <summary>Soldiers and geologists may go and stay outside the own land.</summary>
+    internal static bool RoamsFreely(Settler settler) => settler.Profession is Profession.Soldier or Profession.Geologist;
 
     /// <summary>Whether the settler can walk to <paramref name="target"/> (see <see cref="LandOf"/>).</summary>
     internal bool Reachable(Settler settler, GridPoint target) => PathFinder!.AreConnected(settler.Position, target, LandOf(settler));
 
+    /// <summary>
+    /// Everyone but soldiers and geologists walks on the own land only (with territory rules). Somebody
+    /// standing outside it (land lost under its feet) may walk anywhere, so it can come home.
+    /// </summary>
     internal int? LandOf(Settler settler) =>
-        TerritoryRules && settler.Profession != Profession.Soldier && Map!.OwnerAt(settler.StepTarget) == settler.Player
+        TerritoryRules && !RoamsFreely(settler) && Map!.OwnerAt(settler.StepTarget) == settler.Player
             ? settler.Player
             : null;
 

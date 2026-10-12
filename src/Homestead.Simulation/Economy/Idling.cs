@@ -46,7 +46,7 @@ public sealed class Idling
                 continue;
             }
             // Stranded outside the own land (it was lost): home to the nearest own building.
-            if (_world.TerritoryRules && settler.Profession != Profession.Soldier && _world.Map!.OwnerAt(settler.Position) != settler.Player)
+            if (_world.TerritoryRules && !World.RoamsFreely(settler) && _world.Map!.OwnerAt(settler.Position) != settler.Player)
             {
                 var home = _world.Buildings.Where(b => b.Exists && b.Player == settler.Player && _world.Map.OwnerAt(b.Door) == settler.Player)
                     .MinBy(b => PathFinder.Distance(b.Door, settler.Position));
