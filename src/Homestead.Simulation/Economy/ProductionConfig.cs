@@ -67,6 +67,9 @@ public sealed record ProductionConfig
     /// <summary>Units one storehouse pile holds (a storehouse has six piles).</summary>
     public int StoragePileCapacity { get; init; } = Materials.MaxPileSize;
 
+    /// <summary>Fields kept free between a new building and the surroundings of the others.</summary>
+    public int BuildingMargin { get; init; }
+
     /// <summary>
     /// Materials carriers bring to storehouses (null = all). Everything else stays at its producer's
     /// output pile until somebody needs it.
@@ -149,6 +152,7 @@ public sealed record ProductionConfig
             Smiths = smiths,
             Tools = tools,
             StoragePileCapacity = root.GetProperty("storage").GetProperty("pileCapacity").GetInt32(),
+            BuildingMargin = root.GetProperty("placement").GetProperty("margin").GetInt32(),
             StoredMaterials = root.GetProperty("storage").GetProperty("materials").EnumerateArray()
                 .Select(m => Materials.Parse(m.GetString()!)!.Value).ToHashSet(),
             Residents = housing.GetProperty("residents").EnumerateObject().ToDictionary(r => r.Name, r => r.Value.GetInt32()),

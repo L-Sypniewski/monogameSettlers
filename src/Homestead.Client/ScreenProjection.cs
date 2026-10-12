@@ -12,7 +12,8 @@ public static class ScreenProjection
 {
     public const int TileWidth = 16;
     public const int RowHeight = 9;
-    public const int HeightStep = 2;
+    /// <summary>Pixels per height step. The original uses 2; we halve the relief (gentler hills).</summary>
+    public const int HeightStep = 1;
 
     public static Vector2 ToWorld(GridPoint p) => ToWorld(p.X, p.Y, 0);
 

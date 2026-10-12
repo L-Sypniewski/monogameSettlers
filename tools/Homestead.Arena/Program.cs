@@ -73,7 +73,7 @@ void Print(World world, long tick)
         int Stock(Material m) => world.Piles.Where(x => x.Material == m && x.Role != PileRole.Request && world.BelongsTo(x, p)).Sum(x => x.Count);
         var kinds = own.Where(b => b.State == BuildingState.Finished).GroupBy(b => b.Definition.Name)
             .OrderBy(g => g.Key).Select(g => g.Count() > 1 ? $"{g.Key} {g.Count()}" : g.Key);
-        Console.WriteLine($"   P{p + 1}: land {ai.Land}, {finished} buildings + {own.Count - finished} sites, " +
+        Console.WriteLine($"   P{p + 1}: land {ai.Land} (free {ai.FreeLand}), {finished} buildings + {own.Count - finished} sites, " +
                           $"settlers {settlers.Count} (carriers {settlers.Count(s => s.Profession == Profession.Carrier)}, soldiers {settlers.Count(s => s.Profession == Profession.Soldier)}), " +
                           $"plank {Stock(Material.Plank)} stone {Stock(Material.Stone)} coal {Stock(Material.Coal)} iron {Stock(Material.Iron)}");
         Console.WriteLine($"       {string.Join(", ", kinds)}");

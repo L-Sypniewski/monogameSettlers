@@ -265,7 +265,7 @@ public sealed class TerrainMesh : IDisposable
         int height = HeightAt(p.X, p.Y);
         // Slopes facing the viewer are lit, those facing away darker.
         int dHeight = HeightAt(p.X, p.Y - 1) - height;
-        float light = Math.Clamp(0.875f + dHeight * 0.125f, 0.4f, 1f);
+        float light = Math.Clamp(0.875f + dHeight * 0.0625f, 0.4f, 1f); // halved with the relief
 
         var position = ScreenProjection.ToWorld(p.X, p.Y, height);
         vertices.Add(new VertexPositionColorTexture(

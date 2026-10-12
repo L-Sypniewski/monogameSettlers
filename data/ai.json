@@ -19,11 +19,13 @@
     ["lumberjack", 4], ["forester", 3],
     ["farm", 3], ["mill", 2], ["baker", 2], ["coalmine", 3], ["fisher", 3], ["pig_farm", 2], ["slaughterhouse", 2]
   ],
-  "_expansionComment": "Towers towards what the own land lacks, in this order: quarry stone below minStoneUnits, none of the listed ores, stone below wantedStoneUnits, trees below minTrees, no water; towards free land when a building found no room; with spareSoldiersForLand idle soldiers and landStock planks and stones beyond the tower's cost simply towards the nearest free land. The tower goes to the own-land spot nearest the target. While a needed tower cannot be afforded, the economy keeps its planks and stones back.",
+  "_expansionComment": "Towers towards what the own land lacks, in this order: quarry stone below minStoneUnits, none of the listed ores, free building land below minFreeLand, stone below wantedStoneUnits, trees below minTrees, no water; towards free land when a building found no room; with spareSoldiersForLand idle soldiers and landStock planks and stones beyond the tower's cost simply towards the nearest free land. The tower goes to the own-land spot nearest the target. While a needed tower cannot be afforded, the economy keeps its planks and stones back.",
   "expansion": {
     "building": "tower",
     "minStoneUnits": 40,
     "wantedStoneUnits": 150,
+    "_minFreeLandComment": "Free building land (grass points with nothing on them and no building around) the own land should keep; below it the AI expands towards the cells with the most of it.",
+    "minFreeLand": 3000,
     "minTrees": 20,
     "ores": [ "Coal", "IronOre" ],
     "spareSoldiersForLand": 4,

@@ -61,7 +61,8 @@ Getreide nutzt eigene Codes 200–207 (Wachstumsstufen, 207 reif), die in Origin
 Bodenschätze (Typ + Menge je Feld) liegen ebenfalls in `GameMap` (`ResourceAt`).
 
 ## Grafik-Konventionen
-- Raster → Pixel: `x*16 - y*8`, `y*9 - höhe*2` (Zeilen halb versetzt), 6 Nachbarrichtungen.
+- Raster → Pixel: `x*16 - y*8`, `y*9 - höhe*HeightStep` (Zeilen halb versetzt), 6 Nachbarrichtungen.
+  Das Original nutzt HeightStep 2; wir halbieren das Relief (`ScreenProjection.HeightStep = 1`).
 - Gelände-Atlas: Texturkoordinaten immer einen halben Texel innerhalb der Atlas-Zelle halten,
   sonst entstehen Linien aus Nachbarzellen.
 - Lauf-Sequenzen: 72 Frames = 6 Richtungsblöcke à 12 (SW, W, NW, NE, O, SO); Frame 0 im Block = stehen,

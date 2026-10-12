@@ -111,6 +111,11 @@ public sealed partial class World
             int index = map.Index(p);
             if (_footprints.ContainsKey(index) || _protected.ContainsKey(index))
                 return Fail("too close to another building", out reason);
+            // Extra room between buildings, for the settlers and the looks.
+            int margin = Production.Config.BuildingMargin;
+            if (margin > 0 && PathFinder.Circle(p, margin).Any(q => map.Contains(q)
+                    && (_footprints.ContainsKey(map.Index(q)) || _protected.ContainsKey(map.Index(q)))))
+                return Fail("too close to another building", out reason);
             if (!map.IsWalkable(p) || _pilesByPoint.ContainsKey(index) || map.ObjectAt(p) == MapObjectKind.Field)
                 return Fail("something is in the way", out reason);
             if (!definition.Ground.Contains(map.TerrainAt(p).GroundName()))

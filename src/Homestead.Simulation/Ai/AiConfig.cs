@@ -16,6 +16,7 @@ public sealed record AiConfig
     public required string ExpansionBuilding { get; init; }
     public required int MinStoneUnits { get; init; }
     public required int WantedStoneUnits { get; init; }
+    public required int MinFreeLand { get; init; }
     public required int MinTrees { get; init; }
     public required IReadOnlyList<ResourceType> Ores { get; init; }
     public required int SpareSoldiersForLand { get; init; }
@@ -40,6 +41,7 @@ public sealed record AiConfig
             ExpansionBuilding = expansion.GetProperty("building").GetString()!,
             MinStoneUnits = expansion.GetProperty("minStoneUnits").GetInt32(),
             WantedStoneUnits = expansion.GetProperty("wantedStoneUnits").GetInt32(),
+            MinFreeLand = expansion.GetProperty("minFreeLand").GetInt32(),
             MinTrees = expansion.GetProperty("minTrees").GetInt32(),
             SpareSoldiersForLand = expansion.GetProperty("spareSoldiersForLand").GetInt32(),
             LandStock = expansion.GetProperty("landStock").GetInt32(),

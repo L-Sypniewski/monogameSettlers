@@ -11,12 +11,14 @@ internal sealed class MapSurvey
     public const int CellSize = 8;
     private static readonly int ResourceTypes = Enum.GetValues<ResourceType>().Length;
 
+    private readonly World _world;
     private readonly GameMap _map;
     private readonly int _player;
 
-    public MapSurvey(GameMap map, int player)
+    public MapSurvey(World world, int player)
     {
-        _map = map;
+        _world = world;
+        var map = _map = world.Map!;
         _player = player;
         CellsPerSide = (map.Size + CellSize - 1) / CellSize;
         Cells = new Cell[CellsPerSide * CellsPerSide];
@@ -65,6 +67,8 @@ internal sealed class MapSurvey
             int stone = MapObjectCodes.StoneLeft(code);
             int fish = water && type == ResourceType.Fish ? amount : 0;
             int ore = !water && type != ResourceType.Fish ? amount : 0;
+            // Free building land: grass without anything on it or a building around.
+            bool buildable = terrain == TerrainType.Grass && code == MapObjectCodes.None && _world.IsFreeGround(p);
 
             foreach (var target in mine ? [cell, cell.OwnPart!, own] : new[] { cell })
             {
@@ -79,6 +83,8 @@ internal sealed class MapSurvey
                 {
                     target.Walkable++;
                     target.Anchor ??= p;
+                    if (buildable)
+                        target.Buildable++;
                 }
             }
         }
@@ -98,6 +104,9 @@ internal sealed class MapSurvey
         public int Own { get; set; }
         public int Foreign { get; set; }
         public int Walkable { get; set; }
+
+        /// <summary>Free building land: grass with nothing on it and no building around.</summary>
+        public int Buildable { get; set; }
         public int Trees { get; set; }
         public int StoneUnits { get; set; }
         public int Water { get; set; }
@@ -109,7 +118,7 @@ internal sealed class MapSurvey
         public void Clear()
         {
             Anchor = null;
-            Own = Foreign = Walkable = Trees = StoneUnits = Water = Fish = 0;
+            Own = Foreign = Walkable = Buildable = Trees = StoneUnits = Water = Fish = 0;
             Array.Clear(Ore);
         }
     }

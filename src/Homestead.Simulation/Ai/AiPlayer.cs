@@ -54,7 +54,7 @@ public sealed class AiPlayer
         _catalog = catalog;
         _config = config ?? AiConfig.Load();
         Player = player;
-        _survey = new MapSurvey(world.Map!, player);
+        _survey = new MapSurvey(world, player);
     }
 
     public int Player { get; }
@@ -64,6 +64,9 @@ public sealed class AiPlayer
 
     /// <summary>Points of land the player owned at the last survey.</summary>
     public int Land => _survey.Own.Own;
+
+    /// <summary>Free building land on the own land at the last survey.</summary>
+    public int FreeLand => _survey.Own.Buildable;
 
     internal void Tick()
     {
@@ -361,13 +364,16 @@ public sealed class AiPlayer
         foreach (var ore in _config.Ores)
             if (own.Ore[(int)ore] == 0)
                 yield return (ore.ToString(), c => c.Ore[(int)ore] > 0);
+        // Free building land is a resource too: towards the cells with the most of it.
+        bool roomy(MapSurvey.Cell c) => c.Buildable >= MapSurvey.CellSize * MapSurvey.CellSize * 2 / 3;
+        if (own.Buildable < _config.MinFreeLand)
+            yield return ("room", roomy);
         if (own.StoneUnits >= _config.MinStoneUnits && own.StoneUnits < _config.WantedStoneUnits)
             yield return ("stone", c => c.StoneUnits >= 10);
         if (own.Trees < _config.MinTrees)
             yield return ("trees", c => c.Trees >= 10);
         if (own.Water == 0)
             yield return ("water", c => c.Water > 0);
-        bool roomy(MapSurvey.Cell c) => c.Walkable >= MapSurvey.CellSize * MapSurvey.CellSize * 3 / 4;
         if (_lacksRoom)
             yield return ("room", roomy);
         // Nothing lacking: soldiers to spare still take land, as a player would.

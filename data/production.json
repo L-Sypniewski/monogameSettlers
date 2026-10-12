@@ -55,6 +55,10 @@
     "FARMER": "SCYTHE",
     "FISHERMAN": "FISHINGROD"
   },
+  "placement": {
+    "_comment": "Fields a new building keeps free from the ground and the surroundings of other buildings (more room for settlers and the looks; 0 = touching allowed as in the original data).",
+    "margin": 1
+  },
   "storage": {
     "_comment": "Units per storehouse pile; a storehouse has six piles, each holding one material at a time. A full storehouse takes nothing more: goods then wait at the producers.",
     "pileCapacity": 8,
