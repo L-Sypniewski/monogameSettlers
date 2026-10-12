@@ -88,7 +88,7 @@ public static class DemoEconomy
     }
 
     /// <summary>Tries positions in growing rings around <paramref name="near"/> until the building fits.</summary>
-    private static Building? PlaceNear(World world, BuildingDefinition definition, GridPoint near, Random random, int firstRing = 6)
+    public static Building? PlaceNear(World world, BuildingDefinition definition, GridPoint near, Random random, int firstRing = 6)
     {
         for (int r = firstRing; r < 40; r += 2)
         for (int attempt = 0; attempt < 40; attempt++)

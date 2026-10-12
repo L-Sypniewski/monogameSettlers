@@ -44,6 +44,11 @@
     "FARMER": "SCYTHE",
     "FISHERMAN": "FISHINGROD"
   },
+  "housing": {
+    "_comment": "Carriers a finished living house sends out through its door, one every intervalSeconds. Houses that come with a loaded map do not (the map lists its settlers itself).",
+    "residents": { "small_livinghouse": 10, "medium_livinghouse": 30, "big_livinghouse": 100 },
+    "intervalSeconds": 1
+  },
   "trees": { "growSeconds": 150 },
   "grain": { "growSeconds": 100 },
   "stones": { "stonesPerCut": 1 },

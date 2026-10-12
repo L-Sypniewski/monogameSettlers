@@ -48,6 +48,7 @@ public sealed partial class World
         Recruitment = new Recruitment(this, config);
         Production = new Production(this, config);
         Idling = new Idling(this);
+        Housing = new Housing(this, config);
         if (map is not null)
         {
             PathFinder = new PathFinder(map);
@@ -104,6 +105,7 @@ public sealed partial class World
             Recruitment.Tick();
             Construction.Tick();
             Production.Tick();
+            Housing.Tick();
             Idling.Tick();
         }
         foreach (var settler in _settlers)
@@ -311,7 +313,7 @@ public sealed partial class World
     }
 
     /// <summary>Whether a settler stands on (or is stepping onto) the point.</summary>
-    internal bool IsOccupied(GridPoint p) => _occupant[RequireMap().Index(p)] != NoOccupant;
+    public bool IsOccupied(GridPoint p) => _occupant[RequireMap().Index(p)] != NoOccupant;
 
     /// <summary>The settler goes into a building through the door it stands on.</summary>
     internal void EnterBuilding(Settler settler)

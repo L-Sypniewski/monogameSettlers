@@ -165,14 +165,14 @@ public sealed class MapGame : Game
         {
             var definition = _placeable[_placeIndex];
             _world.CanPlace(definition, cursor, out string reason);
-            _message = $"placing {definition.Name} (Q/E change, Esc stop){(reason.Length > 0 ? ": " + reason : "")}";
+            _message = $"placing {definition.Name} (Q/E change, Shift+click finished, Esc stop){(reason.Length > 0 ? ": " + reason : "")}";
         }
         var production = _world.Production;
         Window.Title = $"{_map.Name} · {_world.Settlers.Count} settlers · {logistics.Jobs.Count} transports, " +
                        $"produced {production.Produced}, trees {production.TreesCut}/{production.TreesPlanted}, stones {production.StonesCut}, " +
                        $"crop {production.CropHarvested}/{production.FieldsSown}, fish {production.FishCaught}, water {production.WaterDrawn}, ore {production.OreMined}, tools {production.ToolsMade} · " +
                        $"{logistics.Delivered} delivered, {logistics.DroppedOnTheWay} dropped · " +
-                       $"pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
+                       $"residents {_world.Housing.Released} · pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
                        $"{_gameMap.TerrainAt(cursor)}{(_gameMap.IsWalkable(cursor) ? "" : " (blocked)")}" +
                        (_message.Length > 0 ? $" · {_message}" : "");
         base.Update(gameTime);
@@ -266,9 +266,11 @@ public sealed class MapGame : Game
         {
             var definition = _placeable[_placeIndex];
             var at = ScreenToGrid(screen);
-            _message = _world.CanPlace(definition, at, out string reason)
-                ? _world.PlaceConstructionSite(definition, 0, at) is not null ? $"{definition.Name} site placed" : "could not place"
-                : $"{definition.Name}: {reason}";
+            // Shift: finished at once (for testing), otherwise a construction site.
+            bool instant = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
+            _message = !_world.CanPlace(definition, at, out string reason) ? $"{definition.Name}: {reason}"
+                : instant ? _world.PlaceBuilding(definition, 0, at) is not null ? $"{definition.Name} placed" : "could not place"
+                : _world.PlaceConstructionSite(definition, 0, at) is not null ? $"{definition.Name} site placed" : "could not place";
             return;
         }
 
@@ -450,6 +452,7 @@ public sealed class MapGame : Game
                 _zoom = 1;
                 var start = _selected!.Position;
                 Console.WriteLine(DemoEconomy.Create(_world, _romans, start, _random));
+                DemoEconomy.PlaceNear(_world, _romans["medium_livinghouse"], new GridPoint(start.X + 10, start.Y - 4), _random);
                 foreach (var (name, dx, dy) in new[] { ("lumberjack", -14, 10), ("forester", 8, 16), ("stonecutter", -4, 22) })
                     for (int r = 0; r < 12; r++)
                         if (_world.PlaceConstructionSite(_romans[name], 0, new GridPoint(start.X + dx + r, start.Y + dy)) is not null)
@@ -460,7 +463,7 @@ public sealed class MapGame : Game
                 Console.WriteLine($"buildings: {string.Join(", ", _world.Buildings.Where(b => b.Exists).Select(b => $"{b.Definition.Name}@{b.Position.X},{b.Position.Y}"))}");
                 Console.WriteLine($"produced {production.Produced}, crop {production.CropHarvested}/{production.FieldsSown}, fish {production.FishCaught}, " +
                                   $"water {production.WaterDrawn}, ore {production.OreMined}, tools {production.ToolsMade}; " +
-                                  $"diggers {_world.Settlers.Count(s => s.Profession == Profession.Digger)}, builders {_world.Settlers.Count(s => s.Profession == Profession.Builder)}; problems: " +
+                                  $"residents {_world.Housing.Released}, settlers {_world.Settlers.Count}; diggers {_world.Settlers.Count(s => s.Profession == Profession.Digger)}, builders {_world.Settlers.Count(s => s.Profession == Profession.Builder)}; problems: " +
                                   string.Join(", ", production.Problems.Select(kv => $"{kv.Key} {kv.Value}x")));
                 Exit();
                 break;

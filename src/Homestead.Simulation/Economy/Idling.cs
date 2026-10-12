@@ -34,7 +34,7 @@ public sealed class Idling
         if (_world.Tick % Interval != 0)
             return;
 
-        var taken = new HashSet<GridPoint>(_world.Settlers.Where(s => s.IsStrolling && s.Destination is not null).Select(s => s.Destination!.Value));
+        var taken = StrollTargets();
         foreach (var settler in _world.Settlers)
         {
             if (settler.IsStrolling && settler.Destination is null)
@@ -48,13 +48,25 @@ public sealed class Idling
             if (_world.Tick - since < IdleTicks || IsQuiet(settler.Position, settler))
                 continue;
 
-            if (QuietSpotNear(settler, taken) is not { } spot || !_world.WalkTo(settler, spot))
-                continue;
-            settler.IsStrolling = true;
-            taken.Add(spot);
-            _idleSince.Remove(settler.Id);
-            Strolls++;
+            if (Stroll(settler, taken))
+                _idleSince.Remove(settler.Id);
         }
+    }
+
+    /// <summary>Sends a carrier to a quiet spot right away (e.g. a newcomer leaving its house).</summary>
+    internal void StrollAway(Settler settler) => Stroll(settler, StrollTargets());
+
+    private HashSet<GridPoint> StrollTargets() =>
+        new(_world.Settlers.Where(s => s.IsStrolling && s.Destination is not null).Select(s => s.Destination!.Value));
+
+    private bool Stroll(Settler settler, HashSet<GridPoint> taken)
+    {
+        if (QuietSpotNear(settler, taken) is not { } spot || !_world.WalkTo(settler, spot))
+            return false;
+        settler.IsStrolling = true;
+        taken.Add(spot);
+        Strolls++;
+        return true;
     }
 
     private static bool IsIdle(Settler s) =>

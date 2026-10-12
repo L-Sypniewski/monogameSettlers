@@ -33,6 +33,8 @@ public sealed partial class World
 
     public Idling Idling { get; }
 
+    public Housing Housing { get; }
+
     /// <summary>Not part of a building, its surroundings or a pile (free for trees, work spots, ...).</summary>
     public bool IsFreeGround(GridPoint p)
     {

@@ -50,8 +50,11 @@ public static class OriginalScenario
                 skipped.Add($"building type {b.Type} ({name ?? "unknown"}) at {b.X},{b.Y}");
                 continue;
             }
-            if (world.PlaceBuilding(definition, b.Player, new GridPoint(b.X, b.Y), force: true) is not null)
+            if (world.PlaceBuilding(definition, b.Player, new GridPoint(b.X, b.Y), force: true) is { } building)
+            {
+                world.Housing.MarkPopulated(building); // the map lists the residents as settlers
                 buildings++;
+            }
         }
 
         int piles = 0;

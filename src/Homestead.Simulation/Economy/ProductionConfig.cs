@@ -59,6 +59,12 @@ public sealed record ProductionConfig
     /// <summary>Every this many ticks a depleted field regains one amount step (up to its start value); 0 = never.</summary>
     public int RegenerateTicks { get; init; }
 
+    /// <summary>Carriers a living house releases once it is finished (by building name).</summary>
+    public IReadOnlyDictionary<string, int> Residents { get; init; } = new Dictionary<string, int>();
+
+    /// <summary>Time between two residents leaving the same house.</summary>
+    public int ResidentIntervalTicks { get; init; } = World.TicksPerSecond;
+
     /// <summary>No production at all (worlds without workers, logistics tests).</summary>
     public static ProductionConfig None { get; } = new()
     {
@@ -103,6 +109,7 @@ public sealed record ProductionConfig
             .Where(t => !t.Name.StartsWith('_'))
             .ToDictionary(t => t.Name, t => Material(t.Value));
         var resources = root.GetProperty("resources");
+        var housing = root.GetProperty("housing");
 
         return new ProductionConfig
         {
@@ -111,6 +118,8 @@ public sealed record ProductionConfig
             Mines = mines,
             Smiths = smiths,
             Tools = tools,
+            Residents = housing.GetProperty("residents").EnumerateObject().ToDictionary(r => r.Name, r => r.Value.GetInt32()),
+            ResidentIntervalTicks = Ticks(housing, "intervalSeconds"),
             TreeGrowTicks = Ticks(root.GetProperty("trees"), "growSeconds"),
             GrainGrowTicks = Ticks(root.GetProperty("grain"), "growSeconds"),
             StonesPerCut = root.GetProperty("stones").GetProperty("stonesPerCut").GetInt32(),
