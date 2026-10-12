@@ -6,7 +6,7 @@
   "_housingComment": "A living house is started when fewer carriers than freeCarriers are available (residents still to come count as available), or while there are no more carriers than carriersPerProductionBuilding per production building (sites included), or when fewer than houseWhenConvertible carriers may still become specialists (recruitment.keptCarriers in production.json). Towers then leave its material.",
   "freeCarriers": 6,
   "houseWhenConvertible": 4,
-  "carriersPerProductionBuilding": 2,
+  "carriersPerProductionBuilding": 3,
   "_houseSizesComment": "Which living house: the first of houseSizes whose sawmills and stonecutters (finished) the player has, otherwise house. Per people below, after what their houses cost (Egyptians build with stone, Asians and Amazons with planks).",
   "houseSizes": [
     { "building": "big_livinghouse", "sawmills": 2, "stonecutters": 3 },
