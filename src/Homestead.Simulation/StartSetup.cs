@@ -58,10 +58,21 @@ public sealed class StartSetup
         if (tower is null)
             return null;
 
-        // Soldiers at the door: they occupy the tower right away.
+        // Soldiers at the door: the tower wants as many as fit, so they occupy it right away.
+        var military = world.Military;
+        int infantryPlaces = definition.Occupiers.Count(o => !o.ForBowman);
         foreach (var type in Enum.GetValues<SoldierType>())
             for (int i = 0; i < equipment.Settlers.GetValueOrDefault(type.ToString()); i++)
+            {
                 world.SpawnSoldier(tower.Door, type, player: player);
+                // The swordsman every building wants at first counts; pikemen do not replace swordsmen.
+                bool fits = type == SoldierType.Bowman
+                    || military.Wanted(tower, SoldierType.Swordsman) + military.Wanted(tower, SoldierType.Pikeman) < infantryPlaces;
+                if ((type != SoldierType.Swordsman || i > 0) && fits)
+                    military.ChangeWanted(tower, type, +1);
+            }
+        if (equipment.Settlers.GetValueOrDefault(nameof(SoldierType.Swordsman)) == 0)
+            military.ChangeWanted(tower, SoldierType.Swordsman, -1);
         PlaceGoods(world, tower, equipment.Goods.ToList());
         for (int i = 0; i < equipment.Settlers.GetValueOrDefault("Carrier"); i++)
             world.Spawn(start + new GridPoint(3, 5), Profession.Carrier, player);

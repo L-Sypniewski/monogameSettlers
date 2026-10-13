@@ -10,10 +10,17 @@ namespace Homestead.Simulation.Military;
 /// claims the land around it.
 /// </summary>
 /// <remarks>
+/// Garrison size: the player sets how many soldiers of each type a building wants (<see cref="ChangeWanted"/>);
+/// a new building wants one swordsman. It never wants none and never more than its places of that kind
+/// (infantry places for swordsmen and pikemen, bowman places for bowmen). Soldiers no longer wanted turn
+/// back or come out, but never the last one inside.
+/// </remarks>
+/// <remarks>
 /// Territory: a building claims every point of its circle (<see cref="MilitaryConfig.Territory"/>) that
-/// belongs to nobody or to a player whose own buildings do not cover it. When a building is lost, its
-/// land goes to another building of the same player covering it, else to another player's covering
-/// building, else to nobody. Land of a loaded map keeps the owners stored in the map.
+/// belongs to nobody or to a player whose own buildings do not cover it; other players' buildings on the
+/// land taken go down. A torn-down building's land stays with its player, unprotected. A captured
+/// building's land goes to another building of the old owner covering it, else to another player's
+/// covering building, then the captor claims its circle. Land of a loaded map keeps the owners stored in the map.
 /// Watchdog: a soldier or trainee that makes no progress towards the door for <see cref="StallTicks"/>
 /// is released and the place called again.
 /// </remarks>
@@ -43,6 +50,59 @@ public sealed partial class Military
 
     public bool IsOccupied(Building building) => _garrisons.TryGetValue(building.Id, out var g) && g.Places.Any(p => p is not null);
 
+    /// <summary>How many soldiers of <paramref name="type"/> the military building wants (0 for other buildings).</summary>
+    public int Wanted(Building building, SoldierType type) => GarrisonOf(building)?.Wanted[(int)type] ?? 0;
+
+    /// <summary>
+    /// Whether the wanted number of <paramref name="type"/> can change by <paramref name="delta"/>: never
+    /// empty, never more than the places (see <see cref="ChangeWanted"/>).
+    /// </summary>
+    public bool CanChangeWanted(Building building, SoldierType type, int delta) => Changed(building, type, delta) is not null;
+
+    /// <summary>
+    /// Changes the wanted number of <paramref name="type"/> (a player's order). With all infantry places
+    /// wanted, one more swordsman replaces a pikeman and the other way round. Returns false if not allowed.
+    /// </summary>
+    public bool ChangeWanted(Building building, SoldierType type, int delta)
+    {
+        if (Changed(building, type, delta) is not { } wanted)
+            return false;
+        wanted.CopyTo(GarrisonOf(building)!.Wanted, 0);
+        return true;
+    }
+
+    private int[]? Changed(Building building, SoldierType type, int delta)
+    {
+        if (GarrisonOf(building) is not { } g)
+            return null;
+        var wanted = (int[])g.Wanted.Clone();
+        wanted[(int)type] += delta;
+        var occupiers = building.Definition.Occupiers;
+        int infantryPlaces = occupiers.Count(o => !o.ForBowman);
+        if (type != SoldierType.Bowman && delta > 0)
+        {
+            // Full: the other infantry type makes room.
+            int other = (int)(type == SoldierType.Swordsman ? SoldierType.Pikeman : SoldierType.Swordsman);
+            int over = wanted[(int)SoldierType.Swordsman] + wanted[(int)SoldierType.Pikeman] - infantryPlaces;
+            if (over > 0)
+                wanted[other] -= Math.Min(over, wanted[other]);
+        }
+        if (wanted[(int)type] < 0 || wanted.Sum() < 1)
+            return null;
+        int infantry = wanted[(int)SoldierType.Swordsman] + wanted[(int)SoldierType.Pikeman];
+        return infantry <= infantryPlaces && wanted[(int)SoldierType.Bowman] <= occupiers.Count(o => o.ForBowman) ? wanted : null;
+    }
+
+    /// <summary>The garrison of a finished military building, created on first use.</summary>
+    private Garrison? GarrisonOf(Building building)
+    {
+        if (_garrisons.TryGetValue(building.Id, out var g))
+            return g;
+        if (!building.Exists || building.State != BuildingState.Finished || building.Definition.Occupiers.Count == 0)
+            return null;
+        return _garrisons[building.Id] = new Garrison(building);
+    }
+
     /// <summary>A short description for the player (null for non-military buildings).</summary>
     public string? Status(Building building)
     {
@@ -65,6 +125,8 @@ public sealed partial class Military
                 CallTrainee(barrack);
             // One soldier per building and round, emptiest first: every building gets its first
             // soldier (and claims its land) before any building fills up.
+            foreach (var garrison in _garrisons.Values.ToList())
+                ReleaseUnwanted(garrison);
             foreach (var garrison in _garrisons.Values.OrderBy(g => g.Places.Count(p => p is not null) + g.Coming.Count).ToList())
                 CallSoldier(garrison);
         }
@@ -81,8 +143,8 @@ public sealed partial class Military
         {
             if (!building.Exists || building.State != BuildingState.Finished)
                 continue;
-            if (building.Definition.Occupiers.Count > 0 && !_garrisons.ContainsKey(building.Id))
-                _garrisons[building.Id] = new Garrison(building);
+            if (building.Definition.Occupiers.Count > 0)
+                GarrisonOf(building);
             else if (building.Definition.Name == "barrack" && !_barracks.ContainsKey(building.Id))
                 _barracks[building.Id] = new Barrack(building);
         }
@@ -184,12 +246,17 @@ public sealed partial class Military
         var pathFinder = _world.PathFinder!;
         for (int i = 0; i < g.Places.Length; i++)
         {
-            if (g.Places[i] is not null || g.Coming.ContainsKey(i) || g.Defending.ContainsKey(i))
+            // A place is free, or its soldier is no longer wanted but must stay until relieved (the last one inside).
+            if (g.Places[i] is { SoldierType: { } inside } && Assigned(g, inside) <= g.Wanted[(int)inside]
+                || g.Coming.ContainsKey(i) || g.Defending.ContainsKey(i))
                 continue;
             var place = g.Building.Definition.Occupiers[i];
+            var missing = Enum.GetValues<SoldierType>().Where(t => place.Accepts(t) && g.Wanted[(int)t] > Assigned(g, t)).ToList();
+            if (missing.Count == 0)
+                continue;
             var soldier = _world.Settlers
                 .Where(s => s.Profession == Profession.Soldier && !s.HasTask && !s.IsInside && s.Player == g.Building.Player
-                            && s.SoldierType is { } type && place.Accepts(type) && pathFinder.AreConnected(s.Position, door))
+                            && s.SoldierType is { } type && missing.Contains(type) && pathFinder.AreConnected(s.Position, door))
                 .MinBy(s => PathFinder.Distance(s.Position, door));
             if (soldier is null)
                 continue;
@@ -198,6 +265,46 @@ public sealed partial class Military
             if (!_world.WalkTo(soldier, door))
                 Release(g, i);
             return;
+        }
+    }
+
+    /// <summary>Soldiers of a type inside the building, on the way in or out defending it.</summary>
+    public int Assigned(Building building, SoldierType type) => GarrisonOf(building) is { } g ? Assigned(g, type) : 0;
+
+    private static int Assigned(Garrison g, SoldierType type) =>
+        g.Places.Count(s => s?.SoldierType == type) + g.Coming.Values.Count(c => c.Soldier.SoldierType == type)
+        + g.Defending.Values.Count(s => s.SoldierType == type);
+
+    /// <summary>
+    /// More soldiers of a type than wanted: those on the way turn back first, then soldiers inside come
+    /// out – never the last one, so the building is not left empty until the others have arrived.
+    /// </summary>
+    private void ReleaseUnwanted(Garrison g)
+    {
+        if (!g.Building.Exists)
+            return;
+        foreach (var type in Enum.GetValues<SoldierType>())
+        {
+            int excess = g.Places.Count(s => s?.SoldierType == type) + g.Coming.Values.Count(c => c.Soldier.SoldierType == type)
+                         - g.Wanted[(int)type];
+            foreach (var (place, (soldier, _)) in g.Coming.Where(c => c.Value.Soldier.SoldierType == type).ToList())
+            {
+                if (excess <= 0)
+                    break;
+                Release(g, place);
+                if (!soldier.IsInside && soldier.Destination is not null)
+                    _world.WalkTo(soldier, soldier.StepTarget);
+                excess--;
+            }
+            for (int i = 0; i < g.Places.Length && excess > 0; i++)
+            {
+                if (g.Places[i] is not { } soldier || soldier.SoldierType != type || g.Places.Count(p => p is not null) <= 1)
+                    continue;
+                g.Places[i] = null;
+                _world.LeaveBuilding(soldier);
+                soldier.HasTask = false;
+                excess--;
+            }
         }
     }
 
@@ -222,6 +329,15 @@ public sealed partial class Military
                 continue;
             }
             g.Coming.Remove(place);
+            // Relieved: the soldier no longer wanted comes out as the new one goes in.
+            if (g.Places[place] is { } relieved)
+            {
+                _world.EnterBuilding(soldier);
+                g.Places[place] = soldier;
+                _world.LeaveBuilding(relieved);
+                relieved.HasTask = false;
+                continue;
+            }
             _world.EnterBuilding(soldier);
             bool first = !g.Places.Any(p => p is not null);
             g.Places[place] = soldier;
@@ -236,32 +352,24 @@ public sealed partial class Military
             coming.Soldier.HasTask = false;
     }
 
-    /// <summary>The building is gone: its soldiers come out, its land is given up.</summary>
+    /// <summary>
+    /// The building is gone (torn down): its soldiers come out. Its land stays with the player, but
+    /// unprotected: the next enemy building claiming it takes it (see <see cref="Claim"/>).
+    /// </summary>
     private void Abandon(Garrison g)
     {
         foreach (var place in g.Coming.Keys.ToList())
             Release(g, place);
         g.Defending.Clear();
-        bool occupied = false;
         for (int i = 0; i < g.Places.Length; i++)
         {
             if (g.Places[i] is not { } soldier)
                 continue;
-            occupied = true;
             _world.LeaveBuilding(soldier);
             soldier.HasTask = false;
             g.Places[i] = null;
         }
         _garrisons.Remove(g.Building.Id);
-        if (!occupied)
-            return;
-        Unclaim(g.Building);
-        // Buildings on the land given up go down with it.
-        var map = _world.Map!;
-        int player = g.Building.Player;
-        var lost = TerritoryOf(g.Building).Where(p => map.OwnerAt(p) != player).ToHashSet();
-        foreach (var other in _world.Buildings.Where(b => b.Exists && b.Player == player && lost.Contains(b.Position)).ToList())
-            _world.RemoveBuilding(other);
     }
 
     // ---- territory ----
@@ -287,12 +395,25 @@ public sealed partial class Military
         g.Building != except && g.Building.Exists && g.Building.Player == player && g.Places.Any(s => s is not null)
         && InCircle(g.Building.Position, p, TerritoryRadius(g.Building)));
 
+    /// <summary>
+    /// The building takes the land in its circle that is free or not protected by its owner's occupied
+    /// buildings; other players' buildings on the land taken go down.
+    /// </summary>
     private void Claim(Building building)
     {
         var map = _world.Map!;
+        var taken = new HashSet<GridPoint>();
         foreach (var p in TerritoryOf(building))
             if (map.OwnerAt(p) is not { } owner || owner != building.Player && !Covers(owner, p))
+            {
+                if (map.OwnerAt(p) is not null)
+                    taken.Add(p);
                 map.SetOwner(p, building.Player);
+            }
+        if (taken.Count == 0)
+            return;
+        foreach (var other in _world.Buildings.Where(b => b.Exists && b.Player != building.Player && taken.Contains(b.Position)).ToList())
+            _world.RemoveBuilding(other);
     }
 
     private void Unclaim(Building building)
@@ -344,6 +465,16 @@ public sealed partial class Military
     {
         public Building Building { get; } = building;
         public Settler?[] Places { get; } = new Settler?[building.Definition.Occupiers.Count];
+
+        /// <summary>Soldiers wanted per <see cref="SoldierType"/>: at first one swordsman (a bowman where only bowmen fit).</summary>
+        public int[] Wanted { get; } = Initial(building);
+
+        public static int[] Initial(Building building, SoldierType? type = null)
+        {
+            var wanted = new int[Enum.GetValues<SoldierType>().Length];
+            wanted[(int)(type ?? (building.Definition.Occupiers.Any(o => !o.ForBowman) ? SoldierType.Swordsman : SoldierType.Bowman))] = 1;
+            return wanted;
+        }
         public Dictionary<int, (Settler Soldier, WalkWatch Watch)> Coming { get; } = new();
 
         /// <summary>Soldiers out of their place to fight attackers at the door (by place).</summary>

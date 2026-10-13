@@ -41,6 +41,8 @@ public class MilitaryTests(ITestOutputHelper output)
         SpawnSoldiers(world, SoldierType.Bowman, 3, new GridPoint(70, 75));
         Assert.False(world.Military.IsOccupied(tower));
         Assert.Null(map.OwnerAt(tower.Position));
+        Assert.True(world.Military.ChangeWanted(tower, SoldierType.Bowman, 2));
+        Assert.False(world.Military.ChangeWanted(tower, SoldierType.Bowman, 1)); // two bowman places only
 
         Run(world, 5_000, stopWhen: () => world.Military.IsOccupied(tower) && world.Military.Occupants(tower).All(s => s is not null));
 
@@ -55,21 +57,75 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void A_lost_tower_gives_up_its_land_except_what_another_tower_covers()
+    public void A_new_tower_calls_one_swordsman_only()
+    {
+        var world = new World(new GameMap(100), TestConfig.NoTools);
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(50, 50))!;
+        SpawnSoldiers(world, SoldierType.Pikeman, 2, new GridPoint(60, 60));
+        Run(world, 1_000);
+        Assert.False(world.Military.IsOccupied(tower)); // no pikeman instead
+
+        SpawnSoldiers(world, SoldierType.Swordsman, 3, new GridPoint(60, 65));
+        Run(world, 3_000);
+
+        Assert.Equal([SoldierType.Swordsman], world.Military.Occupants(tower).Where(s => s is not null).Select(s => s!.SoldierType!.Value));
+    }
+
+    [Fact]
+    public void Wanted_soldiers_never_leave_the_building_empty_or_overfull()
+    {
+        var world = new World(new GameMap(100), TestConfig.NoTools);
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(50, 50))!;
+        var military = world.Military;
+        Assert.False(military.ChangeWanted(tower, SoldierType.Swordsman, -1)); // never empty
+        Assert.True(military.ChangeWanted(tower, SoldierType.Bowman, 2));
+        Assert.False(military.ChangeWanted(tower, SoldierType.Bowman, 1)); // two bowman places only
+        Assert.True(military.ChangeWanted(tower, SoldierType.Bowman, -2));
+
+        // The swordsman comes out only once the pikeman (replacing it on the only infantry place) is inside.
+        SpawnSoldiers(world, SoldierType.Swordsman, 1, new GridPoint(52, 56));
+        Run(world, 2_000, stopWhen: () => military.IsOccupied(tower));
+        Assert.True(military.ChangeWanted(tower, SoldierType.Pikeman, 1));
+        Assert.Equal(0, military.Wanted(tower, SoldierType.Swordsman));
+        Assert.Equal(1, military.Wanted(tower, SoldierType.Pikeman));
+        Run(world, 500);
+        Assert.Equal(SoldierType.Swordsman, military.Occupants(tower).Single(s => s is not null)!.SoldierType);
+
+        SpawnSoldiers(world, SoldierType.Pikeman, 1, new GridPoint(60, 60));
+        Run(world, 3_000, stopWhen: () => military.Occupants(tower).All(s => s?.SoldierType != SoldierType.Swordsman)
+                                          && military.IsOccupied(tower));
+        Assert.Equal(SoldierType.Pikeman, military.Occupants(tower).Single(s => s is not null)!.SoldierType);
+        Assert.Contains(world.Settlers, s => s.SoldierType == SoldierType.Swordsman && !s.IsInside && !s.HasTask);
+    }
+
+    [Fact]
+    public void A_torn_down_tower_keeps_its_land_until_an_enemy_claims_it()
     {
         var map = new GameMap(120);
         var world = new World(map, TestConfig.NoTools);
-        var west = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 60))!;
-        var east = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(80, 60))!;
-        SpawnSoldiers(world, SoldierType.Swordsman, 2, new GridPoint(60, 80));
+        var west = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 60))!;
+        var east = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(60, 60))!;
+        SpawnSoldiers(world, SoldierType.Swordsman, 2, new GridPoint(45, 80));
         Run(world, 5_000, stopWhen: () => world.Military.IsOccupied(west) && world.Military.IsOccupied(east));
+        var mill = world.PlaceBuilding(Romans["mill"], 0, new GridPoint(80, 60))!;     // only the eastern tower covers it
+        var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(50, 50))!; // the western one too
 
         world.RemoveBuilding(east);
         Run(world, 20);
 
-        Assert.Equal(0, map.OwnerAt(new GridPoint(60, 60)));   // still covered by the western tower
-        Assert.Null(map.OwnerAt(new GridPoint(100, 60)));      // only the eastern tower covered this
+        Assert.Equal(0, map.OwnerAt(new GridPoint(85, 60)));
+        Assert.True(mill.Exists);
         Assert.Equal(1, world.Settlers.Count(s => s.Profession == Profession.Soldier && !s.IsInside && !s.HasTask)); // came out
+
+        // An enemy tower takes the unprotected land, but not what the western tower covers.
+        var enemy = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(100, 60), force: true)!;
+        world.SpawnSoldier(enemy.Door, SoldierType.Swordsman, player: 1);
+        Run(world, 2_000, stopWhen: () => world.Military.IsOccupied(enemy));
+
+        Assert.Equal(1, map.OwnerAt(new GridPoint(85, 60)));
+        Assert.False(mill.Exists);
+        Assert.True(sawmill.Exists);
+        Assert.Equal(0, map.OwnerAt(sawmill.Position));
     }
 
     [Fact]
@@ -216,6 +272,8 @@ public class MilitaryTests(ITestOutputHelper output)
         var world = new World(new GameMap(80), TestConfig.NoTools);
         var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 40))!;
         SpawnSoldiers(world, SoldierType.Bowman, 2, new GridPoint(45, 50));
+        world.Military.ChangeWanted(tower, SoldierType.Bowman, 2);
+        world.Military.ChangeWanted(tower, SoldierType.Swordsman, -1);
         Run(world, 3_000, stopWhen: () => world.Military.Occupants(tower).Count(s => s is not null) == 2);
         var enemy = world.SpawnSoldier(new GridPoint(46, 40), SoldierType.Pikeman, player: 1)!; // 6 fields away
 

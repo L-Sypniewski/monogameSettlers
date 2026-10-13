@@ -208,7 +208,7 @@ public sealed class MapGame : Game
     /// <summary>Work area marks by grid row, computed once per selected building (too slow for every frame).</summary>
     private ILookup<int, (GridPoint Point, int Ring)> WorkAreaMarksByRow()
     {
-        var key = (_selectedBuilding, _selectedBuilding?.Exists ?? false);
+        var key = (_selectedBuilding, _selectedBuilding?.Exists ?? false, _selectedBuilding?.WorkCenter);
         if (_marks is null || _marksKey != key)
         {
             _marks = WorkAreaMarks().ToLookup(m => m.Point.Y);
@@ -218,7 +218,7 @@ public sealed class MapGame : Game
     }
 
     private ILookup<int, (GridPoint Point, int Ring)>? _marks;
-    private (Building?, bool) _marksKey;
+    private (Building?, bool, GridPoint?) _marksKey;
 
     /// <summary>
     /// Work area of the selected building as in the original: posts on the borders of four circles at
@@ -228,7 +228,7 @@ public sealed class MapGame : Game
     {
         if (_selectedBuilding is not { Exists: true } building || building.Definition.WorkRadius is not { } radius || radius <= 0)
             yield break;
-        var center = building.Position + (building.Definition.WorkCenter ?? new GridPoint(0, 0));
+        var center = building.WorkCenter;
         for (int ring = 0; ring < 4; ring++)
         {
             int r = Math.Max(1, (int)Math.Round(radius * (ring + 1) / 4.0));
@@ -505,6 +505,17 @@ public sealed class MapGame : Game
                         _ => "a finished small temple is needed",
                     };
             }
+            // A military building's garrison: one soldier of a type more or fewer (never empty, never overfull).
+            if (onMenu && _buildingInfo.GarrisonChangeAt(cursorScreen, GraphicsDevice.Viewport.Height, _selectedBuilding!, 0) is var (type, delta))
+            {
+                string name = _buildingInfo.SoldierName(type);
+                bool possible = _world.Military.CanChangeWanted(_selectedBuilding!, type, delta);
+                _message = possible ? $"{name}: {(delta > 0 ? "one more" : "one fewer")}"
+                    : delta > 0 ? $"{name}: no free place"
+                    : _world.Military.Wanted(_selectedBuilding!, type) == 0 ? $"{name}: none wanted" : $"{name}: the building must not be left empty";
+                if (released && possible)
+                    _world.Military.ChangeWanted(_selectedBuilding!, type, delta);
+            }
             // The info panel's tear-down button (asks first).
             if (onMenu && released && _buildingInfo.Click(cursorScreen, GraphicsDevice.Viewport.Height, _selectedBuilding!, 0))
             {
@@ -717,7 +728,7 @@ public sealed class MapGame : Game
     private string SelectionHint() => _group.Count == 0 ? "" : _group[0].Profession switch
     {
         Profession.Soldier => $"{_group.Count} soldiers selected (right click: go there / attack, left click: deselect)",
-        Profession.Geologist => $"{_group.Count} geologists selected (right click on a mountain: search there)",
+        Profession.Geologist => $"{_group.Count} geologists selected (right click: go there, on a mountain: search there)",
         Profession.Priest => $"{_group.Count} priests selected (menu at the left: cast the spell, right click: go there)",
         _ => $"{_group.Count} carriers selected (menu at the left: convert them)",
     };
@@ -747,6 +758,14 @@ public sealed class MapGame : Game
             return;
         }
         var clicked = ScreenToGrid(screen);
+        // A selected own building with a work area: move the work area there (at most 20 steps away).
+        if (_selectedBuilding is { Exists: true, Player: 0, HasWorkArea: true } worksite)
+        {
+            if (_world.SetWorkCenter(worksite, clicked) is { } center)
+                _message = center == clicked ? $"work area moved to {center.X},{center.Y}"
+                    : $"work area moved to {center.X},{center.Y} (at most {World.MaxWorkCenterDistance} fields away)";
+            return;
+        }
         var priests = _group.Where(s => s.Profession == Profession.Priest && !_world.Magic.IsBusy(s)).ToList();
         if (priests.Count > 0)
         {
@@ -758,8 +777,9 @@ public sealed class MapGame : Game
         if (geologists.Count > 0)
         {
             int sent = _world.Geology.Send(geologists, clicked);
-            _message = !_world.Geology.IsSearchable(clicked) ? "geologists search mountains only"
-                : sent > 0 ? $"{sent} geologists search around {clicked.X},{clicked.Y}" : "no way there";
+            _message = sent == 0 ? "no way there"
+                : _world.Geology.IsSearchable(clicked) ? $"{sent} geologists search around {clicked.X},{clicked.Y}"
+                : $"{sent} geologists to {clicked.X},{clicked.Y}";
             return;
         }
         var soldiers = SelectedSoldiers();
@@ -780,7 +800,9 @@ public sealed class MapGame : Game
 
     /// <summary>
     /// Selects the own settlers (outside buildings) inside the box between two screen points: the
-    /// soldiers if there are any, else the geologists, else the carriers. With Shift they join the selection.
+    /// soldiers if there are any, else the priests, else the geologists. Without them the building
+    /// nearest to the middle of the box is chosen, and only without one the carriers. With Shift settlers
+    /// join the selection.
     /// </summary>
     private void SelectInBox(Vector2 from, Vector2 to)
     {
@@ -795,12 +817,38 @@ public sealed class MapGame : Game
                         && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y)
             .ToList();
         // Shift adds to the selection.
-        var selection = ByPriority(ShiftDown(Keyboard.GetState()) ? _group.Concat(inBox) : inBox);
+        var candidates = ShiftDown(Keyboard.GetState()) ? _group.Concat(inBox).ToList() : inBox;
+        if (candidates.All(s => s.Profession == Profession.Carrier) && BuildingInBox(min, max) is { } building)
+        {
+            _group.Clear();
+            _selected = null;
+            _selectedBuilding = building;
+            _message = "";
+            return;
+        }
+        var selection = ByPriority(candidates);
         _group.Clear();
         _group.AddRange(selection);
         _selected = null;
         _selectedBuilding = null;
         _message = SelectionHint();
+    }
+
+    /// <summary>
+    /// The building nearest to the middle of the box (world coordinates): its image's middle lies in
+    /// the box, or the box's middle lies on its image.
+    /// </summary>
+    private Building? BuildingInBox(Vector2 min, Vector2 max)
+    {
+        var middle = (min + max) / 2;
+        return _world.Buildings.Where(b => b.Exists)
+            .Select(b => (Building: b, Bounds: _economyRenderer.BuildingBounds(b, _terrain)))
+            .Select(t => (t.Building, t.Bounds, Center: new Vector2(t.Bounds.Center.X, t.Bounds.Center.Y)))
+            .Where(t => t.Center.X >= min.X && t.Center.X <= max.X && t.Center.Y >= min.Y && t.Center.Y <= max.Y
+                        || t.Bounds.Contains(middle))
+            .OrderBy(t => Vector2.DistanceSquared(t.Center, middle))
+            .Select(t => t.Building)
+            .FirstOrDefault();
     }
 
     private void SpawnWanderers(GridPoint near)
@@ -924,6 +972,8 @@ public sealed class MapGame : Game
         foreach (var cloud in _world.DustClouds)
             _economyRenderer.DrawDustCloud(_spriteBatch, cloud.Position, (_world.Tick - cloud.Tick + alpha) / World.DustCloudTicks, _terrain);
 
+        if (_selectedBuilding is { Exists: true } selectedBuilding)
+            DrawBuildingFrame(selectedBuilding);
         if (_selected is not null)
             DrawSelectionMarker(_selected, alpha);
         foreach (var settler in _group)
@@ -1062,6 +1112,32 @@ public sealed class MapGame : Game
         _spriteBatch.Draw(_pixel, min + new Vector2(0, size.Y), null, color, 0, Vector2.Zero, new Vector2(size.X, line), SpriteEffects.None, 0);
         _spriteBatch.Draw(_pixel, min, null, color, 0, Vector2.Zero, new Vector2(line, size.Y), SpriteEffects.None, 0);
         _spriteBatch.Draw(_pixel, min + new Vector2(size.X, 0), null, color, 0, Vector2.Zero, new Vector2(line, size.Y), SpriteEffects.None, 0);
+    }
+
+    /// <summary>A small white frame around the selected building, drawn only at its corners.</summary>
+    private void DrawBuildingFrame(Building building)
+    {
+        var box = _economyRenderer.BuildingBounds(building, _terrain);
+        box.Inflate(2, 2);
+        float line = 3f / _zoom;
+        float arm = Math.Min(8, Math.Min(box.Width, box.Height) / 4f);
+        var color = Color.White * 0.9f;
+        foreach (var (corner, dx, dy) in new[]
+                 {
+                     (new Vector2(box.Left, box.Top), 1, 1), (new Vector2(box.Right, box.Top), -1, 1),
+                     (new Vector2(box.Left, box.Bottom), 1, -1), (new Vector2(box.Right, box.Bottom), -1, -1),
+                 })
+        {
+            // Horizontal and vertical arm, each pointing into the frame from the corner.
+            var horizontal = dx > 0 ? corner : corner - new Vector2(arm, 0);
+            var vertical = dy > 0 ? corner : corner - new Vector2(0, arm);
+            if (dy < 0)
+                horizontal.Y -= line;
+            if (dx < 0)
+                vertical.X -= line;
+            _spriteBatch.Draw(_pixel, horizontal, null, color, 0, Vector2.Zero, new Vector2(arm, line), SpriteEffects.None, 0);
+            _spriteBatch.Draw(_pixel, vertical, null, color, 0, Vector2.Zero, new Vector2(line, arm), SpriteEffects.None, 0);
+        }
     }
 
     private void DrawSelectionMarker(Settler settler, float alpha)

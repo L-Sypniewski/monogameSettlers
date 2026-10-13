@@ -11,7 +11,8 @@ public sealed record ResourceSign(int Player, ResourceType? Resource, int Amount
 /// sends them to a mountain. There a geologist examines field after field, every second one: next the
 /// nearest field with no sign on it or next to it (a random one among equally near ones), always within
 /// <see cref="GeologistRules.SearchRadius"/> of the point he was sent to. Each search leaves a sign with
-/// what lies below; signs fade after a few minutes. When no field is left he is done.
+/// what lies below; signs fade after a few minutes. When no field is left he is done. Sent anywhere
+/// else, geologists just walk there like soldiers, spread over the free fields around the point.
 /// </summary>
 public sealed class Geology
 {
@@ -36,7 +37,7 @@ public sealed class Geology
     public IReadOnlyDictionary<GridPoint, ResourceSign> Signs => _signs;
 
     /// <summary>Whether a geologist is searching (sent to a mountain and not done yet).</summary>
-    public bool IsSearching(Settler geologist) => _jobs.ContainsKey(geologist.Id);
+    public bool IsSearching(Settler geologist) => _jobs.TryGetValue(geologist.Id, out var job) && job.Phase != Phase.Moving;
 
     /// <summary>
     /// Turns the carriers among <paramref name="settlers"/> into geologists, one after another while the
@@ -76,18 +77,20 @@ public sealed class Geology
         _world.Map!.Contains(p) && _world.Map.TerrainAt(p) is TerrainType.Mountain or TerrainType.MountainBorder;
 
     /// <summary>
-    /// Sends geologists to search the mountain around <paramref name="target"/>. Returns how many set
-    /// off (none if the point is no mountain or nothing there can be reached).
+    /// Sends geologists to <paramref name="target"/>: on a mountain they search around it, elsewhere they
+    /// walk there and spread over the free fields around it. Returns how many set off.
     /// </summary>
     public int Send(IEnumerable<Settler> geologists, GridPoint target)
     {
-        if (!IsSearchable(target))
-            return 0;
-        int sent = 0;
-        foreach (var geologist in geologists.Where(g => g.Profession == Profession.Geologist && !g.IsDead && !g.IsInside).ToList())
-        {
+        var list = geologists.Where(g => g.Profession == Profession.Geologist && !g.IsDead && !g.IsInside).Distinct().ToList();
+        foreach (var geologist in list)
             if (_jobs.TryGetValue(geologist.Id, out var old))
                 End(old);
+        if (!IsSearchable(target))
+            return Move(list, target);
+        int sent = 0;
+        foreach (var geologist in list)
+        {
             var job = new Job(geologist, target);
             _jobs[geologist.Id] = job;
             geologist.HasTask = true;
@@ -96,6 +99,35 @@ public sealed class Geology
                 sent++;
             else
                 End(job);
+        }
+        return sent;
+    }
+
+    /// <summary>Walks the geologists to the walkable fields nearest to <paramref name="target"/>, one each.</summary>
+    private int Move(List<Settler> geologists, GridPoint target)
+    {
+        var map = _world.Map!;
+        var spots = new List<GridPoint>();
+        for (int r = 0; r <= 12 && spots.Count < geologists.Count; r++)
+            for (int dy = -r; dy <= r && spots.Count < geologists.Count; dy++)
+            for (int dx = -r; dx <= r && spots.Count < geologists.Count; dx++)
+            {
+                var p = new GridPoint(target.X + dx, target.Y + dy);
+                if (PathFinder.Distance(target, p) == r && map.Contains(p) && map.IsWalkable(p))
+                    spots.Add(p);
+            }
+        int sent = 0;
+        for (int i = 0; i < geologists.Count; i++)
+        {
+            var geologist = geologists[i];
+            var spot = spots.Count > i ? spots[i] : target;
+            if (spot != geologist.Position && !_world.WalkTo(geologist, spot))
+                continue;
+            var job = new Job(geologist, spot) { Phase = Phase.Moving, LastPosition = geologist.Position, LastProgress = _world.Tick };
+            _jobs[geologist.Id] = job;
+            geologist.HasTask = true;
+            geologist.IsStrolling = false;
+            sent++;
         }
         return sent;
     }
@@ -131,6 +163,17 @@ public sealed class Geology
             }
             switch (job.Phase)
             {
+                case Phase.Moving:
+                    // Done at the field, without a way, or stuck: he stands there idle.
+                    if (geologist.Position != job.LastPosition)
+                    {
+                        job.LastPosition = geologist.Position;
+                        job.LastProgress = _world.Tick;
+                    }
+                    if (geologist.State != SettlerState.Stepping && geologist.Destination is null
+                        || _world.Tick - job.LastProgress > StallTicks)
+                        End(job);
+                    break;
                 case Phase.Walking when geologist.Position == job.Field && geologist.State != SettlerState.Stepping:
                     Begin(job, Phase.Surveying, Activity.Surveying, _rules.SurveyTicks);
                     break;
@@ -187,7 +230,7 @@ public sealed class Geology
     private bool Next(Job job, GridPoint? preferred = null)
     {
         var geologist = job.Geologist;
-        var taken = _jobs.Values.Where(j => j != job).Select(j => j.Field).ToHashSet();
+        var taken = _jobs.Values.Where(j => j != job && j.Phase != Phase.Moving).Select(j => j.Field).ToHashSet();
         // Only every second field: none next to a sign or to a field another geologist goes to.
         bool Spaced(GridPoint p)
         {
@@ -256,6 +299,9 @@ public sealed class Geology
         Walking,
         Surveying,
         Signing,
+
+        /// <summary>Only walking to a point off the mountains (no search).</summary>
+        Moving,
     }
 
     private sealed class Job(Settler geologist, GridPoint center)

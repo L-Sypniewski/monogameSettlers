@@ -13,7 +13,8 @@ namespace Homestead.Client;
 /// Shown at the left edge instead of the build menu while a building is selected: its name and image;
 /// for own buildings also its state, the goods in its piles (construction sites: material delivered
 /// of needed) and a mine's hit rate, and at the bottom a button to tear it down (asks first). A finished
-/// small temple also offers the soldier upgrades for mana. Names and states come from <c>data/ui.json</c>.
+/// small temple also offers the soldier upgrades for mana, a finished military building its garrison per
+/// soldier type with buttons for more or fewer. Names and states come from <c>data/ui.json</c>.
 /// </summary>
 public sealed partial class BuildingInfo
 {
@@ -64,6 +65,71 @@ public sealed partial class BuildingInfo
             if (UpgradeButton(height, i).Contains(screen))
                 return types[i];
         return null;
+    }
+
+    private const int GarrisonRow = 38;
+    private const int GarrisonButtonSize = 20;
+
+    /// <summary>The garrison rows of a military building, one per soldier type, above the tear-down button.</summary>
+    private static Rectangle GarrisonRowRect(int height, int index) =>
+        new(Margin, height - Margin - 28 - 10 - (Enum.GetValues<SoldierType>().Length - index) * (GarrisonRow + 2), Inner, GarrisonRow);
+
+    private static Rectangle GarrisonButton(int height, int index, int delta)
+    {
+        var row = GarrisonRowRect(height, index);
+        int x = delta < 0 ? row.Right - 2 * GarrisonButtonSize - 6 : row.Right - GarrisonButtonSize - 2;
+        return new Rectangle(x, row.Bottom - GarrisonButtonSize - 2, GarrisonButtonSize, GarrisonButtonSize);
+    }
+
+    private static bool OffersGarrison(Building building) =>
+        building.Definition.Occupiers.Count > 0 && building.State == BuildingState.Finished;
+
+    /// <summary>The soldier type and change (+1 or -1) of the garrison button of an own military building under the screen point.</summary>
+    public (SoldierType Type, int Delta)? GarrisonChangeAt(Vector2 screen, int height, Building building, int ownPlayer)
+    {
+        if (building.Player != ownPlayer || !OffersGarrison(building) || _confirming == building)
+            return null;
+        var types = Enum.GetValues<SoldierType>();
+        for (int i = 0; i < types.Length; i++)
+            foreach (int delta in new[] { -1, 1 })
+                if (GarrisonButton(height, i, delta).Contains(screen))
+                    return (types[i], delta);
+        return null;
+    }
+
+    /// <summary>
+    /// Per soldier type its figure, name, how many are inside of how many the building wants, and buttons
+    /// for one fewer or one more (greyed out where the building would be left empty or overfull).
+    /// </summary>
+    private void DrawGarrison(SpriteBatch batch, Texture2D pixel, int height, UiFont font, SettlerRenderer settlers, Civilization people,
+        World world, Building building, Vector2 cursor)
+    {
+        var military = world.Military;
+        var types = Enum.GetValues<SoldierType>();
+        font.Draw(batch, "Besatzung (da / Soll)", new Vector2(Margin, GarrisonRowRect(height, 0).Y - 16), Label, 12);
+        var occupants = military.Occupants(building);
+        for (int i = 0; i < types.Length; i++)
+        {
+            var type = types[i];
+            var row = GarrisonRowRect(height, i);
+            batch.Draw(pixel, row, new Color(60, 47, 30));
+            int level = world.Magic.SoldierLevel(building.Player, type);
+            settlers.DrawIcon(batch, people, $"{type.ToString().ToUpperInvariant()}_L{level}", new Rectangle(row.X + 2, row.Y + 3, 24, row.Height - 6),
+                1.2f, PlayerColors.Of(building.Player));
+            font.Draw(batch, SoldierName(type), new Vector2(row.X + 28, row.Y + 2), Text, 12);
+            int inside = occupants.Count(s => s?.SoldierType == type);
+            font.Draw(batch, $"{inside} / {military.Wanted(building, type)}", new Vector2(row.X + 28, row.Y + 19), Text, 12);
+            foreach (int delta in new[] { -1, 1 })
+            {
+                var button = GarrisonButton(height, i, delta);
+                bool possible = military.CanChangeWanted(building, type, delta);
+                batch.Draw(pixel, button, !possible ? new Color(55, 45, 32) : button.Contains(cursor) ? new Color(150, 115, 60) : new Color(80, 62, 38));
+                string label = delta < 0 ? "−" : "+";
+                var size = font.Measure(label);
+                font.Draw(batch, label, new Vector2(button.X + (button.Width - size.X) / 2, button.Y + (button.Height - size.Y) / 2),
+                    possible ? Text : new Color(110, 95, 70));
+            }
+        }
     }
 
     public string SoldierName(SoldierType type) => _soldierNames.GetValueOrDefault(type.ToString(), type.ToString());
@@ -155,6 +221,8 @@ public sealed partial class BuildingInfo
         DrawDemolish(batch, pixel, height, font, building, cursor);
         if (OffersUpgrades(world, building) && _confirming != building)
             DrawUpgrades(batch, pixel, height, font, settlers, people, world, ownPlayer, cursor);
+        if (OffersGarrison(building) && _confirming != building)
+            DrawGarrison(batch, pixel, height, font, settlers, people, world, building, cursor);
 
         // State.
         font.Draw(batch, "Status", new Vector2(Margin, y), Label, 12);

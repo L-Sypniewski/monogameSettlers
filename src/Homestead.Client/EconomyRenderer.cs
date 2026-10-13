@@ -67,6 +67,19 @@ public sealed class EconomyRenderer
         }
     }
 
+    /// <summary>
+    /// World-space bounds of the finished building's image (also for sites, so the frame does not grow
+    /// while it is built), or a small box at the anchor if it has none.
+    /// </summary>
+    public Rectangle BuildingBounds(Building building, TerrainMesh terrain)
+    {
+        var anchor = Anchor(building.Position, terrain);
+        var bounds = building.Definition.FinalImages.Select(i => Sprites(i.File, i.Sequence).Bounds(i.Image)).OfType<Rectangle>().ToList();
+        var local = bounds.Count > 0 ? bounds.Aggregate(Rectangle.Union) : new Rectangle(-8, -16, 16, 16);
+        local.Offset((int)anchor.X, (int)anchor.Y);
+        return local;
+    }
+
     /// <summary>The building's flag: on the roof once its worker has arrived; at the door if it has no worker.</summary>
     public void DrawFlag(SpriteBatch batch, Building building, bool hasWorker, TerrainMesh terrain, Color playerColor, TimeSpan time)
     {

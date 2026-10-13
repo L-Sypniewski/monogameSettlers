@@ -321,6 +321,41 @@ public sealed partial class World
         return true;
     }
 
+    /// <summary>How far (in steps) the player may move a work center away from its building.</summary>
+    public const int MaxWorkCenterDistance = 20;
+
+    /// <summary>
+    /// Moves the work area of <paramref name="building"/> to <paramref name="target"/>. A target farther
+    /// than <see cref="MaxWorkCenterDistance"/> from the building (or off the map) is replaced by the
+    /// nearest point that is allowed. Returns the new center, or null if the building has no work area.
+    /// </summary>
+    public GridPoint? SetWorkCenter(Building building, GridPoint target)
+    {
+        if (!building.Exists || !building.HasWorkArea)
+            return null;
+        var map = RequireMap();
+        var center = target;
+        if (PathFinder.Distance(building.Position, target) > MaxWorkCenterDistance || !map.Contains(target))
+        {
+            // Nearest allowed point by straight-line distance (see PathFinder.InCircle), then by steps.
+            int bestSquared = int.MaxValue, bestSteps = int.MaxValue;
+            for (int dy = -MaxWorkCenterDistance; dy <= MaxWorkCenterDistance; dy++)
+            for (int dx = -MaxWorkCenterDistance; dx <= MaxWorkCenterDistance; dx++)
+            {
+                var p = new GridPoint(building.Position.X + dx, building.Position.Y + dy);
+                if (PathFinder.Distance(building.Position, p) > MaxWorkCenterDistance || !map.Contains(p))
+                    continue;
+                int ex = target.X - p.X, ey = target.Y - p.Y;
+                int squared = ex * ex + ey * ey - ex * ey;
+                int steps = PathFinder.Distance(p, target);
+                if (squared < bestSquared || squared == bestSquared && steps < bestSteps)
+                    (center, bestSquared, bestSteps) = (p, squared, steps);
+            }
+        }
+        building.WorkCenter = center;
+        return center;
+    }
+
     /// <summary>Adds goods to a loose pile on the map (map loading, tests).</summary>
     public Pile? AddLooseGoods(GridPoint position, Material material, int count)
     {

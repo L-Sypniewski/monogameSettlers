@@ -767,7 +767,7 @@ public sealed class Production
         var map = _world.Map!;
         var pathFinder = _world.PathFinder!;
         var definition = w.Building.Definition;
-        var center = w.Building.Position + (definition.WorkCenter ?? new GridPoint(0, 0));
+        var center = w.Building.WorkCenter;
         var door = w.Building.Door;
         int radius = definition.WorkRadius ?? DefaultRadius;
         var candidates = new List<(GridPoint Target, GridPoint Spot, Direction Facing, int Distance)>();

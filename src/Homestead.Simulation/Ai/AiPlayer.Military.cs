@@ -38,6 +38,7 @@ public sealed partial class AiPlayer
         if (military.Count == 0)
             return;
         var idle = IdleSoldiers();
+        Staff(military, idle);
         var map = _world.Map!;
         bool onOwnLand(EnemyGroup g) => map.OwnerAt(g.Center) == Player;
         bool near(EnemyGroup g, int range) => military.Any(b => PathFinder.Distance(b.Position, g.Center) <= range);
@@ -70,6 +71,41 @@ public sealed partial class AiPlayer
             StartCampaign(military, spare);
 
         Guard(military, guards.Concat(spare).ToList());
+    }
+
+    /// <summary>
+    /// The AI wants its military buildings full: bowmen on the bowman places; the infantry there stays,
+    /// free infantry places go to idle swordsmen, then idle pikemen, the rest waits for swordsmen.
+    /// </summary>
+    private void Staff(List<Building> military, List<Settler> idle)
+    {
+        var m = _world.Military;
+        int freeSwordsmen = idle.Count(s => s.SoldierType == SoldierType.Swordsman);
+        int freePikemen = idle.Count(s => s.SoldierType == SoldierType.Pikeman);
+        foreach (var building in military)
+        {
+            int infantry = building.Definition.Occupiers.Count(o => !o.ForBowman);
+            int swordsmen = m.Assigned(building, SoldierType.Swordsman), pikemen = m.Assigned(building, SoldierType.Pikeman);
+            int room = Math.Max(0, infantry - swordsmen - pikemen);
+            int moreSwordsmen = Math.Min(room, freeSwordsmen), morePikemen = Math.Min(room - moreSwordsmen, freePikemen);
+            freeSwordsmen -= moreSwordsmen;
+            freePikemen -= morePikemen;
+            var target = new Dictionary<SoldierType, int>
+            {
+                [SoldierType.Swordsman] = swordsmen + room - morePikemen,
+                [SoldierType.Pikeman] = pikemen + morePikemen,
+                [SoldierType.Bowman] = building.Definition.Occupiers.Count - infantry,
+            };
+            // Fewer first (frees places), then more, then fewer again (a building is never left wanting none).
+            for (int pass = 0; pass < 3; pass++)
+                foreach (var (type, count) in target)
+                {
+                    int sign = pass == 1 ? 1 : -1;
+                    while (sign * (count - m.Wanted(building, type)) > 0 && m.ChangeWanted(building, type, sign))
+                    {
+                    }
+                }
+        }
     }
 
     /// <summary>

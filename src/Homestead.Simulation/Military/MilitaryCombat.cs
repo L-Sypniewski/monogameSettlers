@@ -502,6 +502,8 @@ public sealed partial class Military
             .DefaultIfEmpty(0).First();
         _world.EnterBuilding(attacker);
         g.Places[free] = attacker;
+        // The new owner starts with the attacker alone.
+        Garrison.Initial(building, attacker.SoldierType).CopyTo(g.Wanted, 0);
         Claim(building);
         Captures++;
 

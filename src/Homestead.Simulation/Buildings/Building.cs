@@ -24,6 +24,7 @@ public sealed class Building
         Definition = definition;
         Player = player;
         Position = position;
+        WorkCenter = position + (definition.WorkCenter ?? new GridPoint(0, 0));
     }
 
     public int Id { get; }
@@ -36,6 +37,12 @@ public sealed class Building
     public GridPoint Position { get; }
 
     public GridPoint Door => Position + Definition.Door;
+
+    /// <summary>Whether the building has a work area its worker gathers in (and the player can move).</summary>
+    public bool HasWorkArea => Definition.WorkRadius is > 0;
+
+    /// <summary>Center of the work area: the definition's default until the player moves it (<see cref="World.SetWorkCenter"/>).</summary>
+    public GridPoint WorkCenter { get; internal set; }
 
     public IReadOnlyList<Pile> Piles => _piles;
 

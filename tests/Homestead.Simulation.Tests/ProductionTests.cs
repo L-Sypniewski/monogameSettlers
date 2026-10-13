@@ -118,6 +118,42 @@ public class ProductionTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Lumberjack_cuts_in_the_moved_work_area_only()
+    {
+        var map = new GameMap(140);
+        var lumberjack = Romans["lumberjack"];
+        int radius = lumberjack.WorkRadius!.Value;
+        var position = new GridPoint(70, 70);
+        var moved = new GridPoint(70 + World.MaxWorkCenterDistance, 70);
+        var near = position + (lumberjack.WorkCenter ?? default) + new GridPoint(-radius / 2, 0);
+        var far = moved + new GridPoint(radius / 2, 0);
+        map.SetObject(near, MapObjectKind.Tree);
+        map.SetObject(far, MapObjectKind.Tree);
+        var world = new World(map, TestConfig.NoTools);
+        var building = world.PlaceBuilding(lumberjack, 0, position)!;
+        Spawn(world, Profession.Carrier, 1, new GridPoint(80, 80));
+
+        Assert.Equal(moved, world.SetWorkCenter(building, moved));
+        Run(world, 10_000, stopWhen: () => world.Production.WorkerOf(building)?.Carrying == Material.Trunk);
+
+        Assert.False(MapObjectCodes.IsAdultTree(map.ObjectCodeAt(far)), "The tree in the moved work area is cut.");
+        Assert.True(MapObjectCodes.IsAdultTree(map.ObjectCodeAt(near)), "The tree only in the old work area stays.");
+    }
+
+    [Fact]
+    public void Work_center_stays_within_reach_of_the_building()
+    {
+        var world = new World(new GameMap(140), TestConfig.NoTools);
+        var building = world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(70, 70))!;
+
+        Assert.Equal(new GridPoint(70 + World.MaxWorkCenterDistance, 70), world.SetWorkCenter(building, new GridPoint(130, 70)));
+        Assert.Equal(new GridPoint(70, 70 - World.MaxWorkCenterDistance), world.SetWorkCenter(building, new GridPoint(70, -50)));
+        Assert.Equal(new GridPoint(75, 60), world.SetWorkCenter(building, new GridPoint(75, 60)));
+        Assert.Equal(new GridPoint(75, 60), building.WorkCenter);
+        Assert.Null(world.SetWorkCenter(world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(30, 30))!, new GridPoint(35, 35)));
+    }
+
+    [Fact]
     public void Worker_of_a_removed_building_leaves_it_and_keeps_its_trade()
     {
         var map = new GameMap(70);

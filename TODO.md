@@ -88,7 +88,7 @@ x Ägypter: Getreide ->  Brauerei -> kleiner Tempel, bringt 1 Mana
 x Kosten für die nächste Aufwertung steigt nach jeder Aufwertung.
 x 10 -> 20 -> 30 -> 40 -> 50 -> 60
 x Dabei müssen erst alle Klassen (Schwert/Bogen/Speer) auf Feldwebel und können erst danach auf Hauptmann aufgewertet werden.
-Das Aufwertungsmenü gibt es, wenn man einen kleinen Tempel auswählt.
+x Das Aufwertungsmenü gibt es, wenn man einen kleinen Tempel auswählt.
 
 
 Schwierigkeitsgrad:
