@@ -34,6 +34,7 @@ public sealed class WalkPocGame : Game
     private SpriteBatch _spriteBatch = null!;
     private Texture2D _pixel = null!;
     private Texture2D? _grass;
+    private SpriteLibrary _library = null!;
     private SettlerSprites _sprites = null!;
     private RenderTarget2D? _captureTarget;
     private KeyboardState _previousKeys;
@@ -70,6 +71,7 @@ public sealed class WalkPocGame : Game
     protected override void LoadContent()
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
+        _library = new SpriteLibrary(GraphicsDevice, _gfx);
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData([Color.White]);
 
@@ -101,8 +103,7 @@ public sealed class WalkPocGame : Game
                 break;
             }
         }
-        _sprites?.Dispose();
-        _sprites = new SettlerSprites(GraphicsDevice, file, _sequence);
+        _sprites = _library.Sequence(SettlerFile, _sequence);
     }
 
     protected override void Update(GameTime gameTime)
@@ -222,7 +223,7 @@ public sealed class WalkPocGame : Game
 
     protected override void UnloadContent()
     {
-        _sprites.Dispose();
+        _library.Dispose();
         _grass?.Dispose();
         _captureTarget?.Dispose();
         base.UnloadContent();

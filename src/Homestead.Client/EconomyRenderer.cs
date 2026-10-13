@@ -1,4 +1,3 @@
-using Homestead.Assets.Gfx;
 using Homestead.Client.Terrain;
 using Homestead.Simulation;
 using Homestead.Simulation.Map;
@@ -10,7 +9,7 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Homestead.Client;
 
 /// <summary>Draws buildings and piles of goods.</summary>
-public sealed class EconomyRenderer : IDisposable
+public sealed class EconomyRenderer
 {
     private const int PileFile = 1;
 
@@ -30,14 +29,11 @@ public sealed class EconomyRenderer : IDisposable
     private const int DustFile = 13;           // a building coming down (JSettlers' MapObjectDrawer, MIT)
     private const int DustSequence = 38;
 
-    private readonly GraphicsDevice _device;
-    private readonly GfxDirectory _gfx;
-    private readonly Dictionary<(int File, int Sequence), SettlerSprites> _sprites = new();
+    private readonly SpriteLibrary _library;
 
-    public EconomyRenderer(GraphicsDevice device, GfxDirectory gfx)
+    public EconomyRenderer(SpriteLibrary library)
     {
-        _device = device;
-        _gfx = gfx;
+        _library = library;
     }
 
     /// <summary>Grid row used for drawing order: the lowest row the building covers.</summary>
@@ -238,16 +234,5 @@ public sealed class EconomyRenderer : IDisposable
         _ => null,
     };
 
-    private SettlerSprites Sprites(int file, int sequence)
-    {
-        if (!_sprites.TryGetValue((file, sequence), out var sprites))
-            _sprites[(file, sequence)] = sprites = new SettlerSprites(_device, _gfx.Open(file), sequence);
-        return sprites;
-    }
-
-    public void Dispose()
-    {
-        foreach (var sprites in _sprites.Values)
-            sprites.Dispose();
-    }
+    private SettlerSprites Sprites(int file, int sequence) => _library.Sequence(file, sequence);
 }

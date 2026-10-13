@@ -1,4 +1,3 @@
-using Homestead.Assets.Gfx;
 using Homestead.Assets.Maps;
 using Homestead.Client.Terrain;
 using Microsoft.Xna.Framework;
@@ -10,7 +9,7 @@ namespace Homestead.Client.MapObjects;
 /// Draws the static objects of a map (trees, stones, plants, ...) back to front, row by row,
 /// so that other figures can be interleaved at the right depth.
 /// </summary>
-public sealed class MapObjectLayer : IDisposable
+public sealed class MapObjectLayer
 {
     private const float TreeFramesPerSecond = 8;
 
@@ -20,17 +19,14 @@ public sealed class MapObjectLayer : IDisposable
     /// <summary>Extra rows above the visible area: tall sprites (trees) reach up from below.</summary>
     private const int SpriteMarginRows = 12;
 
-    private readonly GraphicsDevice _device;
-    private readonly GfxFile _gfx;
+    private readonly SpriteLibrary _library;
     private readonly TerrainMesh _terrain;
     private readonly MapObjectSprite?[] _objects;
     private readonly int _size;
-    private readonly Dictionary<int, SettlerSprites> _sequences = new();
 
-    public MapObjectLayer(GraphicsDevice device, GfxFile gfx, MapArea area, TerrainMesh terrain)
+    public MapObjectLayer(SpriteLibrary library, MapArea area, TerrainMesh terrain)
     {
-        _device = device;
-        _gfx = gfx;
+        _library = library;
         _terrain = terrain;
         _size = area.Size;
         _objects = area.Object.Select(MapObjectCatalog.Resolve).ToArray();
@@ -75,16 +71,5 @@ public sealed class MapObjectLayer : IDisposable
         }
     }
 
-    private SettlerSprites Sequence(int sequence)
-    {
-        if (!_sequences.TryGetValue(sequence, out var sprites))
-            _sequences[sequence] = sprites = new SettlerSprites(_device, _gfx, sequence);
-        return sprites;
-    }
-
-    public void Dispose()
-    {
-        foreach (var sprites in _sequences.Values)
-            sprites.Dispose();
-    }
+    private SettlerSprites Sequence(int sequence) => _library.Sequence(MapObjectCatalog.GfxFile, sequence);
 }

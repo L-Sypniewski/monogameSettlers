@@ -66,6 +66,7 @@ public sealed class MapGame : Game
     private BasicEffect _effect = null!;
     private SpriteBatch _spriteBatch = null!;
     private Texture2D _pixel = null!;
+    private SpriteLibrary _sprites = null!;
     private SettlerRenderer _settlerRenderer = null!;
     private EconomyRenderer _economyRenderer = null!;
 
@@ -99,6 +100,8 @@ public sealed class MapGame : Game
     private KeyboardState _previousKeys;
     private MouseState _previousMouse;
     private int _capturedFrames;
+    private readonly PerfStats _perf = new();
+    private bool _showPerf;
 
     /// <param name="peoples">Peoples for the players whose people the map leaves open (see <see cref="OriginalScenario.Load"/>).</param>
     public MapGame(GameInstallation installation, GfxDirectory gfx, string? mapName, string? captureDirectory,
@@ -142,9 +145,10 @@ public sealed class MapGame : Game
             VertexColorEnabled = true,
             LightingEnabled = false,
         };
-        _settlerRenderer = new SettlerRenderer(GraphicsDevice, _gfx, SettlerAnimations.Load(),
+        _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
+        _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
-        _economyRenderer = new EconomyRenderer(GraphicsDevice, _gfx);
+        _economyRenderer = new EconomyRenderer(_sprites);
         _font = new UiFont();
         LoadMap(_mapIndex);
     }
@@ -169,13 +173,12 @@ public sealed class MapGame : Game
     {
         _mapIndex = (index % _mapFiles.Length + _mapFiles.Length) % _mapFiles.Length;
         _terrain?.Dispose();
-        _objects?.Dispose();
         _map = OriginalMap.Open(_mapFiles[_mapIndex]);
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
         (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples, random: _peopleDraw);
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
-        _objects = new MapObjectLayer(GraphicsDevice, _gfx.Open(MapObjectCatalog.GfxFile), _map.Area, _terrain);
+        _objects = new MapObjectLayer(_sprites, _map.Area, _terrain);
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         // Every other player is a computer player.
         _playerCatalogs = report.Catalogs;
@@ -201,6 +204,21 @@ public sealed class MapGame : Game
             _gameMap.TerrainAt(p) == TerrainType.Flattened ? TerrainKind.Flattened : _terrain.KindAt(p.X, p.Y));
         _objects?.SetCode(p.X, p.Y, _gameMap.ObjectCodeAt(p));
     }
+
+    /// <summary>Work area marks by grid row, computed once per selected building (too slow for every frame).</summary>
+    private ILookup<int, (GridPoint Point, int Ring)> WorkAreaMarksByRow()
+    {
+        var key = (_selectedBuilding, _selectedBuilding?.Exists ?? false);
+        if (_marks is null || _marksKey != key)
+        {
+            _marks = WorkAreaMarks().ToLookup(m => m.Point.Y);
+            _marksKey = key;
+        }
+        return _marks;
+    }
+
+    private ILookup<int, (GridPoint Point, int Ring)>? _marks;
+    private (Building?, bool) _marksKey;
 
     /// <summary>
     /// Work area of the selected building as in the original: posts on the borders of four circles at
@@ -260,6 +278,7 @@ public sealed class MapGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        var updateClock = System.Diagnostics.Stopwatch.StartNew();
         // Capture runs ignore input: keyboard and mouse state are global and would leak in from other windows.
         if (_captureDirectory is null)
             HandleInput(gameTime);
@@ -272,12 +291,14 @@ public sealed class MapGame : Game
         // Never more than MaxBacklog behind: a slow machine would otherwise fall further back every frame.
         _accumulator = TimeSpan.FromTicks(Math.Min((_accumulator + elapsed).Ticks, MaxBacklog.Ticks));
         _time += elapsed;
+        _perf.BeginSection();
         while (_accumulator >= World.TickDuration)
         {
             GiveWanderersNewDestinations();
             _world.Step();
             _accumulator -= World.TickDuration;
         }
+        _perf.EndSimulation();
 
         var cursor = ScreenToGrid(Mouse.GetState().Position.ToVector2());
         var logistics = _world.Logistics;
@@ -299,6 +320,7 @@ public sealed class MapGame : Game
                        (_ownAi is { Log.Count: > 0 } ? $" · AI: {_ownAi.Log[^1]}" : "") +
                        (_message.Length > 0 ? $" · {_message}" : "");
         base.Update(gameTime);
+        _perf.AddUpdate(updateClock.Elapsed.TotalMilliseconds);
     }
 
     /// <summary>Switches between the window and borderless fullscreen at desktop resolution; the window keeps its size.</summary>
@@ -356,6 +378,8 @@ public sealed class MapGame : Game
             else
                 Exit();
         }
+        if (Pressed(Keys.F3))
+            _showPerf = !_showPerf;
         if (Pressed(Keys.F11))
             ToggleFullScreen();
         // Groups: Ctrl+1-9 stores the selection, 1-9 selects the group again.
@@ -833,6 +857,7 @@ public sealed class MapGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        _perf.BeginSection();
         RenderTarget2D? target = null;
         if (_captureDirectory is not null)
         {
@@ -867,7 +892,7 @@ public sealed class MapGame : Game
         var buildingsByRow = _world.Buildings.Where(b => b.Exists).ToLookup(EconomyRenderer.DepthRow);
         var pilesByRow = _world.Piles.ToLookup(p => p.Position.Y);
         var signsByRow = _world.Geology.Signs.ToLookup(s => s.Key.Y);
-        var marksByRow = WorkAreaMarks().ToLookup(m => m.Point.Y);
+        var marksByRow = WorkAreaMarksByRow();
         int rows = _objects.RowCount(visible, out int firstRow);
         for (int y = firstRow; y < firstRow + rows; y++)
         {
@@ -944,7 +969,15 @@ public sealed class MapGame : Game
         }
         else
             _buildMenu!.Draw(_spriteBatch, _pixel, viewport.Height, _placing ? _placeable[_placeIndex] : null, Mouse.GetState().Position.ToVector2());
+        if (_showPerf)
+        {
+            var size = _font.Measure(_perf.Summary);
+            _spriteBatch.Draw(_pixel, new Rectangle(viewport.Width - (int)size.X - 12, viewport.Height - (int)size.Y - 8, (int)size.X + 8, (int)size.Y + 4),
+                Color.Black * 0.6f);
+            _font.Draw(_spriteBatch, _perf.Summary, new Vector2(viewport.Width - size.X - 8, viewport.Height - size.Y - 6), Color.White);
+        }
         _spriteBatch.End();
+        _perf.EndDraw(GraphicsDevice);
 
         if (target is not null)
             Capture(target);
@@ -1138,6 +1171,7 @@ public sealed class MapGame : Game
         {
             using var stream = File.Create(Path.Combine(_captureDirectory!, $"{_map.Name}_{_capturedFrames:D4}.png"));
             target.SaveAsPng(stream, target.Width, target.Height);
+            Console.WriteLine($"frame {_capturedFrames}: {_world.Settlers.Count} settlers · {_perf.Summary} · {_sprites.PageCount} atlas pages");
         }
         target.Dispose();
 
@@ -1226,11 +1260,9 @@ public sealed class MapGame : Game
     protected override void UnloadContent()
     {
         _terrain.Dispose();
-        _objects.Dispose();
-        _settlerRenderer.Dispose();
+        _sprites.Dispose();
         _buildMenu?.Dispose();
         _font.Dispose();
-        _economyRenderer.Dispose();
         _atlas.Dispose();
         _effect.Dispose();
         base.UnloadContent();

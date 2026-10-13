@@ -6,11 +6,11 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Homestead.Client;
 
 /// <summary>
-/// Textures of one settler sequence (body, torso, shadow per frame), plus the knowledge how
+/// Images of one settler sequence (body, torso, shadow per frame, packed into a <see cref="SpriteAtlas"/>), plus the knowledge how
 /// walk sequences are laid out: six blocks of 12 frames (SW, W, NW, NE, E, SE), frame 0 of a
 /// block is standing, frames 1-11 are the walk cycle.
 /// </summary>
-public sealed class SettlerSprites : IDisposable
+public sealed class SettlerSprites
 {
     public const int FramesPerDirection = 12;
     public const int WalkCycleFrames = FramesPerDirection - 1;
@@ -19,7 +19,7 @@ public sealed class SettlerSprites : IDisposable
     private readonly Layer?[] _torso;
     private readonly Layer?[] _shadow;
 
-    public SettlerSprites(GraphicsDevice device, GfxFile file, int sequence)
+    public SettlerSprites(SpriteAtlas atlas, GfxFile file, int sequence)
     {
         int frames = file.GetSettlerFrameCount(sequence);
         _body = new Layer?[frames];
@@ -27,9 +27,9 @@ public sealed class SettlerSprites : IDisposable
         _shadow = new Layer?[frames];
         for (int f = 0; f < frames; f++)
         {
-            _body[f] = Layer.From(device, file.ReadSettler(sequence, f));
-            _torso[f] = Layer.From(device, file.ReadSettlerTorso(sequence, f));
-            _shadow[f] = Layer.From(device, file.ReadSettlerShadow(sequence, f));
+            _body[f] = Layer.From(atlas, file.ReadSettler(sequence, f));
+            _torso[f] = Layer.From(atlas, file.ReadSettlerTorso(sequence, f));
+            _shadow[f] = Layer.From(atlas, file.ReadSettlerShadow(sequence, f));
         }
     }
 
@@ -63,7 +63,7 @@ public sealed class SettlerSprites : IDisposable
     /// <summary>The body of a frame relative to its anchor (unscaled); null if the frame is empty.</summary>
     public Rectangle? Bounds(int frame) =>
         (uint)frame < (uint)FrameCount && _body[frame] is { } body
-            ? new Rectangle((int)body.Offset.X, (int)body.Offset.Y, body.Texture.Width, body.Texture.Height)
+            ? new Rectangle((int)body.Offset.X, (int)body.Offset.Y, body.Image.Source.Width, body.Image.Source.Height)
             : null;
 
     /// <summary>
@@ -80,12 +80,6 @@ public sealed class SettlerSprites : IDisposable
     private static Color Multiply(Color a, Color b) =>
         new(a.R * b.R / 255, a.G * b.G / 255, a.B * b.B / 255, a.A * b.A / 255);
 
-    public void Dispose()
-    {
-        foreach (var layer in _body.Concat(_torso).Concat(_shadow))
-            layer?.Texture.Dispose();
-    }
-
     /// <summary>Index of a direction in the original's order (SW, W, NW, NE, E, SE).</summary>
     public static int Block(Direction facing) => facing switch
     {
@@ -98,29 +92,27 @@ public sealed class SettlerSprites : IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(facing)),
     };
 
-    private sealed record Layer(Texture2D Texture, Vector2 Offset)
+    private sealed record Layer(AtlasImage Image, Vector2 Offset)
     {
-        public static Layer? From(GraphicsDevice device, GfxBitmap? bitmap)
+        public static Layer? From(SpriteAtlas atlas, GfxBitmap? bitmap)
         {
             if (bitmap is not { Width: > 0, Height: > 0 })
                 return null;
-            var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
-            texture.SetData(bitmap.Pixels);
-            return new Layer(texture, new Vector2(bitmap.OffsetX, bitmap.OffsetY));
+            return new Layer(atlas.Add(bitmap), new Vector2(bitmap.OffsetX, bitmap.OffsetY));
         }
 
         public void Draw(SpriteBatch batch, Vector2 anchor, float scale, Color tint, float visibleFromBottom)
         {
+            var source = Image.Source;
             if (visibleFromBottom >= 1)
             {
-                batch.Draw(Texture, anchor + Offset * scale, null, tint, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+                batch.Draw(Image.Texture, anchor + Offset * scale, source, tint, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
                 return;
             }
-            int visible = (int)(Texture.Height * visibleFromBottom);
-            int hidden = Texture.Height - visible;
-            var source = new Rectangle(0, hidden, Texture.Width, visible);
-            batch.Draw(Texture, anchor + (Offset + new Vector2(0, hidden)) * scale, source, tint, 0, Vector2.Zero, scale,
-                SpriteEffects.None, 0);
+            int visible = (int)(source.Height * visibleFromBottom);
+            int hidden = source.Height - visible;
+            batch.Draw(Image.Texture, anchor + (Offset + new Vector2(0, hidden)) * scale,
+                new Rectangle(source.X, source.Y + hidden, source.Width, visible), tint, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
         }
     }
 }

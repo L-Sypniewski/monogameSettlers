@@ -12,23 +12,22 @@ namespace Homestead.Client;
 /// animation of the settler's people from <see cref="SettlerAnimations"/> (type, action, carried good,
 /// direction). Specialists without an own animation look like carriers; settlers without a profession get a varied look.
 /// </summary>
-public sealed class SettlerRenderer : IDisposable
+public sealed class SettlerRenderer
 {
     private const float WorkFramesPerTick = 0.5f;
 
-    private readonly GraphicsDevice _device;
+    private readonly SpriteLibrary _library;
     private readonly GfxDirectory _gfx;
     private readonly SettlerAnimations _animations;
     private readonly Func<int, Civilization> _peopleOf;
     private readonly Dictionary<int, int[]> _walkSequences = new();
     private readonly Dictionary<SettlerAnimation, bool> _exists = new();
-    private readonly Dictionary<(int File, int Sequence), SettlerSprites> _sprites = new();
 
     /// <param name="peopleOf">People (civilization) of a player: settlers look like their people's.</param>
-    public SettlerRenderer(GraphicsDevice device, GfxDirectory gfx, SettlerAnimations animations, Func<int, Civilization> peopleOf)
+    public SettlerRenderer(SpriteLibrary library, SettlerAnimations animations, Func<int, Civilization> peopleOf)
     {
-        _device = device;
-        _gfx = gfx;
+        _library = library;
+        _gfx = library.Gfx;
         _animations = animations;
         _peopleOf = peopleOf;
     }
@@ -216,16 +215,5 @@ public sealed class SettlerRenderer : IDisposable
 
     private SettlerSprites Sprites(SettlerAnimation animation) => Sprites(animation.File, animation.Sequence);
 
-    private SettlerSprites Sprites(int file, int sequence)
-    {
-        if (!_sprites.TryGetValue((file, sequence), out var sprites))
-            _sprites[(file, sequence)] = sprites = new SettlerSprites(_device, _gfx.Open(file), sequence);
-        return sprites;
-    }
-
-    public void Dispose()
-    {
-        foreach (var sprites in _sprites.Values)
-            sprites.Dispose();
-    }
+    private SettlerSprites Sprites(int file, int sequence) => _library.Sequence(file, sequence);
 }
