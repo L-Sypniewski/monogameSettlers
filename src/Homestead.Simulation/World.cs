@@ -12,6 +12,7 @@ namespace Homestead.Simulation;
 /// </summary>
 /// <remarks>
 /// Settler movement: each settler owns the field it stands on and reserves the field it steps to.
+/// It gives up the field it leaves as soon as the step starts, so a follower can step in right behind it.
 /// When the next field is taken, conflicts are resolved in this order, so nobody can get stuck:
 /// <list type="number">
 /// <item>Two settlers wanting each other's field swap places.</item>
@@ -256,14 +257,25 @@ public sealed partial class World
         }
 
         var other = _settlersById[occupantId];
-        if (other.WantsToMove && other.Position.Neighbor(other.NextStep!.Value) == settler.Position)
+        bool otherFrozen = other.FrozenUntil > Tick;
+        if (!otherFrozen && other.WantsToMove && other.Position.Neighbor(other.NextStep!.Value) == settler.Position)
         {
             Swap(settler, other);
             return;
         }
 
-        if (other.State == SettlerState.Idle && other.Path.Count == 0 && !other.IsWorking && !other.HasTask)
+        if (!otherFrozen && other.State == SettlerState.Idle && other.Path.Count == 0 && !other.IsWorking && !other.HasTask)
+        {
+            // Pushed aside: it starts at once and frees its field, so the settler need not stop.
             StepAside(other, keepFree: settler.Position);
+            if (other.WantsToMove)
+                TryStartStep(other);
+            if (_occupant[map.Index(next)] == NoOccupant)
+            {
+                StartStep(settler, direction);
+                return;
+            }
+        }
 
         Wait(settler, next);
     }
@@ -276,6 +288,8 @@ public sealed partial class World
         settler.State = SettlerState.Stepping;
         settler.TicksIntoStep = 0;
         settler.WaitingTicks = 0;
+        if (_occupant[map.Index(settler.Position)] == settler.Id)
+            _occupant[map.Index(settler.Position)] = NoOccupant;
         var target = settler.Position.Neighbor(direction);
         if (_occupant[map.Index(target)] == NoOccupant)
             _occupant[map.Index(target)] = settler.Id;

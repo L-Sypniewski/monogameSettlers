@@ -66,6 +66,26 @@ public class MovementTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Walker_pushes_idle_settlers_aside_without_stopping()
+    {
+        var world = new World(new GameMap(30));
+        var walker = world.Spawn(new GridPoint(5, 15))!;
+        world.Spawn(new GridPoint(10, 15));
+        world.Spawn(new GridPoint(11, 15));
+        world.Spawn(new GridPoint(15, 15));
+        var destination = new GridPoint(25, 15);
+        world.WalkTo(walker, destination);
+        int steps = PathFinder.Distance(walker.Position, destination);
+
+        int ticks = RunUntil(world, () => walker.Destination is null, limit: 1000);
+
+        Assert.Equal(destination, walker.Position);
+        Assert.InRange(ticks, steps * World.StepTicks, steps * World.StepTicks + 2);
+        Assert.Equal(0, world.Detours);
+        Assert.Equal(0, world.PassThroughs);
+    }
+
+    [Fact]
     public void Circular_blockade_resolves()
     {
         // Three settlers on a triangle, each wanting the field of the next one.
