@@ -49,6 +49,9 @@ public sealed partial class World
     /// <summary>People of each player (index = player), where known (loaded maps); Romans otherwise.</summary>
     public IReadOnlyList<Civilization> Peoples { get; set; } = [];
 
+    /// <summary>Players in the game (loaded maps); 0 where unknown, which leaves the combat strength at 100 % everywhere.</summary>
+    public int PlayerCount { get; set; }
+
     public Civilization PeopleOf(int player) => player < Peoples.Count ? Peoples[player] : Civilization.Roman;
 
     /// <summary>Computer players; each acts for its own player in every tick.</summary>

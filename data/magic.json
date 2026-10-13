@@ -14,5 +14,7 @@
     "Asian": { "spell": "Haste", "name": "Samuraischwert", "cost": 10, "seconds": 10, "factor": 2 },
     "Amazon": { "spell": "Freeze", "name": "Einfrieren", "cost": 15, "seconds": 10 },
     "Egyptian": { "spell": "Scatter", "name": "Zerstreuen", "cost": 20, "count": 8 }
-  }
+  },
+  "_upgradesComment": "Soldier upgrades at a small temple (like the original): first all three soldier types one after the other to level 2 (Feldwebel), only then to level 3 (Hauptmann). Only soldiers trained afterwards get the new level. Mana goes to two accounts: spells spend it, upgrades only ask how much the player has earned in all (they spend nothing). manaEarned: mana earned in all for the player's 1st, 2nd, ... upgrade, whichever type (estimates).",
+  "upgrades": { "manaEarned": [ 10, 25, 45, 75, 115, 165 ] }
 }

@@ -26,6 +26,7 @@ public sealed partial class Military
 
     private readonly Dictionary<int, Fighter> _fighters = new();
     private readonly Dictionary<int, long> _nextShot = new();
+    private readonly Dictionary<int, (long Tick, float Strength)> _strengths = new();
     private const int UnreachableTicks = 200;
     private const int RetargetTicks = 10;
 
@@ -418,9 +419,40 @@ public sealed partial class Military
         return true;
     }
 
+    /// <summary>
+    /// Combat strength of the player away from own land (neutral or enemy land): 1 / number of players,
+    /// raised by the goods (gold; Egyptians: gems count double) lying on the player's own land, each
+    /// further percent dearer (<see cref="CombatStrengthConfig.Bonus"/>); at most 1. Recomputed at most once per tick.
+    /// </summary>
+    public float CombatStrength(int player)
+    {
+        if (_strengths.TryGetValue(player, out var cached) && cached.Tick == _world.Tick)
+            return cached.Strength;
+        float strength = 1;
+        if (_world.PlayerCount > 1)
+        {
+            var goods = _config.CombatStrength.GoodsOf(_world.PeopleOf(player));
+            var map = _world.Map!;
+            float units = _world.Piles
+                .Where(p => p.Count > 0 && p.Material is { } m && goods.ContainsKey(m) && map.OwnerAt(p.Position) == player)
+                .Sum(p => p.Count * goods[p.Material!.Value]);
+            float start = 1f / _world.PlayerCount;
+            strength = start + _config.CombatStrength.Bonus(units, 1 - start);
+        }
+        _strengths[player] = (_world.Tick, strength);
+        return strength;
+    }
+
+    /// <summary>The player's combat strength at the point: always 1 on own land.</summary>
+    public float CombatStrengthAt(int player, GridPoint at) =>
+        _world.Map?.OwnerAt(at) == player ? 1 : CombatStrength(player);
+
+    /// <summary>The soldier's combat strength where it stands.</summary>
+    public float CombatStrengthOf(Settler soldier) => CombatStrengthAt(soldier.Player, soldier.Position);
+
     private void Hit(Settler attacker, Settler enemy)
     {
-        enemy.Health -= _config.Damage(attacker.SoldierType!.Value, attacker.Level);
+        enemy.Health -= _config.Damage(attacker.SoldierType!.Value, attacker.Level) * CombatStrengthOf(attacker);
         if (enemy.Health <= 0)
             Kill(enemy);
     }

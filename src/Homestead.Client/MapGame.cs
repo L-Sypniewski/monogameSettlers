@@ -46,6 +46,7 @@ public sealed class MapGame : Game
     private BuildingDefinition[] _placeable = [];
     private BuildMenu? _buildMenu;
     private readonly ConversionMenu _conversionMenu = new();
+    private readonly SelectionPanel _selectionPanel = new();
     private readonly SpellMenu _spellMenu = new();
 
     /// <summary>The spell button was clicked: the next click on the map casts it.</summary>
@@ -293,7 +294,7 @@ public sealed class MapGame : Game
                        $"produced {production.Produced}, trees {production.TreesCut}/{production.TreesPlanted}, stones {production.StonesCut}, " +
                        $"crop {production.CropHarvested}/{production.FieldsSown}, fish {production.FishCaught}, water {production.WaterDrawn}, ore {production.OreMined}, tools {production.ToolsMade} · " +
                        $"{logistics.Delivered} delivered, {logistics.DroppedOnTheWay} dropped · " +
-                       $"residents {_world.Housing.Released} · mana {_world.Magic.Mana(0)} · pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
+                       $"residents {_world.Housing.Released} · mana {_world.Magic.Mana(0)} · combat strength {_world.Military.CombatStrength(0):P0} · pass-throughs {_world.PassThroughs} · cursor {cursor.X},{cursor.Y} " +
                        $"{_gameMap.TerrainAt(cursor)}{(_gameMap.IsWalkable(cursor) ? "" : " (blocked)")}" +
                        (_ownAi is { Log.Count: > 0 } ? $" · AI: {_ownAi.Log[^1]}" : "") +
                        (_message.Length > 0 ? $" · {_message}" : "");
@@ -465,6 +466,21 @@ public sealed class MapGame : Game
         }
         else if (ShowsBuildingInfo)
         {
+            // A small temple's upgrade buttons: soldiers trained from now on get the next level.
+            if (onMenu && _buildingInfo.UpgradeAt(cursorScreen, GraphicsDevice.Viewport.Height, _world, _selectedBuilding!, 0) is { } upgrade)
+            {
+                string name = _buildingInfo.SoldierName(upgrade);
+                _message = $"{name}: upgrade at {_world.Magic.UpgradeThreshold(0)} mana earned ({_world.Magic.ManaEarned(0)} so far)";
+                if (released)
+                    _message = _world.Magic.Upgrade(0, upgrade) switch
+                    {
+                        UpgradeResult.Done => $"{name}: new ones become {_buildingInfo.LevelName(_world.Magic.SoldierLevel(0, upgrade))}",
+                        UpgradeResult.OthersFirst => "all soldier types to level 2 first",
+                        UpgradeResult.NoMana => "not enough mana earned yet",
+                        UpgradeResult.Highest => $"{name}: highest level already",
+                        _ => "a finished small temple is needed",
+                    };
+            }
             // The info panel's tear-down button (asks first).
             if (onMenu && released && _buildingInfo.Click(cursorScreen, GraphicsDevice.Viewport.Height, _selectedBuilding!, 0))
             {
@@ -473,7 +489,7 @@ public sealed class MapGame : Game
                 _selectedBuilding = null;
             }
         }
-        else
+        else if (_group.Count == 0)
         {
             if (onMenu && released && _buildMenu!.Click(cursorScreen) is { } chosen)
             {
@@ -906,13 +922,26 @@ public sealed class MapGame : Game
         _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, _font, _settlerRenderer, Own.Civilization, _group,
             Mouse.GetState().Position.ToVector2());
         if (ShowsBuildingInfo)
-            _buildingInfo.Draw(_spriteBatch, _pixel, viewport.Height, _font, _economyRenderer, _world, _selectedBuilding!, 0,
+            _buildingInfo.Draw(_spriteBatch, _pixel, viewport.Height, _font, _economyRenderer, _settlerRenderer, Own.Civilization, _world, _selectedBuilding!, 0,
                 Mouse.GetState().Position.ToVector2());
-        else if (PriestsSelected)
-            _spellMenu.Draw(_spriteBatch, _pixel, viewport.Height, _font, _settlerRenderer, Own.Civilization, _world.Magic.SpellOf(0),
-                _world.Magic.Mana(0), _aiming, Mouse.GetState().Position.ToVector2());
-        else if (CarriersSelected)
-            _conversionMenu.Draw(_spriteBatch, _pixel, viewport.Height, _settlerRenderer, Own.Civilization, Mouse.GetState().Position.ToVector2());
+        else if (_group.Count > 0)
+        {
+            // The selected units (below the spell or conversion menu for priests or carriers) and the combat strength.
+            int unitsTop = 4;
+            if (PriestsSelected)
+            {
+                _spellMenu.Draw(_spriteBatch, _pixel, viewport.Height, _font, _settlerRenderer, Own.Civilization, _world.Magic.SpellOf(0),
+                    _world.Magic.Mana(0), _aiming, Mouse.GetState().Position.ToVector2());
+                unitsTop = 140;
+            }
+            else if (CarriersSelected)
+            {
+                _conversionMenu.Draw(_spriteBatch, _pixel, viewport.Height, _settlerRenderer, Own.Civilization, Mouse.GetState().Position.ToVector2());
+                unitsTop = 78;
+            }
+            _selectionPanel.Draw(_spriteBatch, _pixel, viewport.Height, _font, _settlerRenderer, Own.Civilization, _group,
+                _world.Military.CombatStrength(0), unitsTop, background: unitsTop == 4);
+        }
         else
             _buildMenu!.Draw(_spriteBatch, _pixel, viewport.Height, _placing ? _placeable[_placeIndex] : null, Mouse.GetState().Position.ToVector2());
         _spriteBatch.End();
@@ -1124,6 +1153,14 @@ public sealed class MapGame : Game
                     System.Globalization.CultureInfo.InvariantCulture, out float zoom) ? zoom : 1;
                 var start = _start;
                 Console.WriteLine(DemoEconomy.Create(_world, Own, start, _random));
+                // HOMESTEAD_CAPTURE_FOCUS=temple: a small temple with mana, swordsmen upgraded once (upgrade buttons).
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") == "temple"
+                    && PathFinder.Circle(start, 30).OrderBy(p => PathFinder.Distance(start, p))
+                        .Any(p => _world.CanPlace(Own["temple"], p, out _) && _world.PlaceBuilding(Own["temple"], 0, p) is not null))
+                {
+                    _world.Magic.AddMana(0, 30);
+                    _world.Magic.Upgrade(0, SoldierType.Swordsman);
+                }
                 _selectedBuilding = _world.Buildings.FirstOrDefault(b => b.Definition.Name == (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") ?? "lumberjack"));
                 // HOMESTEAD_CAPTURE_BATTLE=1: enemy soldiers attack the start tower.
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE") == "1"
@@ -1133,6 +1170,16 @@ public sealed class MapGame : Game
                         for (int i = 0; i < 3; i++)
                             _world.SpawnSoldier(new GridPoint(start.X + 22 + i, start.Y + 4), type, player: 1);
                     _world.Military.Attack(1, tower);
+                }
+                // HOMESTEAD_CAPTURE_SELECT=1: own soldiers of every type and level are selected (units panel at the left).
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SELECT") == "1")
+                {
+                    _selectedBuilding = null;
+                    foreach (var type in Enum.GetValues<SoldierType>())
+                        for (int level = 1; level <= 3; level++)
+                            for (int i = 0; i < level; i++)
+                                if (_world.SpawnSoldier(new GridPoint(start.X - 10 + (int)type * 4 + i, start.Y + 6 + level), type, level) is { } soldier)
+                                    _group.Add(soldier);
                 }
                 if (_zoom > 1 && _selectedBuilding is not null)
                     _camera = ToWorld(_selectedBuilding.Position);

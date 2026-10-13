@@ -28,7 +28,8 @@ public sealed partial class AiPlayer
         if (spare.Count < rules.MinSoldiers)
             return;
         var pathFinder = _world.PathFinder!;
-        double ownArmy = Army(Player);
+        // The own army fights on foreign land, the enemy's at home.
+        double ownArmy = Army(Player) * _world.Military.CombatStrength(Player);
         (Building Target, Building Rally, List<Settler> Force, double Score)? best = null;
         foreach (var target in _world.Buildings.Where(b => b.Exists && b.Player != Player && IsMilitary(b)
                                                            && b.State == BuildingState.Finished && _world.Military.IsOccupied(b)))
@@ -47,7 +48,7 @@ public sealed partial class AiPlayer
                 if (strength >= defense * rules.Ratio && force.Count >= rules.MinSoldiers)
                     break;
                 force.Add(soldier);
-                strength += Strength(soldier);
+                strength += Strength(soldier, target.Position);
             }
             if (strength < defense * rules.Ratio || force.Count < rules.MinSoldiers)
                 continue;
@@ -84,7 +85,7 @@ public sealed partial class AiPlayer
             return;
         }
 
-        double strength = c.Soldiers.Sum(Strength), defense = Defense(target);
+        double strength = c.Soldiers.Sum(s => Strength(s, target.Position)), defense = Defense(target);
         if (!c.Attacking)
         {
             bool gathered = c.Soldiers.All(s => PathFinder.Distance(s.Position, c.Rally) <= _config.Military.GuardDistance);
@@ -110,16 +111,16 @@ public sealed partial class AiPlayer
         }
     }
 
-    /// <summary>The target's garrison plus enemy soldiers outside near it.</summary>
+    /// <summary>The target's garrison plus enemy soldiers outside near it, as they fight at the target.</summary>
     private double Defense(Building target) =>
-        _world.Military.Occupants(target).Where(s => s is not null).Sum(s => Strength(s!))
+        _world.Military.Occupants(target).Where(s => s is not null).Sum(s => Strength(s!, target.Position))
         + _world.Settlers.Where(s => s.Profession == Profession.Soldier && s.Player != Player && !s.IsInside && !s.IsDead
                                      && PathFinder.Distance(s.Position, target.Position) <= _config.Attack.DefenseRadius)
-            .Sum(Strength);
+            .Sum(s => Strength(s, target.Position));
 
-    /// <summary>All soldiers of a player, in buildings and outside.</summary>
+    /// <summary>All soldiers of a player, in buildings and outside, without the combat strength.</summary>
     private double Army(int player) =>
-        _world.Settlers.Where(s => s.Player == player && s.Profession == Profession.Soldier && !s.IsDead).Sum(Strength);
+        _world.Settlers.Where(s => s.Player == player && s.Profession == Profession.Soldier && !s.IsDead).Sum(Power);
 
     /// <summary>No enemy group near the way (groups at the target count as its defence).</summary>
     private bool WayIsClear(GridPoint from, Building target)

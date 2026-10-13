@@ -41,6 +41,9 @@ public sealed record MagicConfig
     public int CastTicks { get; init; } = 30;
     public IReadOnlyDictionary<Civilization, Spell> Spells { get; init; } = new Dictionary<Civilization, Spell>();
 
+    /// <summary>Mana earned in all for the player's 1st, 2nd, ... soldier upgrade (whichever type); empty: no upgrades.</summary>
+    public IReadOnlyList<int> UpgradeThresholds { get; init; } = [];
+
     public static MagicConfig None { get; } = new();
 
     public static MagicConfig Load(string? dataDirectory = null)
@@ -68,6 +71,9 @@ public sealed record MagicConfig
                     s.Value.TryGetProperty("count", out var count) ? count.GetInt32() : 0,
                     s.Value.TryGetProperty("seconds", out var seconds) ? Ticks(seconds.GetDouble()) : 0,
                     s.Value.TryGetProperty("factor", out var factor) ? factor.GetDouble() : 1)),
+            UpgradeThresholds = root.TryGetProperty("upgrades", out var upgrades)
+                ? upgrades.GetProperty("manaEarned").EnumerateArray().Select(c => c.GetInt32()).ToArray()
+                : [],
         };
     }
 }

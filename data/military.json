@@ -13,5 +13,12 @@
   "sightRange": 15,
   "_combatPathRadiusComment": "Near the enemy, soldiers plan their way within this radius around everyone standing (own soldiers too).",
   "combatPathRadius": 15,
-  "attackRange": 50
+  "attackRange": 50,
+  "_combatStrengthComment": "Combat strength (Kampfkraft) like the original: on own land a soldier always hits with 100 %. Elsewhere (neutral or enemy land) it starts at 100 % / number of players; goods lying on the player's own land raise it, at most to 100 %. goods: what a unit counts (per people in civilizations: Egyptians get half from gold and double from gems). The rise gets dearer: each stepPercent points of bonus cost unitsPerPercent[i] units per point (the first 10 points 1 unit each, the next 10 points 1.5 each, ...; the last value goes on). Two players need 115 gold bars for 100 % (Egyptians 230 bars or 57.5 gems).",
+  "combatStrength": {
+    "stepPercent": 10,
+    "unitsPerPercent": [ 1, 1.5, 2, 3, 4, 5, 6, 8, 10 ],
+    "goods": { "GOLD": 1 },
+    "civilizations": { "Egyptian": { "GOLD": 0.5, "GEMS": 2 } }
+  }
 }

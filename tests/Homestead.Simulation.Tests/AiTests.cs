@@ -53,6 +53,80 @@ public class AiTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Defenders_strike_the_enemies_they_stand_against()
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman); // the garrison
+        world.Step();
+        // Three idle soldiers against two enemies close to the land: all three would be held back
+        // against them, yet together they are strong enough to strike.
+        for (int i = 0; i < 3; i++)
+            world.SpawnSoldier(new GridPoint(44 + i, 84), SoldierType.Swordsman);
+        for (int i = 0; i < 2; i++)
+            world.SpawnSoldier(new GridPoint(40 + i, 125), SoldierType.Swordsman, player: 1);
+        Assert.NotEqual(0, map.OwnerAt(new GridPoint(40, 125)));
+        var ai = new AiPlayer(world, Romans, 0);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 30 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("strikes")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(ai.Log, l => l.Contains("strikes 2 enemies"));
+    }
+
+    [Fact]
+    public void The_ai_needs_more_soldiers_against_enemies_on_their_own_land()
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman); // the garrison
+        world.Step();
+        // The enemies stand on their own land: full strength there, the AI's soldiers only half.
+        foreach (var p in Pathfinding.PathFinder.Circle(new GridPoint(40, 125), 12))
+            map.SetOwner(p, 1);
+        for (int i = 0; i < 6; i++)
+            world.SpawnSoldier(new GridPoint(42 + i, 84), SoldierType.Swordsman);
+        for (int i = 0; i < 2; i++)
+            world.SpawnSoldier(new GridPoint(40 + i, 125), SoldierType.Swordsman, player: 1);
+        var ai = new AiPlayer(world, Romans, 0);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 30 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("strikes")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        // 2 enemies × 1.5 (strikeRatio) at full strength take 6 soldiers at 50 %, not 3.
+        Assert.Contains(ai.Log, l => l.Contains("strikes 2 enemies") && l.Contains("with 6 soldiers"));
+    }
+
+    [Fact]
+    public void The_ai_upgrades_swordsmen_bowmen_pikemen_to_level_2_and_then_to_level_3()
+    {
+        var map = new GameMap(100);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true };
+        world.PlaceBuilding(Romans["tower"], 0, new GridPoint(50, 50), force: true);
+        world.PlaceBuilding(Romans["temple"], 0, new GridPoint(40, 50), force: true);
+        world.Magic.AddMana(0, 1000);
+        var ai = new AiPlayer(world, Romans, 0);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 10 * World.TicksPerSecond && world.Magic.UpgradeThreshold(0) is not null; t++)
+            world.Step();
+
+        var upgrades = ai.Log.Where(l => l.Contains("upgrades")).ToList();
+        foreach (string line in upgrades)
+            output.WriteLine(line);
+        Assert.Equal(["Swordsman to level 2", "Bowman to level 2", "Pikeman to level 2", "Swordsman to level 3", "Bowman to level 3", "Pikeman to level 3"],
+            upgrades.Select(l => l[(l.IndexOf("upgrades ") + 9)..l.IndexOf(" (")]));
+    }
+
+    [Fact]
     public void Ai_players_build_up_an_economy_on_a_multiplayer_map()
     {
         GameInstallation installation;

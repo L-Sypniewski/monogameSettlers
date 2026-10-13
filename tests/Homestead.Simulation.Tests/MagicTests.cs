@@ -152,6 +152,56 @@ public class MagicTests
         Assert.False(enemy.IsDead);
     }
 
+    [Fact]
+    public void Soldier_types_are_upgraded_by_the_mana_earned_in_all_at_a_small_temple_all_to_level_2_first()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools);
+        var magic = world.Magic;
+        var needed = magic.Config.UpgradeThresholds;
+        magic.AddMana(0, needed[3]);
+        Assert.Equal(UpgradeResult.NoTemple, magic.Upgrade(0, SoldierType.Swordsman));
+        world.PlaceBuilding(Romans["temple"], 0, new GridPoint(40, 40));
+
+        Assert.Equal(UpgradeResult.Done, magic.Upgrade(0, SoldierType.Bowman));
+        Assert.Equal(2, magic.SoldierLevel(0, SoldierType.Bowman));
+        Assert.Equal(UpgradeResult.OthersFirst, magic.Upgrade(0, SoldierType.Bowman)); // swordsmen and pikemen first
+        Assert.Equal(UpgradeResult.Done, magic.Upgrade(0, SoldierType.Pikeman));
+        Assert.Equal(UpgradeResult.Done, magic.Upgrade(0, SoldierType.Swordsman));
+        Assert.Equal(UpgradeResult.Done, magic.Upgrade(0, SoldierType.Bowman));
+        Assert.Equal(3, magic.SoldierLevel(0, SoldierType.Bowman));
+        Assert.Equal(UpgradeResult.Highest, magic.Upgrade(0, SoldierType.Bowman));
+        Assert.Equal(needed[3], magic.Mana(0)); // upgrades spend nothing
+        Assert.Equal(1, magic.SoldierLevel(1, SoldierType.Bowman)); // per player
+
+        // Mana spent on spells still counts as earned; the next upgrade waits for more earned mana.
+        magic.AddMana(0, -magic.Mana(0));
+        Assert.Equal(needed[3], magic.ManaEarned(0));
+        magic.AddMana(0, needed[4] - needed[3] - 1);
+        Assert.Equal(UpgradeResult.NoMana, magic.Upgrade(0, SoldierType.Swordsman));
+        magic.AddMana(0, 1);
+        Assert.Equal(UpgradeResult.Done, magic.Upgrade(0, SoldierType.Swordsman));
+    }
+
+    [Fact]
+    public void Only_soldiers_trained_after_an_upgrade_get_the_new_level()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools);
+        world.PlaceBuilding(Romans["temple"], 0, new GridPoint(20, 20));
+        world.PlaceBuilding(Romans["barrack"], 0, new GridPoint(40, 40));
+        var veteran = world.SpawnSoldier(new GridPoint(60, 60), SoldierType.Swordsman)!;
+        world.Magic.AddMana(0, 100);
+        Assert.Equal(UpgradeResult.Done, world.Magic.Upgrade(0, SoldierType.Swordsman));
+        world.AddLooseGoods(new GridPoint(50, 55), Material.Sword, 1);
+        world.Spawn(new GridPoint(45, 55), Profession.Carrier);
+
+        Run(world, 10_000, () => world.Military.SoldiersTrained == 1);
+
+        var recruit = Assert.Single(world.Settlers, s => s.Profession == Profession.Soldier && s != veteran);
+        Assert.Equal(2, recruit.Level);
+        Assert.Equal(world.Military.Config.MaxHealth(SoldierType.Swordsman, 2), recruit.Health);
+        Assert.Equal(1, veteran.Level);
+    }
+
     /// <summary>Player 0 has the given people (and a priest of it, from a big temple), player 1 is Asian.</summary>
     private static World TwoPeoples(out Settler priest, BuildingCatalog people)
     {

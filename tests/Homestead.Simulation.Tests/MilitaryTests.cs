@@ -3,6 +3,7 @@ using Homestead.Assets.Maps;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Homestead.Simulation.Map;
+using Homestead.Simulation.Military;
 using Homestead.Simulation.Pathfinding;
 using Xunit.Abstractions;
 
@@ -274,6 +275,68 @@ public class MilitaryTests(ITestOutputHelper output)
     {
         for (int i = 0; i < count; i++)
             Assert.NotNull(world.Spawn(new GridPoint(near.X + i, near.Y), Profession.Carrier));
+    }
+
+    [Fact]
+    public void Combat_strength_starts_at_a_share_per_player_away_from_own_land_and_rises_with_gold()
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2, Peoples = [Civilization.Roman, Civilization.Egyptian] };
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), y < 15 ? 0 : 1);
+
+        Assert.Equal(0.5f, world.Military.CombatStrength(0));
+        Assert.Equal(1f, world.Military.CombatStrengthAt(0, new GridPoint(20, 5)));    // own land
+        Assert.Equal(0.5f, world.Military.CombatStrengthAt(0, new GridPoint(20, 20))); // enemy land
+        Assert.Equal(0.5f, world.Military.CombatStrengthAt(0, new GridPoint(20, 40))); // neutral land
+
+        world.AddLooseGoods(new GridPoint(20, 5), Material.Gold, 8);
+        world.AddLooseGoods(new GridPoint(20, 40), Material.Gold, 8); // not on own land
+        world.AddLooseGoods(new GridPoint(22, 5), Material.Gems, 8);  // Romans have no use for gems
+        world.Step();
+        Assert.Equal(0.58f, world.Military.CombatStrength(0), 4); // 1 % per bar at first
+
+        // Egyptians: gold counts half, gems double.
+        world.AddLooseGoods(new GridPoint(20, 20), Material.Gold, 4);
+        world.AddLooseGoods(new GridPoint(22, 20), Material.Gems, 3);
+        world.Step();
+        Assert.Equal(0.58f, world.Military.CombatStrength(1), 4); // 4 × 0.5 + 3 × 2
+
+        // At most 100 %.
+        for (int x = 0; x < 20; x++)
+            world.AddLooseGoods(new GridPoint(30 + x, 8), Material.Gold, 8);
+        world.Step();
+        Assert.Equal(1f, world.Military.CombatStrength(0));
+    }
+
+    [Fact]
+    public void Each_further_percent_of_combat_strength_costs_more()
+    {
+        var strength = new CombatStrengthConfig(10, [1, 2, 4], new Dictionary<Material, float>(), new Dictionary<Civilization, IReadOnlyDictionary<Material, float>>());
+
+        Assert.Equal(0.05f, strength.Bonus(5, 1), 4);
+        Assert.Equal(0.10f, strength.Bonus(10, 1), 4);
+        Assert.Equal(0.15f, strength.Bonus(20, 1), 4);  // 10 + 5 × 2
+        Assert.Equal(0.25f, strength.Bonus(50, 1), 4);  // 10 + 20 + 5 × 4 (the last step goes on)
+        Assert.Equal(0.20f, strength.Bonus(500, 0.2f), 4);
+    }
+
+    [Fact]
+    public void A_soldier_on_own_land_beats_an_equal_one_from_away()
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2 };
+        for (int y = 0; y < 60; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), 1);
+        var guest = world.SpawnSoldier(new GridPoint(20, 30), SoldierType.Swordsman, level: 1)!;
+        var host = world.SpawnSoldier(new GridPoint(26, 30), SoldierType.Swordsman, level: 1, player: 1)!;
+
+        Run(world, 3_000, stopWhen: () => guest.IsDead || host.IsDead);
+
+        Assert.True(guest.IsDead, "half the combat strength away from own land");
+        Assert.False(host.IsDead);
     }
 
     private static void SpawnSoldiers(World world, SoldierType type, int count, GridPoint near)

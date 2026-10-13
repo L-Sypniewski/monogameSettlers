@@ -1,5 +1,5 @@
 {
-  "_comment": "AI players (Homestead's own). The AI knows the whole map. Every thinkSeconds it starts at most one building: the first entry of buildOrder whose count it has not reached and which it can place (enough free planks and stones, a fitting spot on own land). After the food chain (pig farm, slaughterhouse) comes the big temple and the people's mana chain with a small temple. Entries that need a resource (trees, stones, ore, river, fish, swampy ground for rice) are skipped while the own land lacks it - the expansion then builds towers towards it.",
+  "_comment": "AI players (Homestead's own). The AI knows the whole map. Every thinkSeconds it starts at most one building: the first entry of buildOrder whose count it has not reached and which it can place (enough free planks and stones, a fitting spot on own land). After the food chain (pig farm, slaughterhouse) comes the big temple and the people's mana chain with a small temple; gold (Egyptians: gems too) for the combat strength comes late, where the land has it. A building that processes a mine's output (iron melt, gold melt) waits for an own mine of it. Entries that need a resource (trees, stones, ore, river, fish, swampy ground for rice) are skipped while the own land lacks it - the expansion then builds towers towards it.",
   "thinkSeconds": 1,
   "maxSites": 4,
   "maxTowerSites": 1,
@@ -15,7 +15,7 @@
     { "building": "medium_livinghouse", "sawmills": 2, "stonecutters": 2 }
   ],
   "house": "small_livinghouse",
-  "_stockComment": "A storehouse is built once a smith or gold melt works and stockWhenWaiting units of goods worth storing (storage.materials in production.json: tools, weapons, gold) lie around and the storehouses have fewer than two free piles.",
+  "_stockComment": "A storehouse is built once a smith, gold melt or gems mine works and stockWhenWaiting units of goods worth storing (storage.materials in production.json: tools, weapons, gold, gems) lie around and the storehouses have fewer than two free piles.",
   "stockWhenWaiting": 8,
   "buildOrder": [
     ["lumberjack", 1],
@@ -50,6 +50,8 @@
     ["ironmine", 2],
     ["ironmelt", 2],
     ["weaponsmith", 2],
+    ["goldmine", 1],
+    ["goldmelt", 1],
     ["lumberjack", 4],
     ["forester", 3],
     ["stonecutter", 3],
@@ -73,6 +75,8 @@
       "Coal",
       "IronOre"
     ],
+    "_lateOresComment": "Towers towards these only late: once every build order entry before the mine of the ore is reached (houses and the mana chain come first), after all other needs except plain land.",
+    "lateOres": [ "GoldOre" ],
     "spareSoldiersForLand": 4,
     "landStock": 10,
     "_maxWaterShareComment": "Largest share of water (sea, lakes, rivers) among the unclaimed points a tower would take. Spots with more are passed over; towards a needed resource (stone, ore, trees, water) the spot with the least water is taken if none is below.",
@@ -81,10 +85,12 @@
   "_magicComment": "Priests follow the soldiers out on a strike or campaign and stay priestDistance fields behind them (towards home); otherwise they wait at home. A priest casts its spell where own soldiers fight once the mana is there and at least minTargets soldiers would be hit (own ones for a haste spell).",
   "magic": {
     "priestDistance": 6,
-    "minTargets": 3
+    "minTargets": 3,
+    "_upgradeComment": "Soldier upgrades (magic.json, upgrades) are made as soon as enough mana has been earned in all (they spend none), in upgradeOrder (all to level 2, then the same order to level 3).",
+    "upgradeOrder": [ "Swordsman", "Bowman", "Pikeman" ]
   },
   "military": {
-    "_comment": "Idle soldiers outside buildings. The AI knows where every enemy soldier is. Enemy soldiers within groupRadius of each other form a group. Guerilla: a group within strikeRange of an own military building is attacked by the nearest idle soldiers once they have strikeRatio times its strength (health x damage per second). The other idle soldiers guard the own military buildings, shared out by how strong and close the enemy groups within threatRange are; without any threat they gather at home. A soldier within guardDistance of its post stays.",
+    "_comment": "Idle soldiers outside buildings. The AI knows where every enemy soldier is. Enemy soldiers within groupRadius of each other form a group. Guerilla comes before holding soldiers back: a group within strikeRange of an own military building is attacked by the nearest idle soldiers once they have strikeRatio times its strength (health x damage per second), also by those that would otherwise stay back against it; only soldiers needed against the other groups within threatRange (strikeRatio times their strength) are kept out. The other idle soldiers guard the own military buildings, shared out by how strong and close the enemy groups within threatRange are; without any threat they gather at home. A soldier within guardDistance of its post stays.",
     "thinkSeconds": 5,
     "groupRadius": 6,
     "strikeRange": 100,
@@ -104,6 +110,7 @@
     "_comment": "Values per people, overriding the ones above (objects are merged). Example: \"Roman\": { \"attack\": { \"ratio\": 1.3 } }. Build orders per people: Romans need wood and stone alike (the general one above: one of each first, a second of each a little later); Egyptians build with much stone and little wood (one sawmill, many stonecutters); Asians and Amazons use many planks (a second wood production early, a third away from the others in long games; one stonecutter at first).",
     "Roman": {},
     "Egyptian": {
+      "expansion": { "lateOres": [ "GoldOre", "Gems" ] },
       "buildOrder": [
         ["lumberjack", 1],
         ["sawmill", 1],
@@ -137,6 +144,9 @@
         ["ironmine", 2],
         ["ironmelt", 2],
         ["weaponsmith", 2],
+        ["goldmine", 1],
+        ["goldmelt", 1],
+        ["gemsmine", 1],
         ["stonecutter", 5],
         ["lumberjack", 3],
         ["farm", 3],
@@ -189,6 +199,8 @@
         ["ironmine", 2],
         ["ironmelt", 2],
         ["weaponsmith", 2],
+        ["goldmine", 1],
+        ["goldmelt", 1],
         ["lumberjack", 5],
         ["lumberjack", 6],
         ["forester", 4],
@@ -244,6 +256,8 @@
         ["ironmine", 2],
         ["ironmelt", 2],
         ["weaponsmith", 2],
+        ["goldmine", 1],
+        ["goldmelt", 1],
         ["lumberjack", 5],
         ["lumberjack", 6],
         ["forester", 4],

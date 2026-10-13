@@ -22,11 +22,14 @@ public sealed record AiConfig
     public required AttackRules Attack { get; init; }
 
     /// <summary>Priests (see <c>magic</c> in ai.json).</summary>
-    public MagicRules Magic { get; init; } = new(6, 3);
+    public MagicRules Magic { get; init; } = new(6, 3, DefaultUpgradeOrder);
+
+    private static readonly SoldierType[] DefaultUpgradeOrder = [SoldierType.Swordsman, SoldierType.Bowman, SoldierType.Pikeman];
 
     /// <param name="PriestDistance">How far behind the soldiers (towards home) priests stay.</param>
     /// <param name="MinTargets">A spell is cast where it hits at least this many soldiers.</param>
-    public sealed record MagicRules(int PriestDistance, int MinTargets);
+    /// <param name="UpgradeOrder">Soldier types in the order they are upgraded (to level 2, then the same to level 3).</param>
+    public sealed record MagicRules(int PriestDistance, int MinTargets, IReadOnlyList<SoldierType> UpgradeOrder);
 
     /// <summary>Campaigns against enemy military buildings (see <c>attack</c> in ai.json).</summary>
     public sealed record AttackRules(double Ratio, int DefenseRadius, int PathClearance, int GatherTicks, int MinSoldiers);
@@ -59,6 +62,12 @@ public sealed record AiConfig
     public required int MinFreeLand { get; init; }
     public required int MinTrees { get; init; }
     public required IReadOnlyList<ResourceType> Ores { get; init; }
+
+    /// <summary>
+    /// Expanded towards only late: once every build order entry before the ore's mine is reached, after
+    /// all other needs but plain land (gold for the combat strength).
+    /// </summary>
+    public IReadOnlyList<ResourceType> LateOres { get; init; } = [];
     public required int SpareSoldiersForLand { get; init; }
     public required int LandStock { get; init; }
 
@@ -98,8 +107,11 @@ public sealed record AiConfig
                 military.GetProperty("guardDistance").GetInt32(),
                 military.TryGetProperty("retreatRatio", out var retreat) ? retreat.GetDouble() : 1.0),
             Magic = root.TryGetProperty("magic", out var magic)
-                ? new MagicRules(magic.GetProperty("priestDistance").GetInt32(), magic.GetProperty("minTargets").GetInt32())
-                : new MagicRules(6, 3),
+                ? new MagicRules(magic.GetProperty("priestDistance").GetInt32(), magic.GetProperty("minTargets").GetInt32(),
+                    magic.TryGetProperty("upgradeOrder", out var order)
+                        ? order.EnumerateArray().Select(t => Enum.Parse<SoldierType>(t.GetString()!)).ToArray()
+                        : DefaultUpgradeOrder)
+                : new MagicRules(6, 3, DefaultUpgradeOrder),
             MaxTowerSites = root.GetProperty("maxTowerSites").GetInt32(),
             FreeCarriers = root.GetProperty("freeCarriers").GetInt32(),
             House = root.GetProperty("house").GetString()!,
@@ -122,6 +134,9 @@ public sealed record AiConfig
             LandStock = expansion.GetProperty("landStock").GetInt32(),
             MaxWaterShare = expansion.TryGetProperty("maxWaterShare", out var waterShare) ? waterShare.GetDouble() : 0.4,
             Ores = expansion.GetProperty("ores").EnumerateArray().Select(o => Enum.Parse<ResourceType>(o.GetString()!)).ToArray(),
+            LateOres = expansion.TryGetProperty("lateOres", out var late)
+                ? late.EnumerateArray().Select(o => Enum.Parse<ResourceType>(o.GetString()!)).ToArray()
+                : [],
         };
     }
 

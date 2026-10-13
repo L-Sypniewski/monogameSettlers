@@ -4,6 +4,23 @@ using Homestead.Simulation.Pathfinding;
 
 namespace Homestead.Simulation.Magic;
 
+public enum UpgradeResult
+{
+    Done,
+
+    /// <summary>The type has the highest level already.</summary>
+    Highest,
+
+    /// <summary>Level 3 only once every type has level 2.</summary>
+    OthersFirst,
+
+    /// <summary>Upgrades are made at a finished small temple of the player.</summary>
+    NoTemple,
+
+    /// <summary>The player has not earned enough mana in all yet.</summary>
+    NoMana,
+}
+
 public enum CastResult
 {
     /// <summary>The priest casts now or is on the way to get within range.</summary>
@@ -36,6 +53,8 @@ public sealed class Magic
     private readonly World _world;
     private readonly MagicConfig _config;
     private readonly Dictionary<int, int> _mana = new();
+    private readonly Dictionary<int, int> _earned = new();
+    private readonly Dictionary<(int Player, SoldierType Type), int> _levels = new();
     private readonly Dictionary<int, long> _nextPriest = new();
     private readonly Dictionary<int, long> _nextMana = new();
     private readonly Dictionary<int, CastOrder> _orders = new();
@@ -59,7 +78,68 @@ public sealed class Magic
     public int Mana(int player) => _mana.GetValueOrDefault(player);
 
     /// <summary>Adds (or with a negative amount takes) mana (temples, tests).</summary>
-    public void AddMana(int player, int amount) => _mana[player] = Math.Max(0, Mana(player) + amount);
+    /// <remarks>Mana goes to two accounts: spells spend <see cref="Mana"/>; what is added also counts in <see cref="ManaEarned"/>, which upgrades ask for.</remarks>
+    public void AddMana(int player, int amount)
+    {
+        _mana[player] = Math.Max(0, Mana(player) + amount);
+        if (amount > 0)
+            _earned[player] = ManaEarned(player) + amount;
+    }
+
+    /// <summary>All the mana the player has earned (temples), whatever was spent on spells since.</summary>
+    public int ManaEarned(int player) => _earned.GetValueOrDefault(player);
+
+    /// <summary>The level the player's newly trained soldiers of the type get (1 until upgraded).</summary>
+    public int SoldierLevel(int player, SoldierType type) => _levels.GetValueOrDefault((player, type), 1);
+
+    /// <summary>How many upgrades the player has made.</summary>
+    public int Upgrades(int player) => Enum.GetValues<SoldierType>().Sum(t => SoldierLevel(player, t) - 1);
+
+    /// <summary>Mana earned in all that the player's next upgrade takes; null when there is none left.</summary>
+    public int? UpgradeThreshold(int player)
+    {
+        int done = Upgrades(player);
+        var thresholds = _config.UpgradeThresholds;
+        if (thresholds.Count == 0 || done >= Enum.GetValues<SoldierType>().Length * (MaxLevel - 1))
+            return null;
+        // Past the list, each further one takes the last step again.
+        int last = thresholds.Count - 1, step = last > 0 ? thresholds[last] - thresholds[last - 1] : thresholds[last];
+        return done <= last ? thresholds[done] : thresholds[last] + (done - last) * step;
+    }
+
+    /// <summary>Whether the player has earned the mana for its next upgrade.</summary>
+    public bool CanAffordUpgrade(int player) => UpgradeThreshold(player) is { } needed && ManaEarned(player) >= needed;
+
+    public const int MaxLevel = 3;
+
+    /// <summary>Whether the type may be upgraded next (level and order only, not temple or mana).</summary>
+    public UpgradeResult UpgradeOrder(int player, SoldierType type)
+    {
+        int level = SoldierLevel(player, type);
+        if (level >= MaxLevel || UpgradeThreshold(player) is null)
+            return UpgradeResult.Highest;
+        // All types to level 2 first, then to level 3.
+        if (Enum.GetValues<SoldierType>().Any(t => SoldierLevel(player, t) < level))
+            return UpgradeResult.OthersFirst;
+        return UpgradeResult.Done;
+    }
+
+    /// <summary>
+    /// Upgrades the player's soldier type by one level, at a finished small temple of the player, once it
+    /// has earned enough mana in all (nothing is spent). Soldiers trained from now on get the level; those
+    /// already trained keep theirs.
+    /// </summary>
+    public UpgradeResult Upgrade(int player, SoldierType type)
+    {
+        if (UpgradeOrder(player, type) is var order && order != UpgradeResult.Done)
+            return order;
+        if (!_world.Buildings.Any(b => b.Exists && b.Player == player && b.Definition.Name == _config.Temple && b.State == BuildingState.Finished))
+            return UpgradeResult.NoTemple;
+        if (!CanAffordUpgrade(player))
+            return UpgradeResult.NoMana;
+        _levels[(player, type)] = SoldierLevel(player, type) + 1;
+        return UpgradeResult.Done;
+    }
 
     /// <summary>The spell of a priest's people.</summary>
     public Spell? SpellOf(Settler priest) =>

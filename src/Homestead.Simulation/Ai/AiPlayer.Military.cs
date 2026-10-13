@@ -6,8 +6,8 @@ namespace Homestead.Simulation.Ai;
 /// <summary>
 /// The AI's soldiers outside buildings. It knows where every enemy soldier is (for now). Defence comes
 /// first: enemies on the own land are fought at once, and enough soldiers stay back against enemies
-/// close to it. Spare soldiers strike enemy groups near the land when they clearly outnumber them
-/// (guerilla) and go on campaigns against enemy military buildings (see AiPlayer.Campaign). Strikes
+/// close to it. Idle soldiers strike enemy groups near the land when they clearly outnumber them
+/// (guerilla) – also those held back against them, as long as enough stay against the others – and spare ones go on campaigns against enemy military buildings (see AiPlayer.Campaign). Strikes
 /// and campaigns are re-checked every think (follow, reinforce, retreat); afterwards the soldiers go
 /// home. The rest stand guard at the own military buildings, most where enemies are closest.
 /// </summary>
@@ -27,6 +27,7 @@ public sealed partial class AiPlayer
     /// <summary>Enemy soldiers outside buildings, grouped (seen at the last military think).</summary>
     public IReadOnlyList<EnemyGroup> EnemyGroups { get; private set; } = [];
 
+    /// <summary>Enemy soldiers close together; <see cref="Strength"/> as they would fight at <see cref="Center"/>.</summary>
     public sealed record EnemyGroup(GridPoint Center, IReadOnlyList<Settler> Soldiers, double Strength);
 
     private void Command(List<Building> mine)
@@ -46,23 +47,23 @@ public sealed partial class AiPlayer
         foreach (var group in EnemyGroups.Where(g => onOwnLand(g) && untargeted(g)).OrderByDescending(g => g.Strength))
             TryStrike(group, idle, "defends against");
 
-        // Against enemies close to the land enough soldiers stay back; only the rest is spare.
-        double danger = EnemyGroups.Where(g => !onOwnLand(g) && near(g, config.ThreatRange)).Sum(g => g.Strength) * config.StrikeRatio;
-        var guards = new List<Settler>();
-        double kept = 0;
-        foreach (var soldier in idle.OrderBy(s => EnemyGroups.Select(g => PathFinder.Distance(s.Position, g.Center)).DefaultIfEmpty(0).Min()))
-        {
-            if (kept >= danger)
-                break;
-            guards.Add(soldier);
-            kept += Strength(soldier);
-        }
-        var spare = idle.Except(guards).ToList();
+        bool threatening(EnemyGroup g) => !onOwnLand(g) && near(g, config.ThreatRange) && untargeted(g);
 
-        // Guerilla outside the own land, with spare soldiers only: the weakest worthwhile group first.
+        // Guerilla outside the own land, the weakest worthwhile group first. It comes before holding
+        // soldiers back: the defenders may strike the enemies they stand against themselves; only
+        // those needed against the other groups close to the land stay out of it.
         foreach (var group in EnemyGroups.Where(g => !onOwnLand(g) && near(g, config.StrikeRange) && untargeted(g)).OrderBy(g => g.Strength))
-            if (TryStrike(group, spare, "strikes"))
-                break;
+        {
+            var pool = idle.Except(Reserve(idle, EnemyGroups.Where(g => g != group && threatening(g)))).ToList();
+            if (!TryStrike(group, pool, "strikes"))
+                continue;
+            idle.RemoveAll(_strikes[^1].Soldiers.Contains);
+            break;
+        }
+
+        // Against the enemies still close to the land enough soldiers stay back; only the rest is spare.
+        var guards = Reserve(idle, EnemyGroups.Where(threatening));
+        var spare = idle.Except(guards).ToList();
 
         // A campaign against enemy land, never while enemies stand on the own land.
         if (_campaign is null && !EnemyGroups.Any(onOwnLand))
@@ -90,7 +91,7 @@ public sealed partial class AiPlayer
             if (strength >= opposition * config.StrikeRatio)
                 break;
             strikers.Add(soldier);
-            strength += Strength(soldier);
+            strength += Strength(soldier, group.Center);
         }
         if (strength < opposition * config.StrikeRatio)
             return false;
@@ -99,6 +100,24 @@ public sealed partial class AiPlayer
         Note($"{verb} {group.Soldiers.Count} enemies at {group.Center.X},{group.Center.Y} with {strikers.Count} soldiers");
         pool.RemoveAll(strikers.Contains);
         return true;
+    }
+
+    /// <summary>The idle soldiers that stay back against <paramref name="threats"/>: strikeRatio times their strength, nearest first.</summary>
+    private List<Settler> Reserve(List<Settler> idle, IEnumerable<EnemyGroup> threats)
+    {
+        var groups = threats.ToList();
+        // They would fight on the own land: there the guards have their full strength, the enemies their reduced one.
+        double danger = groups.SelectMany(g => g.Soldiers).Sum(s => Power(s) * _world.Military.CombatStrength(s.Player)) * _config.Military.StrikeRatio;
+        var guards = new List<Settler>();
+        double kept = 0;
+        foreach (var soldier in idle.OrderBy(s => groups.Select(g => PathFinder.Distance(s.Position, g.Center)).DefaultIfEmpty(0).Min()))
+        {
+            if (kept >= danger)
+                break;
+            guards.Add(soldier);
+            kept += Power(soldier);
+        }
+        return guards;
     }
 
     /// <summary>The soldiers guard the own military buildings, more where enemies are close; without a threat at home.</summary>
@@ -179,7 +198,7 @@ public sealed partial class AiPlayer
             }
             strike.Targets = group.Soldiers.ToHashSet();
 
-            double strength = strike.Soldiers.Sum(Strength);
+            double strength = strike.Soldiers.Sum(s => Strength(s, group.Center));
             // What they will meet: the group and whoever waits on the way to it.
             var from = new GridPoint((int)strike.Soldiers.Average(s => s.Position.X), (int)strike.Soldiers.Average(s => s.Position.Y));
             double opposition = Opposition(group, from);
@@ -194,7 +213,7 @@ public sealed partial class AiPlayer
                     if (strength >= opposition * config.StrikeRatio)
                         break;
                     joining.Add(helper);
-                    strength += Strength(helper);
+                    strength += Strength(helper, group.Center);
                 }
                 if (strength >= opposition * config.RetreatRatio)
                 {
@@ -240,13 +259,20 @@ public sealed partial class AiPlayer
                     left.Remove(other);
                 }
             var center = new GridPoint((int)members.Average(m => m.Position.X), (int)members.Average(m => m.Position.Y));
-            groups.Add(new EnemyGroup(center, members, members.Sum(Strength)));
+            groups.Add(new EnemyGroup(center, members, members.Sum(m => Strength(m, center))));
         }
         return groups;
     }
 
-    /// <summary>Fighting value of a soldier: health times damage per second.</summary>
-    private double Strength(Settler soldier)
+    /// <summary>
+    /// Fighting value of a soldier (own or enemy) fighting at <paramref name="at"/>: health times damage
+    /// per second times its player's combat strength there – full on its own land, reduced on neutral
+    /// and foreign land. The AI knows every player's combat strength.
+    /// </summary>
+    private double Strength(Settler soldier, GridPoint at) => Power(soldier) * _world.Military.CombatStrengthAt(soldier.Player, at);
+
+    /// <summary>Health times damage per second, without the combat strength.</summary>
+    private double Power(Settler soldier)
     {
         var military = _world.Military.Config;
         var type = soldier.SoldierType!.Value;

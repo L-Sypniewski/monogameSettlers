@@ -92,6 +92,7 @@ public sealed partial class AiPlayer
         FollowStrikes(mine);
         FollowCampaign();
         LeadPriests();
+        UpgradeSoldiers();
         if (_world.Tick >= _nextMilitary)
         {
             Command(mine);
@@ -115,6 +116,8 @@ public sealed partial class AiPlayer
         foreach (var (name, count) in Wishes(mine))
         {
             if (mine.Count(b => b.Definition.Name == name) >= count || _catalog.Find(name) is not { } definition)
+                continue;
+            if (LacksOre(definition, mine))
                 continue;
             bool basic = Basics.Contains(name);
             if (!Enough(planks, Cost(definition, Material.Plank) + (basic ? 0 : keepPlanks))
@@ -201,7 +204,7 @@ public sealed partial class AiPlayer
     {
         if (HouseWanted(mine) && HouseToBuild(mine) is { } house)
             yield return (house.Name, mine.Count(b => b.Definition.Name == house.Name) + 1);
-        // A storehouse only once goods worth storing (tools, weapons, gold) are made in numbers and
+        // A storehouse only once goods worth storing (tools, weapons, gold, gems) are made in numbers and
         // pile up, and the storehouses there are have no room left for them.
         var storage = mine.Where(b => b.State == BuildingState.Finished).SelectMany(b => b.Piles).Where(p => p.Role == PileRole.Storage).ToList();
         bool stockComing = mine.Any(b => b.Definition.Name == "stock" && b.State != BuildingState.Finished);
@@ -209,7 +212,7 @@ public sealed partial class AiPlayer
         int waiting = _world.Piles.Where(p => p.Role is PileRole.Loose or PileRole.Offer && p.Material is { } m && config.StoredMaterials?.Contains(m) == true
                                               && _world.BelongsTo(p, Player)).Sum(p => p.Count);
         bool massProduction = mine.Any(b => b.State == BuildingState.Finished
-                                            && (config.Smiths.ContainsKey(b.Definition.Name) || b.Definition.Name == "goldmelt"));
+                                            && (config.Smiths.ContainsKey(b.Definition.Name) || b.Definition.Name is "goldmelt" or "gemsmine"));
         if (massProduction && !stockComing && waiting >= _config.StockWhenWaiting && storage.Count(p => p.Material is null) < 2)
             yield return ("stock", mine.Count(b => b.Definition.Name == "stock") + 1);
         // A stonecutter or woodcutter with nothing left in range: a new one where there is some.
@@ -236,6 +239,35 @@ public sealed partial class AiPlayer
         }
         foreach (var wish in _config.BuildOrder)
             yield return wish;
+    }
+
+    /// <summary>
+    /// A building that processes a mine's output (iron melt, gold melt) while no own building (sites
+    /// included) yields it: it would only stand idle.
+    /// </summary>
+    private bool LacksOre(BuildingDefinition definition, List<Building> mine)
+    {
+        var mines = _world.Production.Config.Mines;
+        var mined = mines.Values.Select(m => m.Output).ToHashSet();
+        return Inputs(definition).Any(m => mined.Contains(m) && !mine.Any(b => Outputs(b.Definition).Contains(m)
+                                                                             || mines.TryGetValue(b.Definition.Name, out var r) && r.Output == m));
+    }
+
+    /// <summary>
+    /// Whether the player has every build order entry before the first one for <paramref name="building"/>;
+    /// entries with nothing to work on in the own land do not count.
+    /// </summary>
+    private bool ReachedBefore(string building, List<Building> mine)
+    {
+        foreach (var (name, count) in _config.BuildOrder)
+        {
+            if (name == building)
+                return true;
+            if (mine.Count(b => b.Definition.Name == name) < count && _catalog.Find(name) is { } definition
+                && AnchorFor(definition, mine) is not null)
+                return false;
+        }
+        return false;
     }
 
     /// <summary>Planks or stones the player has beyond what its construction sites still need.</summary>
@@ -478,7 +510,7 @@ public sealed partial class AiPlayer
         int covered = (int)(_world.Military.Config.Territory.GetValueOrDefault(tower.Name, 20) * 0.7);
         bool Uncovered(MapSurvey.Cell c) => military.All(m => PathFinder.Distance(m, c.Center) > covered);
 
-        foreach (var (need, wanted) in Needs(spareSoldiers))
+        foreach (var (need, wanted) in Needs(spareSoldiers, mine))
         {
             // Plain land only from a full store: what the economy needs comes first.
             if (need == "land" && (planks - keep.Planks < cost.Planks + _config.LandStock || stones - keep.Stones < cost.Stones + _config.LandStock))
@@ -496,7 +528,7 @@ public sealed partial class AiPlayer
     }
 
     /// <summary>What the own land lacks, most urgent first, with how to recognize a cell that has it.</summary>
-    private IEnumerable<(string Need, Func<MapSurvey.Cell, bool> Has)> Needs(int spareSoldiers)
+    private IEnumerable<(string Need, Func<MapSurvey.Cell, bool> Has)> Needs(int spareSoldiers, List<Building> mine)
     {
         var own = _survey.Own;
         // Stones almost gone first, then the ores, then more stones for later.
@@ -520,6 +552,11 @@ public sealed partial class AiPlayer
             yield return ("swamp", c => c.Swamp >= 20);
         if (_lacksRoom)
             yield return ("room", roomy);
+        // Gold (gems) for the combat strength: late, once the build order up to its mine is done.
+        foreach (var ore in _config.LateOres)
+            if (own.Ore[(int)ore] == 0 && _world.Production.Config.Mines.FirstOrDefault(m => m.Value.Resource == ore).Key is { } oreMine
+                && ReachedBefore(oreMine, mine))
+                yield return (ore.ToString(), c => c.Ore[(int)ore] > 0);
         // Nothing lacking: soldiers to spare still take land, as a player would.
         if (spareSoldiers >= _config.SpareSoldiersForLand)
             yield return ("land", roomy);

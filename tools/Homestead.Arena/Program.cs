@@ -84,7 +84,7 @@ void Print(World world, long tick)
                           $"settlers {settlers.Count} (carriers {settlers.Count(s => s.Profession == Profession.Carrier)}, soldiers {settlers.Count(s => s.Profession == Profession.Soldier)}), " +
                           $"room {world.Housing.Room(p)} for {world.Housing.Needing(p)} (striking {world.Housing.Striking(p)}), " +
                           $"plank {Stock(Material.Plank)} stone {Stock(Material.Stone)} coal {Stock(Material.Coal)} iron {Stock(Material.Iron)}, " +
-                          $"mana {world.Magic.Mana(p)}, priests {settlers.Count(s => s.Profession == Profession.Priest)}");
+                          $"combat strength {world.Military.CombatStrength(p):P0}, gold {Stock(Material.Gold)}, gems {Stock(Material.Gems)}, mana {world.Magic.Mana(p)}, upgrades {world.Magic.Upgrades(p)} (sword {world.Magic.SoldierLevel(p, SoldierType.Swordsman)}, bow {world.Magic.SoldierLevel(p, SoldierType.Bowman)}, pike {world.Magic.SoldierLevel(p, SoldierType.Pikeman)}), priests {settlers.Count(s => s.Profession == Profession.Priest)}");
         Console.WriteLine($"       {string.Join(", ", kinds)}");
         foreach (var site in own.Where(b => b.State != BuildingState.Finished && tick - siteSince[b.Id] >= 10 * 60 * World.TicksPerSecond))
             Console.WriteLine($"       STUCK for {(tick - siteSince[site.Id]) / World.TicksPerSecond / 60} min: {site.Definition.Name} at {site.Position.X},{site.Position.Y}: {world.StatusOf(site)}");

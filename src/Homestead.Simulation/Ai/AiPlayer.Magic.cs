@@ -6,10 +6,26 @@ namespace Homestead.Simulation.Ai;
 /// <summary>
 /// The AI's priests: they follow the soldiers out on a strike or campaign and stay behind them (towards
 /// home), otherwise they wait at home. Where own soldiers fight and the mana is there, one casts its
-/// spell on the spot it hits most (see <c>magic</c> in ai.json).
+/// spell on the spot it hits most (see <c>magic</c> in ai.json). The mana earned in all upgrades the
+/// soldiers at the small temple: swordsmen, bowmen, pikemen to level 2, then the same to level 3.
 /// </summary>
 public sealed partial class AiPlayer
 {
+    /// <summary>The next soldier upgrade in upgradeOrder, once enough mana has been earned in all.</summary>
+    private void UpgradeSoldiers()
+    {
+        var magic = _world.Magic;
+        if (!magic.CanAffordUpgrade(Player))
+            return;
+        foreach (var type in _config.Magic.UpgradeOrder)
+            if (magic.UpgradeOrder(Player, type) == UpgradeResult.Done)
+            {
+                if (magic.Upgrade(Player, type) == UpgradeResult.Done)
+                    Note($"upgrades {type} to level {magic.SoldierLevel(Player, type)} ({magic.ManaEarned(Player)} mana earned)");
+                return;
+            }
+    }
+
     private void LeadPriests()
     {
         var priests = _world.Settlers

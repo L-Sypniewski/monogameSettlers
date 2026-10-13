@@ -40,6 +40,7 @@ x Die KI soll Einheiten sammeln, bevor sie ein Ziel angreift
 x Die KI soll das gegnerische Land angreifen, wenn sie eine 1,5:1-Überlegenheit hat.
 x Die KI soll beim Angriff Ziele am Rand priorisieren, die schlechter verteidigt sind und erreichbar sind, ohne auf Gegner zu stoßen.
 x Je nach Volk sollen die Werte/Thresholds unterschiedlich konfigurierbar sein können.
+x Guerilla wird der Verteidigung vorgezogen -> Das soll bewirken, dass die KI aus der Verteidigung heraus die Angreifer angfreifen kann, falls sinnvoll.
 
 x Zusätzliche/spezifische KI-Regeln in json auslagern (wie es bereits schon gemacht wurde)
 
@@ -84,9 +85,9 @@ x Asiaten: Reis (An Sümpfen anbaubar) -> Brennerei -> kleiner Tempel, bringt 2 
 x Römer: Winzer, wächst schneller an Hängen, Höhenunterschieden zwischen Tiles -> kleiner Tempel, bringt 1 Mana
 x Ägypter: Getreide ->  Brauerei -> kleiner Tempel, bringt 1 Mana
 
-Kosten für die nächste Aufwertung steigt nach jeder Aufwertung.
-10 -> 20 -> 30 -> 40 -> 50 -> 60
-Dabei müssen erst alle Klassen (Schwert/Bogen/Speer) auf Feldwebel und können erst danach auf Hauptmann aufgewertet werden.
+x Kosten für die nächste Aufwertung steigt nach jeder Aufwertung.
+x 10 -> 20 -> 30 -> 40 -> 50 -> 60
+x Dabei müssen erst alle Klassen (Schwert/Bogen/Speer) auf Feldwebel und können erst danach auf Hauptmann aufgewertet werden.
 Das Aufwertungsmenü gibt es, wenn man einen kleinen Tempel auswählt.
 
 
