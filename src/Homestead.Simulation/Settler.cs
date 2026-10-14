@@ -178,6 +178,11 @@ public sealed class Settler
     /// <summary>The tool a specialist took up when it was recruited (put down again if it becomes a carrier).</summary>
     public Material? Tool { get; internal set; }
 
+    /// <summary>Bowmen: tick of the last shot and ticks until the next, for the shooting animation.</summary>
+    public long LastShotTick { get; internal set; } = long.MinValue / 2;
+
+    public int ShotTicks { get; internal set; } = 1;
+
     /// <summary>Busy on the spot (e.g. picking something up): others must not push it aside.</summary>
     public bool IsWorking { get; internal set; }
 

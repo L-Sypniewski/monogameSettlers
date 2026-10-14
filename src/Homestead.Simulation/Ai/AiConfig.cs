@@ -35,8 +35,9 @@ public sealed record AiConfig
     /// <param name="ArmyRatio">A campaign needs this times the target owner's whole army (0: any army).</param>
     /// <param name="Commit">Share of the spare soldiers left after the force is chosen that come along as well (1: all of them).</param>
     /// <param name="AbortRatio">After gathering the campaign is given up below this times the defence (0: never).</param>
+    /// <param name="MaxDistance">Targets at most this far from the own military building nearest them (0: any distance).</param>
     public sealed record AttackRules(double Ratio, int DefenseRadius, int PathClearance, int GatherTicks, int MinSoldiers,
-        double ArmyRatio, double Commit = 0, double AbortRatio = 0);
+        double ArmyRatio, double Commit = 0, double AbortRatio = 0, int MaxDistance = 0);
     public required int MaxSites { get; init; }
     public required int MaxTowerSites { get; init; }
     public required int FreeCarriers { get; init; }
@@ -136,7 +137,8 @@ public sealed record AiConfig
                 attack.GetProperty("minSoldiers").GetInt32(),
                 attack.TryGetProperty("armyRatio", out var armyRatio) ? armyRatio.GetDouble() : attack.GetProperty("ratio").GetDouble(),
                 attack.TryGetProperty("commit", out var commit) ? commit.GetDouble() : 0,
-                attack.TryGetProperty("abortRatio", out var abortRatio) ? abortRatio.GetDouble() : attack.GetProperty("ratio").GetDouble()),
+                attack.TryGetProperty("abortRatio", out var abortRatio) ? abortRatio.GetDouble() : attack.GetProperty("ratio").GetDouble(),
+                attack.TryGetProperty("maxDistance", out var maxDistance) ? maxDistance.GetInt32() : 0),
             Military = new MilitaryRules(
                 (int)Math.Round(military.GetProperty("thinkSeconds").GetDouble() * World.TicksPerSecond),
                 military.GetProperty("groupRadius").GetInt32(),
@@ -211,7 +213,8 @@ public sealed record AiConfig
 
     /// <summary>
     /// A character made up from its id (for trying out combinations, e.g. in the arena):
-    /// <c>pincer+guardByThreat</c> is a character of just those traits with their default settings;
+    /// <c>pincer+guardByThreat</c> is a character of just those traits with their default settings,
+    /// <c>skirmisher+forwardBase</c> a character with more traits (in front of its own);
     /// <c>@path=value</c> parts set values on top of a character or such traits, e.g.
     /// <c>general@attack.ratio=1.3@pincer.feintShare=0.5@buildOrderMoves.barrack=-5</c>.
     /// Null if the id names neither a character nor traits.
@@ -219,15 +222,20 @@ public sealed record AiConfig
     private static JsonObject? Variant(JsonObject characters, string id)
     {
         var parts = id.Split('@');
+        var names = parts[0].Split('+');
         JsonObject result;
-        if (characters[parts[0]] is JsonObject known)
+        if (characters[names[0]] is JsonObject known)
             result = (JsonObject)known.DeepClone();
-        else if (parts[0].Split('+') is var traits && traits.All(t => AiTrait.Known.Contains(t)))
-            result = new JsonObject { ["traits"] = new JsonArray(traits.Select(t => (JsonNode)JsonValue.Create(t)!).ToArray()) };
-        else if (parts[0].Length == 0 && parts.Length > 1)
-            result = (JsonObject)(characters[StandardCharacter]?.DeepClone() ?? new JsonObject { ["traits"] = new JsonArray() });
+        else if (AiTrait.Known.Contains(names[0]) || names[0].Length == 0 && parts.Length > 1)
+            result = new JsonObject { ["traits"] = new JsonArray() };
         else
             return null;
+        // Traits named after the character come first (before its own, e.g. for the guarding).
+        var added = names.Skip(characters[names[0]] is JsonObject ? 1 : 0).Where(n => n.Length > 0).ToList();
+        if (added.Any(t => !AiTrait.Known.Contains(t)))
+            return null;
+        var own = (result["traits"]?.AsArray() ?? []).Select(t => t!.GetValue<string>()).Where(t => !added.Contains(t));
+        result["traits"] = new JsonArray(added.Concat(own).Select(t => (JsonNode)JsonValue.Create(t)!).ToArray());
         foreach (string setting in parts.Skip(1))
         {
             int equals = setting.IndexOf('=');

@@ -56,6 +56,7 @@ Charakterzüge zusammenwirken:
 | **Turmplätze** | Expansion | Charakterzüge bewerten Bauplätze, Punkte addieren sich |
 | **Zeitpunkt** (`AllowCampaign`, umgesetzt) | jede Militär-Runde, vor der Planung eines Feldzugs | jeder Charakterzug kann einen neuen Feldzug zurückhalten |
 | **Zauber** | Priester am Kampf | einer entscheidet Zauber und Moment |
+| **Build-Order** (`ArrangeBuildOrder`, umgesetzt) | einmal beim Start | jeder Charakterzug ordnet die Build-Order, die der vorige hinterließ |
 | **Schwellen** | überall, wo ein Verhältnis entscheidet | Modifikator auf Werte wie `attack.ratio` |
 
 ### Soldaten verteilen
@@ -110,6 +111,14 @@ Untätige Soldaten bewachen die eigenen Militärgebäude, verteilt nach Stärke 
 Trupps (`military.threatRange`); ohne Bedrohung sammeln sie sich am Heimatturm. Wer innerhalb von
 `military.guardDistance` seines Postens steht, bleibt. Entscheidungspunkt „Bewachung“ (`Guard`).
 Ohne diesen Charakterzug bleiben untätige Soldaten stehen, wo sie sind.
+
+**`forwardBase` – Vorposten** · M · **umgesetzt**
+Untätige Soldaten sammeln sich am eigenen Militärgebäude nächst einem feindlichen, als Absprungpunkt
+für Guerilla. Sind die feindlichen Trupps in `military.threatRange` stärker (`fallBackRatio`), weichen
+sie ohne Kampf ins eigene Land zurück (Gebäude mindestens `fallBackDistance` Felder weiter weg vom
+Feind, sonst Heimatturm). Zieht der Feind weiter ins eigene Land, fallen ihm Verteidigung und Guerilla
+in den Rücken. Zusammen mit `frontGarrison` (Hinterland dünn, mehr Soldaten frei) ein Zwischenlager
+für Überfälle. Steht im Charakter vor `guardByThreat` (beide am Entscheidungspunkt „Bewachung“).
 
 ### Besatzung
 
@@ -197,6 +206,15 @@ Entscheidungspunkt: Angriffsziele.
 
 ### Zeitpunkt und Strategie
 
+**`earlyArmy` – Frühe Armee** · S · **umgesetzt**
+Die ersten Einträge von Eisenschmelze, Waffenschmied und Kaserne rücken zusammen direkt hinter die
+ersten `after` Einträge (Holz und Stein). Die Startwaren (Eisenerz, Kohle auf mittlerer und hoher
+Startstufe) werden sofort Soldaten, statt auf Minen und Nahrung zu warten. Lohnt nur bei einem Charakter, der die
+frühen Soldaten auch einsetzt: bei der vorsichtigen Plänklerin kostete er Wirtschaft (gegen Standard
+0,43 statt 0,48), beim Hitzkopf brachte er 0,56 statt 0,52. Auch `forwardBase` schwächte die
+Plänklerin (0,39): Ihre Soldaten standen an der Front in Reichweite der feindlichen Guerilla. Dafür darf eine Schmelze
+auch ohne eigene Mine kommen, wenn ihr Erz auf eigenem Land liegt (gilt für alle).
+
 **`earlyRush` – Früher Ansturm** · M
 Mit den Startsoldaten früh einen nahen gegnerischen Turm angreifen, bevor der Gegner Kaserne und
 Waffen hat. Danach normale Wirtschaft.
@@ -233,6 +251,7 @@ Viele Unterschiede brauchen keinen eigenen Charakterzug, nur andere Werte im Cha
 | `attack.armyRatio` | Überlegenheit der ganzen Armee (Vorgabe: `ratio`; 0 = egal → kleine Feldzüge gegen schwache Türme) |
 | `attack.commit` | Anteil der übrigen freien Soldaten, der zusätzlich mitzieht (1 = volle Stärke) |
 | `attack.abortRatio` | nach dem Sammeln: Abbruch unter diesem Verhältnis (Vorgabe: `ratio`; 0 = nie) |
+| `attack.maxDistance` | Ziel höchstens so weit vom nächsten eigenen Militärgebäude (0 = egal) |
 | `attack.minSoldiers`, `attack.defenseRadius` | kleinster Trupp; wie weit Feinde um das Ziel zur Verteidigung zählen |
 | `military.strikeRange`, `military.strikeRatio` | Guerilla: wie weit draußen, ab welcher Überlegenheit |
 | `military.retreatRatio` | Rückzug darunter (0 = nie) |
@@ -250,10 +269,10 @@ Ziel: je Volk ein Charakter, der sich als Gegner eigen anfühlt. Definiert in `a
 
 | Volk | Charakter | Idee | Umsetzung |
 |---|---|---|---|
-| Ägypter | Hitzkopf (`hothead`) | temperamentvoll, greift immer mit voller Stärke an | frontGarrison; `ratio` 1,2, `commit` 1, Guerilla bei 1,2:1 bis 120 Felder; Kaserne/Waffenschmiede 6 Plätze früher |
-| Asiaten | Unbeugsamer (`unyielding`) | gibt niemals auf, zieht sich nie zurück | guardByThreat; `abortRatio` 0, `retreatRatio` 0, `ratio` 1,4 |
+| Ägypter | Hitzkopf (`hothead`) | temperamentvoll, greift immer mit voller Stärke an | earlyArmy, frontGarrison; `ratio` 1,2, `commit` 1, Guerilla bei 1,2:1 bis 120 Felder (mit earlyArmy gegen Standard 0,56 statt 0,52, entscheidet mehr Partien) |
+| Asiaten | Unbeugsamer (`unyielding`) | gibt niemals auf, zieht sich nie zurück | guardByThreat; `abortRatio` 0,5, `retreatRatio` 0,5 (bei 0 lief er sich tot: 0,35 Punkte gegen Standard, mit 0,5: 0,50), `ratio` 1,4 |
 | Römer | Legion (`legion`) | wirtschaftlich stark, greift gebündelt in Wellen an | waves, pincer, guardByThreat; `minSoldiers` 8, `commit` 0,6; Gold 10 Plätze früher; 5 Baustellen |
-| Amazonen | Plänklerin (`skirmisher`) | auf Nummer sicher, schwächt den Gegner mit kleinen Guerillas | guardByThreat; Feldzug erst bei 2:1, aber ohne Armee-Vergleich ab 2 Soldaten; Guerilla bis 150 Felder bei 1,3:1, Rückzug schon unter 1,2 |
+| Amazonen | Plänklerin (`skirmisher`) | auf Nummer sicher, schwächt den Gegner mit kleinen Guerillas | guardByThreat; Feldzug erst bei 2:1, aber ohne Armee-Vergleich ab 2 Soldaten und nur bis 50 Felder (`maxDistance`; ohne griff sie in Minute 1 einen Turm quer über die Karte an und verlor danach alles); Guerilla bis 150 Felder bei 1,3:1, Rückzug schon unter 1,2 |
 
 ## Charaktere (Entwurf)
 

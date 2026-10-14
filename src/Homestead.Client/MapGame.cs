@@ -989,13 +989,14 @@ public sealed class MapGame : Game
             {
                 var color = PlayerColors.Of(building.Player);
                 _economyRenderer.DrawBuilding(_spriteBatch, building, _terrain, color);
-                _economyRenderer.DrawOccupants(_spriteBatch, building, _world.Military.Occupants(building), _settlerRenderer, _terrain);
+                _economyRenderer.DrawOccupants(_spriteBatch, building, _world.Military.Occupants(building), _settlerRenderer, _terrain,
+                    _world.Tick, alpha);
                 _economyRenderer.DrawFlag(_spriteBatch, building, _world.Production.HasWorker(building) || _world.Military.IsOccupied(building),
                     _terrain, color, _time);
             }
             foreach (var settler in settlersByRow[y])
             {
-                _settlerRenderer.Draw(_spriteBatch, settler, _terrain, alpha, PlayerColors.Of(settler.Player));
+                _settlerRenderer.Draw(_spriteBatch, settler, _terrain, _world.Tick, alpha, PlayerColors.Of(settler.Player));
                 if (settler.SoldierType is { } type && settler.Health < _world.Military.Config.MaxHealth(type, settler.Level))
                     DrawHealthBar(settler, type, alpha);
             }
@@ -1003,6 +1004,7 @@ public sealed class MapGame : Game
 
         foreach (var cloud in _world.DustClouds)
             _economyRenderer.DrawDustCloud(_spriteBatch, cloud.Position, (_world.Tick - cloud.Tick + alpha) / World.DustCloudTicks, _terrain);
+        DrawArrows(alpha);
 
         if (_selectedBuilding is { Exists: true } selectedBuilding)
             DrawBuildingFrame(selectedBuilding);
@@ -1065,6 +1067,47 @@ public sealed class MapGame : Game
             Capture(target);
 
         base.Draw(gameTime);
+    }
+
+    /// <summary>Height of the bow above a bowman's feet, and of the chest an arrow hits, in pixels.</summary>
+    private const float BowHeight = 14;
+    private const float HitHeight = 10;
+
+    /// <summary>
+    /// Arrows in flight, on top of everything: from the bow (on the tower or the field) towards the
+    /// target, in a slight arc, higher the further they fly.
+    /// </summary>
+    private void DrawArrows(float alpha)
+    {
+        foreach (var arrow in _world.Military.Arrows)
+        {
+            var start = ScreenProjection.ToWorld(arrow.From.X, arrow.From.Y, _terrain.HeightAt(arrow.From.X, arrow.From.Y));
+            if (arrow.Tower is { } tower && _world.Military.Occupants(tower) is var occupants
+                && Enumerable.Range(0, occupants.Count).FirstOrDefault(i => occupants[i] == arrow.Shooter, -1) is >= 0 and var place)
+                start = EconomyRenderer.OccupantAnchor(tower, place, _terrain);
+            start.Y -= BowHeight;
+            var end = arrow.Target is { IsDead: false, IsInside: false } target
+                ? SettlerRenderer.Anchor(target, _terrain, alpha)
+                : ScreenProjection.ToWorld(arrow.To.X, arrow.To.Y, _terrain.HeightAt(arrow.To.X, arrow.To.Y));
+            end.Y -= HitHeight;
+
+            float progress = Math.Clamp((_world.Tick - arrow.Tick + alpha) / arrow.FlightTicks, 0, 1);
+            float arc = 4 + 0.15f * Vector2.Distance(start, end);
+            var position = Vector2.Lerp(start, end, progress) - new Vector2(0, arc * 4 * progress * (1 - progress));
+            // Six flight directions as on screen (SW, W, NW, NE, E, SE), angle measured with y down.
+            var delta = end - start;
+            float degrees = MathHelper.ToDegrees(MathF.Atan2(delta.Y, delta.X));
+            int direction = degrees switch
+            {
+                >= 90 and < 150 => 0,
+                >= 150 or < -150 => 1,
+                >= -150 and < -90 => 2,
+                >= -90 and < -30 => 3,
+                >= -30 and < 30 => 4,
+                _ => 5,
+            };
+            _economyRenderer.DrawArrow(_spriteBatch, position, direction, Math.Min(2, (int)(progress * 3)));
+        }
     }
 
     /// <summary>
@@ -1274,12 +1317,14 @@ public sealed class MapGame : Game
         // HOMESTEAD_CAPTURE_STRIKE=1: the focused building comes down (dust), carriers without room strike.
         bool strike = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_STRIKE") == "1";
         bool magic = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MAGIC") == "1";
-        if (_capturedFrames % 120 == 119 || strike && _capturedFrames is 1202 or 1206
+        // HOMESTEAD_CAPTURE_EVERY=<n>: a picture every n frames instead of every 120 (arrows in flight).
+        int every = int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVERY"), out int n) && n > 0 ? n : 120;
+        if (_capturedFrames % every == every - 1 || strike && _capturedFrames is 1202 or 1206
             || magic && _world.Magic.Effects.Count > 0 && _capturedFrames % 6 == 0)
         {
             using var stream = File.Create(Path.Combine(_captureDirectory!, $"{_map.Name}_{_capturedFrames:D4}.png"));
             target.SaveAsPng(stream, target.Width, target.Height);
-            Console.WriteLine($"frame {_capturedFrames}: {_world.Settlers.Count} settlers · {_perf.Summary} · {_sprites.PageCount} atlas pages");
+            Console.WriteLine($"frame {_capturedFrames}: {_world.Settlers.Count} settlers · {_world.Military.Arrows.Count} arrows · {_perf.Summary} · {_sprites.PageCount} atlas pages");
         }
         target.Dispose();
 

@@ -63,6 +63,9 @@ public sealed partial class AiPlayer
         // The character's own values (e.g. a lower attack ratio) on top of the people's.
         if (config is null)
             _config = AiConfig.Load(civilization: catalog.Civilization, character: Character.Id);
+        // Decision point "build order": each trait may rearrange it, in the character's order.
+        foreach (var trait in Character.Traits)
+            _config = _config with { BuildOrder = trait.ArrangeBuildOrder(_config.BuildOrder) };
         if (Character.Traits.Count > 0)
             Note($"plays as {Character.Id} ({string.Join(", ", Character.Traits.Select(t => t.Id))})");
     }
@@ -78,6 +81,9 @@ public sealed partial class AiPlayer
     internal Building? Home => _home;
 
     internal AiConfig Config => _config;
+
+    /// <summary>The build order it plays by: the people's, with the character's moves and traits applied.</summary>
+    public IReadOnlyList<(string Building, int Count)> BuildOrder => _config.BuildOrder;
 
     /// <summary>The latest decisions, oldest first (for watching and debugging).</summary>
     public IReadOnlyList<string> Log => _log;
@@ -281,14 +287,15 @@ public sealed partial class AiPlayer
 
     /// <summary>
     /// A building that processes a mine's output (iron melt, gold melt) while no own building (sites
-    /// included) yields it: it would only stand idle.
+    /// included) yields it and none of it lies on the own land (start goods): it would only stand idle.
     /// </summary>
     private bool LacksOre(BuildingDefinition definition, List<Building> mine)
     {
         var mines = _world.Production.Config.Mines;
         var mined = mines.Values.Select(m => m.Output).ToHashSet();
         return Inputs(definition).Any(m => mined.Contains(m) && !mine.Any(b => Outputs(b.Definition).Contains(m)
-                                                                             || mines.TryGetValue(b.Definition.Name, out var r) && r.Output == m));
+                                                                             || mines.TryGetValue(b.Definition.Name, out var r) && r.Output == m)
+                                           && !_world.Piles.Any(p => p.Material == m && p.Count > 0 && p.Role != PileRole.Request && _world.BelongsTo(p, Player)));
     }
 
     /// <summary>

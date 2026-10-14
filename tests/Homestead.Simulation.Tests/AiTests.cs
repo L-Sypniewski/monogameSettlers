@@ -191,6 +191,7 @@ public class AiTests(ITestOutputHelper output)
         var world = new World(new GameMap(40), TestConfig.NoTools);
         Assert.Equal(["waves", "frontGarrison"], new AiPlayer(world, Romans, 0, character: "waves+frontGarrison").Character.Traits.Select(t => t.Id));
         Assert.Throws<ArgumentException>(() => new AiPlayer(world, Romans, 0, character: "waves+nothing"));
+        Assert.Equal(["waves", "pincer", "guardByThreat"], new AiPlayer(world, Romans, 0, character: "general+waves").Character.Traits.Select(t => t.Id));
     }
 
     [Fact]
@@ -236,6 +237,50 @@ public class AiTests(ITestOutputHelper output)
             output.WriteLine(line);
         Assert.Equal(all, ai.Log.Any(l => l.Contains("gathers 10 soldiers")));
         Assert.Contains(ai.Log, l => l.Contains("gathers"));
+    }
+
+    [Fact]
+    public void An_early_army_moves_iron_melt_weaponsmith_and_barrack_behind_wood_and_stone()
+    {
+        var world = new World(new GameMap(40), TestConfig.NoTools);
+        foreach (var people in Enum.GetValues<Civilization>())
+        {
+            var order = new AiPlayer(world, BuildingCatalog.Load(people), 0, character: "earlyArmy").BuildOrder;
+            var plain = AiConfig.Load(civilization: people).BuildOrder;
+            Assert.Equal(plain.Take(4), order.Take(4));
+            Assert.Equal([("ironmelt", 1), ("weaponsmith", 1), ("barrack", 1)], order.Skip(4).Take(3));
+            Assert.Equal(plain.Count, order.Count);
+        }
+    }
+
+    [Fact]
+    public void Idle_soldiers_gather_at_the_forward_base_and_fall_back_from_a_stronger_enemy()
+    {
+        var world = new World(new GameMap(200), TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var home = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 100), force: true)!;
+        var front = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(90, 100), force: true)!;
+        world.PlaceBuilding(Romans["tower"], 1, new GridPoint(170, 100), force: true);
+        world.SpawnSoldier(home.Door, SoldierType.Swordsman);
+        world.SpawnSoldier(front.Door, SoldierType.Swordsman);
+        world.Step();
+        var soldiers = Enumerable.Range(0, 3).Select(i => world.SpawnSoldier(new GridPoint(34 + i, 108), SoldierType.Swordsman)!).ToList();
+        var ai = new AiPlayer(world, Romans, 0, character: "forwardBase");
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 60 * World.TicksPerSecond; t++)
+            world.Step();
+        Assert.All(soldiers, s => Assert.True(Pathfinding.PathFinder.Distance(s.Position, front.Door) <= 10, $"at {s.Position}"));
+
+        // Many enemies come close to the base (outside the own land): the soldiers fall back home.
+        for (int i = 0; i < 12; i++)
+            world.SpawnSoldier(new GridPoint(125 + i % 4, 96 + i / 4), SoldierType.Swordsman, player: 1);
+        for (int t = 0; t < 60 * World.TicksPerSecond; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(ai.Log, l => l.Contains("forwardBase: falls back"));
+        Assert.All(soldiers.Where(s => !s.IsDead), s => Assert.True(Pathfinding.PathFinder.Distance(s.Position, home.Door) <= 10, $"at {s.Position}"));
     }
 
     [Fact]

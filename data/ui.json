@@ -131,7 +131,7 @@
     "reinforceThreatened": "Türme vorab aufstocken", "rotateWounded": "Verwundete tauschen", "formation": "Schlachtordnung",
     "flanking": "Hinterhalt", "spellTiming": "Zauber im richtigen Moment", "exposedTowers": "Entblößte Türme",
     "landGrab": "Landnahme", "economicTargets": "Wirtschaft treffen", "goldRace": "Goldrausch", "goldGuard": "Goldwacht",
-    "goldRaid": "Goldraub", "earlyRush": "Früher Ansturm", "powerSpike": "Kraftprobe", "waves": "Angriffswellen",
+    "goldRaid": "Goldraub", "earlyRush": "Früher Ansturm", "powerSpike": "Kraftprobe", "waves": "Angriffswellen", "earlyArmy": "Frühe Armee", "forwardBase": "Vorposten",
     "multiFront": "Mehrere Fronten", "jitter": "Unberechenbar"
   },
   "_statusComment": "Building info panel: the simulation's status text mapped to a short German state. The first entry whose text is contained in the status wins; anything else counts as active. Military buildings show their soldiers instead.",

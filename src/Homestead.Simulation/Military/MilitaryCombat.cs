@@ -11,7 +11,8 @@ namespace Homestead.Simulation.Military;
 /// A fighter looks for the nearest enemy soldier outside the buildings within sight (also while on a
 /// move or attack order; it stops as soon as the enemy is within reach). Melee soldiers walk up to it
 /// and strike from the neighboring field, bowmen shoot from up to their range; one hit every attack
-/// interval. Near the enemy the way is planned locally around everyone standing (see <see cref="Approach"/>). Without an enemy an attacker walks to its target's door. When attackers
+/// interval. An arrow flies <see cref="ArrowTicks"/> (longer the further) and hurts when it lands, if
+/// its target is still outside then. Near the enemy the way is planned locally around everyone standing (see <see cref="Approach"/>). Without an enemy an attacker walks to its target's door. When attackers
 /// stand near the door, the building sends out one soldier at a time to fight them; bowmen in the
 /// building shoot at enemies in range. An attacker at the door of a building with nobody left
 /// inside or out defending takes it: the building, its soldier places and its land change sides,
@@ -31,6 +32,14 @@ public sealed partial class Military
     private const int RetargetTicks = 10;
 
     public int Kills { get; private set; }
+
+    private readonly List<Arrow> _arrows = new();
+
+    /// <summary>Arrows in flight.</summary>
+    public IReadOnlyList<Arrow> Arrows => _arrows;
+
+    /// <summary>Flight time of an arrow over a distance in fields.</summary>
+    public static int ArrowTicks(int distance) => 4 + distance;
 
     public int Captures { get; private set; }
 
@@ -56,7 +65,7 @@ public sealed partial class Military
                 if (g.Places[i] is not { } soldier || g.Places.Count(p => p is not null) <= 1)
                     continue;
                 g.Places[i] = null;
-                _world.LeaveBuilding(soldier);
+                LeaveBuilding(soldier);
                 attackers.Add(soldier);
             }
         }
@@ -146,6 +155,7 @@ public sealed partial class Military
             EngageIdleSoldiers();
             SendOutDefenders();
         }
+        LandArrows();
         ShootFromBuildings();
         foreach (var fighter in _fighters.Values.ToList())
             Advance(fighter);
@@ -192,7 +202,7 @@ public sealed partial class Military
             var defender = g.Places[place]!;
             g.Places[place] = null;
             g.Defending[place] = defender;
-            _world.LeaveBuilding(defender);
+            LeaveBuilding(defender);
             _fighters[defender.Id] = new Fighter(defender) { Home = g.Building, HomePlace = place };
         }
     }
@@ -220,9 +230,30 @@ public sealed partial class Military
                 }
                 if (enemy is null)
                     break;
-                Hit(bowman, enemy);
+                bowman.Facing = FacingTowards(g.Building.Position, enemy.Position);
+                SetActivity(bowman, Activity.Shooting);
+                Hit(bowman, enemy, g.Building);
+                bowman.ShotTicks = stats.AttackTicks;
                 _nextShot[bowman.Id] = _world.Tick + stats.AttackTicks;
             }
+            // Nobody left to shoot at: the bowmen lower their bows once the last shot is through.
+            foreach (var bowman in g.Places)
+                if (bowman is { Activity: Activity.Shooting } && _nextShot.GetValueOrDefault(bowman.Id) <= _world.Tick)
+                    SetActivity(bowman, Activity.None);
+        }
+    }
+
+    /// <summary>Arrows that have arrived hurt their target, unless it died or went inside meanwhile.</summary>
+    private void LandArrows()
+    {
+        for (int i = _arrows.Count - 1; i >= 0; i--)
+        {
+            var arrow = _arrows[i];
+            if (arrow.Tick + arrow.FlightTicks > _world.Tick)
+                continue;
+            _arrows.RemoveAt(i);
+            if (!arrow.Target.IsDead && !arrow.Target.IsInside)
+                Hurt(arrow.Target, arrow.Damage);
         }
     }
 
@@ -264,9 +295,11 @@ public sealed partial class Military
                 {
                     Hit(soldier, enemy);
                     // Hasted by a spell: strikes faster.
-                    f.NextHit = _world.Tick + (soldier.HastedUntil > _world.Tick
+                    int interval = soldier.HastedUntil > _world.Tick
                         ? Math.Max(1, (int)Math.Round(stats.AttackTicks / soldier.HasteFactor))
-                        : stats.AttackTicks);
+                        : stats.AttackTicks;
+                    f.NextHit = _world.Tick + interval;
+                    soldier.ShotTicks = interval;
                 }
                 return;
             }
@@ -471,9 +504,25 @@ public sealed partial class Military
     /// <summary>The soldier's combat strength where it stands.</summary>
     public float CombatStrengthOf(Settler soldier) => CombatStrengthAt(soldier.Player, soldier.Position);
 
-    private void Hit(Settler attacker, Settler enemy)
+    /// <summary>A strike hurts at once; a bowman's arrow (from <paramref name="tower"/>, if he is in one) when it lands.</summary>
+    private void Hit(Settler attacker, Settler enemy, Building? tower = null)
     {
-        enemy.Health -= _config.Damage(attacker.SoldierType!.Value, attacker.Level) * CombatStrengthOf(attacker);
+        float damage = _config.Damage(attacker.SoldierType!.Value, attacker.Level)
+                       * CombatStrengthOf(attacker);
+        if (attacker.SoldierType != SoldierType.Bowman)
+        {
+            Hurt(enemy, damage);
+            return;
+        }
+        var from = tower?.Position ?? attacker.Position;
+        attacker.LastShotTick = _world.Tick;
+        _arrows.Add(new Arrow(attacker, tower, enemy, from, enemy.Position, _world.Tick,
+            ArrowTicks(PathFinder.Distance(from, enemy.Position)), damage));
+    }
+
+    private void Hurt(Settler enemy, float damage)
+    {
+        enemy.Health -= damage;
         if (enemy.Health <= 0)
             Kill(enemy);
     }
@@ -542,6 +591,13 @@ public sealed partial class Military
         f.Soldier.HasTask = false;
     }
 
+    /// <summary>A soldier steps out of its building; a bowman stops shooting from the top.</summary>
+    private void LeaveBuilding(Settler soldier)
+    {
+        _world.LeaveBuilding(soldier);
+        SetActivity(soldier, Activity.None);
+    }
+
     private static void SetActivity(Settler soldier, Activity activity)
     {
         if (soldier.Activity == activity)
@@ -591,3 +647,12 @@ public sealed partial class Military
         public bool Forced { get; init; }
     }
 }
+
+/// <summary>
+/// An arrow in flight from a bowman (on <paramref name="Tower"/>, if he shoots from one) at
+/// <paramref name="Target"/>, launched at <paramref name="Tick"/> from <paramref name="From"/> towards
+/// where the target stood then (<paramref name="To"/>).
+/// </summary>
+public sealed record Arrow(Settler Shooter, Building? Tower, Settler Target, GridPoint From, GridPoint To, long Tick,
+    int FlightTicks, float Damage);
+

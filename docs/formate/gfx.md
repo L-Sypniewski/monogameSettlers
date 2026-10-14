@@ -55,6 +55,13 @@ Regeln aus JSettlers (`AdvancedDatFileReader.initialize`) übernommen, siehe `Gf
   römische Spezialisten (239 Einträge, Datei 11).
 - Offen: in Datei 12 wirken die Schatten der Sequenzen 26–33 nicht stimmig.
 
+Einzelne Sequenzen (visuell bestätigt):
+- Datei 01, Sequenz 100–105: fliegender Pfeil je Richtung (SW, W, NW, NE, O, SO), 3 Frames: steigend, waagrecht, fallend.
+- Dateien 12/22/32/42: hinter `BOWMAN_L3`/`ACTION1` folgt eine Sequenz mit 22 Frames (Farbebene leer), dann 6 Sequenzen
+  à 2 Frames: Infanterie im Turmfenster (Schwertkämpfer, dann Pikeniere, je Stufe 1–3; Frame 0 blickt nach links,
+  1 nach rechts). Römer/Asiaten 28–33, Ägypter 33–38, Amazonen 26–31.
+- Bogenschützen `ACTION1` (24 Frames je Richtung): der Pfeil verlässt den Bogen nach Frame 17.
+
 ## Sequenz
 `02 14 00 00 08 00 00`, `u8 frameAnzahl`, dann `u32[frameAnzahl]` Offsets **relativ zum Sequenzanfang**.
 

@@ -108,17 +108,37 @@ public sealed class EconomyRenderer
     /// (y up, from the building anchor), facing south-east or south-west.
     /// </summary>
     public void DrawOccupants(SpriteBatch batch, Building building, IReadOnlyList<Settler?> occupants, SettlerRenderer settlers,
-        TerrainMesh terrain)
+        TerrainMesh terrain, long tick, float tickAlpha)
     {
-        var anchor = Anchor(building.Position, terrain);
         for (int i = 0; i < occupants.Count; i++)
         {
             if (occupants[i] is not { } soldier)
                 continue;
             var place = building.Definition.Occupiers[i];
-            settlers.DrawStanding(batch, soldier, anchor + new Vector2(place.Pixel.X, -place.Pixel.Y),
-                place.LooksRight ? Direction.SouthEast : Direction.SouthWest, PlayerColors.Of(soldier.Player));
+            settlers.DrawOccupant(batch, soldier, OccupantAnchor(building, i, terrain),
+                place.LooksRight ? Direction.SouthEast : Direction.SouthWest, PlayerColors.Of(soldier.Player), tick, tickAlpha);
         }
+    }
+
+    /// <summary>Where the soldier of a place stands on the building, in world pixels.</summary>
+    public static Vector2 OccupantAnchor(Building building, int place, TerrainMesh terrain)
+    {
+        var pixel = building.Definition.Occupiers[place].Pixel;
+        return Anchor(building.Position, terrain) + new Vector2(pixel.X, -pixel.Y);
+    }
+
+    private const int ArrowFile = 1;
+    private const int ArrowSequence = 100;
+
+    /// <summary>
+    /// An arrow at a world position, flying in a screen direction (SW, W, NW, NE, E, SE: sequences
+    /// 100-105 of the object file); frame 0 rising, 1 level, 2 falling.
+    /// </summary>
+    public void DrawArrow(SpriteBatch batch, Vector2 position, int direction, int frame)
+    {
+        var sprites = Sprites(ArrowFile, ArrowSequence + direction);
+        if (sprites.FrameCount > 0)
+            sprites.Draw(batch, Math.Min(frame, sprites.FrameCount - 1), position, 1, Color.White);
     }
 
     /// <summary>One post of a work area marking; <paramref name="ring"/> 0 (inner) to 3 (outer).</summary>

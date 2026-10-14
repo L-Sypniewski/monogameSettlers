@@ -11,10 +11,20 @@ namespace Homestead.Client;
 /// Draws simulation settlers: interpolates between ticks, follows terrain height and picks the
 /// animation of the settler's people from <see cref="SettlerAnimations"/> (type, action, carried good,
 /// direction). Specialists without an own animation look like carriers; settlers without a profession get a varied look.
+/// Standing idle, a settler looks around: a new direction every <see cref="LookAroundMinTicks"/> to <see cref="LookAroundMaxTicks"/>.
 /// </summary>
 public sealed class SettlerRenderer
 {
     private const float WorkFramesPerTick = 0.5f;
+
+    /// <summary>The frame of a bowman's shooting animation in which the arrow leaves the bow.</summary>
+    private const int ReleaseFrame = 17;
+
+    private const int LookAroundMinTicks = 2 * World.TicksPerSecond;
+    private const int LookAroundMaxTicks = 30 * World.TicksPerSecond;
+
+    /// <summary>Infantry in a window: per people the sequences after the bowmen's (swordsmen L1-3, pikemen L1-3), frame 0 looks left, 1 right.</summary>
+    private const int WindowSequencesAfterBowmen = 2;
 
     private readonly SpriteLibrary _library;
     private readonly GfxDirectory _gfx;
@@ -22,6 +32,18 @@ public sealed class SettlerRenderer
     private readonly Func<int, Civilization> _peopleOf;
     private readonly Dictionary<int, int[]> _walkSequences = new();
     private readonly Dictionary<SettlerAnimation, bool> _exists = new();
+    private readonly Dictionary<Civilization, int?> _windowSequences = new();
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Settler, IdleLook> _idleLooks = new();
+    private readonly Random _random = new();
+
+    /// <summary>Where a settler standing idle looks: <see cref="Facing"/> until <see cref="Until"/>; it started out facing <see cref="From"/> at <see cref="At"/>.</summary>
+    private sealed class IdleLook
+    {
+        public GridPoint At;
+        public Direction From;
+        public Direction Facing;
+        public long Until;
+    }
 
     /// <param name="peopleOf">People (civilization) of a player: settlers look like their people's.</param>
     public SettlerRenderer(SpriteLibrary library, SettlerAnimations animations, Func<int, Civilization> peopleOf)
@@ -45,12 +67,60 @@ public sealed class SettlerRenderer
     /// <summary>Grid row used for depth sorting: the lower of the two rows a step connects.</summary>
     public static int DepthRow(Settler settler) => Math.Max(settler.Position.Y, settler.StepTarget.Y);
 
-    /// <summary>A settler standing at a given screen position (soldiers on a tower).</summary>
-    public void DrawStanding(SpriteBatch batch, Settler settler, Vector2 anchor, Direction facing, Color playerColor)
+    /// <summary>
+    /// A soldier in a place of a military building at a given screen position: bowmen stand on top
+    /// (shooting towards their target, else looking to <paramref name="facing"/>), infantry look out of a window.
+    /// </summary>
+    public void DrawOccupant(SpriteBatch batch, Settler settler, Vector2 anchor, Direction facing, Color playerColor, long tick, float tickAlpha)
     {
+        if (settler.SoldierType != SoldierType.Bowman && WindowSequence(settler) is { } window)
+        {
+            Sprites(PeopleFile(PeopleOf(settler)), window).Draw(batch, facing == Direction.SouthEast ? 1 : 0, anchor, 1, playerColor);
+            return;
+        }
+        if (settler.Activity == Activity.Shooting && Find(settler, "ACTION1", settler.Facing) is { } shooting)
+        {
+            Sprites(shooting).Draw(batch, ShotFrame(settler, shooting, tick, tickAlpha), anchor, 1, playerColor);
+            return;
+        }
         var (sprites, frame) = Look(settler, "NO_ACTION", facing, a => a.Start, 0);
         sprites.Draw(batch, frame, anchor, 1, playerColor);
     }
+
+    /// <summary>
+    /// The shooting animation fitted to the bowman's shot interval, so that the arrow leaves the bow
+    /// (<see cref="ReleaseFrame"/>) in the tick it is shot.
+    /// </summary>
+    private static int ShotFrame(Settler settler, SettlerAnimation animation, long tick, float tickAlpha)
+    {
+        int frames = Math.Abs(animation.Duration);
+        float sinceShot = Math.Max(0, tick - settler.LastShotTick + tickAlpha);
+        return animation.Cycle(ReleaseFrame + (int)(sinceShot * frames / Math.Max(1, settler.ShotTicks)));
+    }
+
+    /// <summary>The window sequence of an infantry soldier, if its people has the window pictures.</summary>
+    private int? WindowSequence(Settler settler)
+    {
+        var people = PeopleOf(settler);
+        if (!_windowSequences.TryGetValue(people, out int? first))
+        {
+            first = null;
+            if (_animations.Find(people, "BOWMAN_L3", "ACTION1", "NO_MATERIAL", Direction.SouthWest) is { File: var f } bowmen
+                && f == PeopleFile(people) && _gfx.FileNumbers.Contains(f))
+            {
+                var file = _gfx.Open(f);
+                int candidate = bowmen.Sequence + WindowSequencesAfterBowmen;
+                if (candidate + 5 < file.SettlerCount
+                    && Enumerable.Range(candidate, 6).All(s => file.GetSettlerFrameCount(s) == 2))
+                    first = candidate;
+            }
+            _windowSequences[people] = first;
+        }
+        int type = settler.SoldierType == SoldierType.Pikeman ? 1 : 0;
+        return first + type * 3 + Math.Clamp(settler.Level, 1, 3) - 1;
+    }
+
+    private static int PeopleFile(Civilization people) => ((int)people + 1) * 10 + 2;
 
     /// <summary>A standing settler of a type and people fitted into a box, e.g. as a menu icon.</summary>
     public void DrawIcon(SpriteBatch batch, Civilization people, string type, Rectangle box, float maxScale, Color playerColor)
@@ -64,17 +134,19 @@ public sealed class SettlerRenderer
         sprites.Draw(batch, animation.Start, anchor, scale, playerColor);
     }
 
-    public void Draw(SpriteBatch batch, Settler settler, TerrainMesh terrain, float tickAlpha, Color playerColor)
+    public void Draw(SpriteBatch batch, Settler settler, TerrainMesh terrain, long tick, float tickAlpha, Color playerColor)
     {
-        var (sprites, frame) = Frame(settler, tickAlpha);
+        var (sprites, frame) = Frame(settler, tick, tickAlpha);
         sprites.Draw(batch, frame, Anchor(settler, terrain, tickAlpha), 1, playerColor);
     }
 
-    private (SettlerSprites Sprites, int Frame) Frame(Settler settler, float tickAlpha)
+    private (SettlerSprites Sprites, int Frame) Frame(Settler settler, long tick, float tickAlpha)
     {
         int work = (int)((settler.ActivityTicks + tickAlpha) * WorkFramesPerTick);
         if (WorkAction(settler.Activity) is { } action && Find(settler, action, settler.Facing) is { } animation)
-            return (Sprites(animation), animation.Cycle(work));
+            return (Sprites(animation), settler.Activity == Activity.Shooting
+                ? ShotFrame(settler, animation, tick, tickAlpha)
+                : animation.Cycle(work));
         // Winegrowers, rice farmers and beekeepers plant with ACTION1 and a plant in their hands.
         if (settler.Activity == Activity.Sowing && TypeOf(settler) is { } planter
             && Resolve(PeopleOf(settler), planter, "ACTION1", "PLANT", settler.Facing) is { } planting)
@@ -87,8 +159,35 @@ public sealed class SettlerRenderer
             return Look(settler, "WALKING", settler.Facing, a => a.Frame(progress),
                 SettlerSprites.WalkFrame(settler.Facing, progress));
         }
-        return Look(settler, "NO_ACTION", settler.Facing, a => a.Start, SettlerSprites.StandFrame(settler.Facing));
+        var facing = IdleFacing(settler, tick);
+        return Look(settler, "NO_ACTION", facing, a => a.Start, SettlerSprites.StandFrame(facing));
     }
+
+    /// <summary>
+    /// Where a standing settler looks: while it has nothing to do (no activity, no way to go) it turns
+    /// to another direction now and then; anything else it does turns it back to its own facing.
+    /// </summary>
+    private Direction IdleFacing(Settler settler, long tick)
+    {
+        if (settler.Activity != Activity.None || settler.IsStriking || settler.Destination is not null)
+        {
+            _idleLooks.Remove(settler);
+            return settler.Facing;
+        }
+        if (!_idleLooks.TryGetValue(settler, out var look) || look.At != settler.Position || look.From != settler.Facing)
+        {
+            look = new IdleLook { At = settler.Position, From = settler.Facing, Facing = settler.Facing, Until = tick + LookAroundTicks() };
+            _idleLooks.AddOrUpdate(settler, look);
+        }
+        else if (tick >= look.Until)
+        {
+            look.Facing = (Direction)(((int)look.Facing + _random.Next(1, DirectionExtensions.Count)) % DirectionExtensions.Count);
+            look.Until = tick + LookAroundTicks();
+        }
+        return look.Facing;
+    }
+
+    private int LookAroundTicks() => _random.Next(LookAroundMinTicks, LookAroundMaxTicks + 1);
 
     /// <summary>Walking or standing: the settler's own animation, else a carrier's, else a varied carrier look.</summary>
     private (SettlerSprites Sprites, int Frame) Look(Settler settler, string action, Direction facing, Func<SettlerAnimation, int> frame, int plainFrame)

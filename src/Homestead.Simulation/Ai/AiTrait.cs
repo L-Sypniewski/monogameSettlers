@@ -41,12 +41,20 @@ public abstract class AiTrait
     /// </summary>
     internal virtual int? GarrisonLimit(AiPlayer ai, Building building) => null;
 
+    /// <summary>
+    /// Decision point "build order": once, when the AI starts; each trait gets the order the previous
+    /// ones left (the people's order with the character's <c>buildOrderMoves</c> first).
+    /// </summary>
+    internal virtual IReadOnlyList<(string Building, int Count)> ArrangeBuildOrder(IReadOnlyList<(string Building, int Count)> order) => order;
+
     private static readonly Dictionary<string, Func<JsonElement, AiTrait>> Factories = new()
     {
         [PincerTrait.TraitId] = settings => new PincerTrait(settings),
         [GuardByThreatTrait.TraitId] = _ => new GuardByThreatTrait(),
         [WavesTrait.TraitId] = settings => new WavesTrait(settings),
         [FrontGarrisonTrait.TraitId] = settings => new FrontGarrisonTrait(settings),
+        [EarlyArmyTrait.TraitId] = settings => new EarlyArmyTrait(settings),
+        [ForwardBaseTrait.TraitId] = settings => new ForwardBaseTrait(settings),
     };
 
     public static IEnumerable<string> Known => Factories.Keys;
@@ -57,6 +65,11 @@ public abstract class AiTrait
 
     protected static double Setting(JsonElement settings, string name, double fallback) =>
         settings.ValueKind == JsonValueKind.Object && settings.TryGetProperty(name, out var value) ? value.GetDouble() : fallback;
+
+    protected static string[] Setting(JsonElement settings, string name, string[] fallback) =>
+        settings.ValueKind == JsonValueKind.Object && settings.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Array
+            ? value.EnumerateArray().Select(v => v.GetString()!).ToArray()
+            : fallback;
 }
 
 /// <summary>Leads a campaign in place of the built-in gather-and-attack.</summary>

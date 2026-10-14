@@ -301,7 +301,7 @@ public sealed partial class Military
                 if (g.Places[i] is not { } soldier || soldier.SoldierType != type || g.Places.Count(p => p is not null) <= 1)
                     continue;
                 g.Places[i] = null;
-                _world.LeaveBuilding(soldier);
+                LeaveBuilding(soldier);
                 soldier.HasTask = false;
                 excess--;
             }
@@ -334,7 +334,7 @@ public sealed partial class Military
             {
                 _world.EnterBuilding(soldier);
                 g.Places[place] = soldier;
-                _world.LeaveBuilding(relieved);
+                LeaveBuilding(relieved);
                 relieved.HasTask = false;
                 continue;
             }
@@ -365,7 +365,7 @@ public sealed partial class Military
         {
             if (g.Places[i] is not { } soldier)
                 continue;
-            _world.LeaveBuilding(soldier);
+            LeaveBuilding(soldier);
             soldier.HasTask = false;
             g.Places[i] = null;
         }

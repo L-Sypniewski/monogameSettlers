@@ -46,6 +46,9 @@ public sealed partial class AiPlayer
             if (ownArmy < Army(target.Player) * rules.ArmyRatio)
                 continue;
             var rally = military.MinBy(b => PathFinder.Distance(b.Position, target.Position))!;
+            // An outpost far away could not be held.
+            if (rules.MaxDistance > 0 && PathFinder.Distance(rally.Position, target.Position) > rules.MaxDistance)
+                continue;
             if (!pathFinder.AreConnected(rally.Door, target.Door) || !WayIsClear(rally.Door, target))
                 continue;
             double defense = Defense(target);
