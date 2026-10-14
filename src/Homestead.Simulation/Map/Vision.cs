@@ -1,10 +1,9 @@
-using Homestead.Simulation.Pathfinding;
-
 namespace Homestead.Simulation.Map;
 
 /// <summary>
-/// What one player sees of the map (fog of war): their own land and everything within sight of their
-/// settlers is visible; what was visible once stays explored. Recomputed on demand (<see cref="Update"/>),
+/// What one player sees of the map (fog of war): their own land, everything within sight of their
+/// settlers and of finished buildings with a sight (<see cref="Military.MilitaryConfig.BuildingSight"/>,
+/// the lookout tower) is visible; what was visible once stays explored. Recomputed on demand (<see cref="Update"/>),
 /// not every tick. The simulation itself does not use it: computer players know the whole map.
 /// </summary>
 public sealed class Vision
@@ -44,12 +43,37 @@ public sealed class Vision
         {
             if (settler.Player != Player || settler.IsDead || settler.IsInside)
                 continue;
-            int sight = settler.SoldierType is { } type ? world.Military.Config.Sight(type) : SettlerSight;
-            foreach (var p in PathFinder.Circle(settler.Position, sight))
-                if (map.Contains(p))
-                    _visible[map.Index(p)] = true;
+            See(settler.Position, settler.SoldierType is { } type ? world.Military.Config.Sight(type) : SettlerSight);
         }
+        var buildingSight = world.Military.Config.BuildingSight;
+        foreach (var building in world.Buildings)
+            if (building is { Exists: true, State: Buildings.BuildingState.Finished } && building.Player == Player
+                && buildingSight.TryGetValue(building.Definition.Name, out int sight))
+                See(building.Position, sight);
         for (int i = 0; i < _visible.Length; i++)
             _explored[i] |= _visible[i];
+    }
+
+    /// <summary>Marks the circle of <see cref="Pathfinding.PathFinder.InCircle"/> as visible.</summary>
+    private void See(GridPoint center, int radius)
+    {
+        // Row by row instead of PathFinder.Circle: large radii (lookout tower) would test four times the area.
+        // The circle reaches 2r/√3 rows up and down.
+        int reach = (int)Math.Ceiling(radius * 2 / Math.Sqrt(3));
+        for (int dy = -reach; dy <= reach; dy++)
+        {
+            int y = center.Y + dy;
+            if ((uint)y >= (uint)_size)
+                continue;
+            // InCircle: dx² - dx·dy + dy² <= r², solved for dx.
+            double discriminant = 4.0 * radius * radius - 3.0 * dy * dy;
+            if (discriminant < 0)
+                continue;
+            double root = Math.Sqrt(discriminant);
+            int from = Math.Max(0, center.X + (int)Math.Ceiling((dy - root) / 2 - 1e-9));
+            int to = Math.Min(_size - 1, center.X + (int)Math.Floor((dy + root) / 2 + 1e-9));
+            for (int x = from; x <= to; x++)
+                _visible[y * _size + x] = true;
+        }
     }
 }

@@ -25,6 +25,9 @@ public sealed record MilitaryConfig
     /// <summary>Soldiers react to enemies within this distance.</summary>
     public required int SightRange { get; init; }
 
+    /// <summary>Fog of war: how far finished buildings of these names see (by building name).</summary>
+    public IReadOnlyDictionary<string, int> BuildingSight { get; init; } = new Dictionary<string, int>();
+
     /// <summary>Near the enemy, ways are planned locally within this radius around everyone standing.</summary>
     public required int CombatPathRadius { get; init; }
 
@@ -60,6 +63,9 @@ public sealed record MilitaryConfig
                     (int)Math.Round(s.Value.GetProperty("attackSeconds").GetDouble() * World.TicksPerSecond), s.Value.GetProperty("range").GetInt32())),
             LevelBonus = root.GetProperty("levelBonus").EnumerateArray().Select(v => v.GetSingle()).ToArray(),
             SightRange = root.GetProperty("sightRange").GetInt32(),
+            BuildingSight = root.TryGetProperty("buildingSight", out var buildingSight)
+                ? buildingSight.EnumerateObject().ToDictionary(b => b.Name, b => b.Value.GetInt32())
+                : new Dictionary<string, int>(),
             CombatPathRadius = root.GetProperty("combatPathRadius").GetInt32(),
             AttackRange = root.GetProperty("attackRange").GetInt32(),
             CombatStrength = root.TryGetProperty("combatStrength", out var strength) ? CombatStrengthConfig.Parse(strength) : CombatStrengthConfig.None,

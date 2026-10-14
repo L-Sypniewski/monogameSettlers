@@ -11,6 +11,8 @@
   },
   "levelBonus": [ 1.0, 1.3, 1.7 ],
   "sightRange": 15,
+  "_buildingSightComment": "Fog of war: finished own buildings of these names reveal their surroundings up to this radius (other buildings only through land and settlers).",
+  "buildingSight": { "lookout_tower": 45 },
   "_combatPathRadiusComment": "Near the enemy, soldiers plan their way within this radius around everyone standing (own soldiers too).",
   "combatPathRadius": 15,
   "attackRange": 50,

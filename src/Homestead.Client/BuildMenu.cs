@@ -7,20 +7,15 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Homestead.Client;
 
 /// <summary>
-/// Build menu at the left edge, like the original's: its blue side panel (without the minimap above it),
-/// the category buttons in the dark bar below the main tabs, the buildings of the chosen category in the
-/// panel as icons. Graphics from the installation (large size, as the original at 1024 × 768);
-/// categories come from <c>data/ui.json</c>.
+/// Build menu in the blue side panel (<see cref="SidePanel"/>), like the original's: the category buttons
+/// in the dark bar below the main tabs, the buildings of the chosen category below as icons. Graphics from
+/// the installation (large size, as the original at 1024 × 768); categories come from <c>data/ui.json</c>.
+/// Drawn and hit-tested in panel space.
 /// </summary>
 public sealed class BuildMenu : IDisposable
 {
-    /// <summary>Width of the panel; the left edge of the screen up to here belongs to the menu.</summary>
-    public const int Width = 216;
-
-    /// <summary>Side panel: GFX file 04, sequence 2; frames 0–2 are the sizes for 640, 800 and 1024 pixels wide screens.</summary>
-    private const int PanelFile = 4;
-    private const int PanelSequence = 2;
-    private const int PanelFrame = 2;
+    /// <summary>Width of the menus in the side panel (panel space).</summary>
+    public const int Width = SidePanel.Width;
 
     /// <summary>Category buttons: GFX file 03.</summary>
     private const int TabFile = 3;
@@ -36,7 +31,6 @@ public sealed class BuildMenu : IDisposable
 
     private readonly List<(string Name, Texture2D? Tab, Texture2D? Selected, List<BuildingDefinition> Buildings)> _categories = new();
     private readonly Dictionary<string, Texture2D> _icons = new();
-    private readonly Texture2D _panel;
     private int _category;
 
     public BuildMenu(GraphicsDevice device, GfxDirectory gfx, BuildingCatalog catalog)
@@ -48,14 +42,14 @@ public sealed class BuildMenu : IDisposable
             return texture;
         }
 
-        _panel = ToTexture(gfx.Open(PanelFile).ReadSettler(PanelSequence, PanelFrame));
         var tabs = gfx.Open(TabFile);
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
         foreach (var category in document.RootElement.GetProperty("buildMenu").EnumerateArray())
         {
             var buildings = category.GetProperty("buildings").EnumerateArray()
                 .Select(b => catalog.Find(b.GetString()!))
-                .Where(b => b is { ConstructionImage: not null } && b.ConstructionPiles.Count > 0)
+                // Not every building has a construction image (the storehouse is only posts): its site shows sign and posts.
+                .Where(b => b is not null && b.ConstructionPiles.Count > 0)
                 .Cast<BuildingDefinition>().ToList();
             Texture2D? tab = null, selected = null;
             if (category.TryGetProperty("tab", out var images))
@@ -70,10 +64,7 @@ public sealed class BuildMenu : IDisposable
                 _icons[building.Name] = ToTexture(gfx.Open(image.File).ReadGui(image.Sequence + LargeIcon));
     }
 
-    /// <summary>Whether the screen point is on the menu (clicks there do not reach the map).</summary>
-    public static bool Contains(Vector2 screen) => screen.X < Width;
-
-    /// <summary>A click on the menu: switches the category, or returns the building to place.</summary>
+    /// <summary>A click on the menu (panel space): switches the category, or returns the building to place.</summary>
     public BuildingDefinition? Click(Vector2 screen)
     {
         if (TabAt(screen) is { } tab)
@@ -116,13 +107,8 @@ public sealed class BuildMenu : IDisposable
         return new Rectangle(Content.X + i % Columns * width, Content.Y + i / Columns * CellHeight, width, CellHeight);
     }
 
-    public void Draw(SpriteBatch batch, Texture2D pixel, int height, BuildingDefinition? placing, Vector2 cursor)
+    public void Draw(SpriteBatch batch, Texture2D pixel, BuildingDefinition? placing, Vector2 cursor)
     {
-        // Below the panel (where the original has the minimap above it) the menu column stays dark.
-        if (height > _panel.Height)
-            batch.Draw(pixel, new Rectangle(0, _panel.Height, Width, height - _panel.Height), Color.Black);
-        batch.Draw(_panel, Vector2.Zero, Color.White);
-
         for (int i = 0; i < _categories.Count; i++)
         {
             var rect = TabRect(i);
@@ -166,7 +152,6 @@ public sealed class BuildMenu : IDisposable
 
     public void Dispose()
     {
-        _panel.Dispose();
         foreach (var category in _categories)
         {
             category.Tab?.Dispose();

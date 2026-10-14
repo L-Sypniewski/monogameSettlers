@@ -24,7 +24,7 @@ namespace Homestead.Client;
 /// Keys: arrows/WASD scroll · N new carrier at cursor · M 50 wandering settlers ·
 /// G demo economy at cursor · P placement mode (Q/E building type, click places a construction site) ·
 /// PgUp/PgDn map ·
-/// O objects · B blocked fields · Esc quit
+/// O objects · B blocked fields · T game time · Esc quit
 /// </remarks>
 public sealed class MapGame : Game
 {
@@ -71,6 +71,8 @@ public sealed class MapGame : Game
     private BuildingCatalog? _romans;
     private BuildingDefinition[] _placeable = [];
     private BuildMenu? _buildMenu;
+    private SidePanel _sidePanel = null!;
+    private Minimap? _minimap;
     private readonly ConversionMenu _conversionMenu = new();
     private readonly SelectionPanel _selectionPanel = new();
     private readonly SpellMenu _spellMenu = new();
@@ -130,6 +132,15 @@ public sealed class MapGame : Game
     private bool _showBlocked;
     private bool _showObjects = true;
     private Vector2 _camera; // world position shown at the screen center
+
+    /// <summary>Camera flight after a click on the minimap: from, to, start (real seconds); none while <see cref="_flightStart"/> is negative.</summary>
+    private Vector2 _flightFrom, _flightTo;
+    private double _flightStart = -1;
+    private const double FlightSeconds = 0.35;
+
+    /// <summary>The left button went down on the minimap and is still held: moving the mouse drags the view frame.</summary>
+    private bool _minimapDrag;
+    private Vector2 _minimapPress;
     private float _zoom = 2;
 
     /// <summary>Farthest out: drawing cost grows with the square of the area shown.</summary>
@@ -140,6 +151,7 @@ public sealed class MapGame : Game
     private int _capturedFrames;
     private readonly PerfStats _perf = new();
     private bool _showPerf;
+    private bool _showClock;
 
     /// <param name="peoples">Peoples for the players whose people the map leaves open (see <see cref="OriginalScenario.Load"/>).</param>
     /// <param name="characters">AI character per player (entry i for player i); empty or missing: drawn.</param>
@@ -190,6 +202,7 @@ public sealed class MapGame : Game
             LightingEnabled = false,
         };
         _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
+        _sidePanel = new SidePanel(GraphicsDevice, _gfx);
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
@@ -233,7 +246,7 @@ public sealed class MapGame : Game
             return;
         _buildMenu?.Dispose();
         _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog);
-        _placeable = catalog.All.Where(b => b.ConstructionPiles.Count > 0 && b.ConstructionImage is not null)
+        _placeable = catalog.All.Where(b => b.ConstructionPiles.Count > 0)
             .OrderBy(b => b.Name).ToArray();
         _placeIndex = Math.Max(0, Array.FindIndex(_placeable, b => b.Name == "lumberjack"));
         _placing = false;
@@ -254,6 +267,9 @@ public sealed class MapGame : Game
         _fog?.Dispose();
         _fog = new FogLayer(GraphicsDevice, _terrain);
         _fog.SetTargets(_vision);
+        _minimap?.Dispose();
+        _minimap = new Minimap(GraphicsDevice, _map.Area);
+        _minimap.Update(_vision, all: !_fogOn);
         _nextVision = _time + VisionInterval;
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         // Every other player is a computer player.
@@ -393,6 +409,7 @@ public sealed class MapGame : Game
         {
             _vision.Update(_world);
             _fog!.SetTargets(_vision);
+            _minimap!.Update(_vision, all: !_fogOn);
             _nextVision = _time + VisionInterval;
         }
         _fog!.Advance((float)elapsed.TotalSeconds);
@@ -477,6 +494,8 @@ public sealed class MapGame : Game
         }
         if (Pressed(Keys.F3))
             _showPerf = !_showPerf;
+        if (Pressed(Keys.T))
+            _showClock = !_showClock;
         if (Pressed(Keys.F11))
             ToggleFullScreen();
         // Groups: Ctrl+1-9 stores the selection, 1-9 selects the group again.
@@ -508,6 +527,7 @@ public sealed class MapGame : Game
         if (Pressed(Keys.V))
         {
             _fogOn = !_fogOn;
+            _minimap!.Update(_vision, all: !_fogOn);
             _message = _fogOn ? "fog of war on (V)" : "fog of war off (V)";
         }
         if (Pressed(Keys.O))
@@ -563,7 +583,36 @@ public sealed class MapGame : Game
 
         // The menu at the left edge: with carriers selected what they can become, otherwise the build
         // menu (a click chooses a category or the building to place).
-        bool onMenu = BuildMenu.Contains(cursorScreen);
+        bool onMenu = SidePanel.Contains(cursorScreen, GraphicsDevice.Viewport.Height);
+        // The menus in the side panel work in panel space.
+        var panelCursor = SidePanel.ToPanel(cursorScreen, GraphicsDevice.Viewport.Height);
+        // A click on the minimap (also on its part over the game view) flies the camera there; dragging
+        // with the button held moves the view frame along (also beyond the minimap's edge).
+        if (SidePanel.MinimapAt(cursorScreen, GraphicsDevice.Viewport.Height, _gameMap.Size) is { } onMinimap)
+        {
+            onMenu = true;
+            if (mouse.LeftButton == ButtonState.Pressed && _previousMouse.LeftButton == ButtonState.Released && IsActive)
+            {
+                _flightFrom = _camera;
+                _flightTo = ToWorld(onMinimap);
+                _flightStart = gameTime.TotalGameTime.TotalSeconds;
+                _minimapDrag = true;
+                _minimapPress = cursorScreen;
+            }
+        }
+        if (_minimapDrag && mouse.LeftButton == ButtonState.Released)
+            _minimapDrag = false;
+        if (_minimapDrag)
+        {
+            onMenu = true;
+            if (Vector2.Distance(_minimapPress, cursorScreen) >= DragThreshold
+                && SidePanel.MinimapAt(cursorScreen, GraphicsDevice.Viewport.Height, _gameMap.Size, clamp: true) is { } dragged)
+            {
+                _flightStart = -1;
+                _camera = ToWorld(dragged);
+                _minimapPress = new Vector2(float.NegativeInfinity); // from now on every move counts
+            }
+        }
         bool released = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is null;
         // The group icons at the top right: a click selects the group.
         _controlGroups.Update();
@@ -575,7 +624,7 @@ public sealed class MapGame : Game
             _aiming = false;
         if (PriestsSelected)
         {
-            if (onMenu && released && _spellMenu.Contains(cursorScreen))
+            if (onMenu && released && _spellMenu.Contains(panelCursor))
             {
                 _aiming = !_aiming && _world.Magic.SpellOf(0) is { } spell && _world.Magic.Mana(0) >= spell.Cost;
                 _message = _aiming ? "click on a fight to cast" : "not enough mana";
@@ -583,7 +632,7 @@ public sealed class MapGame : Game
         }
         else if (CarriersSelected)
         {
-            if (onMenu && _conversionMenu.EntryAt(cursorScreen) is { } entry)
+            if (onMenu && _conversionMenu.EntryAt(panelCursor) is { } entry)
             {
                 _message = $"{entry.Name}: convert the selected carriers";
                 if (released)
@@ -593,7 +642,7 @@ public sealed class MapGame : Game
         else if (ShowsBuildingInfo)
         {
             // A small temple's upgrade buttons: soldiers trained from now on get the next level.
-            if (onMenu && _buildingInfo.UpgradeAt(cursorScreen, GraphicsDevice.Viewport.Height, _world, _selectedBuilding!, 0) is { } upgrade)
+            if (onMenu && _buildingInfo.UpgradeAt(panelCursor, SidePanel.ContentHeight, _world, _selectedBuilding!, 0) is { } upgrade)
             {
                 string name = _buildingInfo.SoldierName(upgrade);
                 _message = $"{name}: upgrade at {_world.Magic.UpgradeThreshold(0)} mana earned ({_world.Magic.ManaEarned(0)} so far)";
@@ -608,7 +657,7 @@ public sealed class MapGame : Game
                     };
             }
             // A military building's garrison: one soldier of a type more or fewer (never empty, never overfull).
-            if (onMenu && _buildingInfo.GarrisonChangeAt(cursorScreen, GraphicsDevice.Viewport.Height, _selectedBuilding!, 0) is var (type, delta))
+            if (onMenu && _buildingInfo.GarrisonChangeAt(panelCursor, SidePanel.ContentHeight, _selectedBuilding!, 0) is var (type, delta))
             {
                 string name = _buildingInfo.SoldierName(type);
                 bool possible = _world.Military.CanChangeWanted(_selectedBuilding!, type, delta);
@@ -619,7 +668,7 @@ public sealed class MapGame : Game
                     _world.Military.ChangeWanted(_selectedBuilding!, type, delta);
             }
             // The info panel's tear-down button (asks first).
-            if (onMenu && released && _buildingInfo.Click(cursorScreen, GraphicsDevice.Viewport.Height, _selectedBuilding!, 0))
+            if (onMenu && released && _buildingInfo.Click(panelCursor, SidePanel.ContentHeight, _selectedBuilding!, 0))
             {
                 _message = $"{_buildingInfo.NameOf(_selectedBuilding!.Definition)} torn down";
                 _world.RemoveBuilding(_selectedBuilding);
@@ -628,12 +677,12 @@ public sealed class MapGame : Game
         }
         else if (_group.Count == 0)
         {
-            if (onMenu && released && _buildMenu!.Click(cursorScreen) is { } chosen)
+            if (onMenu && released && _buildMenu!.Click(panelCursor) is { } chosen)
             {
                 _placeIndex = Math.Max(0, Array.IndexOf(_placeable, chosen));
                 _placing = true;
             }
-            if (onMenu && _buildMenu!.BuildingAt(cursorScreen) is { } hovered)
+            if (onMenu && _buildMenu!.BuildingAt(panelCursor) is { } hovered)
                 _message = hovered.Name;
         }
 
@@ -653,7 +702,20 @@ public sealed class MapGame : Game
         var kind = _group.FirstOrDefault(s => !s.IsDead && !s.IsInside)?.Profession;
         _group.RemoveAll(s => s.IsDead || s.IsInside || s.Profession != kind || s.IsCarrier && !s.IsAvailableCarrier);
 
+        // The flight: eased out (fast start, soft arrival); scrolling by hand ends it.
+        if (_flightStart >= 0)
+        {
+            float t = (float)Math.Min(1, (gameTime.TotalGameTime.TotalSeconds - _flightStart) / FlightSeconds);
+            _camera = Vector2.Lerp(_flightFrom, _flightTo, 1 - MathF.Pow(1 - t, 3));
+            if (t >= 1)
+                _flightStart = -1;
+        }
+
         float speed = 800 / _zoom * (float)gameTime.ElapsedGameTime.TotalSeconds;
+        if (keys.IsKeyDown(Keys.Left) || keys.IsKeyDown(Keys.A) || keys.IsKeyDown(Keys.Right) || keys.IsKeyDown(Keys.D)
+            || keys.IsKeyDown(Keys.Up) || keys.IsKeyDown(Keys.W) || keys.IsKeyDown(Keys.Down) || keys.IsKeyDown(Keys.S)
+            || mouse.RightButton == ButtonState.Pressed)
+            _flightStart = -1;
         if (keys.IsKeyDown(Keys.Left) || keys.IsKeyDown(Keys.A))
             _camera.X -= speed;
         if (keys.IsKeyDown(Keys.Right) || keys.IsKeyDown(Keys.D))
@@ -1108,7 +1170,7 @@ public sealed class MapGame : Game
         if (_dragStart is { } boxStart && !_placing)
             DrawSelectionBox(boxStart, Mouse.GetState().Position.ToVector2());
         DrawMagic(alpha);
-        if (_placing && !BuildMenu.Contains(Mouse.GetState().Position.ToVector2()))
+        if (_placing && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), viewport.Height))
         {
             var at = ScreenToGrid(Mouse.GetState().Position.ToVector2());
             var definition = _placeable[_placeIndex];
@@ -1120,39 +1182,44 @@ public sealed class MapGame : Game
                 DrawBlockedRow(y, visible);
         _spriteBatch.End();
 
-        _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-        _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, _font, _settlerRenderer, Own.Civilization, _group,
-            Mouse.GetState().Position.ToVector2());
+        // Side panel: minimap and blue panel scaled to the window height, the menus inside in panel space.
+        _sidePanel.Draw(_spriteBatch, _pixel, _minimap?.Texture, _gameMap.Size, visible);
+        SidePanel.Begin(_spriteBatch, viewport.Height);
+        var panelMouse = SidePanel.ToPanel(Mouse.GetState().Position.ToVector2(), viewport.Height);
         if (ShowsBuildingInfo)
-            _buildingInfo.Draw(_spriteBatch, _pixel, viewport.Height, _font, _economyRenderer, _settlerRenderer, Own.Civilization, _world, _selectedBuilding!, 0,
-                Mouse.GetState().Position.ToVector2());
+            _buildingInfo.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _economyRenderer, _settlerRenderer, Own.Civilization, _world, _selectedBuilding!, 0,
+                panelMouse);
         else if (_group.Count > 0)
         {
             // The selected units (below the spell or conversion menu for priests or carriers) and the combat strength.
             int unitsTop = 4;
             if (PriestsSelected)
             {
-                _spellMenu.Draw(_spriteBatch, _pixel, viewport.Height, _font, _settlerRenderer, Own.Civilization, _world.Magic.SpellOf(0),
-                    _world.Magic.Mana(0), _aiming, Mouse.GetState().Position.ToVector2());
+                _spellMenu.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _settlerRenderer, Own.Civilization, _world.Magic.SpellOf(0),
+                    _world.Magic.Mana(0), _aiming, panelMouse);
                 unitsTop = 140;
             }
             else if (CarriersSelected)
             {
-                _conversionMenu.Draw(_spriteBatch, _pixel, viewport.Height, _settlerRenderer, Own.Civilization, Mouse.GetState().Position.ToVector2());
+                _conversionMenu.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _settlerRenderer, Own.Civilization, panelMouse);
                 unitsTop = 78;
             }
-            _selectionPanel.Draw(_spriteBatch, _pixel, viewport.Height, _font, _settlerRenderer, Own.Civilization, _group,
+            _selectionPanel.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _settlerRenderer, Own.Civilization, _group,
                 _world.Military.CombatStrength(0), unitsTop, background: unitsTop == 4);
         }
         else
-            _buildMenu!.Draw(_spriteBatch, _pixel, viewport.Height, _placing ? _placeable[_placeIndex] : null, Mouse.GetState().Position.ToVector2());
+            _buildMenu!.Draw(_spriteBatch, _pixel, _placing ? _placeable[_placeIndex] : null, panelMouse);
+        _spriteBatch.End();
+
+        _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+        _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, _font, _settlerRenderer, Own.Civilization, _group,
+            Mouse.GetState().Position.ToVector2());
+        // Bottom right, stacked upwards: performance (F3), then the game time (T).
+        int bottom = viewport.Height;
         if (_showPerf)
-        {
-            var size = _font.Measure(_perf.Summary);
-            _spriteBatch.Draw(_pixel, new Rectangle(viewport.Width - (int)size.X - 12, viewport.Height - (int)size.Y - 8, (int)size.X + 8, (int)size.Y + 4),
-                Color.Black * 0.6f);
-            _font.Draw(_spriteBatch, _perf.Summary, new Vector2(viewport.Width - size.X - 8, viewport.Height - size.Y - 6), Color.White);
-        }
+            bottom = DrawCornerText(_perf.Summary, bottom);
+        if (_showClock)
+            DrawCornerText(GameTime(), bottom);
         _spriteBatch.End();
         _perf.EndDraw(GraphicsDevice);
 
@@ -1165,6 +1232,24 @@ public sealed class MapGame : Game
     /// <summary>Height of the bow above a bowman's feet, and of the chest an arrow hits, in pixels.</summary>
     private const float BowHeight = 14;
     private const float HitHeight = 10;
+
+    /// <summary>A text box at the bottom right, ending at <paramref name="bottom"/>; returns its top.</summary>
+    private int DrawCornerText(string text, int bottom)
+    {
+        var size = _font.Measure(text);
+        int width = GraphicsDevice.Viewport.Width;
+        _spriteBatch.Draw(_pixel, new Rectangle(width - (int)size.X - 12, bottom - (int)size.Y - 8, (int)size.X + 8, (int)size.Y + 4),
+            Color.Black * 0.6f);
+        _font.Draw(_spriteBatch, text, new Vector2(width - size.X - 8, bottom - size.Y - 6), Color.White);
+        return bottom - (int)size.Y - 8;
+    }
+
+    /// <summary>How long the game has run in game time (fast forward counts in full), h:mm:ss.</summary>
+    private string GameTime()
+    {
+        var time = TimeSpan.FromSeconds(_world.Tick / (double)World.TicksPerSecond);
+        return $"{(int)time.TotalHours}:{time.Minutes:D2}:{time.Seconds:D2}";
+    }
 
     /// <summary>
     /// Arrows in flight, on top of everything: from the bow (on the tower or the field) towards the
@@ -1210,7 +1295,7 @@ public sealed class MapGame : Game
     private void DrawMagic(float alpha)
     {
         int radius = _world.Magic.Config.Radius;
-        if (_aiming && !BuildMenu.Contains(Mouse.GetState().Position.ToVector2()))
+        if (_aiming && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height))
         {
             var target = ScreenToGrid(Mouse.GetState().Position.ToVector2());
             DrawRing(target, radius, _world.Magic.IsFight(target) ? Color.White : Color.Red);
@@ -1508,6 +1593,8 @@ public sealed class MapGame : Game
         _terrain?.Dispose();
         _fog?.Dispose();
         _fogEffect?.Dispose();
+        _minimap?.Dispose();
+        _sidePanel?.Dispose();
         _startScreen?.Dispose();
         _sprites.Dispose();
         _buildMenu?.Dispose();
