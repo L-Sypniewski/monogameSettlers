@@ -134,6 +134,30 @@ Abriss). Sobald der Turm besetzt ist, fallen die gegnerischen Gebäude darauf.
 Angriffsziele höher bewerten, deren Land Minen, Schmelzen, Waffenschmieden oder Tempel trägt.
 Ein Treffer dort kostet den Gegner mehr als ein beliebiger Turm.
 
+### Gold
+
+Siehe [Gold als Hebel](#gold-als-hebel). Drei Module, je an einem eigenen Entscheidungspunkt.
+
+**`goldRace` – Gold früh sichern** · M
+Goldberge (Ägypter: Edelsteine) gelten von Anfang an als Expansionsziel, nicht erst nach der
+Build-Order (`lateOres`). Goldmine und -schmelze rücken in der Build-Order nach vorn, sobald Nahrung
+und Werkzeuge laufen. Werte: ab welchem Schritt der Build-Order, Gewicht umkämpfter Goldberge.
+Entscheidungspunkte: Turmplätze, Bauen.
+
+**`goldGuard` – Gold schützen** · M
+Land, auf dem eigenes Gold liegt (Lager, Ausgabestapel der Schmelze), gilt als Front – auch im
+Hinterland: Militärgebäude dort voll besetzt, mit Bogenschützen, Wachen nach der Menge Gold statt
+nur nach Bedrohung. Neues Lager nur auf Land, das mehrere eigene Türme decken. Wahlweise Gold auf
+mehrere Lager verteilen, damit ein Treffer nicht alles kostet (Abwägung: mehr Orte zu verteidigen).
+Entscheidungspunkte: Besatzung, Bewachung, Bauplatz Lager.
+Auf Schwer in jedem Charakter empfohlen – ohne ihn kann eine einzige Eroberung die KI erledigen.
+
+**`goldRaid` – Gold erobern** · M
+Angriffsziele, deren Land gegnerisches Gold trägt, bekommen die höchste Bewertung: Die Eroberung
+nimmt dem Gegner Kampfkraft und gibt sie dem Angreifer. Lohnt sich auch bei knapperer Überlegenheit
+(eigener Wert für `attack.ratio`), weil der Gewinn die Kräfte sofort verschiebt.
+Entscheidungspunkt: Angriffsziele.
+
 ### Zeitpunkt und Strategie
 
 **`earlyRush` – Früher Ansturm** · M
@@ -147,6 +171,10 @@ dann gebündelt losschlagen. Gold dafür gezielt sammeln.
 **`waves` – Spannungsphasen** · S
 Wechsel aus ruhigen Aufbauphasen und Angriffswellen statt gleichmäßigen Drucks. Werte: Länge der
 Phasen (mit Streuung).
+
+**`multiFront` – Druck an mehreren Stellen** · M
+Zwei oder drei Trupps bedrohen gleichzeitig verschiedene Grenzabschnitte. Der Verteidiger muss sich
+aufteilen; angegriffen wird, wo er am dünnsten steht.
 
 **`jitter` – Schwellen streuen** · S
 Feste Verhältnisse (`attack.ratio`, `strikeRatio` …) werden bei jeder Entscheidung innerhalb
@@ -167,13 +195,124 @@ Noch nicht den Völkern zugeordnet – das machen wir, wenn die Module stehen.
 | Standard | heutiges Verhalten | guerilla, campaign, guardByThreat, fullGarrison |
 | Stürmer | früh und oft angreifen, geringere Überlegenheit reicht | earlyRush, campaign, frontGarrison, waves |
 | Feldherr | geordnete Schlachten | formation, pincer, spellTiming, reinforceThreatened |
-| Hinterhältiger | dort zuschlagen, wo keiner hinschaut | flanking, exposedTowers, frontGarrison, jitter |
+| Hinterhältiger | dort zuschlagen, wo keiner hinschaut | flanking, exposedTowers, goldRaid, frontGarrison, jitter |
 | Landnehmer | wächst über Grenzen und nimmt Land ohne Kampf | landGrab, frontGarrison, economicTargets |
-| Wirtschafter | ruhig aufbauen, dann mit starken Soldaten zuschlagen | powerSpike, fullGarrison, spellTiming |
+| Wirtschafter | ruhig aufbauen, dann mit starken Soldaten zuschlagen | goldRace, goldGuard, powerSpike, fullGarrison, spellTiming |
+
+## Schwierigkeit und Charakter
+
+Zwei unabhängige Achsen:
+
+- **Charakter** = *wie* die KI spielt (Stil, Module).
+- **Schwierigkeit** = *wie gut* sie es tut (Wahrnehmung, Reaktion, Entscheidungsqualität).
+
+Ein Stürmer kann leicht oder schwer sein. Gebaut wird die beste KI (Schwer); leichtere Stufen
+bekommen gezielte Abstriche. Die Stufen im Einzelnen stehen in `TODO.md` (Schwierigkeitsgrad).
+
+### Stellschrauben je Stufe
+
+| Stellschraube | Leicht | Mittel | Schwer |
+|---|---|---|---|
+| Wahrnehmung | eigenes Land, Späher, Geologen | was sie sieht, dazu Lage von Gebirgen und Steinen | alles |
+| Späher/Geologen | ja, zum Finden von Rohstoffen | ja, zum Finden von Gegnern | nein |
+| Reaktion | nur auf Angriffe im eigenen Land | auf entdeckte Feinde in der Nähe | auf alle Feinde in der Nähe, vorausschauend |
+| Soldaten aufstellen | irgendwo im Land | an Grenztürmen zum Feindland | an Grenztürmen zu feindlichen Truppen |
+| Guerilla | nein | ja | ja |
+| Module | wenige, einfache | Kampf-Module | alle des Charakters |
+| Schwellen | eher zögerlich bzw. leichtsinnig | Standard | genau berechnet |
+| Denkpause | lang | mittel | kurz |
+
+Module können selbst nach Stufe abschwächen (z. B. `flanking` auf Leicht ohne Rücksicht auf
+Sichtweite), statt nur an- oder abgeschaltet zu werden.
+
+### Schwer muss gewinnen, nicht nur halten
+
+Eine undurchdringliche Verteidigung macht die KI schwer zu *schlagen*, aber nicht schwer zu *spielen*:
+Der Mensch muss nur selbst bunkern, und die Partie endet im Patt. Schwer braucht deshalb auch
+einen Weg zum Sieg:
+
+- **Wirtschaft ausspielen:** besser verteilen, früher Gold, Rohstoffe schneller sichern. Gegen eine
+  gleich starke Verteidigung gewinnt, wer mehr und stärkere Soldaten nachliefert.
+- **Den Verteidiger überdehnen:** Druck an zwei oder drei Stellen zugleich. Auch ein Mensch kann
+  nicht überall sein; die KI greift dort an, wo er gerade nicht verteidigt.
+- **Geduld und dann ein Schlag:** warten, bis Kampfkraft (Gold) und Aufwertungen klar vorn liegen
+  (`powerSpike`), dann gebündelt dort angreifen, wo eine Eroberung Wirtschaft mitreißt
+  (`economicTargets`).
+- **Magie als Durchbruch:** Einfrieren, Zerstreuen, Bekehren gezielt beim Sturm auf einen Turm.
+
+## Gold als Hebel
+
+Gold ist im Spiel genau dafür da, den Verteidigervorteil zu brechen und in die Offensive zu zwingen.
+
+- **Regel:** Im Feindland kämpft ein Soldat mit 100 % / Spielerzahl. Goldbarren auf dem eigenen Land
+  heben das bis 100 %, immer teurer je Schritt. Bei zwei Spielern: 115 Barren für 100 %
+  (Ägypter: 230 Barren oder 57,5 Edelsteine; `combatStrength` in `military.json`).
+- **Verteidigen braucht kein Gold, Angreifen schon.** Wer mehr Gold hat, kann angreifen; wer keines hat,
+  kann nur halten.
+- **Gold gehört dem Land:** Gezählt werden die Stapel auf dem Land eines Spielers, gleich, wer sie
+  hingelegt hat. Erobert ein Spieler das Land um ein gegnerisches Lager, gehört ihm das Gold dort
+  (gewollt). Der Gegner verliert Kampfkraft, der Sieger gewinnt sie – die Partie kann damit
+  sofort entschieden sein.
+- **Folgen für die KI:**
+  - Gold ist ein strategisches Ziel von Anfang an (`goldRace`), nicht Beiwerk am Ende der Build-Order.
+  - Eigenes Gold ist der wertvollste Besitz und wird geschützt wie die Front (`goldGuard`).
+  - Gegnerisches Gold ist das beste Angriffsziel (`goldRaid`).
+- **Risiko:** Der Lawineneffekt ist hier am stärksten. Gewollt ist, dass ein gelungener Schlag auf das
+  Gold die Partie dreht; schlecht wäre, wenn er ohne echte Chance zur Gegenwehr geschieht. Deshalb
+  muss Gold sichtbar und verteidigbar liegen – für Mensch und KI gleich.
+
+## Dynamik und Patt
+
+### Warum Partien heute im Patt enden
+
+- **Verteidigervorteil:** Im eigenen Land 100 % Kampfkraft, im Feindland 100 % / Spielerzahl. Bei
+  zwei Spielern braucht ein Angreifer etwa die doppelte Armee; die KI greift erst bei 1,5:1 an.
+- **Allwissende, sofort reagierende KI:** Wachen stehen nach Bedrohung. Wer sich sammelt, wird
+  gesehen, bevor er angreift.
+- **Gleiche Rechnung auf beiden Seiten:** Zwei gleiche KIs halten sich gegenseitig zurück.
+- **Kaum Schwächen:** Die KI stockt selten (Schmelze erst mit eigener Mine, Material für
+  Steinmetz zurückgehalten …). Im Original entschieden gerade solche Hänger die Partien.
+
+### Was eine Partie wenden kann (gewollt)
+
+- **Gold-Wettlauf:** Gold hebt die Kampfkraft im Feindland – der eingebaute Ausweg aus dem Patt.
+  Wer zuerst nahe 100 % kommt, kann angreifen. Goldberge werden umkämpftes Ziel.
+- **Rohstoffe gehen aus** (`depletion`): Wer nicht zu neuen Rohstoffen kommt, verliert langsam. Liegen
+  sie zwischen den Spielern, wird Kampf nötig.
+- **Eroberung mit Folgen:** Fällt ein Turm, fallen die Gebäude auf seinem Land. Ein Treffer an
+  Mine, Schmelze oder Waffenschmiede legt eine ganze Kette lahm.
+- **Magie:** dreht Kräfteverhältnisse, ohne doppelte Armee.
+- **Unterschiedliche Charaktere:** Ein Stürmer gegen einen Wirtschafter geht ins Risiko; einer
+  gewinnt früh oder verliert sich.
+- **Gewollte Schwächen je Charakter:** Der Landnehmer ist überall dünn besetzt, der Stürmer
+  vernachlässigt die Wirtschaft. Etwas zum Ausnutzen – erkennbar statt zufällig.
+
+### Was eine Partie verderben kann
+
+- **Zu schneller Lawineneffekt:** Eine frühe Eroberung kippt die halbe Wirtschaft; die Partie ist in
+  Minute 15 entschieden, dauert aber noch eine Stunde.
+- **Bunkern:** Wird Verteidigen noch billiger, bauen beide nur Türme und nichts passiert.
+- **Allwissenheit wirkt unfair:** Ein Hinterhalt des Menschen gelingt nie. Abhilfe über die
+  Wahrnehmung der Schwierigkeitsstufen.
+- **Zufällige Hänger:** Stockt die KI durch einen Fehler, entscheidet Glück statt Spiel.
+- **Karte entscheidet:** Ist Gold der einzige Hebel, gewinnt, wer zufällig den Goldberg hat.
+
+### Erste Schritte
+
+1. **Messen:** Arena, 5–10 Partien KI gegen KI à 60 Minuten; Kampfkraft, Gold, Eroberungen und
+   Verluste mitschreiben. Wie oft endet es im Patt?
+2. **Gold früher und gezielt:** Goldberge ansteuern (`goldRace`), Gold schützen (`goldGuard`),
+   Gold für Kampfkraft horten und dann zuschlagen (`powerSpike`, `goldRaid`).
+3. **Wahrnehmung begrenzen** (Stufen Leicht/Mittel): Reaktion nur auf gesehene Trupps.
+4. **Verteidigervorteil** nur mit Arena-Zahlen anfassen, z. B. Abschlag erst tief im Feindland
+   voll, an der Grenze schwächer.
 
 ## Vorgehen
 
 1. Modul-Gerüst: Charaktere in `ai.json`, `IAiModule`, heutiges Verhalten als Standard-Charakter
    (Verhalten unverändert, Arena-Ergebnisse gleich).
-2. Module einzeln umsetzen, je mit Test und Arena-Vergleich gegen den Standard.
-3. Charaktere den Völkern zuordnen.
+2. Arena um Messwerte zum Patt erweitern (Kampfkraft, Gold, Eroberungen, Verluste über die Zeit).
+3. Module einzeln umsetzen, je mit Test und Arena-Vergleich gegen den Standard; zuerst die, die das
+   Patt brechen (`goldRace`, `goldGuard`, `goldRaid`, `powerSpike`, `economicTargets`, `multiFront`).
+4. Schwierigkeit als zweite Achse: Wahrnehmung, Reaktion, Schwellen, erlaubte Module.
+5. Charaktere den Völkern zuordnen.
