@@ -12,18 +12,31 @@ namespace Homestead.Simulation.Military;
 /// move or attack order; it stops as soon as the enemy is within reach). Melee soldiers walk up to it
 /// and strike from the neighboring field, bowmen shoot from up to their range; one hit every attack
 /// interval. A shot hurts at once, as in the original (nobody shoots at an enemy that is as good as
-/// dead); its arrow only shows on screen, flying <see cref="ArrowTicks"/>. Near the enemy the way is planned locally around everyone standing (see <see cref="Approach"/>). Without an enemy an attacker walks to its target's door. When attackers
-/// stand near the door, the building sends out one soldier at a time to fight them; bowmen in the
-/// building shoot at enemies in range. An attacker at the door of a building with nobody left
-/// inside or out defending takes it: the building, its soldier places and its land change sides,
-/// and buildings standing on land their player lost are destroyed. Idle soldiers fight enemies
-/// that come within sight, defenders go back into their place afterwards.
+/// dead); its arrow only shows on screen, flying <see cref="ArrowTicks"/>. Near the enemy the way is planned locally around everyone standing (see <see cref="Approach"/>). Idle soldiers fight enemies
+/// that come within sight.
+/// </remarks>
+/// <remarks>
+/// Attacked buildings: the soldiers stay inside (bowmen keep shooting from the top). Without an enemy an
+/// attacker walks to its target's door: melee soldiers (pikemen too, as if their range were 1) break it
+/// from the few fields next to it (<see cref="MilitaryConfig.DoorFighters"/>; the others queue behind),
+/// bowmen wait <see cref="BowmanDoorDistance"/> fields away (<see cref="MilitaryConfig.DoorHealth"/>). In the
+/// broken door stands one infantry soldier at a time (<see cref="DefendDoors"/>): it cannot walk, strikes
+/// the attackers on those fields and can be fought only by them, so bowmen cannot help to take a
+/// building. When it falls the next one steps in, the bowmen last: they shoot from the door at enemies
+/// within range, but are fought the same way. The attacker that killed the
+/// last defender walks in and takes the building: it, its soldier places and its land change sides,
+/// and buildings standing on land their player lost are destroyed. A door left alone for
+/// <see cref="MilitaryConfig.DoorRegenTicks"/> is whole again and its guard goes back inside.
 /// </remarks>
 public sealed partial class Military
 {
     private const int EngageInterval = 10;
     private const int ReplanTicks = 20;
-    private const int DoorDefenseDistance = 3;
+    /// <summary>Attacking bowmen wait this far from a defended door: they can hurt neither it nor its guard.</summary>
+    private const int BowmanDoorDistance = 4;
+
+    /// <summary>Door guards (by soldier id) and the building they stand in.</summary>
+    private readonly Dictionary<int, Garrison> _guards = new();
 
     private readonly Dictionary<int, Fighter> _fighters = new();
     private readonly Dictionary<int, long> _nextShot = new();
@@ -111,7 +124,9 @@ public sealed partial class Military
     /// <summary>Soldiers outside that can take an order; ones walking into a building drop that.</summary>
     private List<Settler> Commandable(IEnumerable<Settler> soldiers)
     {
-        var list = soldiers.Where(s => s.Profession == Profession.Soldier && !s.IsDead && !s.IsInside).Distinct().ToList();
+        // A door guard holds its post.
+        var list = soldiers.Where(s => s.Profession == Profession.Soldier && !s.IsDead && !s.IsInside && !_guards.ContainsKey(s.Id))
+            .Distinct().ToList();
         foreach (var g in _garrisons.Values)
         {
             foreach (var (place, coming) in g.Coming.ToList())
@@ -151,10 +166,8 @@ public sealed partial class Military
             if (settler.Profession is Profession.Soldier or Profession.Priest && !settler.IsInside && !settler.IsDead)
                 _combatants.Add(settler);
         if (_world.Tick % EngageInterval == 0)
-        {
             EngageIdleSoldiers();
-            SendOutDefenders();
-        }
+        DefendDoors();
         _arrows.RemoveAll(a => a.Tick + a.FlightTicks <= _world.Tick);
         ShootFromBuildings();
         foreach (var fighter in _fighters.Values.ToList())
@@ -164,13 +177,20 @@ public sealed partial class Military
     /// <summary>Soldiers and priests outside the buildings at the start of this tick.</summary>
     private readonly List<Settler> _combatants = new();
 
-    /// <summary>Enemy soldiers and priests outside the buildings: who can be fought.</summary>
+    /// <summary>
+    /// Enemy soldiers and priests outside the buildings: who can be fought. Not door guards: only the
+    /// attackers at the door fight them (see <see cref="Advance"/>).
+    /// </summary>
     private IEnumerable<Settler> EnemiesOf(int player) =>
-        _combatants.Where(s => s.Player != player && !s.IsInside && !s.IsDead);
+        _combatants.Where(s => s.Player != player && !s.IsInside && !s.IsDead && !_guards.ContainsKey(s.Id));
 
     private Settler? NearestEnemy(GridPoint from, int player, int range) =>
         EnemiesOf(player).Where(e => PathFinder.Distance(from, e.Position) <= range)
             .MinBy(e => PathFinder.Distance(from, e.Position));
+
+    /// <summary>Ticks to the next strike; hasted by a spell, faster.</summary>
+    private int HitInterval(Settler soldier, SoldierStats stats) =>
+        soldier.HastedUntil > _world.Tick ? Math.Max(1, (int)Math.Round(stats.AttackTicks / soldier.HasteFactor)) : stats.AttackTicks;
 
     /// <summary>Soldiers standing around fight enemies that come within sight.</summary>
     private void EngageIdleSoldiers()
@@ -183,28 +203,94 @@ public sealed partial class Military
             }
     }
 
-    /// <summary>With enemies at the door, an occupied building sends out one soldier at a time.</summary>
-    private void SendOutDefenders()
+    /// <summary>
+    /// Broken doors: one infantry soldier at a time stands in it, the bowmen come down once none is left
+    /// (one at a time, while enemies are in sight). Doors left alone long enough are repaired.
+    /// </summary>
+    private void DefendDoors()
     {
         foreach (var g in _garrisons.Values)
         {
-            if (!g.Building.Exists || g.Defending.Count > 0)
+            if (!g.Building.Exists)
                 continue;
-            if (NearestEnemy(g.Building.Door, g.Building.Player, DoorDefenseDistance) is null)
+            if (g.DoorHealth < _config.DoorHealth && _world.Tick - g.LastAttack >= _config.DoorRegenTicks)
+            {
+                g.DoorHealth = _config.DoorHealth;
+                if (g.Guard is { } back)
+                    ReturnGuard(g, back);
                 continue;
-            // Infantry first; bowmen keep shooting from the building.
-            int place = Enumerable.Range(0, g.Places.Length)
-                .Where(i => g.Places[i] is not null)
-                .OrderBy(i => g.Places[i]!.SoldierType == SoldierType.Bowman ? 1 : 0)
-                .DefaultIfEmpty(-1).First();
-            if (place < 0)
+            }
+            if (!g.DoorBroken)
                 continue;
-            var defender = g.Places[place]!;
-            g.Places[place] = null;
-            g.Defending[place] = defender;
-            LeaveBuilding(defender);
-            _fighters[defender.Id] = new Fighter(defender) { Home = g.Building, HomePlace = place };
+            if (g.Guard is null)
+            {
+                // Infantry first, then the bowmen come down.
+                int place = Array.FindIndex(g.Places, p => p is { SoldierType: not SoldierType.Bowman });
+                if (place < 0)
+                    place = Array.FindIndex(g.Places, p => p is not null);
+                if (place >= 0)
+                    PostGuard(g, place);
+            }
+            if (g.Guard is { } guard)
+                GuardDoor(g, guard);
         }
+    }
+
+    /// <summary>The soldier of the place steps into the broken door.</summary>
+    private void PostGuard(Garrison g, int place)
+    {
+        var guard = g.Places[place]!;
+        g.Places[place] = null;
+        g.Defending[place] = guard;
+        g.Guard = guard;
+        _guards[guard.Id] = g;
+        LeaveBuilding(guard);
+        guard.HasTask = true;
+        guard.Facing = Direction.SouthEast;
+    }
+
+    /// <summary>The door is whole again: its guard goes back into its place.</summary>
+    private void ReturnGuard(Garrison g, Settler guard)
+    {
+        int place = g.Defending.First(d => d.Value == guard).Key;
+        g.Defending.Remove(place);
+        _guards.Remove(guard.Id);
+        g.Guard = null;
+        SetActivity(guard, Activity.None);
+        _world.EnterBuilding(guard);
+        g.Places[place] = guard;
+    }
+
+    /// <summary>
+    /// The door guard never walks: infantry strikes an enemy on the door's fighting fields, a bowman
+    /// shoots at the nearest enemy within range.
+    /// </summary>
+    private void GuardDoor(Garrison g, Settler guard)
+    {
+        if (guard.FrozenUntil > _world.Tick)
+        {
+            SetActivity(guard, Activity.None);
+            return;
+        }
+        var stats = _config.Soldiers[guard.SoldierType!.Value];
+        bool bowman = guard.SoldierType == SoldierType.Bowman;
+        var spots = DoorSpotsOf(g);
+        var enemy = bowman
+            ? NearestEnemy(guard.Position, guard.Player, stats.Range)
+            : EnemiesOf(guard.Player).Where(e => spots.Contains(e.Position)).MinBy(e => e.Health);
+        if (enemy is null)
+        {
+            SetActivity(guard, Activity.None);
+            return;
+        }
+        guard.Facing = FacingTowards(guard.Position, enemy.Position);
+        SetActivity(guard, bowman ? Activity.Shooting : Activity.Fighting);
+        if (_world.Tick < g.GuardNextHit)
+            return;
+        int interval = HitInterval(guard, stats);
+        Hit(guard, enemy);
+        g.GuardNextHit = _world.Tick + interval;
+        guard.ShotTicks = interval;
     }
 
     /// <summary>Bowmen in military buildings shoot at enemies within range of the building.</summary>
@@ -279,11 +365,8 @@ public sealed partial class Military
                 SetActivity(soldier, soldier.SoldierType == SoldierType.Bowman ? Activity.Shooting : Activity.Fighting);
                 if (_world.Tick >= f.NextHit)
                 {
+                    int interval = HitInterval(soldier, stats);
                     Hit(soldier, enemy);
-                    // Hasted by a spell: strikes faster.
-                    int interval = soldier.HastedUntil > _world.Tick
-                        ? Math.Max(1, (int)Math.Round(stats.AttackTicks / soldier.HasteFactor))
-                        : stats.AttackTicks;
                     f.NextHit = _world.Tick + interval;
                     soldier.ShotTicks = interval;
                 }
@@ -311,15 +394,73 @@ public sealed partial class Military
                 Dismiss(f);
                 return;
             }
-            if (soldier.Position == target.Door && soldier.State != SettlerState.Stepping)
+            bool standing = soldier.State != SettlerState.Stepping;
+            if (!_garrisons.TryGetValue(target.Id, out var g))
             {
-                if (_garrisons.TryGetValue(target.Id, out var g) && g.Places.All(p => p is null) && g.Defending.Count == 0)
+                Dismiss(f);
+                return;
+            }
+            var door = target.Door;
+            if (g.IsEmpty)
+            {
+                // Nobody left inside: the one that struck the last defender down walks in, the others are done.
+                if (!MayCapture(g, soldier))
+                {
+                    Dismiss(f);
+                    return;
+                }
+                if (soldier.Position == door && standing)
+                {
                     Capture(target, soldier);
-                return; // otherwise a defender comes out
+                    return;
+                }
+            }
+            else
+            {
+                // Defended: melee soldiers break the door from the fields next to it, then fight its guard
+                // from there; the others queue behind, bowmen keep their distance. Nobody stands in the door.
+                bool bowman = soldier.SoldierType == SoldierType.Bowman;
+                var spots = DoorSpotsOf(g);
+                // A walk-through (watchdog) can leave two on one field: only its owner fights from there.
+                if (!bowman && standing && soldier.Destination is null && spots.Contains(soldier.Position)
+                    && _world.OccupantAt(soldier.Position) == soldier)
+                {
+                    if (g.DoorBroken && g.Guard is null)
+                        return; // the next defender is coming
+                    soldier.Facing = FacingTowards(soldier.Position, door);
+                    SetActivity(soldier, Activity.Fighting);
+                    if (_world.Tick >= f.NextHit)
+                    {
+                        int interval = HitInterval(soldier, stats);
+                        if (g.Guard is { } guard)
+                            Hit(soldier, guard);
+                        else
+                        {
+                            g.DoorHealth = Math.Max(0, g.DoorHealth - _config.Damage(soldier.SoldierType!.Value, soldier.Level) * CombatStrengthOf(soldier));
+                            g.LastAttack = _world.Tick;
+                        }
+                        f.NextHit = _world.Tick + interval;
+                        soldier.ShotTicks = interval;
+                    }
+                    return;
+                }
+                // Heading for a fighting field somebody else took meanwhile: wait elsewhere.
+                bool taken = soldier.Destination is { } heading && spots.Contains(heading)
+                             && _world.OccupantAt(heading) is { } holder && holder != soldier;
+                if (soldier.Destination is null || taken || _world.Tick >= f.NextReplan + 10 * ReplanTicks)
+                {
+                    var free = bowman ? null : spots.Where(p => _world.OccupantAt(p) is null || _world.OccupantAt(p) == soldier)
+                        .Select(p => (GridPoint?)p).MinBy(p => PathFinder.Distance(soldier.Position, p!.Value));
+                    var wait = free ?? QueueSpot(soldier, door, bowman ? BowmanDoorDistance : 2, spots);
+                    if (!_world.WalkTo(soldier, wait) && !_world.WalkTo(soldier, door))
+                        Dismiss(f);
+                    f.NextReplan = _world.Tick;
+                }
+                return;
             }
             if (soldier.Destination is null || _world.Tick >= f.NextReplan + 10 * ReplanTicks)
             {
-                if (!_world.WalkTo(soldier, target.Door))
+                if (!_world.WalkTo(soldier, door))
                     Dismiss(f);
                 f.NextReplan = _world.Tick;
             }
@@ -340,15 +481,57 @@ public sealed partial class Military
             }
             return;
         }
-        if (f.Home is { } home && _garrisons.TryGetValue(home.Id, out var homeGarrison) && homeGarrison.Defending.Remove(f.HomePlace))
-        {
-            // Back into the place it came from.
-            _fighters.Remove(soldier.Id);
-            homeGarrison.Coming[f.HomePlace] = (soldier, new WalkWatch(_world.Tick));
-            _world.WalkTo(soldier, home.Door);
-            return;
-        }
         Dismiss(f);
+    }
+
+    /// <summary>
+    /// The fields next to the door where melee attackers fight: the walkable neighbors farthest from the
+    /// building, as many as <see cref="MilitaryConfig.DoorFighters"/> allows.
+    /// </summary>
+    private GridPoint[] DoorSpotsOf(Garrison g)
+    {
+        if (g.DoorSpots is { } known)
+            return known;
+        var map = _world.Map!;
+        var building = g.Building;
+        int count = _config.DoorFighters.GetValueOrDefault(building.Definition.Name, 2);
+        return g.DoorSpots = Enumerable.Range(0, DirectionExtensions.Count)
+            .Select(d => building.Door.Neighbor((Direction)d))
+            .Where(p => map.Contains(p) && map.IsWalkable(p))
+            .OrderByDescending(p => PathFinder.Distance(building.Position, p))
+            .Take(count)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Where an attacker waits its turn at a defended door: the free walkable field nearest to it, at
+    /// least <paramref name="ring"/> fields from the door and not on its fighting fields; the door if there is none.
+    /// </summary>
+    private GridPoint QueueSpot(Settler soldier, GridPoint door, int ring, GridPoint[] spots)
+    {
+        var map = _world.Map!;
+        for (int r = ring; r <= ring + 3; r++)
+        {
+            GridPoint? best = null;
+            int bestDistance = int.MaxValue;
+            for (int dy = -r; dy <= r; dy++)
+            for (int dx = -r; dx <= r; dx++)
+            {
+                var p = new GridPoint(door.X + dx, door.Y + dy);
+                if (PathFinder.Distance(door, p) != r || spots.Contains(p) || !map.Contains(p) || !map.IsWalkable(p)
+                    || _world.OccupantAt(p) is { } other && other != soldier)
+                    continue;
+                int distance = PathFinder.Distance(soldier.Position, p);
+                if (distance < bestDistance)
+                {
+                    best = p;
+                    bestDistance = distance;
+                }
+            }
+            if (best is { } spot)
+                return spot;
+        }
+        return door;
     }
 
     /// <summary>
@@ -501,9 +684,39 @@ public sealed partial class Military
                 ArrowTicks(PathFinder.Distance(from, enemy.Position))));
         }
         enemy.Health -= _config.Damage(attacker.SoldierType!.Value, attacker.Level) * CombatStrengthOf(attacker);
+        var home = DefendedBy(enemy);
+        if (home is not null)
+            home.LastAttack = _world.Tick;
         if (enemy.Health <= 0)
+        {
             Kill(enemy);
+            if (home is { IsEmpty: true } && home.Building.Exists && !attacker.IsInside && !attacker.IsDead)
+                GoCapture(home, attacker);
+        }
     }
+
+    /// <summary>The garrison whose door the soldier guards, if any.</summary>
+    private Garrison? DefendedBy(Settler soldier) => _guards.GetValueOrDefault(soldier.Id);
+
+    /// <summary>The attacker struck the last defender down: it walks into the building to take it.</summary>
+    private void GoCapture(Garrison g, Settler attacker)
+    {
+        g.Conqueror = attacker;
+        if (!_fighters.TryGetValue(attacker.Id, out var f))
+            f = _fighters[attacker.Id] = new Fighter(attacker);
+        f.Target = g.Building;
+        f.MoveTo = null;
+        f.Enemy = null;
+        f.NextReplan = 0;
+        attacker.HasTask = true;
+        if (attacker.Destination is not null)
+            _world.WalkTo(attacker, attacker.StepTarget);
+    }
+
+    /// <summary>Whether the soldier may take the empty building: its conqueror, or anyone once that one is gone.</summary>
+    private bool MayCapture(Garrison g, Settler soldier) =>
+        g.Conqueror is not { } conqueror || conqueror == soldier || conqueror.IsDead
+        || !_fighters.TryGetValue(conqueror.Id, out var f) || f.Target != g.Building;
 
     private void Kill(Settler soldier)
     {
@@ -520,6 +733,8 @@ public sealed partial class Military
     {
         _fighters.Remove(soldier.Id);
         _nextShot.Remove(soldier.Id);
+        if (_guards.Remove(soldier.Id, out var guarded))
+            guarded.Guard = null;
         foreach (var g in _garrisons.Values)
         {
             foreach (var (place, defender) in g.Defending.ToList())
@@ -543,6 +758,8 @@ public sealed partial class Military
             Release(g, place);
         Unclaim(building);
         building.Player = attacker.Player;
+        g.Conqueror = null;
+        g.DoorHealth = _config.DoorHealth; // the new owner starts behind a whole door
         _fighters.Remove(attacker.Id);
         SetActivity(attacker, Activity.None);
         int free = Enumerable.Range(0, g.Places.Length)
@@ -606,11 +823,7 @@ public sealed partial class Military
         public Settler Soldier { get; } = soldier;
 
         /// <summary>Attack order: the enemy building to take.</summary>
-        public Building? Target { get; init; }
-
-        /// <summary>Defender: the building and place it came out of.</summary>
-        public Building? Home { get; init; }
-        public int HomePlace { get; init; }
+        public Building? Target { get; set; }
 
         public Settler? Enemy { get; set; }
         public Dictionary<int, long> Unreachable { get; } = new();
@@ -619,7 +832,7 @@ public sealed partial class Military
         public long NextRetarget { get; set; }
 
         /// <summary>Move order: where to go when no enemy is around.</summary>
-        public GridPoint? MoveTo { get; init; }
+        public GridPoint? MoveTo { get; set; }
 
         /// <summary>Forced move order: no fighting on the way.</summary>
         public bool Forced { get; init; }

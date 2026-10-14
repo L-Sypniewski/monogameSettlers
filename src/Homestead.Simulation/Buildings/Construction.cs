@@ -10,7 +10,8 @@ namespace Homestead.Simulation.Buildings;
 /// Diggers level one footprint point per work cycle, up to <see cref="MaxDiggersPerSite"/> per site.
 /// When all points are level, the site becomes solid and builders take the builder spots of the
 /// building definition. Each build cycle uses one unit of delivered material; without material a
-/// builder waits on its spot. Workers whose site disappears are simply released.
+/// builder is released (idle, free for another site; it steps away from the site), and a site offers builder spots only while it
+/// has more material than the builders on their way will use. Workers whose site disappears are simply released.
 /// If sites need more diggers or builders than there are, carriers are recruited, each fetching its
 /// tool first (shovel/hammer, see <see cref="ProductionConfig.Tools"/>). Without tool rules for these
 /// trades (e.g. <see cref="ProductionConfig.None"/>) nobody is recruited and only existing ones work.
@@ -203,10 +204,12 @@ public sealed class Construction
         var site = a.Site;
         if (a.TicksLeft == 0)
         {
-            // Start a build cycle if material is there, otherwise wait on the spot.
+            // Start a build cycle if material is there; otherwise the builder is free for other sites
+            // and comes back (or another one does) when material has been delivered.
             if (!_world.ConsumeConstructionMaterial(site))
             {
-                SetActivity(a.Worker, Activity.None);
+                Release(a);
+                StepAway(a.Worker, site);
                 return;
             }
             a.TicksLeft = BuildTicks;
@@ -243,12 +246,20 @@ public sealed class Construction
         return (free.MinBy(p => PathFinder.Distance(from, p)), Direction.SouthWest);
     }
 
+    /// <summary>
+    /// A builder spot of the site no one works on, or null if there is none or the site has no material
+    /// for one more builder: each builder there not in a build cycle yet will use one unit.
+    /// </summary>
     private (GridPoint Spot, Direction Facing)? FreeBuilderSpot(Building site)
     {
         if (site.State != BuildingState.Constructing)
             return null;
+        var builders = _assignments.Values.Where(o => o.Site == site).ToList();
+        int material = site.Piles.Where(p => p.Role == PileRole.Request).Sum(p => p.Count);
+        if (material <= builders.Count(o => o.TicksLeft == 0))
+            return null;
         var map = _world.Map!;
-        var taken = _assignments.Values.Where(o => o.Site == site).Select(o => o.Spot).ToHashSet();
+        var taken = builders.Select(o => o.Spot).ToHashSet();
         foreach (var spot in site.Definition.BuilderSpots)
         {
             var p = site.Position + spot.Offset;
@@ -256,6 +267,31 @@ public sealed class Construction
                 return (p, spot.Facing);
         }
         return null;
+    }
+
+    /// <summary>
+    /// One step from the builder spot to a free neighbor farthest from the site (free ground preferred),
+    /// so the idle builder no longer stands in the site's way. Strolling: free for any site meanwhile.
+    /// </summary>
+    private void StepAway(Settler worker, Building site)
+    {
+        var map = _world.Map!;
+        GridPoint? best = null;
+        (bool FreeGround, int Distance) bestScore = (false, -1);
+        for (int d = 0; d < DirectionExtensions.Count; d++)
+        {
+            var p = worker.Position.Neighbor((Direction)d);
+            if (!map.IsWalkable(p) || _world.IsOccupied(p) || !_world.Reachable(worker, p))
+                continue;
+            var score = (_world.IsFreeGround(p), PathFinder.Distance(p, site.Position));
+            if (best is null || score.CompareTo(bestScore) > 0)
+            {
+                best = p;
+                bestScore = score;
+            }
+        }
+        if (best is { } target && _world.WalkTo(worker, target))
+            worker.IsStrolling = true;
     }
 
     private void Release(Assignment a)

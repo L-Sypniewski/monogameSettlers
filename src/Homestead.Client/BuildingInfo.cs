@@ -281,7 +281,8 @@ public sealed partial class BuildingInfo
         string status = world.StatusOf(building);
         if (SoldiersPattern().Match(status) is { Success: true } soldiers)
             return $"{soldiers.Groups[1].Value}/{soldiers.Groups[2].Value} Soldaten"
-                   + (soldiers.Groups[3].Success ? $", {soldiers.Groups[3].Value} unterwegs" : "");
+                   + (soldiers.Groups[3].Success ? $", {soldiers.Groups[3].Value} unterwegs" : "")
+                   + (DoorPattern().Match(status) is { Success: true } door ? $", Tür {door.Groups[1].Value} %" : "");
         foreach (var (contains, state) in _states)
             if (status.Contains(contains, StringComparison.Ordinal))
                 return state;
@@ -310,4 +311,7 @@ public sealed partial class BuildingInfo
 
     [GeneratedRegex(@"^(\d+)/(\d+) soldiers(?:, (\d+) on the way)?")]
     private static partial Regex SoldiersPattern();
+
+    [GeneratedRegex(@", door (\d+)%")]
+    private static partial Regex DoorPattern();
 }

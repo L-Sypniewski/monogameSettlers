@@ -162,6 +162,7 @@ public sealed partial class World
                 settler.ActivityTicks++;
 
         Tick++;
+        ClearDustClouds();
     }
 
     private void Measure(string part, ref long mark)

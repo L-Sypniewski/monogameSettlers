@@ -48,6 +48,15 @@ public sealed partial class Military
     public IReadOnlyList<Settler?> Occupants(Building building) =>
         _garrisons.TryGetValue(building.Id, out var g) ? g.Places : [];
 
+    /// <summary>What is left of the military building's door (<see cref="MilitaryConfig.DoorHealth"/> when whole; 0 broken).</summary>
+    public float DoorHealth(Building building) => _garrisons.TryGetValue(building.Id, out var g) ? g.DoorHealth : _config.DoorHealth;
+
+    /// <summary>The soldier standing in the building's broken door, if any.</summary>
+    public Settler? DoorGuard(Building building) => _garrisons.TryGetValue(building.Id, out var g) ? g.Guard : null;
+
+    /// <summary>The attacker that struck the building's last defender down and is on its way in, if any.</summary>
+    public Settler? Conqueror(Building building) => _garrisons.TryGetValue(building.Id, out var g) ? g.Conqueror : null;
+
     public bool IsOccupied(Building building) => _garrisons.TryGetValue(building.Id, out var g) && g.Places.Any(p => p is not null);
 
     /// <summary>How many soldiers of <paramref name="type"/> the military building wants (0 for other buildings).</summary>
@@ -100,7 +109,7 @@ public sealed partial class Military
             return g;
         if (!building.Exists || building.State != BuildingState.Finished || building.Definition.Occupiers.Count == 0)
             return null;
-        return _garrisons[building.Id] = new Garrison(building);
+        return _garrisons[building.Id] = new Garrison(building) { DoorHealth = _config.DoorHealth };
     }
 
     /// <summary>A short description for the player (null for non-military buildings).</summary>
@@ -113,7 +122,8 @@ public sealed partial class Military
             return null;
         int inside = g.Places.Count(p => p is not null);
         return $"{inside}/{g.Places.Length} soldiers" + (g.Coming.Count > 0 ? $", {g.Coming.Count} on the way" : "")
-               + (inside == 0 ? " (claims no land yet)" : "");
+               + (inside == 0 ? " (claims no land yet)" : "")
+               + (g.DoorHealth < _config.DoorHealth ? $", door {(int)Math.Ceiling(100 * g.DoorHealth / _config.DoorHealth)}%" : "");
     }
 
     internal void Tick()
@@ -360,6 +370,13 @@ public sealed partial class Military
     {
         foreach (var place in g.Coming.Keys.ToList())
             Release(g, place);
+        if (g.Guard is { } guard)
+        {
+            _guards.Remove(guard.Id);
+            SetActivity(guard, Activity.None);
+            guard.HasTask = false;
+            g.Guard = null;
+        }
         g.Defending.Clear();
         for (int i = 0; i < g.Places.Length; i++)
         {
@@ -477,8 +494,29 @@ public sealed partial class Military
         }
         public Dictionary<int, (Settler Soldier, WalkWatch Watch)> Coming { get; } = new();
 
-        /// <summary>Soldiers out of their place to fight attackers at the door (by place).</summary>
+        /// <summary>Soldiers out of their place to fight attackers (by place): the door guard and bowmen come down.</summary>
         public Dictionary<int, Settler> Defending { get; } = new();
+
+        /// <summary>What is left of the door; at 0 it is broken and the infantry defends it one by one.</summary>
+        public float DoorHealth { get; set; }
+
+        public bool DoorBroken => DoorHealth <= 0;
+
+        /// <summary>The last hit on the door or a defender (for the door's repair).</summary>
+        public long LastAttack { get; set; }
+
+        /// <summary>The infantry soldier standing in the broken door (also in <see cref="Defending"/>).</summary>
+        public Settler? Guard { get; set; }
+
+        public long GuardNextHit { get; set; }
+
+        /// <summary>The fields next to the door where melee attackers fight (see <see cref="MilitaryConfig.DoorFighters"/>); found on first use.</summary>
+        public GridPoint[]? DoorSpots { get; set; }
+
+        /// <summary>The attacker that killed the last defender: it takes the building.</summary>
+        public Settler? Conqueror { get; set; }
+
+        public bool IsEmpty => Places.All(p => p is null) && Defending.Count == 0;
     }
 
     private sealed class Barrack(Building building)

@@ -10,6 +10,8 @@
     "Bowman": { "health": 80, "damage": 7, "attackSeconds": 1.5, "range": 15 }
   },
   "levelBonus": [ 1.0, 1.3, 1.7 ],
+  "_doorComment": "Attacked military buildings: melee attackers first break the door (as much health as a level-1 soldier of type healthOf); 30 s without an attack on the door or its defenders repair it fully. fighters: how many melee attackers fit at the door at once (fields next to it; pikemen too, bowmen not at all), per building name, 2 elsewhere.",
+  "door": { "healthOf": "Pikeman", "regenSeconds": 30, "fighters": { "tower": 2, "big_tower": 2, "castle": 1 } },
   "sightRange": 15,
   "_buildingSightComment": "Fog of war: finished own buildings of these names reveal their surroundings up to this radius (other buildings only through land and settlers).",
   "buildingSight": { "lookout_tower": 45 },

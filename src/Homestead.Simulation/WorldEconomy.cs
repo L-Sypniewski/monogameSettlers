@@ -239,8 +239,8 @@ public sealed partial class World
         return building;
     }
 
-    /// <summary>How long the dust cloud of a building coming down lasts (as in JSettlers).</summary>
-    public const int DustCloudTicks = 6 * TicksPerSecond / 5;
+    /// <summary>How long the dust cloud of a building coming down lasts (twice as fast as in JSettlers).</summary>
+    public const int DustCloudTicks = 3 * TicksPerSecond / 5;
 
     private readonly List<DustCloud> _dustClouds = new();
 
@@ -281,8 +281,14 @@ public sealed partial class World
             for (int i = 0; i < (int)(count * Production.Config.DemolitionPayback); i++)
                 DropGoods(building.Position, material);
 
-        _dustClouds.RemoveAll(c => Tick - c.Tick >= DustCloudTicks);
         _dustClouds.Add(new DustCloud(building.Position, Tick));
+    }
+
+    /// <summary>Dust clouds go once they are through.</summary>
+    private void ClearDustClouds()
+    {
+        if (_dustClouds.Count > 0)
+            _dustClouds.RemoveAll(c => Tick - c.Tick >= DustCloudTicks);
     }
 
     /// <summary>Levelling is done: the footprint becomes solid and builders can start.</summary>

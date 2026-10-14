@@ -175,7 +175,7 @@ public sealed class EconomyRenderer
     public void DrawDustCloud(SpriteBatch batch, GridPoint p, float progress, TerrainMesh terrain)
     {
         var sprites = Sprites(DustFile, DustSequence);
-        if (sprites.FrameCount == 0)
+        if (sprites.FrameCount == 0 || progress >= 1)
             return;
         int frame = Math.Clamp((int)(progress * sprites.FrameCount), 0, sprites.FrameCount - 1);
         sprites.Draw(batch, frame, Anchor(p, terrain), 1, Color.White);

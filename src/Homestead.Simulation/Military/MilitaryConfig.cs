@@ -22,6 +22,15 @@ public sealed record MilitaryConfig
     /// <summary>Health and damage factor per level (index 0 = level 1).</summary>
     public required IReadOnlyList<float> LevelBonus { get; init; }
 
+    /// <summary>Health of a military building's door, which melee attackers must break first.</summary>
+    public float DoorHealth { get; init; } = 130;
+
+    /// <summary>A broken or damaged door is whole again after this many ticks without an attack.</summary>
+    public int DoorRegenTicks { get; init; } = 30 * World.TicksPerSecond;
+
+    /// <summary>How many melee attackers fit at the door of a building at once (by building name; 2 elsewhere).</summary>
+    public IReadOnlyDictionary<string, int> DoorFighters { get; init; } = new Dictionary<string, int>();
+
     /// <summary>Soldiers react to enemies within this distance.</summary>
     public required int SightRange { get; init; }
 
@@ -51,16 +60,25 @@ public sealed record MilitaryConfig
         string path = Path.Combine(dataDirectory ?? Buildings.BuildingCatalog.DefaultDataDirectory, "military.json");
         using var document = JsonDocument.Parse(File.ReadAllText(path));
         var root = document.RootElement;
+        var soldiers = root.GetProperty("soldiers").EnumerateObject().ToDictionary(
+            s => Enum.Parse<SoldierType>(s.Name),
+            s => new SoldierStats(s.Value.GetProperty("health").GetSingle(), s.Value.GetProperty("damage").GetSingle(),
+                (int)Math.Round(s.Value.GetProperty("attackSeconds").GetDouble() * World.TicksPerSecond), s.Value.GetProperty("range").GetInt32()));
+        var door = root.TryGetProperty("door", out var d) ? d : default;
         return new MilitaryConfig
         {
             Territory = root.GetProperty("territory").EnumerateObject().ToDictionary(t => t.Name, t => t.Value.GetDouble()),
             Weapons = root.GetProperty("weapons").EnumerateObject()
                 .ToDictionary(w => Materials.Parse(w.Name)!.Value, w => Enum.Parse<SoldierType>(w.Value.GetString()!)),
             TrainingTicks = (int)Math.Round(root.GetProperty("trainingSeconds").GetDouble() * World.TicksPerSecond),
-            Soldiers = root.GetProperty("soldiers").EnumerateObject().ToDictionary(
-                s => Enum.Parse<SoldierType>(s.Name),
-                s => new SoldierStats(s.Value.GetProperty("health").GetSingle(), s.Value.GetProperty("damage").GetSingle(),
-                    (int)Math.Round(s.Value.GetProperty("attackSeconds").GetDouble() * World.TicksPerSecond), s.Value.GetProperty("range").GetInt32())),
+            Soldiers = soldiers,
+            DoorHealth = door.ValueKind == JsonValueKind.Object
+                ? soldiers[Enum.Parse<SoldierType>(door.GetProperty("healthOf").GetString()!)].Health
+                : soldiers[SoldierType.Pikeman].Health,
+            DoorFighters = door.ValueKind == JsonValueKind.Object && door.TryGetProperty("fighters", out var fighters)
+                ? fighters.EnumerateObject().ToDictionary(f => f.Name, f => f.Value.GetInt32())
+                : new Dictionary<string, int>(),
+            DoorRegenTicks = (int)Math.Round((door.ValueKind == JsonValueKind.Object ? door.GetProperty("regenSeconds").GetDouble() : 30) * World.TicksPerSecond),
             LevelBonus = root.GetProperty("levelBonus").EnumerateArray().Select(v => v.GetSingle()).ToArray(),
             SightRange = root.GetProperty("sightRange").GetInt32(),
             BuildingSight = root.TryGetProperty("buildingSight", out var buildingSight)

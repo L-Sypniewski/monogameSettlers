@@ -32,6 +32,39 @@ public class ConstructionTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Builders_without_material_are_free_and_come_back_when_it_arrives()
+    {
+        var world = new World(new GameMap(60));
+        var site = world.PlaceConstructionSite(Romans["lumberjack"], 0, new GridPoint(30, 30))!;
+        world.AddLooseGoods(new GridPoint(10, 10), Material.Plank, 1);
+        Spawn(world, Profession.Carrier, 1, new GridPoint(15, 15));
+        Spawn(world, Profession.Builder, 1, new GridPoint(20, 40));
+        var builder = world.Settlers.Single(s => s.Profession == Profession.Builder);
+
+        Run(world, 10_000, stopWhen: () => site.BuildStepsDone == 1 && world.Construction.Assigned == 0);
+
+        Assert.Equal(1, site.BuildStepsDone);
+        Assert.Equal(BuildingState.Constructing, site.State);
+        Assert.Equal(0, world.Construction.Assigned);
+        Assert.False(builder.HasTask, "the builder is idle, free for other sites");
+        Run(world, 100, stopWhen: () => builder.Destination is null && builder.State == SettlerState.Idle);
+        Assert.DoesNotContain(site.Definition.BuilderSpots, spot => site.Position + spot.Offset == builder.Position);
+
+        // Idle means it can be pushed aside: a carrier walking onto its field gets there.
+        var carrier = world.Settlers.Single(s => s.Profession == Profession.Carrier);
+        var field = builder.Position;
+        Assert.True(world.WalkTo(carrier, field));
+        Run(world, 2_000, stopWhen: () => carrier.Position == field);
+        Assert.Equal(field, carrier.Position);
+
+        world.AddLooseGoods(new GridPoint(10, 10), Material.Plank, 1);
+        world.AddLooseGoods(new GridPoint(12, 10), Material.Stone, 2);
+        Run(world, 10_000, stopWhen: () => site.State == BuildingState.Finished);
+
+        Assert.Equal(BuildingState.Finished, site.State);
+    }
+
+    [Fact]
     public void Diggers_level_uneven_ground_first()
     {
         var map = new GameMap(60);
@@ -98,6 +131,19 @@ public class ConstructionTests(ITestOutputHelper output)
         int planksLeft = world.Piles.Where(p => p.Material == Material.Plank).Sum(p => p.Count);
         Assert.InRange(planksLeft, 8 - used, 8 - site.BuildStepsDone);
         Assert.True(new GridPoint(30, 30) is var anchor && world.Map!.IsWalkable(anchor), "Footprint is free again.");
+    }
+
+    [Fact]
+    public void The_dust_cloud_of_a_torn_down_building_goes_away()
+    {
+        var world = new World(new GameMap(60));
+        var building = world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(30, 30), force: true)!;
+
+        world.RemoveBuilding(building);
+        Assert.Single(world.DustClouds);
+        Run(world, World.DustCloudTicks);
+
+        Assert.Empty(world.DustClouds);
     }
 
     [Fact]
