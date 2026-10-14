@@ -264,8 +264,8 @@ Zum Ausprobieren ohne Eintrag in `ai.json`: `pincer+waves` (nur diese Charakterz
 
 ## Volks-Charaktere
 
-Ziel: je Volk ein Charakter, der sich als Gegner eigen anfühlt. Definiert in `ai.json`, noch nicht
-über `characterWeights` zugeordnet (erst nach Turnier-Vergleich).
+Ziel: je Volk ein Charakter, der sich als Gegner eigen anfühlt. Definiert in `ai.json`, je Volk über
+`characterWeights` (unter `civilizations`) zugeordnet.
 
 | Volk | Charakter | Idee | Umsetzung |
 |---|---|---|---|
@@ -273,6 +273,12 @@ Ziel: je Volk ein Charakter, der sich als Gegner eigen anfühlt. Definiert in `a
 | Asiaten | Unbeugsamer (`unyielding`) | gibt niemals auf, zieht sich nie zurück | guardByThreat; `abortRatio` 0,5, `retreatRatio` 0,5 (bei 0 lief er sich tot: 0,35 Punkte gegen Standard, mit 0,5: 0,50), `ratio` 1,4 |
 | Römer | Legion (`legion`) | wirtschaftlich stark, greift gebündelt in Wellen an | waves, pincer, guardByThreat; `minSoldiers` 8, `commit` 0,6; Gold 10 Plätze früher; 5 Baustellen |
 | Amazonen | Plänklerin (`skirmisher`) | auf Nummer sicher, schwächt den Gegner mit kleinen Guerillas | guardByThreat; Feldzug erst bei 2:1, aber ohne Armee-Vergleich ab 2 Soldaten und nur bis 50 Felder (`maxDistance`; ohne griff sie in Minute 1 einen Turm quer über die Karte an und verlor danach alles); Guerilla bis 150 Felder bei 1,3:1, Rückzug schon unter 1,2 |
+
+Leitlinie: Spielstil, Abwechslung und Spaß vor exakter Balance. Jedes Volk soll sich als Gegner
+erkennbar anders spielen, mit Stärken und ausnutzbaren Schwächen. Beobachtet (Arena, Amazonen gegen
+Ägypter, 10 Partien): Der Hitzkopf überrennt auf kleinen Karten in 20–30 Minuten, verpufft der Rush,
+verblutet er (am Ende 3–33 gegen 100–220 Soldaten). Gegen Ägypter heißt es also früh überleben, gegen
+Amazonen früh angreifen oder sich auf ein hartes spätes Spiel einstellen.
 
 ## Charaktere (Entwurf)
 

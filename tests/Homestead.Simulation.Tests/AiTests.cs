@@ -168,7 +168,7 @@ public class AiTests(ITestOutputHelper output)
     {
         var world = new World(new GameMap(40), TestConfig.NoTools);
         Assert.Throws<ArgumentException>(() => new AiPlayer(world, Romans, 0, character: "nobody"));
-        Assert.Equal("standard", new AiPlayer(world, Romans, 0).Character.Id);
+        Assert.Equal("legion", new AiPlayer(world, Romans, 0).Character.Id); // the people's character
         Assert.Throws<InvalidDataException>(() => AiTrait.Create("nothing", default));
     }
 
