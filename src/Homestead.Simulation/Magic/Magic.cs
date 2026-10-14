@@ -59,11 +59,12 @@ public sealed class Magic
     private readonly Dictionary<int, long> _nextMana = new();
     private readonly Dictionary<int, CastOrder> _orders = new();
     private readonly List<SpellEffect> _effects = new();
-    private readonly Random _random = new(4711);
+    private readonly Random _random;
 
     internal Magic(World world, MagicConfig config)
     {
         _world = world;
+        _random = new Random(4711 + world.Seed);
         _config = config;
     }
 

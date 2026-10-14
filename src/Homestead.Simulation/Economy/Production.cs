@@ -56,11 +56,12 @@ public sealed class Production
     /// <summary>Depleted resource fields: their start amount and when they regain the next step.</summary>
     private readonly Dictionary<int, (int Start, long Next)> _regenerating = new();
     private readonly Dictionary<string, int> _problems = new();
-    private readonly Random _random = new(12345);
+    private readonly Random _random;
 
     internal Production(World world, ProductionConfig config)
     {
         _world = world;
+        _random = new Random(12345 + world.Seed);
         _config = config;
     }
 

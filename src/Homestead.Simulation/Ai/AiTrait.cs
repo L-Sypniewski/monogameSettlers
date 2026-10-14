@@ -29,10 +29,24 @@ public abstract class AiTrait
     /// </summary>
     internal virtual bool Guard(AiPlayer ai, List<Building> military, List<Settler> idle) => false;
 
+    /// <summary>
+    /// Decision point "timing": whether a new campaign may start now (every military think, before one
+    /// is planned). Any trait saying no holds it back; defence and guerilla are not affected.
+    /// </summary>
+    internal virtual bool AllowCampaign(AiPlayer ai) => true;
+
+    /// <summary>
+    /// Decision point "garrison": at most this many soldiers for an own finished military building
+    /// (at least one infantry place is always kept); null: full. The lowest limit of the traits counts.
+    /// </summary>
+    internal virtual int? GarrisonLimit(AiPlayer ai, Building building) => null;
+
     private static readonly Dictionary<string, Func<JsonElement, AiTrait>> Factories = new()
     {
         [PincerTrait.TraitId] = settings => new PincerTrait(settings),
         [GuardByThreatTrait.TraitId] = _ => new GuardByThreatTrait(),
+        [WavesTrait.TraitId] = settings => new WavesTrait(settings),
+        [FrontGarrisonTrait.TraitId] = settings => new FrontGarrisonTrait(settings),
     };
 
     public static IEnumerable<string> Known => Factories.Keys;

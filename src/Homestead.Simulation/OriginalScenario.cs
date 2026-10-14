@@ -47,13 +47,14 @@ public static class OriginalScenario
     /// gets entry i modulo the count. Without it they get a random people from <paramref name="random"/>,
     /// without that too they are Romans.
     /// </param>
+    /// <param name="seed">The world's seed (see <see cref="World.Seed"/>).</param>
     public static (World World, LoadReport Report) Load(OriginalMap original, string? dataDirectory = null,
-        IReadOnlyList<Civilization>? freeChoice = null, Random? random = null)
+        IReadOnlyList<Civilization>? freeChoice = null, Random? random = null, int seed = 0)
     {
         var peoples = Enum.GetValues<Civilization>();
         var drawn = new Dictionary<int, Civilization>();
         var map = GameMap.FromOriginal(original.Area);
-        var world = new World(map) { TerritoryRules = true };
+        var world = new World(map, seed: seed) { TerritoryRules = true };
         var catalogs = new Dictionary<Civilization, BuildingCatalog>();
         var skipped = new List<string>();
 

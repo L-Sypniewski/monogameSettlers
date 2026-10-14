@@ -12,7 +12,7 @@ using Homestead.Simulation.Economy;
 //                   [--until-decided] [--csv file] [--tag text]
 // Without map names: the first multiplayer map without start buildings. --all: every such map.
 // --peoples: peoples for players the map leaves open (player i: entry i mod count). Default: random,
-// with a fixed seed so runs stay comparable (--seed N for another draw).
+// with a fixed seed so runs stay comparable (--seed N for another draw; it also seeds the world's chance).
 // --characters: AI character per player (ai.json characters; entry i for player i+1, empty: drawn).
 // --notes: every AI decision as it is made (otherwise only the traits' ones).
 // --profile: time per part of the simulation step for each report interval.
@@ -52,7 +52,7 @@ foreach (var (file, original) in maps)
 {
     siteSince.Clear();
     var random = new Random(IntOption("--seed", 1));
-    var (world, report) = OriginalScenario.Load(original, freeChoice: peoples, random: random);
+    var (world, report) = OriginalScenario.Load(original, freeChoice: peoples, random: random, seed: IntOption("--seed", 1));
     for (int player = 0; player < report.Catalogs.Count; player++)
     {
         var ai = new AiPlayer(world, report.Catalogs[player], player,

@@ -32,7 +32,11 @@ public sealed record AiConfig
     public sealed record MagicRules(int PriestDistance, int MinTargets, IReadOnlyList<SoldierType> UpgradeOrder);
 
     /// <summary>Campaigns against enemy military buildings (see <c>attack</c> in ai.json).</summary>
-    public sealed record AttackRules(double Ratio, int DefenseRadius, int PathClearance, int GatherTicks, int MinSoldiers);
+    /// <param name="ArmyRatio">A campaign needs this times the target owner's whole army (0: any army).</param>
+    /// <param name="Commit">Share of the spare soldiers left after the force is chosen that come along as well (1: all of them).</param>
+    /// <param name="AbortRatio">After gathering the campaign is given up below this times the defence (0: never).</param>
+    public sealed record AttackRules(double Ratio, int DefenseRadius, int PathClearance, int GatherTicks, int MinSoldiers,
+        double ArmyRatio, double Commit = 0, double AbortRatio = 0);
     public required int MaxSites { get; init; }
     public required int MaxTowerSites { get; init; }
     public required int FreeCarriers { get; init; }
@@ -102,10 +106,8 @@ public sealed record AiConfig
         var node = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
         if (civilization is { } people && node["civilizations"]?[people.ToString()] is JsonObject overrides)
             Merge(node, overrides);
-        // An id like "pincer+guardByThreat" that is no character of its own: those traits with their default settings.
-        if (character is not null && node["characters"] is JsonObject known && known[character] is null
-            && character.Split('+') is var parts && parts.All(t => AiTrait.Known.Contains(t)))
-            known[character] = new JsonObject { ["traits"] = new JsonArray(parts.Select(t => (JsonNode)JsonValue.Create(t)!).ToArray()) };
+        if (character is not null && node["characters"] is JsonObject known && known[character] is null && Variant(known, character) is { } variant)
+            known[character] = variant;
         if (character is not null && node["characters"]?[character] is JsonObject own)
         {
             var traits = (own["traits"]?.AsArray() ?? []).Select(t => t!.GetValue<string>()).ToHashSet();
@@ -115,6 +117,7 @@ public sealed record AiConfig
                     values[key] = value?.DeepClone();
             Merge(node, values);
         }
+        MoveInBuildOrder(node);
         using var document = JsonDocument.Parse(node.ToJsonString());
         var root = document.RootElement;
         var characters = LoadCharacters(node);
@@ -130,7 +133,10 @@ public sealed record AiConfig
                 attack.GetProperty("defenseRadius").GetInt32(),
                 attack.GetProperty("pathClearance").GetInt32(),
                 (int)Math.Round(attack.GetProperty("gatherSeconds").GetDouble() * World.TicksPerSecond),
-                attack.GetProperty("minSoldiers").GetInt32()),
+                attack.GetProperty("minSoldiers").GetInt32(),
+                attack.TryGetProperty("armyRatio", out var armyRatio) ? armyRatio.GetDouble() : attack.GetProperty("ratio").GetDouble(),
+                attack.TryGetProperty("commit", out var commit) ? commit.GetDouble() : 0,
+                attack.TryGetProperty("abortRatio", out var abortRatio) ? abortRatio.GetDouble() : attack.GetProperty("ratio").GetDouble()),
             Military = new MilitaryRules(
                 (int)Math.Round(military.GetProperty("thinkSeconds").GetDouble() * World.TicksPerSecond),
                 military.GetProperty("groupRadius").GetInt32(),
@@ -201,6 +207,65 @@ public sealed record AiConfig
             result[name] = traits;
         }
         return result;
+    }
+
+    /// <summary>
+    /// A character made up from its id (for trying out combinations, e.g. in the arena):
+    /// <c>pincer+guardByThreat</c> is a character of just those traits with their default settings;
+    /// <c>@path=value</c> parts set values on top of a character or such traits, e.g.
+    /// <c>general@attack.ratio=1.3@pincer.feintShare=0.5@buildOrderMoves.barrack=-5</c>.
+    /// Null if the id names neither a character nor traits.
+    /// </summary>
+    private static JsonObject? Variant(JsonObject characters, string id)
+    {
+        var parts = id.Split('@');
+        JsonObject result;
+        if (characters[parts[0]] is JsonObject known)
+            result = (JsonObject)known.DeepClone();
+        else if (parts[0].Split('+') is var traits && traits.All(t => AiTrait.Known.Contains(t)))
+            result = new JsonObject { ["traits"] = new JsonArray(traits.Select(t => (JsonNode)JsonValue.Create(t)!).ToArray()) };
+        else if (parts[0].Length == 0 && parts.Length > 1)
+            result = (JsonObject)(characters[StandardCharacter]?.DeepClone() ?? new JsonObject { ["traits"] = new JsonArray() });
+        else
+            return null;
+        foreach (string setting in parts.Skip(1))
+        {
+            int equals = setting.IndexOf('=');
+            if (equals <= 0)
+                throw new ArgumentException($"AI character '{id}': '{setting}' is no path=value");
+            var path = setting[..equals].Split('.');
+            string text = setting[(equals + 1)..];
+            JsonNode? value;
+            try
+            {
+                value = JsonNode.Parse(text);
+            }
+            catch (JsonException)
+            {
+                value = JsonValue.Create(text);
+            }
+            var at = result;
+            foreach (string key in path[..^1])
+                at = at[key] as JsonObject ?? (JsonObject)(at[key] = new JsonObject());
+            at[path[^1]] = value;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// <c>buildOrderMoves</c> (building: places, negative = earlier): every build order entry of that
+    /// building moves that many places, so a character can shift the people's order without its own copy.
+    /// </summary>
+    private static void MoveInBuildOrder(JsonObject root)
+    {
+        if (root["buildOrderMoves"] is not JsonObject moves || moves.Count == 0 || root["buildOrder"] is not JsonArray order)
+            return;
+        var entries = order.Select((entry, index) =>
+        {
+            int shift = moves[entry![0]!.GetValue<string>()]?.GetValue<int>() ?? 0;
+            return (Entry: entry, Key: index + shift + Math.Sign(shift) * 0.5);
+        }).OrderBy(e => e.Key).Select(e => e.Entry!.DeepClone()).ToArray();
+        root["buildOrder"] = new JsonArray(entries);
     }
 
     /// <summary>Copies the values of <paramref name="overrides"/> into <paramref name="target"/>, merging objects.</summary>

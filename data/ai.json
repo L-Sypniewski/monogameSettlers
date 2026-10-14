@@ -99,14 +99,14 @@
     "guardDistance": 10
   },
   "attack": {
-    "_comment": "Campaigns against enemy land. Defence comes first: idle soldiers needed against enemies near the own land stay back, and no campaign starts while enemies stand on the own land. Target: an occupied enemy military building; its defence is its garrison plus enemy soldiers within defenseRadius. Preferred are targets close to the own land, weakly defended, with no enemy group within pathClearance of the way there. A campaign starts when the spare soldiers have ratio times the target's defence and the AI's whole army has ratio times that enemy's (at least minSoldiers). The soldiers first gather at the own military building nearest the target (at most gatherSeconds), then attack together; they retreat when they fall below military.retreatRatio, and go home when it is over.",
+    "_comment": "Campaigns against enemy land. Defence comes first: idle soldiers needed against enemies near the own land stay back, and no campaign starts while enemies stand on the own land. Target: an occupied enemy military building; its defence is its garrison plus enemy soldiers within defenseRadius. Preferred are targets close to the own land, weakly defended, with no enemy group within pathClearance of the way there. A campaign starts when the spare soldiers have ratio times the target's defence and the AI's whole army has armyRatio (default: ratio; 0: any) times that enemy's (at least minSoldiers). commit (0-1, default 0): that share of the spare soldiers left over comes along as well (1: full strength). The soldiers first gather at the own military building nearest the target (at most gatherSeconds); the campaign is given up when they then have less than abortRatio (default: ratio; 0: never) times the defence, otherwise they attack together; they retreat when they fall below military.retreatRatio (0: never), and go home when it is over.",
     "ratio": 1.5,
     "defenseRadius": 15,
     "pathClearance": 8,
     "gatherSeconds": 60,
     "minSoldiers": 4
   },
-  "_characterComment": "Characters (docs/KI-TACTICS.md): traits on top of the built-in behavior, in order of priority. A character may override a trait's settings under the trait's name and any general value (after the people's), e.g. \"general\": { \"traits\": [\"pincer\"], \"pincer\": { \"feintShare\": 0.5 } }. characterWeights: which character a player gets, drawn once per game (per people under civilizations). The client and the arena can name it per player with --characters.",
+  "_characterComment": "Characters (docs/KI-TACTICS.md): traits on top of the built-in behavior, in order of priority. A character may override a trait's settings under the trait's name and any general value (after the people's), e.g. \"general\": { \"traits\": [\"pincer\"], \"pincer\": { \"feintShare\": 0.5 } }. buildOrderMoves (building: places, negative = earlier) shifts every entry of a building in the people's build order. Made-up characters for trying out (arena, tournament): traits joined by '+' (pincer+guardByThreat), and @path=value on top of a character or traits (general@attack.ratio=1.3@buildOrderMoves.barrack=-5). characterWeights: which character a player gets, drawn once per game (per people under civilizations). The client and the arena can name it per player with --characters.",
   "traits": {
     "guardByThreat": {
       "_comment": "Idle soldiers guard the own military buildings by threat (values under military: threatRange, guardDistance)."
@@ -119,11 +119,46 @@
       "flankDistance": 14,
       "strikeSeconds": 8,
       "extraShare": 0.5
+    },
+    "waves": {
+      "_comment": "Calm phases of calmSeconds without campaigns alternate with waves of waveSeconds in which campaigns may start one after another; each phase up to jitter (share) longer or shorter. Defence and guerilla go on.",
+      "calmSeconds": 480,
+      "waveSeconds": 180,
+      "jitter": 0.25
+    },
+    "frontGarrison": {
+      "_comment": "Military buildings within frontDistance of an enemy military building (sites too) are fully staffed, the others get backline soldiers; the rest come out and are free for strikes and campaigns.",
+      "frontDistance": 45,
+      "backline": 1
     }
   },
   "characters": {
     "standard": { "traits": [] },
-    "general": { "traits": ["pincer", "guardByThreat"], "attack": { "ratio": 1.2 }, "military": { "strikeRange": 40 } }
+    "general": { "traits": ["pincer", "guardByThreat"], "attack": { "ratio": 1.2 }, "military": { "strikeRange": 40 } },
+    "_peoplesComment": "One character per people, each a recognisable opponent. Egyptians (hothead): hot-tempered, military early, attack at slight superiority with all they have, thin garrisons in the back. Asians (unyielding): hardly ever give up or retreat (only below half the defence; never at all bled them out). Romans (legion): strong economy with early gold, attack bundled in waves, pincers. Amazons (skirmisher): play safe at home (garrisons full, campaigns only at 2:1), but wear the enemy down with small guerilla groups far out.",
+    "hothead": {
+      "traits": ["frontGarrison"],
+      "attack": { "ratio": 1.2, "armyRatio": 1.0, "commit": 1.0, "minSoldiers": 3 },
+      "military": { "strikeRatio": 1.2, "strikeRange": 120 },
+      "buildOrderMoves": { "barrack": -6, "weaponsmith": -6 }
+    },
+    "unyielding": {
+      "traits": ["guardByThreat"],
+      "attack": { "ratio": 1.4, "abortRatio": 0.5, "commit": 0.3 },
+      "military": { "retreatRatio": 0.5 }
+    },
+    "legion": {
+      "traits": ["waves", "pincer", "guardByThreat"],
+      "attack": { "minSoldiers": 8, "commit": 0.6 },
+      "waves": { "calmSeconds": 420, "waveSeconds": 240 },
+      "maxSites": 5,
+      "buildOrderMoves": { "goldmine": -10, "goldmelt": -10 }
+    },
+    "skirmisher": {
+      "traits": ["guardByThreat"],
+      "attack": { "ratio": 2.0, "armyRatio": 0, "minSoldiers": 2 },
+      "military": { "strikeRange": 150, "strikeRatio": 1.3, "retreatRatio": 1.2 }
+    }
   },
   "characterWeights": [["standard", 1]],
   "civilizations": {

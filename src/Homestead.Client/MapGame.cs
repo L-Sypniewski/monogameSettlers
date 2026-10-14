@@ -121,6 +121,7 @@ public sealed class MapGame : Game
 
     /// <summary>Farthest out: drawing cost grows with the square of the area shown.</summary>
     private const float MinZoom = 1f;
+    private const float MaxZoom = 4f;
     private KeyboardState _previousKeys;
     private MouseState _previousMouse;
     private int _capturedFrames;
@@ -607,7 +608,7 @@ public sealed class MapGame : Game
 
         int wheel = mouse.ScrollWheelValue - _previousMouse.ScrollWheelValue;
         if (wheel != 0)
-            _zoom = Math.Clamp(_zoom * (wheel > 0 ? 1.25f : 0.8f), MinZoom, 6f);
+            _zoom = Math.Clamp(_zoom * (wheel > 0 ? 1.25f : 0.8f), MinZoom, MaxZoom);
 
         _previousKeys = keys;
         _previousMouse = mouse;

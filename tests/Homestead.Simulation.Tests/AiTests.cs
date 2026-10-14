@@ -173,6 +173,72 @@ public class AiTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Characters_can_be_made_up_from_traits_and_values()
+    {
+        var plain = AiConfig.Load(civilization: Civilization.Roman);
+        var variant = AiConfig.Load(civilization: Civilization.Roman,
+            character: "general@attack.ratio=1.7@buildOrderMoves.barrack=-3@pincer.feintShare=0.5");
+        Assert.Equal(1.7, variant.Attack.Ratio);
+        Assert.Equal(1.7, variant.Attack.ArmyRatio); // defaults to the ratio
+        Assert.Equal(1.7, variant.Attack.AbortRatio);
+        Assert.Equal(40, variant.Military.StrikeRange); // the general's own value stays
+        int Barrack(AiConfig c) => c.BuildOrder.ToList().FindIndex(e => e.Building == "barrack");
+        Assert.Equal(Barrack(plain) - 3, Barrack(variant));
+        Assert.Equal(plain.BuildOrder.Count, variant.BuildOrder.Count);
+        var traits = variant.Characters["general@attack.ratio=1.7@buildOrderMoves.barrack=-3@pincer.feintShare=0.5"];
+        Assert.Equal(0.5, traits.Single(t => t.Trait == "pincer").Settings.GetProperty("feintShare").GetDouble());
+
+        var world = new World(new GameMap(40), TestConfig.NoTools);
+        Assert.Equal(["waves", "frontGarrison"], new AiPlayer(world, Romans, 0, character: "waves+frontGarrison").Character.Traits.Select(t => t.Id));
+        Assert.Throws<ArgumentException>(() => new AiPlayer(world, Romans, 0, character: "waves+nothing"));
+    }
+
+    [Fact]
+    public void With_front_garrison_only_buildings_near_the_enemy_are_fully_staffed()
+    {
+        var world = new World(new GameMap(160), TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var back = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 80), force: true)!;
+        var front = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(90, 80), force: true)!;
+        world.PlaceBuilding(Romans["tower"], 1, new GridPoint(130, 80), force: true);
+        world.SpawnSoldier(back.Door, SoldierType.Swordsman);
+        world.SpawnSoldier(front.Door, SoldierType.Swordsman);
+        world.Step();
+        world.AiPlayers.Add(new AiPlayer(world, Romans, 0, character: "frontGarrison"));
+
+        for (int t = 0; t < 10 * World.TicksPerSecond; t++)
+            world.Step();
+
+        int Wanted(Building b) => Enum.GetValues<SoldierType>().Sum(type => world.Military.Wanted(b, type));
+        Assert.Equal(1, Wanted(back));
+        Assert.Equal(Romans["tower"].Occupiers.Count, Wanted(front));
+    }
+
+    [Theory]
+    [InlineData("standard", false)]
+    [InlineData("standard@attack.commit=1", true)]
+    public void A_committed_campaign_takes_all_spare_soldiers(string character, bool all)
+    {
+        var world = new World(new GameMap(160), TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var own = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        var enemy = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(100, 80), force: true)!;
+        world.SpawnSoldier(own.Door, SoldierType.Swordsman);
+        world.SpawnSoldier(enemy.Door, SoldierType.Swordsman, player: 1);
+        world.Step();
+        for (int i = 0; i < 10; i++)
+            world.SpawnSoldier(new GridPoint(44 + i, 88), SoldierType.Swordsman);
+        var ai = new AiPlayer(world, Romans, 0, character: character);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 20 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("gathers")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Equal(all, ai.Log.Any(l => l.Contains("gathers 10 soldiers")));
+        Assert.Contains(ai.Log, l => l.Contains("gathers"));
+    }
+
+    [Fact]
     public void The_ai_upgrades_swordsmen_bowmen_pikemen_to_level_2_and_then_to_level_3()
     {
         var map = new GameMap(100);

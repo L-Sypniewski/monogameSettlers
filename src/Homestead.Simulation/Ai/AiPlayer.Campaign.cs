@@ -32,6 +32,9 @@ public sealed partial class AiPlayer
         var rules = _config.Attack;
         if (spare.Count < rules.MinSoldiers)
             return;
+        // Decision point "timing": a trait may hold campaigns back.
+        if (Character.Traits.Any(t => !t.AllowCampaign(this)))
+            return;
         var pathFinder = _world.PathFinder!;
         // The own army fights on foreign land, the enemy's at home.
         double ownArmy = Army(Player) * _world.Military.CombatStrength(Player);
@@ -40,7 +43,7 @@ public sealed partial class AiPlayer
                                                            && b.State == BuildingState.Finished && _world.Military.IsOccupied(b)))
         {
             // Clearly stronger than that enemy as a whole.
-            if (ownArmy < Army(target.Player) * rules.Ratio)
+            if (ownArmy < Army(target.Player) * rules.ArmyRatio)
                 continue;
             var rally = military.MinBy(b => PathFinder.Distance(b.Position, target.Position))!;
             if (!pathFinder.AreConnected(rally.Door, target.Door) || !WayIsClear(rally.Door, target))
@@ -64,9 +67,14 @@ public sealed partial class AiPlayer
         }
         if (best is not { } chosen)
             return;
+        spare.RemoveAll(chosen.Force.Contains);
+        // A share of the other spare soldiers comes along (all of them: full strength).
+        var along = spare.OrderBy(s => PathFinder.Distance(s.Position, chosen.Rally.Door))
+            .Take((int)Math.Ceiling(spare.Count * rules.Commit)).ToList();
+        chosen.Force.AddRange(along);
+        spare.RemoveAll(along.Contains);
         var campaign = new Campaign(chosen.Target, chosen.Force, chosen.Rally.Door, _world.Tick);
         _campaign = campaign;
-        spare.RemoveAll(chosen.Force.Contains);
         foreach (var trait in Character.Traits)
             if ((campaign.Leader = trait.LeadCampaign(this, campaign, spare)) is not null)
                 return;
@@ -106,7 +114,7 @@ public sealed partial class AiPlayer
             bool gathered = c.Soldiers.All(s => PathFinder.Distance(s.Position, c.Rally) <= _config.Military.GuardDistance);
             if (!gathered && _world.Tick - c.Since < rules.GatherTicks)
                 return;
-            if (strength < defense * rules.Ratio)
+            if (strength < defense * rules.AbortRatio)
             {
                 Note($"gives up the campaign against {target.Position.X},{target.Position.Y}: the defence got stronger");
                 _world.Military.Move(c.Soldiers, HomeDoor());

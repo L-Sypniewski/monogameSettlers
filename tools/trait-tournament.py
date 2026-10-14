@@ -7,11 +7,22 @@ can still fight (military building or soldier) or after --minutes; then the land
 ahead. Results go to a CSV (one row per player and game); runs can be interrupted and resumed, games
 already in the CSV are skipped.
 
-  tools/trait-tournament.py run    [--entrants standard,pincer,...] [--maps ...] [--peoples ...]
-                                   [--seeds 1,2] [--minutes 90] [--jobs N] [--self] [--out file.csv]
-  tools/trait-tournament.py report [--out file.csv]
+  tools/trait-tournament.py run    [--preset traits|peoples] [--entrants a,b,...] [--against x,y] [--vary path=v1/v2 ...]
+                                   [--maps ...] [--peoples ...] [--seeds 1,2] [--minutes 90] [--jobs N] [--self] [--out file.csv]
+  tools/trait-tournament.py report [--preset ...] [--out file.csv]
 
-Entrants are characters from data/ai.json or traits joined by '+' (pincer+guardByThreat).
+Entrants are characters from data/ai.json, traits joined by '+' (pincer+guardByThreat), either with
+@path=value settings on top (standard@attack.ratio=1.2@military.strikeRange=40, see ai.json). A
+people in front (egyptian:hothead) lets the entrant play only with that people.
+--against: the entrants play only against these (both start positions), not each other.
+--vary: every entrant once per value, e.g. --vary attack.ratio=1.2/1.5/2 --vary military.strikeRange=40/100
+(several --vary: every combination).
+Presets (the defaults for entrants, opponents and output file):
+  traits   every trait combination and the general against each other (all peoples)
+  peoples  each people's character against standard and general of its own people
+Examples:
+  tools/trait-tournament.py run --preset peoples
+  tools/trait-tournament.py run --entrants egyptian:hothead --against standard --vary attack.commit=0/0.5/1 --out tournament-results/commit.csv
 """
 import argparse
 import csv
@@ -28,9 +39,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARENA_PROJECT = os.path.join(ROOT, "tools", "Homestead.Arena")
 ARENA_DLL = os.path.join(ARENA_PROJECT, "bin", "Release", "net9.0", "Homestead.Arena.dll")
-DEFAULT_OUT = os.path.join(ROOT, "tournament-results", "trait-tournament.csv")
+RESULTS = os.path.join(ROOT, "tournament-results")
 
-DEFAULT_ENTRANTS = ["standard", "pincer", "guardByThreat", "pincer+guardByThreat", "general"]
+PRESETS = {
+    "traits": {"entrants": ["standard", "pincer", "guardByThreat", "pincer+guardByThreat", "general"], "against": []},
+    "peoples": {"entrants": ["egyptian:hothead", "asian:unyielding", "roman:legion", "amazon:skirmisher"],
+                "against": ["standard", "general"]},
+}
 # Small two-player maps without start buildings that leave the peoples open (M256-2-Quick fixes Romans,
 # on M320-2-Discovery the economy stalls).
 DEFAULT_MAPS = ["A256-2-Quick3", "M256-2-Quick-2", "M320-2-Hearts", "384-2-Lakes"]
@@ -39,6 +54,23 @@ DEFAULT_PEOPLES = ["roman", "egyptian", "asian", "amazon"]
 
 def split(text):
     return [part.strip() for part in text.split(",") if part.strip()]
+
+
+def entrant(spec):
+    """(people or None, character id) of an entrant like 'egyptian:hothead'."""
+    people, _, character = spec.rpartition(":")
+    return (people.lower() or None), character
+
+
+def varied(entrants, variations):
+    """Every entrant once per combination of the --vary values."""
+    if not variations:
+        return entrants
+    axes = []
+    for variation in variations:
+        path, _, values = variation.partition("=")
+        axes.append([f"@{path}={v}" for v in values.split("/") if v])
+    return [e + "".join(combo) for e in entrants for combo in itertools.product(*axes)]
 
 
 def game_tag(map_name, people, first, second, seed, minutes):
@@ -53,12 +85,26 @@ def read_rows(path):
 
 
 def run(args):
-    entrants = split(args.entrants)
+    preset = PRESETS[args.preset]
+    entrants = varied(split(args.entrants) if args.entrants else preset["entrants"], args.vary)
+    against = split(args.against) if args.against is not None else preset["against"]
     maps = split(args.maps)
     peoples = split(args.peoples)
     seeds = [int(s) for s in split(args.seeds)]
-    pairs = [(a, b) for a, b in itertools.product(entrants, repeat=2) if a != b or args.self]
-    games = [(m, p, a, b, s) for m in maps for p in peoples for (a, b) in pairs for s in seeds]
+
+    def plays(spec, people):
+        own, _ = entrant(spec)
+        return own is None or own == people.lower()
+
+    games = []
+    for people in peoples:
+        mine = [entrant(e)[1] for e in entrants if plays(e, people)]
+        others = [entrant(e)[1] for e in against if plays(e, people)]
+        if against:
+            pairs = {pair for a in mine for b in others if a != b for pair in ((a, b), (b, a))}
+        else:
+            pairs = {(a, b) for a, b in itertools.product(mine, repeat=2) if a != b or args.self}
+        games += [(m, people, a, b, s) for m in maps for (a, b) in sorted(pairs) for s in seeds]
 
     out = os.path.abspath(args.out)
     os.makedirs(os.path.dirname(out), exist_ok=True)
@@ -66,7 +112,7 @@ def run(args):
     os.makedirs(logs, exist_ok=True)
     done = {row["tag"] for row in read_rows(out)}
     todo = [g for g in games if game_tag(*g, args.minutes) not in done]
-    print(f"{len(games)} games ({len(entrants)} entrants, {len(maps)} maps, {len(peoples)} peoples, {len(seeds)} seeds), "
+    print(f"{len(games)} games ({len(entrants)} entrants, {len(against)} opponents, {len(maps)} maps, {len(peoples)} peoples, {len(seeds)} seeds), "
           f"{len(games) - len(todo)} already in {out}, {len(todo)} to play with {args.jobs} jobs", flush=True)
     if not todo:
         return
@@ -178,7 +224,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     r = sub.add_parser("run", help="play the games (skips those already in the CSV)")
-    r.add_argument("--entrants", default=",".join(DEFAULT_ENTRANTS))
+    r.add_argument("--preset", choices=PRESETS, default="traits")
+    r.add_argument("--entrants", help="default: the preset's")
+    r.add_argument("--against", help="opponents; default: the preset's (traits: none, everyone against everyone)")
+    r.add_argument("--vary", action="append", default=[], metavar="PATH=V1/V2")
     r.add_argument("--maps", default=",".join(DEFAULT_MAPS))
     r.add_argument("--peoples", default=",".join(DEFAULT_PEOPLES))
     r.add_argument("--seeds", default="1")
@@ -186,10 +235,12 @@ def main():
     r.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     r.add_argument("--self", action="store_true", help="also let each entrant play against itself")
     r.add_argument("--no-build", action="store_true")
-    r.add_argument("--out", default=DEFAULT_OUT)
+    r.add_argument("--out")
     p = sub.add_parser("report", help="summarize the CSV")
-    p.add_argument("--out", default=DEFAULT_OUT)
+    p.add_argument("--preset", choices=PRESETS, default="traits")
+    p.add_argument("--out")
     args = parser.parse_args()
+    args.out = args.out or os.path.join(RESULTS, f"{args.preset}.csv")
     run(args) if args.command == "run" else report(args)
 
 

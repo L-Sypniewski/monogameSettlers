@@ -26,11 +26,12 @@ public sealed class Geology
 
     /// <summary>Carriers that become geologists once their current delivery is done.</summary>
     private readonly HashSet<Settler> _pending = new();
-    private readonly Random _random = new(4711);
+    private readonly Random _random;
 
     internal Geology(World world, ProductionConfig config)
     {
         _world = world;
+        _random = new Random(4711 + world.Seed);
         _rules = config.Geologists;
     }
 

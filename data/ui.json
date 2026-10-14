@@ -123,7 +123,8 @@
   "_aiComment": "German names of the AI characters and their traits (ids from ai.json, docs/KI-TACTICS.md), for messages and menus.",
   "aiCharacters": {
     "standard": "Standard", "general": "Feldherr", "rusher": "Stürmer", "trickster": "Hinterhältiger",
-    "landTaker": "Landnehmer", "merchant": "Wirtschafter"
+    "landTaker": "Landnehmer", "merchant": "Wirtschafter",
+    "hothead": "Hitzkopf", "unyielding": "Unbeugsamer", "legion": "Legion", "skirmisher": "Plänklerin"
   },
   "aiTraits": {
     "guardByThreat": "Bewachung nach Bedrohung", "pincer": "Zange und Finte", "frontGarrison": "Besatzung nach Frontlage",

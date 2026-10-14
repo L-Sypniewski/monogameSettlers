@@ -80,6 +80,8 @@ public sealed partial class AiPlayer
     /// <summary>
     /// The AI wants its military buildings full: bowmen on the bowman places; the infantry there stays,
     /// free infantry places go to idle swordsmen, then idle pikemen, the rest waits for swordsmen.
+    /// Decision point "garrison": a trait may limit a building to fewer soldiers (infantry first, at
+    /// least one); the others come out.
     /// </summary>
     private void Staff(List<Building> military, List<Settler> idle)
     {
@@ -88,8 +90,16 @@ public sealed partial class AiPlayer
         int freePikemen = idle.Count(s => s.SoldierType == SoldierType.Pikeman);
         foreach (var building in military)
         {
-            int infantry = building.Definition.Occupiers.Count(o => !o.ForBowman);
+            int places = building.Definition.Occupiers.Count;
+            int limit = Math.Max(1, Character.Traits.Select(t => t.GarrisonLimit(this, building)).Min() ?? places);
+            int infantryPlaces = building.Definition.Occupiers.Count(o => !o.ForBowman);
+            int infantry = Math.Min(infantryPlaces, limit);
             int swordsmen = m.Assigned(building, SoldierType.Swordsman), pikemen = m.Assigned(building, SoldierType.Pikeman);
+            // Over the limit: pikemen leave before swordsmen.
+            int over = Math.Max(0, swordsmen + pikemen - infantry);
+            int pikemenLeaving = Math.Min(over, pikemen);
+            pikemen -= pikemenLeaving;
+            swordsmen -= over - pikemenLeaving;
             int room = Math.Max(0, infantry - swordsmen - pikemen);
             int moreSwordsmen = Math.Min(room, freeSwordsmen), morePikemen = Math.Min(room - moreSwordsmen, freePikemen);
             freeSwordsmen -= moreSwordsmen;
@@ -98,7 +108,7 @@ public sealed partial class AiPlayer
             {
                 [SoldierType.Swordsman] = swordsmen + room - morePikemen,
                 [SoldierType.Pikeman] = pikemen + morePikemen,
-                [SoldierType.Bowman] = building.Definition.Occupiers.Count - infantry,
+                [SoldierType.Bowman] = Math.Min(places - infantryPlaces, limit - infantry),
             };
             // Fewer first (frees places), then more, then fewer again (a building is never left wanting none).
             for (int pass = 0; pass < 3; pass++)

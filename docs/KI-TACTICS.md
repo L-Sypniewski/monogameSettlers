@@ -49,12 +49,12 @@ Charakterzüge zusammenwirken:
 
 | Entscheidungspunkt | Wann | Zusammenwirken mehrerer Charakterzüge |
 |---|---|---|
-| **Besatzung** | jede Militär-Runde, je eigenem Militärgebäude | Charakterzüge liefern Soll-Besatzung; das höchste Soll gewinnt |
+| **Besatzung** (`GarrisonLimit`, umgesetzt) | jede Militär-Runde, je eigenem Militärgebäude | Charakterzüge begrenzen die Besatzung; die niedrigste Grenze gilt (mindestens 1) |
 | **Angriffsziele** | Planung eines Feldzugs | Charakterzüge bewerten Ziele (Punkte addieren sich), bestes Ziel gewinnt |
 | **Truppenführung** (`LeadCampaign`, umgesetzt) | während eines Feldzugs | einer führt den Trupp (z. B. Zange *oder* Hinterhalt), Schlachtordnung kann zusätzlich gelten |
 | **Bewachung** (`Guard`, umgesetzt) | jede Militär-Runde, für die übrigen untätigen Soldaten | der erste, der sie aufstellt, entscheidet; ohne ihn bleiben sie stehen |
 | **Turmplätze** | Expansion | Charakterzüge bewerten Bauplätze, Punkte addieren sich |
-| **Zeitpunkt** | jede Militär-Runde | Charakterzüge können Angriffe erlauben, verbieten oder anschieben |
+| **Zeitpunkt** (`AllowCampaign`, umgesetzt) | jede Militär-Runde, vor der Planung eines Feldzugs | jeder Charakterzug kann einen neuen Feldzug zurückhalten |
 | **Zauber** | Priester am Kampf | einer entscheidet Zauber und Moment |
 | **Schwellen** | überall, wo ein Verhältnis entscheidet | Modifikator auf Werte wie `attack.ratio` |
 
@@ -113,10 +113,10 @@ Ohne diesen Charakterzug bleiben untätige Soldaten stehen, wo sie sind.
 
 ### Besatzung
 
-**`frontGarrison` – Besatzung nach Frontlage** · M
+**`frontGarrison` – Besatzung nach Frontlage** · M · **umgesetzt** (Charakter `hothead`)
 Militärgebäude im Hinterland bekommen 1 Soldaten, Gebäude an der Grenze zum Feind voll, dort mit
 Bogenschützen. Ergebnis: deutlich mehr Soldaten frei für Angriffe.
-Werte: Abstand, ab dem ein Gebäude als „Front“ gilt; Mindestbesatzung Hinterland.
+Werte: `frontDistance` (Abstand zu einem feindlichen Militärgebäude, ab dem ein Gebäude „Front“ ist), `backline` (Besatzung im Hinterland).
 
 **`reinforceThreatened` – Vorab aufstocken** · S
 Steht ein feindlicher Trupp in Reichweite eines Grenzturms, wird dessen Besatzung sofort auf voll
@@ -205,9 +205,9 @@ Waffen hat. Danach normale Wirtschaft.
 Angriffe zurückhalten, bis eine Aufwertung fertig ist oder genug Gold für hohe Kampfkraft lagert,
 dann gebündelt losschlagen. Gold dafür gezielt sammeln.
 
-**`waves` – Spannungsphasen** · S
-Wechsel aus ruhigen Aufbauphasen und Angriffswellen statt gleichmäßigen Drucks. Werte: Länge der
-Phasen (mit Streuung).
+**`waves` – Spannungsphasen** · S · **umgesetzt** (Charakter `legion`)
+Wechsel aus ruhigen Aufbauphasen und Angriffswellen statt gleichmäßigen Drucks. Werte: `calmSeconds`,
+`waveSeconds`, `jitter` (Streuung). Verteidigung und Guerilla laufen in der Ruhephase weiter.
 
 **`multiFront` – Druck an mehreren Stellen** · M
 Zwei oder drei Trupps bedrohen gleichzeitig verschiedene Grenzabschnitte. Der Verteidiger muss sich
@@ -223,9 +223,39 @@ einer Spanne gewürfelt (z. B. 1,3–1,8 statt 1,5). Das Verhalten wird schwerer
 kann keine einzelnen Einheiten gezielt angreifen lassen. Die KI soll keine Steuerung bekommen, die
 dem Menschen fehlt.
 
-## Charaktere (Entwurf)
+## Stellschrauben ohne Charakterzug
 
-Noch nicht den Völkern zugeordnet – das machen wir, wenn die Charakterzüge stehen.
+Viele Unterschiede brauchen keinen eigenen Charakterzug, nur andere Werte im Charakter:
+
+| Wert | Wirkung |
+|---|---|
+| `attack.ratio` | Überlegenheit am Ziel, ab der ein Feldzug startet |
+| `attack.armyRatio` | Überlegenheit der ganzen Armee (Vorgabe: `ratio`; 0 = egal → kleine Feldzüge gegen schwache Türme) |
+| `attack.commit` | Anteil der übrigen freien Soldaten, der zusätzlich mitzieht (1 = volle Stärke) |
+| `attack.abortRatio` | nach dem Sammeln: Abbruch unter diesem Verhältnis (Vorgabe: `ratio`; 0 = nie) |
+| `attack.minSoldiers`, `attack.defenseRadius` | kleinster Trupp; wie weit Feinde um das Ziel zur Verteidigung zählen |
+| `military.strikeRange`, `military.strikeRatio` | Guerilla: wie weit draußen, ab welcher Überlegenheit |
+| `military.retreatRatio` | Rückzug darunter (0 = nie) |
+| `buildOrderMoves` | Gebäude in der Build-Order des Volks verschieben, z. B. `{ "barrack": -6 }` |
+| `maxSites` | gleichzeitige Baustellen |
+
+Zum Ausprobieren ohne Eintrag in `ai.json`: `pincer+waves` (nur diese Charakterzüge) und
+`@pfad=wert` (`general@attack.ratio=1.3@buildOrderMoves.barrack=-5`). Das Turnier
+(`tools/trait-tournament.py`) variiert Werte mit `--vary attack.ratio=1.2/1.5/2`.
+
+## Volks-Charaktere
+
+Ziel: je Volk ein Charakter, der sich als Gegner eigen anfühlt. Definiert in `ai.json`, noch nicht
+über `characterWeights` zugeordnet (erst nach Turnier-Vergleich).
+
+| Volk | Charakter | Idee | Umsetzung |
+|---|---|---|---|
+| Ägypter | Hitzkopf (`hothead`) | temperamentvoll, greift immer mit voller Stärke an | frontGarrison; `ratio` 1,2, `commit` 1, Guerilla bei 1,2:1 bis 120 Felder; Kaserne/Waffenschmiede 6 Plätze früher |
+| Asiaten | Unbeugsamer (`unyielding`) | gibt niemals auf, zieht sich nie zurück | guardByThreat; `abortRatio` 0, `retreatRatio` 0, `ratio` 1,4 |
+| Römer | Legion (`legion`) | wirtschaftlich stark, greift gebündelt in Wellen an | waves, pincer, guardByThreat; `minSoldiers` 8, `commit` 0,6; Gold 10 Plätze früher; 5 Baustellen |
+| Amazonen | Plänklerin (`skirmisher`) | auf Nummer sicher, schwächt den Gegner mit kleinen Guerillas | guardByThreat; Feldzug erst bei 2:1, aber ohne Armee-Vergleich ab 2 Soldaten; Guerilla bis 150 Felder bei 1,3:1, Rückzug schon unter 1,2 |
+
+## Charaktere (Entwurf)
 
 | Charakter (Kennung) | Idee | Charakterzüge |
 |---|---|---|

@@ -33,11 +33,12 @@ public sealed class Logistics
 
     private readonly World _world;
     private readonly Dictionary<int, TransportJob> _jobs = new();
-    private readonly Random _random = new(7);
+    private readonly Random _random;
 
     internal Logistics(World world)
     {
         _world = world;
+        _random = new Random(7 + world.Seed);
     }
 
     public IReadOnlyCollection<TransportJob> Jobs => _jobs.Values;

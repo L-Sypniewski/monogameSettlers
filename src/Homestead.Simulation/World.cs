@@ -55,11 +55,16 @@ public sealed partial class World
 
     public Civilization PeopleOf(int player) => player < Peoples.Count ? Peoples[player] : Civilization.Roman;
 
+    /// <summary>What the game's chance is drawn from: the same seed plays the same game.</summary>
+    public int Seed { get; }
+
     /// <summary>Computer players; each acts for its own player in every tick.</summary>
     public List<Ai.AiPlayer> AiPlayers { get; } = new();
 
-    public World(GameMap? map = null, ProductionConfig? production = null, MilitaryConfig? military = null, MagicConfig? magic = null)
+    /// <param name="seed">Varies everything left to chance (0: the same game as always).</param>
+    public World(GameMap? map = null, ProductionConfig? production = null, MilitaryConfig? military = null, MagicConfig? magic = null, int seed = 0)
     {
+        Seed = seed;
         Map = map;
         Logistics = new Logistics(this);
         Construction = new Construction(this);

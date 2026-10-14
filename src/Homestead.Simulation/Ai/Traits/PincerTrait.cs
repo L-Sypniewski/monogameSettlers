@@ -24,7 +24,7 @@ internal sealed class PincerTrait(JsonElement settings) : AiTrait
     private readonly int _flankDistance = (int)Setting(settings, "flankDistance", 14);
     private readonly int _strikeTicks = (int)(Setting(settings, "strikeSeconds", 8) * World.TicksPerSecond);
     private readonly double _extraShare = Setting(settings, "extraShare", 0.5);
-    private readonly Random _random = new(4242);
+    private Random? _random;
 
     public override string Id => TraitId;
 
@@ -33,6 +33,7 @@ internal sealed class PincerTrait(JsonElement settings) : AiTrait
         if (campaign.Soldiers.Count < _minSoldiers)
             return null;
         var world = ai.World;
+        _random ??= new Random(4242 + world.Seed);
         int bowRange = world.Military.Config.Soldiers[SoldierType.Bowman].Range;
         double distance = Math.Max(_flankDistance, bowRange + 3);
         (GridPoint Staging, GridPoint Waypoint, double Danger)? best = null;
