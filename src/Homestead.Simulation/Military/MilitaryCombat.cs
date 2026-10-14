@@ -383,6 +383,9 @@ public sealed partial class Military
         var enemies = EnemiesOf(soldier.Player)
             .Where(e => PathFinder.Distance(start, e.Position) <= _config.CombatPathRadius + stats.Range)
             .ToList();
+        // The combatants are those of the tick's start: a defender sent out since is not among them yet.
+        if (!enemies.Contains(enemy))
+            enemies.Add(enemy);
         int Reach(GridPoint p) => enemies.Min(e => PathFinder.Distance(p, e.Position));
 
         var cameFrom = new Dictionary<GridPoint, (GridPoint From, Direction Step)> { [start] = (start, default) };

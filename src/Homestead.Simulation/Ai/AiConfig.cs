@@ -102,6 +102,10 @@ public sealed record AiConfig
         var node = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
         if (civilization is { } people && node["civilizations"]?[people.ToString()] is JsonObject overrides)
             Merge(node, overrides);
+        // An id like "pincer+guardByThreat" that is no character of its own: those traits with their default settings.
+        if (character is not null && node["characters"] is JsonObject known && known[character] is null
+            && character.Split('+') is var parts && parts.All(t => AiTrait.Known.Contains(t)))
+            known[character] = new JsonObject { ["traits"] = new JsonArray(parts.Select(t => (JsonNode)JsonValue.Create(t)!).ToArray()) };
         if (character is not null && node["characters"]?[character] is JsonObject own)
         {
             var traits = (own["traits"]?.AsArray() ?? []).Select(t => t!.GetValue<string>()).ToHashSet();

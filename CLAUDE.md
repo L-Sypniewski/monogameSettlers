@@ -60,7 +60,9 @@ Kommunikation auf Deutsch; Code und Code-Kommentare auf Englisch.
   `HOMESTEAD_CAPTURE_FOCUS=<gebäude>` (oder `site`: eine frische Baustelle; `temple` setzt einen kleinen Tempel mit Mana) für Nahaufnahmen, `HOMESTEAD_CAPTURE_BATTLE=1` lässt Feinde den Startturm angreifen, `HOMESTEAD_CAPTURE_STRIKE=1` reißt das fokussierte Gebäude ab und setzt 10 Träger ohne Wohnraum dazu, `HOMESTEAD_CAPTURE_GEOLOGISTS=1` wandelt Träger um und schickt Geologen ins nächste eigene Gebirge, `HOMESTEAD_CAPTURE_SELECT=1` wählt eigene Soldaten aller Typen und Stufen aus, `HOMESTEAD_CAPTURE_MAGIC=1` baut großen Tempel und Mana-Kette, gibt Mana und lässt den Priester in einen Kampf zaubern; am Ende gibt der Lauf Zähler und Gebäudezustände aus.
 - `tools/Homestead.Arena` – KI gegen KI ohne Fenster: `dotnet tools/Homestead.Arena/bin/Release/net9.0/Homestead.Arena.dll
   [karte…] [--all] [--minutes 30] [--every 5] [--peoples amazon,asian] [--characters ,general] [--seed 1] [--log] [--notes] [--profile]`; Entscheidungen der Charakterzüge (mit `--notes` alle) werden sofort ausgegeben, `--profile` misst ms je Tick und Teil der Simulation (`World.StepProfile`, mit längstem Tick); offene Völker zufällig mit festem Seed; gibt je Spieler Land (frei, Wasseranteil), Gebäude, Mana, Priester, Siedler, Wohnraum/Streikende, Vorräte und
-  hängende Baustellen aus.
+  hängende Baustellen aus; `--until-decided` endet, sobald nur noch ein Spieler Militärgebäude oder Soldaten hat, `--csv <datei>` hängt je Spieler eine Ergebniszeile an;
+  `--characters` nimmt auch mit `+` verbundene Charakterzüge (`pincer+guardByThreat`, ein Charakter nur aus diesen).
+- `tools/trait-tournament.py run|report` – Turnier der KI-Charaktere/-Charakterzüge über die Arena (jede Paarung auf jeder Karte und mit jedem Volk, beide Spieler gleiches Volk, beide Startpositionen; parallel, fortsetzbar); Ergebnisse in `tournament-results/` (nicht im Repo).
 - `tools/Homestead.AssetTool` – CLI: `scan` (alle Bilder testweise dekodieren), `export`, `sheet` (PNG),
   `maps`, `resources` (Statistik der Bodenschätze), `minimap`.
 

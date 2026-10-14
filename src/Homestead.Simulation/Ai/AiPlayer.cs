@@ -51,12 +51,12 @@ public sealed partial class AiPlayer
     private readonly HashSet<string> _reported = new();
     private Building? _home;
 
-    /// <param name="character">Name of the character (ai.json <c>characters</c>); null: drawn by the people's weights with <paramref name="random"/>.</param>
+    /// <param name="character">Name of the character (ai.json <c>characters</c>, or traits joined by '+'); null: drawn by the people's weights with <paramref name="random"/>.</param>
     public AiPlayer(World world, BuildingCatalog catalog, int player, AiConfig? config = null, string? character = null, Random? random = null)
     {
         _world = world;
         _catalog = catalog;
-        _config = config ?? AiConfig.Load(civilization: catalog.Civilization);
+        _config = config ?? AiConfig.Load(civilization: catalog.Civilization, character: character);
         Player = player;
         _survey = new MapSurvey(world, player);
         Character = character is null ? AiCharacter.Draw(_config, random ?? new Random(player)) : AiCharacter.Create(_config, character);

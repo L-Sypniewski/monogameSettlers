@@ -11,3 +11,6 @@ obj/
 GFX/
 SND/
 export/
+
+# Trait tournament results (tools/trait-tournament.py)
+tournament-results/
