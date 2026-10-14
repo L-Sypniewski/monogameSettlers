@@ -29,7 +29,7 @@ public sealed class Production
     public const int HandleTicks = 8;
     private const int RetryTicks = 40;
     private const int UnreachableForgetTicks = 2000;
-    private const int DefaultRadius = 12;
+    internal const int DefaultRadius = 12;
     private const int ExhaustedRetryTicks = 200;
     private const int RecruitInterval = 10;
 

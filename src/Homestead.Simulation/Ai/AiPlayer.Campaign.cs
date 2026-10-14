@@ -7,19 +7,24 @@ namespace Homestead.Simulation.Ai;
 /// Campaigns against enemy land: the AI picks an occupied enemy military building near its own land,
 /// weakly defended and reachable without running into enemy groups, gathers enough spare soldiers
 /// at its own military building nearest to it, and attacks once they are together (see <c>attack</c>
-/// in ai.json).
+/// in ai.json). A trait of the character may lead the campaign instead (<see cref="AiTrait.LeadCampaign"/>).
 /// </summary>
 public sealed partial class AiPlayer
 {
     private Campaign? _campaign;
 
-    private sealed class Campaign(Building target, List<Settler> soldiers, GridPoint rally, long since)
+    internal sealed class Campaign(Building target, List<Settler> soldiers, GridPoint rally, long since)
     {
         public Building Target { get; } = target;
         public List<Settler> Soldiers { get; } = soldiers;
+
+        /// <summary>Door of the own military building nearest the target, where the soldiers gather.</summary>
         public GridPoint Rally { get; } = rally;
         public long Since { get; } = since;
         public bool Attacking { get; set; }
+
+        /// <summary>The trait leading it, or null for the built-in gather-and-attack.</summary>
+        public CampaignLeader? Leader { get; set; }
     }
 
     private void StartCampaign(List<Building> military, List<Settler> spare)
@@ -59,9 +64,13 @@ public sealed partial class AiPlayer
         }
         if (best is not { } chosen)
             return;
-        _world.Military.Move(chosen.Force, chosen.Rally.Door);
-        _campaign = new Campaign(chosen.Target, chosen.Force, chosen.Rally.Door, _world.Tick);
+        var campaign = new Campaign(chosen.Target, chosen.Force, chosen.Rally.Door, _world.Tick);
+        _campaign = campaign;
         spare.RemoveAll(chosen.Force.Contains);
+        foreach (var trait in Character.Traits)
+            if ((campaign.Leader = trait.LeadCampaign(this, campaign, spare)) is not null)
+                return;
+        _world.Military.Move(chosen.Force, chosen.Rally.Door);
         Note($"gathers {chosen.Force.Count} soldiers at {chosen.Rally.Position.X},{chosen.Rally.Position.Y} " +
              $"against the {chosen.Target.Definition.Name} of player {chosen.Target.Player + 1} at {chosen.Target.Position.X},{chosen.Target.Position.Y}");
     }
@@ -82,6 +91,12 @@ public sealed partial class AiPlayer
             if (c.Soldiers.Count > 0)
                 _world.Military.Move(c.Soldiers, HomeDoor());
             _campaign = null;
+            return;
+        }
+        if (c.Leader is { } leader)
+        {
+            if (!leader.Follow(this, c))
+                _campaign = null;
             return;
         }
 
@@ -112,7 +127,7 @@ public sealed partial class AiPlayer
     }
 
     /// <summary>The target's garrison plus enemy soldiers outside near it, as they fight at the target.</summary>
-    private double Defense(Building target) =>
+    internal double Defense(Building target) =>
         _world.Military.Occupants(target).Where(s => s is not null).Sum(s => Strength(s!, target.Position))
         + _world.Settlers.Where(s => s.Profession == Profession.Soldier && s.Player != Player && !s.IsInside && !s.IsDead
                                      && PathFinder.Distance(s.Position, target.Position) <= _config.Attack.DefenseRadius)
@@ -123,7 +138,7 @@ public sealed partial class AiPlayer
         _world.Settlers.Where(s => s.Player == player && s.Profession == Profession.Soldier && !s.IsDead).Sum(Power);
 
     /// <summary>No enemy group near the way (groups at the target count as its defence).</summary>
-    private bool WayIsClear(GridPoint from, Building target)
+    internal bool WayIsClear(GridPoint from, Building target)
     {
         var rules = _config.Attack;
         int steps = Math.Max(1, PathFinder.Distance(from, target.Position) / 3);

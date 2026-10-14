@@ -102,8 +102,15 @@ public sealed partial class World
     /// <summary>How often a waiting settler switched to a detour.</summary>
     public int Detours { get; private set; }
 
+    /// <summary>
+    /// Time spent per part of <see cref="Step"/> (Stopwatch ticks: summed up and the longest single tick)
+    /// while not null; for finding what makes long games slow. Set to an empty dictionary to start measuring.
+    /// </summary>
+    public Dictionary<string, (long Total, long Max)>? StepProfile { get; set; }
+
     public void Step()
     {
+        long mark = StepProfile is null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
         foreach (var walker in Walkers)
             walker.Tick();
 
@@ -121,26 +128,45 @@ public sealed partial class World
             foreach (var settler in _settlers)
                 if (settler.State != SettlerState.Stepping && !settler.IsInside && _occupant[Map.Index(settler.Position)] == NoOccupant)
                     _occupant[Map.Index(settler.Position)] = settler.Id;
+        Measure("movement", ref mark);
 
         if (Map is not null)
         {
             Logistics.Tick();
+            Measure("logistics", ref mark);
             Recruitment.Tick();
+            Measure("recruitment", ref mark);
             Construction.Tick();
+            Measure("construction", ref mark);
             Production.Tick();
+            Measure("production", ref mark);
             Military.Tick();
+            Measure("military", ref mark);
             Housing.Tick();
             Geology.Tick();
             Magic.Tick();
+            Measure("housing/geology/magic", ref mark);
             Idling.Tick();
+            Measure("idling", ref mark);
             foreach (var ai in AiPlayers)
                 ai.Tick();
+            Measure("ai", ref mark);
         }
         foreach (var settler in _settlers)
             if (settler.IsWorking || settler.IsStriking)
                 settler.ActivityTicks++;
 
         Tick++;
+    }
+
+    private void Measure(string part, ref long mark)
+    {
+        if (StepProfile is null)
+            return;
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        var (total, max) = StepProfile.GetValueOrDefault(part);
+        StepProfile[part] = (total + now - mark, Math.Max(max, now - mark));
+        mark = now;
     }
 
     /// <summary>Places a new settler on the nearest free walkable point.</summary>

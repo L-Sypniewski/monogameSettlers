@@ -147,6 +147,52 @@ public class PathFinderTests
         }
     }
 
+    [Fact]
+    public void Regions_kept_up_to_date_agree_with_fresh_ones()
+    {
+        var random = new Random(99);
+        var map = new GameMap(40);
+        for (int i = 0; i < map.PointCount; i++)
+        {
+            if (random.NextDouble() < 0.3)
+                map.SetTerrain(map.Point(i), TerrainType.Water);
+            map.SetOwner(map.Point(i), map.Point(i).X < 20 ? 0 : 1);
+        }
+        var finder = new PathFinder(map);
+        var blocked = new List<GridPoint>();
+        for (int round = 0; round < 300; round++)
+        {
+            // A few trees felled and planted, now and then a whole building.
+            int changes = random.Next(4) == 0 ? 20 : random.Next(1, 4);
+            for (int i = 0; i < changes; i++)
+            {
+                if (blocked.Count > 0 && random.Next(2) == 0)
+                {
+                    int k = random.Next(blocked.Count);
+                    map.RemoveBlocker(blocked[k]);
+                    blocked.RemoveAt(k);
+                }
+                else
+                {
+                    var p = new GridPoint(random.Next(40), random.Next(40));
+                    map.AddBlocker(p);
+                    blocked.Add(p);
+                }
+            }
+            var fresh = new PathFinder(map);
+            for (int query = 0; query < 30; query++)
+            {
+                var a = new GridPoint(random.Next(40), random.Next(40));
+                var b = new GridPoint(random.Next(40), random.Next(40));
+                Assert.Equal(fresh.AreConnected(a, b), finder.AreConnected(a, b));
+                int player = random.Next(2);
+                Assert.Equal(fresh.AreConnected(a, b, player), finder.AreConnected(a, b, player));
+            }
+        }
+        // Most changes were handled without dividing the whole map again.
+        Assert.True(finder.FullRegionLabels < 150, $"{finder.FullRegionLabels} full labels");
+    }
+
     internal static void AssertValid(GameMap map, GridPoint start, GridPoint target, IReadOnlyList<Direction> path)
     {
         var position = start;

@@ -42,6 +42,27 @@ public sealed class MapGame : Game
     /// <summary>Draws the peoples of players the map leaves open ("random"): a new draw every game.</summary>
     private readonly Random _peopleDraw = new();
     private readonly IReadOnlyList<Civilization>? _peoples;
+
+    /// <summary>AI character per player from the command line (empty: drawn by the people's weights).</summary>
+    private readonly IReadOnlyList<string> _characters;
+
+    private readonly AiNames _aiNames = new();
+
+    private AiPlayer NewAi(int player)
+    {
+        var ai = new AiPlayer(_world, _playerCatalogs[player], player,
+            character: player < _characters.Count && _characters[player].Length > 0 ? _characters[player] : null, random: _peopleDraw);
+        // What the character's traits do is shown as it happens, to watch them at work.
+        ai.Noted += (a, line) =>
+        {
+            if (a.TraitOfNote(line) is not { } trait)
+                return;
+            string who = $"Spieler {a.Player + 1} ({_aiNames.Character(a.Character.Id)}) · {_aiNames.Trait(trait.Id)}";
+            Console.WriteLine($"{who}: {line}");
+            _message = $"{who}: {line}";
+        };
+        return ai;
+    }
     private BuildingCatalog? _romans;
     private BuildingDefinition[] _placeable = [];
     private BuildMenu? _buildMenu;
@@ -97,6 +118,9 @@ public sealed class MapGame : Game
     private bool _showObjects = true;
     private Vector2 _camera; // world position shown at the screen center
     private float _zoom = 2;
+
+    /// <summary>Farthest out: drawing cost grows with the square of the area shown.</summary>
+    private const float MinZoom = 1f;
     private KeyboardState _previousKeys;
     private MouseState _previousMouse;
     private int _capturedFrames;
@@ -104,11 +128,13 @@ public sealed class MapGame : Game
     private bool _showPerf;
 
     /// <param name="peoples">Peoples for the players whose people the map leaves open (see <see cref="OriginalScenario.Load"/>).</param>
+    /// <param name="characters">AI character per player (entry i for player i); empty or missing: drawn.</param>
     public MapGame(GameInstallation installation, GfxDirectory gfx, string? mapName, string? captureDirectory,
-        IReadOnlyList<Civilization>? peoples = null)
+        IReadOnlyList<Civilization>? peoples = null, IReadOnlyList<string>? characters = null)
     {
         _gfx = gfx;
         _peoples = peoples;
+        _characters = characters ?? [];
         _captureDirectory = captureDirectory;
         _mapFiles = installation.MapFiles.ToArray();
         // Default: the first multiplayer map (equal start equipment for every player).
@@ -185,7 +211,12 @@ public sealed class MapGame : Game
         UsePeople(Own);
         _ownAi = null;
         for (int player = 1; player < report.Catalogs.Count; player++)
-            _world.AiPlayers.Add(new AiPlayer(_world, report.Catalogs[player], player));
+        {
+            var ai = NewAi(player);
+            _world.AiPlayers.Add(ai);
+            Console.WriteLine($"Spieler {player + 1} ({report.Catalogs[player].Civilization}): KI {_aiNames.Character(ai.Character.Id)} " +
+                              $"({string.Join(", ", ai.Character.Traits.Select(t => _aiNames.Trait(t.Id)))})");
+        }
         _wanderers.Clear();
         _start = _map.Players.Count > 0
             ? new GridPoint(_map.Players[0].StartX, _map.Players[0].StartY)
@@ -416,7 +447,7 @@ public sealed class MapGame : Game
         {
             if (_ownAi is null && _playerCatalogs.Count > 0)
             {
-                _ownAi = new AiPlayer(_world, _playerCatalogs[0], 0);
+                _ownAi = NewAi(0);
                 _world.AiPlayers.Add(_ownAi);
                 _message = "the AI plays for you (I: stop)";
             }
@@ -576,7 +607,7 @@ public sealed class MapGame : Game
 
         int wheel = mouse.ScrollWheelValue - _previousMouse.ScrollWheelValue;
         if (wheel != 0)
-            _zoom = Math.Clamp(_zoom * (wheel > 0 ? 1.25f : 0.8f), 0.25f, 6f);
+            _zoom = Math.Clamp(_zoom * (wheel > 0 ? 1.25f : 0.8f), MinZoom, 6f);
 
         _previousKeys = keys;
         _previousMouse = mouse;

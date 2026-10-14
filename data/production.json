@@ -41,7 +41,10 @@
     "_comment": "How a material is shared among the building types that use it (weights by building name; types not listed get nothing while a listed one wants it). The type is drawn first, then the nearest building of that type with room gets it. Materials not listed go to the nearest user. Construction sites always come first, storehouses last.",
     "BREAD": { "coalmine": 90, "ironmine": 10, "goldmine": 10, "gemsmine": 10, "sulfurmine": 10 },
     "MEAT": { "ironmine": 90, "coalmine": 10, "goldmine": 10, "gemsmine": 10, "sulfurmine": 10 },
-    "FISH": { "goldmine": 90, "gemsmine": 90, "sulfurmine": 90, "coalmine": 10, "ironmine": 10 }
+    "FISH": { "goldmine": 90, "gemsmine": 90, "sulfurmine": 90, "coalmine": 10, "ironmine": 10 },
+    "_cropWaterComment": "Without a rule the nearest user takes it all: a mill next to the farm would leave the brewery dry.",
+    "CROP": { "mill": 40, "pig_farm": 30, "brewery": 30, "donkey_farm": 10 },
+    "WATER": { "baker": 30, "pig_farm": 30, "brewery": 30, "mead_brewery": 30, "donkey_farm": 10 }
   },
   "smiths": {
     "_comment": "One product per cycle: tools somebody waits for (and nobody has) first, otherwise the product with the fewest units around while below keepInStock; otherwise the smith rests. The toolsmith keeps no stock: it makes only what is needed right now (until the player can choose).",

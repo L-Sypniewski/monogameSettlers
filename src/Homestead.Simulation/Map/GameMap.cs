@@ -51,6 +51,26 @@ public sealed class GameMap
     /// <summary>Incremented whenever walkability changes, so caches (e.g. path search regions) can notice.</summary>
     public int WalkabilityVersion { get; private set; }
 
+    /// <summary>The points whose walkability changed, in order; entry i is the change to version <see cref="_changesFrom"/> + i + 1.</summary>
+    private readonly List<int> _walkabilityChanges = new();
+    private int _changesFrom;
+
+    /// <summary>Changes kept for catching up; a cache further behind starts over.</summary>
+    private const int MaxLoggedChanges = 4096;
+
+    /// <summary>
+    /// The points whose walkability changed since <paramref name="version"/> (a point may appear more
+    /// than once), so a cache can update just those. False if they are no longer known.
+    /// </summary>
+    public bool WalkabilityChangesSince(int version, out ReadOnlySpan<int> changes)
+    {
+        changes = default;
+        if (version < _changesFrom || version > WalkabilityVersion)
+            return false;
+        changes = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_walkabilityChanges)[(version - _changesFrom)..];
+        return true;
+    }
+
     public static GameMap FromOriginal(MapArea area)
     {
         var map = new GameMap(area.Size);
@@ -72,6 +92,8 @@ public sealed class GameMap
         for (int i = 0; i < map.PointCount; i++)
             map._walkable[i] = map.ComputeWalkable(i);
         map.WalkabilityVersion = 0;
+        map._walkabilityChanges.Clear();
+        map._changesFrom = 0;
         return map;
     }
 
@@ -195,6 +217,12 @@ public sealed class GameMap
         if (walkable == _walkable[index])
             return;
         _walkable[index] = walkable;
+        if (_walkabilityChanges.Count >= MaxLoggedChanges)
+        {
+            _walkabilityChanges.Clear();
+            _changesFrom = WalkabilityVersion;
+        }
+        _walkabilityChanges.Add(index);
         WalkabilityVersion++;
     }
 

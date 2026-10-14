@@ -44,23 +44,50 @@ public sealed partial class AiPlayer
     private readonly List<string> _log = new();
     private long _nextSurvey;
     private bool _lacksRoom;
+
+    /// <summary>Resource-bound buildings that found no spot near their resource (the expansion goes for more of it).</summary>
+    private readonly HashSet<string> _noSpot = new();
     private readonly Dictionary<int, long> _uselessSince = new();
     private readonly HashSet<string> _reported = new();
     private Building? _home;
 
-    public AiPlayer(World world, BuildingCatalog catalog, int player, AiConfig? config = null)
+    /// <param name="character">Name of the character (ai.json <c>characters</c>); null: drawn by the people's weights with <paramref name="random"/>.</param>
+    public AiPlayer(World world, BuildingCatalog catalog, int player, AiConfig? config = null, string? character = null, Random? random = null)
     {
         _world = world;
         _catalog = catalog;
         _config = config ?? AiConfig.Load(civilization: catalog.Civilization);
         Player = player;
         _survey = new MapSurvey(world, player);
+        Character = character is null ? AiCharacter.Draw(_config, random ?? new Random(player)) : AiCharacter.Create(_config, character);
+        // The character's own values (e.g. a lower attack ratio) on top of the people's.
+        if (config is null)
+            _config = AiConfig.Load(civilization: catalog.Civilization, character: Character.Id);
+        if (Character.Traits.Count > 0)
+            Note($"plays as {Character.Id} ({string.Join(", ", Character.Traits.Select(t => t.Id))})");
     }
 
     public int Player { get; }
 
+    /// <summary>What it plays like: the traits it uses on top of the built-in behavior.</summary>
+    public AiCharacter Character { get; }
+
+    internal World World => _world;
+
+    /// <summary>The home military building (the first one), where soldiers gather without a task.</summary>
+    internal Building? Home => _home;
+
+    internal AiConfig Config => _config;
+
     /// <summary>The latest decisions, oldest first (for watching and debugging).</summary>
     public IReadOnlyList<string> Log => _log;
+
+    /// <summary>Every decision as it is noted (time prefixed), for watching a game live.</summary>
+    public event Action<AiPlayer, string>? Noted;
+
+    /// <summary>The trait a noted decision came from (trait notes start with the trait's id), or null.</summary>
+    public AiTrait? TraitOfNote(string line) =>
+        Character.Traits.FirstOrDefault(t => line[(line.IndexOf(' ') + 1)..].StartsWith(t.Id, StringComparison.Ordinal));
 
     /// <summary>Points of land the player owned at the last survey.</summary>
     public int Land => _survey.Own.Own;
@@ -119,6 +146,9 @@ public sealed partial class AiPlayer
                 continue;
             if (LacksOre(definition, mine))
                 continue;
+            // Another one would only wait as well (farms while no scythe can be made).
+            if (WaitsForWorker(name, mine))
+                continue;
             bool basic = Basics.Contains(name);
             if (!Enough(planks, Cost(definition, Material.Plank) + (basic ? 0 : keepPlanks))
                 || !Enough(stones, Cost(definition, Material.Stone) + (basic ? 0 : keepStones)))
@@ -133,17 +163,24 @@ public sealed partial class AiPlayer
                 NoteOnce(name, $"cannot build {name}: nothing to work on in own land");
                 continue; // the expansion goes for it
             }
-            if ((Place(definition, anchor) ?? PlaceWhereRoomy(definition)) is { } site)
+            if ((Place(definition, anchor) ?? PlaceFurther(definition, mine) ?? PlaceWhereRoomy(definition)) is { } site)
             {
                 _reported.Remove(name);
+                _noSpot.Remove(name);
                 Note($"builds {name} at {site.Position.X},{site.Position.Y}");
                 return;
             }
             NoteOnce(name, $"cannot build {name}: no spot near {anchor.X},{anchor.Y}");
             if (!IsResourceBound(name))
                 _lacksRoom = true;
+            else
+                _noSpot.Add(name);
         }
     }
+
+    /// <summary>Whether a finished building of this kind still waits for its worker (tool missing, no carrier).</summary>
+    private bool WaitsForWorker(string name, List<Building> mine) =>
+        mine.Any(b => b.Definition.Name == name && b.State == BuildingState.Finished && _world.StatusOf(b).StartsWith("no worker", StringComparison.Ordinal));
 
     /// <summary>
     /// A living house comes first when carriers run short: fewer free ones than freeCarriers, no more
@@ -226,7 +263,8 @@ public sealed partial class AiPlayer
             yield return ("toolsmith", 1);
         // Mines without food: more food, one building at a time.
         bool hungry = mine.Any(b => b.State == BuildingState.Finished && _world.StatusOf(b) == "waiting for food");
-        if (hungry && !mine.Any(b => b.State != BuildingState.Finished && b.Definition.Name is "fisher" or "farm" or "mill" or "baker"))
+        if (hungry && !mine.Any(b => b.Definition.Name is "fisher" or "farm" or "mill" or "baker"
+                                     && (b.State != BuildingState.Finished || WaitsForWorker(b.Definition.Name, mine))))
         {
             int fishers = mine.Count(b => b.Definition.Name == "fisher"), farms = mine.Count(b => b.Definition.Name == "farm");
             // Bread: two farms per mill and baker.
@@ -297,16 +335,10 @@ public sealed partial class AiPlayer
     /// </summary>
     private GridPoint? AnchorFor(BuildingDefinition definition, List<Building> mine)
     {
-        string name = definition.Name;
-        if (_world.Production.Config.Mines.TryGetValue(name, out var mineRecipe))
-            return BestOwnCell(c => c.Ore[(int)mineRecipe.Resource], mine, name, spacing: 6);
-        return name switch
+        if (ResourceCells(definition.Name, mine) is { } cells)
+            return cells.Select(c => (GridPoint?)c).FirstOrDefault();
+        return definition.Name switch
         {
-            "lumberjack" => BestOwnCell(c => c.Trees, mine, name, spacing: 10),
-            "stonecutter" => BestOwnCell(c => c.StoneUnits, mine, name, spacing: 10),
-            "fisher" => BestOwnCell(c => c.Fish, mine, name, spacing: 10),
-            "waterworks" => BestOwnCell(c => c.River, mine, name, spacing: 6),
-            "rice_farm" => BestOwnCell(c => c.Swamp, mine, name, spacing: 12),
             "forester" => mine.Where(b => b.Definition.Name == "lumberjack")
                               .OrderBy(l => mine.Count(f => f.Definition.Name == "forester" && PathFinder.Distance(f.Position, l.Position) < 12))
                               .Select(l => (GridPoint?)l.Position).FirstOrDefault() ?? _home!.Position,
@@ -356,22 +388,58 @@ public sealed partial class AiPlayer
         _world.Production.Config.Mines.ContainsKey(name) || name is "lumberjack" or "stonecutter" or "fisher" or "waterworks" or "forester" or "rice_farm";
 
     /// <summary>
-    /// Own cell with the most of something (closer to home counts more); cells next to a building of
-    /// the same kind count less, so a second woodcutter goes to another wood.
+    /// For buildings that work on a resource (trees, stones, ore, fish, river, swamp): the own cells with
+    /// it, best first. Null for other buildings.
     /// </summary>
-    private GridPoint? BestOwnCell(Func<MapSurvey.Cell, int> amount, List<Building> mine, string name, int spacing)
+    private IEnumerable<GridPoint>? ResourceCells(string name, List<Building> mine)
+    {
+        if (_world.Production.Config.Mines.TryGetValue(name, out var mineRecipe))
+            return OwnCells(c => c.Ore[(int)mineRecipe.Resource], mine, name, spacing: 6);
+        return name switch
+        {
+            "lumberjack" => OwnCells(c => c.Trees, mine, name, spacing: 10),
+            "stonecutter" => OwnCells(c => c.StoneUnits, mine, name, spacing: 10),
+            "fisher" => OwnCells(c => c.Fish, mine, name, spacing: 10),
+            "waterworks" => OwnCells(c => c.River, mine, name, spacing: 6),
+            "rice_farm" => OwnCells(c => c.Swamp, mine, name, spacing: 12),
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Own cells with some of something, the most first (closer to home counts more); cells next to a
+    /// building of the same kind count less, so a second woodcutter goes to another wood.
+    /// </summary>
+    private IEnumerable<GridPoint> OwnCells(Func<MapSurvey.Cell, int> amount, List<Building> mine, string name, int spacing)
     {
         var home = _home!.Position;
-        var best = _survey.Cells
+        return _survey.Cells
             .Where(c => c.Own > 0 && amount(c.OwnPart!) > 0)
             .Select(c => (Cell: c, Score: amount(c.OwnPart!) / (1.0 + PathFinder.Distance(home, c.Center) / 20.0)
                                           / (1 + mine.Count(b => b.Definition.Name == name && PathFinder.Distance(b.Position, c.Center) < spacing))))
             .OrderByDescending(x => x.Score)
-            .FirstOrDefault();
-        return best.Cell?.Center;
+            .Select(x => x.Cell.Center);
     }
 
     private readonly Dictionary<string, long> _nextRoomySearch = new();
+
+    /// <summary>Further cells tried for a resource-bound building when the best one has no spot.</summary>
+    private const int FurtherCells = 3;
+
+    /// <summary>
+    /// No spot at the best cell of its resource (a crowded river bank): the next cells with some of it are
+    /// tried, at most once a minute per building.
+    /// </summary>
+    private Building? PlaceFurther(BuildingDefinition definition, List<Building> mine)
+    {
+        if (ResourceCells(definition.Name, mine) is not { } cells || _world.Tick < _nextRoomySearch.GetValueOrDefault(definition.Name))
+            return null;
+        _nextRoomySearch[definition.Name] = _world.Tick + 60 * World.TicksPerSecond;
+        foreach (var cell in cells.Skip(1).Take(FurtherCells))
+            if (Place(definition, cell) is { } site)
+                return site;
+        return null;
+    }
 
     /// <summary>
     /// No spot near the chain (big buildings in a crowded town): the own cells with the most free land
@@ -429,7 +497,9 @@ public sealed partial class AiPlayer
             "lumberjack" => Around(p, 10, q => MapObjectCodes.IsAdultTree(map.ObjectCodeAt(q)) ? 1 : 0) >= 3,
             "stonecutter" => Around(p, 10, q => MapObjectCodes.StoneLeft(map.ObjectCodeAt(q))) > 0,
             "fisher" => Around(p, 8, q => IsWater(q) ? map.ResourceAmount(q, ResourceType.Fish) : 0) > 0,
-            "waterworks" => Around(p, 6, q => map.TerrainAt(q) == TerrainType.River ? 1 : 0) > 0,
+            // Big waterworks (Egyptian) cannot stand close to the bank; the worker walks there.
+            "waterworks" => Around(p + (definition.WorkCenter ?? default), (definition.WorkRadius ?? Production.DefaultRadius) - 2,
+                q => map.TerrainAt(q) == TerrainType.River ? 1 : 0) > 0,
             "farm" => Around(p + (definition.WorkCenter ?? default), 6,
                 q => map.TerrainAt(q) == TerrainType.Grass && map.ObjectCodeAt(q) == MapObjectCodes.None && _world.IsFreeGround(q) ? 1 : 0) >= 20,
             // Vines, rice and beehives: enough free ground of their kind around.
@@ -522,6 +592,8 @@ public sealed partial class AiPlayer
                 Note($"expands towards {need} at {target.X},{target.Y}: tower at {site.Position.X},{site.Position.Y}");
                 if (need == "room")
                     _lacksRoom = false;
+                if (need == "water")
+                    _noSpot.Remove("waterworks");
                 return;
             }
         }
@@ -545,7 +617,7 @@ public sealed partial class AiPlayer
             yield return ("stone", c => c.StoneUnits >= 10);
         if (own.Trees < _config.MinTrees)
             yield return ("trees", c => c.Trees >= 10);
-        if (own.River == 0)
+        if (own.River == 0 || _noSpot.Contains("waterworks"))
             yield return ("water", c => c.River > 0);
         // Rice wants swampy ground (Asians' mana).
         if (own.Swamp < 20 && _config.BuildOrder.Any(b => b.Building == "rice_farm"))
@@ -648,11 +720,13 @@ public sealed partial class AiPlayer
             Note(text);
     }
 
-    private void Note(string text)
+    internal void Note(string text)
     {
         long seconds = _world.Tick / World.TicksPerSecond;
-        _log.Add($"{seconds / 60}:{seconds % 60:00} {text}");
+        string line = $"{seconds / 60}:{seconds % 60:00} {text}";
+        _log.Add(line);
         if (_log.Count > MaxLog)
             _log.RemoveAt(0);
+        Noted?.Invoke(this, line);
     }
 }

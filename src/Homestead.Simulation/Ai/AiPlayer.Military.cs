@@ -70,7 +70,11 @@ public sealed partial class AiPlayer
         if (_campaign is null && !EnemyGroups.Any(onOwnLand))
             StartCampaign(military, spare);
 
-        Guard(military, guards.Concat(spare).ToList());
+        // Decision point "guarding": the first trait that takes it places the idle soldiers; without one they stay where they are.
+        var rest = guards.Concat(spare).ToList();
+        foreach (var trait in Character.Traits)
+            if (trait.Guard(this, military, rest))
+                break;
     }
 
     /// <summary>
@@ -156,37 +160,8 @@ public sealed partial class AiPlayer
         return guards;
     }
 
-    /// <summary>The soldiers guard the own military buildings, more where enemies are close; without a threat at home.</summary>
-    private void Guard(List<Building> military, List<Settler> idle)
-    {
-        var config = _config.Military;
-        var threat = military.ToDictionary(b => b, b => EnemyGroups
-            .Where(g => PathFinder.Distance(b.Position, g.Center) <= config.ThreatRange)
-            .Sum(g => g.Strength / (1 + PathFinder.Distance(b.Position, g.Center))));
-        double total = threat.Values.Sum();
-        var posts = new List<Building>();
-        if (total <= 0)
-            posts.AddRange(Enumerable.Repeat(_home is { } h && IsMilitary(h) ? h : military[0], idle.Count));
-        else
-            foreach (var (building, value) in threat.Where(t => t.Value > 0).OrderByDescending(t => t.Value))
-                posts.AddRange(Enumerable.Repeat(building, (int)Math.Ceiling(idle.Count * value / total)));
-        foreach (var post in posts.Distinct())
-        {
-            int wanted = posts.Count(p => p == post);
-            // Who is already there stays; the nearest of the others come.
-            int present = idle.Count(s => PathFinder.Distance(s.Position, post.Door) <= config.GuardDistance);
-            var coming = idle.Where(s => PathFinder.Distance(s.Position, post.Door) > config.GuardDistance)
-                .OrderBy(s => PathFinder.Distance(s.Position, post.Door)).Take(wanted - present).ToList();
-            idle.RemoveAll(s => PathFinder.Distance(s.Position, post.Door) <= config.GuardDistance);
-            if (coming.Count == 0)
-                continue;
-            _world.Military.Move(coming, post.Door);
-            idle.RemoveAll(coming.Contains);
-        }
-    }
-
     /// <summary>Where soldiers go when a strike or campaign is over.</summary>
-    private GridPoint HomeDoor() => _home is { Exists: true } h && h.Player == Player ? h.Door
+    internal GridPoint HomeDoor() => _home is { Exists: true } h && h.Player == Player ? h.Door
         : _world.Buildings.Where(b => b.Exists && b.Player == Player && IsMilitary(b)).Select(b => b.Door).FirstOrDefault();
 
     /// <summary>The group's strength plus that of other enemy groups near the way from <paramref name="from"/> to it.</summary>
@@ -305,7 +280,7 @@ public sealed partial class AiPlayer
     /// per second times its player's combat strength there – full on its own land, reduced on neutral
     /// and foreign land. The AI knows every player's combat strength.
     /// </summary>
-    private double Strength(Settler soldier, GridPoint at) => Power(soldier) * _world.Military.CombatStrengthAt(soldier.Player, at);
+    internal double Strength(Settler soldier, GridPoint at) => Power(soldier) * _world.Military.CombatStrengthAt(soldier.Player, at);
 
     /// <summary>Health times damage per second, without the combat strength.</summary>
     private double Power(Settler soldier)

@@ -106,6 +106,73 @@ public class AiTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_general_feints_and_strikes_the_enemy_tower_from_the_side()
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var own = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        var enemy = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(100, 80), force: true)!;
+        world.SpawnSoldier(own.Door, SoldierType.Swordsman);
+        world.SpawnSoldier(enemy.Door, SoldierType.Swordsman, player: 1);
+        world.Step();
+        for (int i = 0; i < 8; i++)
+            world.SpawnSoldier(new GridPoint(44 + i, 88), SoldierType.Swordsman);
+        var ai = new AiPlayer(world, Romans, 0, character: "general");
+        world.AiPlayers.Add(ai);
+        Assert.Equal("general", ai.Character.Id);
+
+        bool sideways = false;
+        for (int t = 0; t < 5 * 60 * World.TicksPerSecond && enemy.Player != 0; t++)
+        {
+            world.Step();
+            // When the feint attacks, the main force waits off to the side, not behind the feint.
+            if (!sideways && ai.Log.Any(l => l.Contains("feint against")))
+                sideways = world.Settlers.Count(s => s.Player == 0 && !s.IsInside
+                                                     && Pathfinding.PathFinder.Distance(s.Position, own.Door) > 30
+                                                     && Pathfinding.PathFinder.Distance(s.Position, enemy.Position) < 25) >= 2;
+        }
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(ai.Log, l => l.Contains("pincer against the tower"));
+        Assert.Contains(ai.Log, l => l.Contains("feint against"));
+        Assert.Contains(ai.Log, l => l.Contains("from the side"));
+        Assert.True(sideways, "the main force stands at the side when the feint attacks");
+        Assert.Equal(0, enemy.Player);
+    }
+
+    [Theory]
+    [InlineData("standard", false)]
+    [InlineData("general", true)]
+    public void Idle_soldiers_gather_at_home_only_with_guarding(string character, bool gathers)
+    {
+        var world = new World(new GameMap(160), TestConfig.NoTools) { TerritoryRules = true };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman); // the garrison
+        world.Step();
+        var soldier = world.SpawnSoldier(new GridPoint(70, 80), SoldierType.Swordsman)!;
+        var start = soldier.Position;
+        world.AiPlayers.Add(new AiPlayer(world, Romans, 0, character: character));
+
+        for (int t = 0; t < 30 * World.TicksPerSecond; t++)
+            world.Step();
+
+        if (gathers)
+            Assert.True(Pathfinding.PathFinder.Distance(soldier.Position, tower.Door) <= 10, $"at {soldier.Position}");
+        else
+            Assert.True(Pathfinding.PathFinder.Distance(soldier.Position, start) <= 3, $"at {soldier.Position}");
+    }
+
+    [Fact]
+    public void Unknown_characters_and_traits_are_refused()
+    {
+        var world = new World(new GameMap(40), TestConfig.NoTools);
+        Assert.Throws<ArgumentException>(() => new AiPlayer(world, Romans, 0, character: "nobody"));
+        Assert.Equal("standard", new AiPlayer(world, Romans, 0).Character.Id);
+        Assert.Throws<InvalidDataException>(() => AiTrait.Create("nothing", default));
+    }
+
+    [Fact]
     public void The_ai_upgrades_swordsmen_bowmen_pikemen_to_level_2_and_then_to_level_3()
     {
         var map = new GameMap(100);

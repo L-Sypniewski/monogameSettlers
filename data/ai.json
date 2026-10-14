@@ -90,7 +90,7 @@
     "upgradeOrder": [ "Swordsman", "Bowman", "Pikeman" ]
   },
   "military": {
-    "_comment": "Idle soldiers outside buildings. The AI knows where every enemy soldier is. Enemy soldiers within groupRadius of each other form a group. Guerilla comes before holding soldiers back: a group within strikeRange of an own military building is attacked by the nearest idle soldiers once they have strikeRatio times its strength (health x damage per second), also by those that would otherwise stay back against it; only soldiers needed against the other groups within threatRange (strikeRatio times their strength) are kept out. The other idle soldiers guard the own military buildings, shared out by how strong and close the enemy groups within threatRange are; without any threat they gather at home. A soldier within guardDistance of its post stays.",
+    "_comment": "Idle soldiers outside buildings. The AI knows where every enemy soldier is. Enemy soldiers within groupRadius of each other form a group. Guerilla comes before holding soldiers back: a group within strikeRange of an own military building is attacked by the nearest idle soldiers once they have strikeRatio times its strength (health x damage per second), also by those that would otherwise stay back against it; only soldiers needed against the other groups within threatRange (strikeRatio times their strength) are kept out. With the trait guardByThreat the other idle soldiers guard the own military buildings, shared out by how strong and close the enemy groups within threatRange are; without any threat they gather at home. A soldier within guardDistance of its post stays. Without the trait they stay where they are.",
     "thinkSeconds": 5,
     "groupRadius": 6,
     "strikeRange": 100,
@@ -106,6 +106,26 @@
     "gatherSeconds": 60,
     "minSoldiers": 4
   },
+  "_characterComment": "Characters (docs/KI-TACTICS.md): traits on top of the built-in behavior, in order of priority. A character may override a trait's settings under the trait's name and any general value (after the people's), e.g. \"general\": { \"traits\": [\"pincer\"], \"pincer\": { \"feintShare\": 0.5 } }. characterWeights: which character a player gets, drawn once per game (per people under civilizations). The client and the arena can name it per player with --characters.",
+  "traits": {
+    "guardByThreat": {
+      "_comment": "Idle soldiers guard the own military buildings by threat (values under military: threatRange, guardDistance)."
+    },
+    "pincer": {
+      "_comment": "Pincer and feint: a campaign with at least minSoldiers is split. feintShare of them gather at the own building nearest the target, the rest walk round in an arc to a staging point flankAngle degrees off that direction, flankDistance fields from the target (at least out of its bowmen's reach). When both are in place the feint attacks; strikeSeconds later the main force strikes from the side. The way round takes time: extraShare more of the spare soldiers come along, and the attack is only given up when they have become weaker than the defence (military.retreatRatio).",
+      "minSoldiers": 4,
+      "feintShare": 0.35,
+      "flankAngle": 110,
+      "flankDistance": 14,
+      "strikeSeconds": 8,
+      "extraShare": 0.5
+    }
+  },
+  "characters": {
+    "standard": { "traits": [] },
+    "general": { "traits": ["pincer", "guardByThreat"], "attack": { "ratio": 1.2 }, "military": { "strikeRange": 40 } }
+  },
+  "characterWeights": [["standard", 1]],
   "civilizations": {
     "_comment": "Values per people, overriding the ones above (objects are merged). Example: \"Roman\": { \"attack\": { \"ratio\": 1.3 } }. Build orders per people: Romans need wood and stone alike (the general one above: one of each first, a second of each a little later); Egyptians build with much stone and little wood (one sawmill, many stonecutters); Asians and Amazons use many planks (a second wood production early, a third away from the others in long games; one stonecutter at first).",
     "Roman": {},

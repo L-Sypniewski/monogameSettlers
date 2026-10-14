@@ -135,6 +135,12 @@ public sealed partial class Military
 
     private void TickCombat()
     {
+        // Who can fight at all, once per tick: looking through every settler for each bowman and
+        // fighter is what made long games slow.
+        _combatants.Clear();
+        foreach (var settler in _world.Settlers)
+            if (settler.Profession is Profession.Soldier or Profession.Priest && !settler.IsInside && !settler.IsDead)
+                _combatants.Add(settler);
         if (_world.Tick % EngageInterval == 0)
         {
             EngageIdleSoldiers();
@@ -145,9 +151,12 @@ public sealed partial class Military
             Advance(fighter);
     }
 
+    /// <summary>Soldiers and priests outside the buildings at the start of this tick.</summary>
+    private readonly List<Settler> _combatants = new();
+
     /// <summary>Enemy soldiers and priests outside the buildings: who can be fought.</summary>
     private IEnumerable<Settler> EnemiesOf(int player) =>
-        _world.Settlers.Where(s => s.Profession is Profession.Soldier or Profession.Priest && s.Player != player && !s.IsInside && !s.IsDead);
+        _combatants.Where(s => s.Player != player && !s.IsInside && !s.IsDead);
 
     private Settler? NearestEnemy(GridPoint from, int player, int range) =>
         EnemiesOf(player).Where(e => PathFinder.Distance(from, e.Position) <= range)
@@ -195,13 +204,22 @@ public sealed partial class Military
         {
             if (!g.Building.Exists)
                 continue;
+            // All bowmen of a building shoot from the same spot: one search for the target will do,
+            // another only once it has died.
+            Settler? enemy = null;
+            bool searched = false;
             foreach (var bowman in g.Places)
             {
                 if (bowman is not { SoldierType: SoldierType.Bowman } || _nextShot.GetValueOrDefault(bowman.Id) > _world.Tick)
                     continue;
                 var stats = _config.Soldiers[SoldierType.Bowman];
-                if (NearestEnemy(g.Building.Position, bowman.Player, stats.Range) is not { } enemy)
-                    continue;
+                if (!searched || enemy is { IsDead: true })
+                {
+                    enemy = NearestEnemy(g.Building.Position, bowman.Player, stats.Range);
+                    searched = true;
+                }
+                if (enemy is null)
+                    break;
                 Hit(bowman, enemy);
                 _nextShot[bowman.Id] = _world.Tick + stats.AttackTicks;
             }

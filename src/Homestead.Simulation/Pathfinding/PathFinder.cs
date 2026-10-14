@@ -8,8 +8,6 @@ namespace Homestead.Simulation.Pathfinding;
 /// </summary>
 public sealed class PathFinder
 {
-    private const int NoRegion = -1;
-
     private readonly GameMap _map;
     private readonly int[] _cost;
     private readonly byte[] _arrivedFrom;
@@ -18,12 +16,10 @@ public sealed class PathFinder
     private readonly PriorityQueue<int, long> _open = new();
     private int _stamp;
 
-    private readonly int[] _region;
-    private int _regionVersion = -1;
+    private readonly Regions _regions;
 
-    /// <summary>Like <see cref="_region"/>, but neighbours only join when they have the same owner.</summary>
-    private readonly int[] _landRegion;
-    private (int Walkability, int Owner) _landVersion = (-1, -1);
+    /// <summary>Like <see cref="_regions"/>, but neighbours only join when they have the same owner.</summary>
+    private readonly Regions _landRegions;
 
     public PathFinder(GameMap map)
     {
@@ -32,12 +28,15 @@ public sealed class PathFinder
         _arrivedFrom = new byte[map.PointCount];
         _seenStamp = new int[map.PointCount];
         _closedStamp = new int[map.PointCount];
-        _region = new int[map.PointCount];
-        _landRegion = new int[map.PointCount];
+        _regions = new Regions(map, sameOwner: false);
+        _landRegions = new Regions(map, sameOwner: true);
     }
 
     /// <summary>Number of nodes expanded by the last search (for tests and profiling).</summary>
     public int LastExpandedNodes { get; private set; }
+
+    /// <summary>Times the whole map was divided into regions again (for tests and profiling).</summary>
+    public int FullRegionLabels => _regions.FullLabels + _landRegions.FullLabels;
 
     /// <summary>
     /// Whether <paramref name="p"/> lies in the round area of <paramref name="radius"/> around
@@ -173,26 +172,18 @@ public sealed class PathFinder
             return false;
         if (a == b)
             return true;
-        UpdateLandRegions();
-        int targetRegion = _landRegion[_map.Index(b)];
+        _landRegions.Update();
+        int targetRegion = _landRegions.Of(_map.Index(b));
         if (_map.IsWalkable(a) && _map.OwnerAt(_map.Index(a)) == player)
-            return _landRegion[_map.Index(a)] == targetRegion;
+            return _landRegions.Of(_map.Index(a)) == targetRegion;
         // A start that is not walkable land itself (a doorway): any neighbour on the land will do.
         for (int d = 0; d < DirectionExtensions.Count; d++)
         {
             var neighbor = a.Neighbor((Direction)d);
-            if (_map.IsWalkable(neighbor) && _landRegion[_map.Index(neighbor)] == targetRegion)
+            if (_map.IsWalkable(neighbor) && _landRegions.Of(_map.Index(neighbor)) == targetRegion)
                 return true;
         }
         return false;
-    }
-
-    private void UpdateLandRegions()
-    {
-        if (_landVersion == (_map.WalkabilityVersion, _map.OwnerVersion))
-            return;
-        _landVersion = (_map.WalkabilityVersion, _map.OwnerVersion);
-        Label(_landRegion, sameOwner: true);
     }
 
     /// <summary>
@@ -201,61 +192,17 @@ public sealed class PathFinder
     /// </summary>
     private bool MayBeConnected(GridPoint start, GridPoint target)
     {
-        UpdateRegions();
-        int targetRegion = _region[_map.Index(target)];
+        _regions.Update();
+        int targetRegion = _regions.Of(_map.Index(target));
         if (_map.IsWalkable(start))
-            return _region[_map.Index(start)] == targetRegion;
+            return _regions.Of(_map.Index(start)) == targetRegion;
 
         for (int d = 0; d < DirectionExtensions.Count; d++)
         {
             var neighbor = start.Neighbor((Direction)d);
-            if (_map.IsWalkable(neighbor) && _region[_map.Index(neighbor)] == targetRegion)
+            if (_map.IsWalkable(neighbor) && _regions.Of(_map.Index(neighbor)) == targetRegion)
                 return true;
         }
         return false;
-    }
-
-    private void UpdateRegions()
-    {
-        if (_regionVersion == _map.WalkabilityVersion)
-            return;
-        _regionVersion = _map.WalkabilityVersion;
-        Label(_region, sameOwner: false);
-    }
-
-    /// <summary>Connected regions of walkable points (with <paramref name="sameOwner"/>: of one owner each).</summary>
-    private void Label(int[] regions, bool sameOwner)
-    {
-        Array.Fill(regions, NoRegion);
-        int size = _map.Size;
-        var queue = new Queue<int>();
-        int regionCount = 0;
-        for (int seed = 0; seed < regions.Length; seed++)
-        {
-            if (regions[seed] != NoRegion || !_map.IsWalkable(seed))
-                continue;
-
-            int region = regionCount++;
-            regions[seed] = region;
-            queue.Enqueue(seed);
-            while (queue.TryDequeue(out int current))
-            {
-                int x = current % size, y = current / size;
-                for (int d = 0; d < DirectionExtensions.Count; d++)
-                {
-                    var delta = ((Direction)d).Delta();
-                    int nx = x + delta.X, ny = y + delta.Y;
-                    if ((uint)nx >= (uint)size || (uint)ny >= (uint)size)
-                        continue;
-                    int next = ny * size + nx;
-                    if (regions[next] == NoRegion && _map.IsWalkable(next)
-                        && (!sameOwner || _map.OwnerAt(next) == _map.OwnerAt(current)))
-                    {
-                        regions[next] = region;
-                        queue.Enqueue(next);
-                    }
-                }
-            }
-        }
     }
 }

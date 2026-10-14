@@ -3,15 +3,30 @@
 Ideensammlung, wie die Computergegner herausfordernder, taktischer und überraschender werden.
 Grundlage ist die bestehende KI (`src/Homestead.Simulation/Ai/`, Werte in `data/ai.json`).
 
-## Grundgedanke: Module und Charaktere
+## Begriffe
+
+Ein einheitliches Vokabular – in Gesprächen, Doku, Code und Daten:
+
+| Begriff | Englisch (Code, `ai.json`) | Bedeutung |
+|---|---|---|
+| **Charakter** | character (`AiCharacter`) | *wie* eine KI spielt: eine Liste von Charakterzügen samt Werten |
+| **Charakterzug** | trait (`AiTrait`, `Ai/Traits/`) | ein abgeschlossener Baustein des Verhaltens, hängt an Entscheidungspunkten |
+| **Entscheidungspunkt** | decision point (Methode in `AiTrait`) | feste Stelle im Denkablauf der KI, an der Charakterzüge entscheiden dürfen |
+| **eingebautes Verhalten** | built-in behavior | was die KI ohne Charakterzug tut (Wirtschaft, Verteidigung, Guerilla, Feldzug, Besatzung) |
+| **Schwierigkeit** | difficulty | *wie gut* eine KI spielt (Leicht, Mittel, Schwer) – unabhängig vom Charakter |
+| **Kennung** | id | englischer Bezeichner in `ai.json` und Code, z. B. `pincer`, `general` |
+| **Name** | – | deutscher Anzeigename in `data/ui.json` (`aiCharacters`, `aiTraits`), z. B. „Zange und Finte“, „Feldherr“ |
+
+## Grundgedanke: Charakterzüge und Charaktere
 
 Die KI bleibt ein Spieler mit denselben Befehlen wie ein Mensch. Neues Verhalten kommt aber nicht
-fest verdrahtet in `AiPlayer`, sondern als **Modul**: ein abgeschlossener Baustein mit eigenem Namen,
-eigenen Werten und klar umrissenem Einsatzort. Ein **Charakter** ist eine Liste von Modulen samt
-Werten. Jedes Volk bekommt einen oder mehrere Charaktere; pro Partie wird einer davon gewählt.
+fest verdrahtet in `AiPlayer`, sondern als **Charakterzug**: ein abgeschlossener Baustein mit eigener
+Kennung, eigenen Werten und klar umrissenem Einsatzort. Ein **Charakter** ist eine Liste von
+Charakterzügen samt Werten. Jedes Volk bekommt einen oder mehrere Charaktere; pro Partie wird einer
+davon gewählt.
 
 ```
-Volk ──(einer davon je Partie)──> Charakter ──> Module (+ Werte)
+Volk ──(einer davon je Partie)──> Charakter ──> Charakterzüge (+ Werte)
 ```
 
 ### Was die Grundlage bleibt
@@ -23,64 +38,78 @@ Nicht alles soll abschaltbar sein. Ohne folgendes Grundverhalten wäre eine KI k
 - Kein Abriss eines Militärgebäudes, dessen Land eigene Gebäude trägt (seit Abriss Land
   ungeschützt zurücklässt, würde die KI sich sonst selbst verwundbar machen)
 
-Das heutige Verhalten (Guerilla, Bewachung, Kampagne bei 1,5:1, Besatzung voll) wird zum
-**Standard-Charakter** – so verhält sich die KI ohne Angabe genau wie jetzt.
+Das eingebaute Verhalten (Guerilla, Feldzug bei 1,5:1, Besatzung voll) ist der Charakter **Standard**
+(`standard`, ohne Charakterzüge). Die Bewachung nach Bedrohung ist bereits ein Charakterzug
+(`guardByThreat`) und beim Standard ausgeschaltet: Dessen untätige Soldaten bleiben stehen, wo sie sind.
 
 ### Entscheidungspunkte
 
-Module hängen sich an feste Stellen im Denkablauf der KI. Jede Stelle legt fest, wie mehrere Module
-zusammenwirken:
+Charakterzüge hängen sich an feste Stellen im Denkablauf der KI. Jede Stelle legt fest, wie mehrere
+Charakterzüge zusammenwirken:
 
-| Entscheidungspunkt | Wann | Zusammenwirken mehrerer Module |
+| Entscheidungspunkt | Wann | Zusammenwirken mehrerer Charakterzüge |
 |---|---|---|
-| **Besatzung** | jede Militär-Runde, je eigenem Militärgebäude | Module liefern Soll-Besatzung; das höchste Soll gewinnt |
-| **Angriffsziele** | Planung einer Kampagne | Module bewerten Ziele (Punkte addieren sich), bestes Ziel gewinnt |
-| **Truppenführung** | während eines Angriffs | ein Modul führt den Trupp (z. B. Zange *oder* Hinterhalt), Formation kann zusätzlich gelten |
-| **Turmplätze** | Expansion | Module bewerten Bauplätze, Punkte addieren sich |
-| **Zeitpunkt** | jede Militär-Runde | Module können Angriffe erlauben, verbieten oder anschieben |
-| **Zauber** | Priester am Kampf | ein Modul entscheidet Zauber und Moment |
+| **Besatzung** | jede Militär-Runde, je eigenem Militärgebäude | Charakterzüge liefern Soll-Besatzung; das höchste Soll gewinnt |
+| **Angriffsziele** | Planung eines Feldzugs | Charakterzüge bewerten Ziele (Punkte addieren sich), bestes Ziel gewinnt |
+| **Truppenführung** (`LeadCampaign`, umgesetzt) | während eines Feldzugs | einer führt den Trupp (z. B. Zange *oder* Hinterhalt), Schlachtordnung kann zusätzlich gelten |
+| **Bewachung** (`Guard`, umgesetzt) | jede Militär-Runde, für die übrigen untätigen Soldaten | der erste, der sie aufstellt, entscheidet; ohne ihn bleiben sie stehen |
+| **Turmplätze** | Expansion | Charakterzüge bewerten Bauplätze, Punkte addieren sich |
+| **Zeitpunkt** | jede Militär-Runde | Charakterzüge können Angriffe erlauben, verbieten oder anschieben |
+| **Zauber** | Priester am Kampf | einer entscheidet Zauber und Moment |
 | **Schwellen** | überall, wo ein Verhältnis entscheidet | Modifikator auf Werte wie `attack.ratio` |
 
 ### Soldaten verteilen
 
-Mehrere Module wollen dieselben untätigen Soldaten. Feste Reihenfolge:
+Mehrere Charakterzüge wollen dieselben untätigen Soldaten. Feste Reihenfolge:
 
 1. Verteidigung (Grundverhalten)
 2. laufende Trupps behalten ihre Soldaten
-3. Module nach ihrer Priorität im Charakter (erst genannt = zuerst)
-4. Rest: Bewachung nach Bedrohung
+3. Charakterzüge nach ihrer Priorität im Charakter (erst genannt = zuerst)
+4. Rest: Bewachung (falls der Charakter sie hat)
 
-Ein Modul nimmt nur, was es braucht, und gibt Soldaten zurück, wenn sein Vorhaben endet.
+Ein Charakterzug nimmt nur, was er braucht, und gibt Soldaten zurück, wenn sein Vorhaben endet.
 
-### Vorschlag für die Daten (`ai.json`)
+### Daten (`ai.json`)
 
 ```json
-"characters": {
-  "standard":   { "modules": ["guerilla", "campaign", "guardByThreat", "fullGarrison"] },
-  "stuermer":   { "modules": ["earlyRush", "campaign", "frontGarrison"], "attack": { "ratio": 1.2 } },
-  "hinterhalt": { "modules": ["flanking", "exposedTowers", "frontGarrison", "jitter"],
-                  "flanking": { "squadSize": 5, "detour": 25 } }
+"traits": {
+  "pincer": { "minSoldiers": 4, "feintShare": 0.35, ... }
 },
+"characters": {
+  "standard": { "traits": [] },
+  "general":  { "traits": ["pincer", "guardByThreat"], "attack": { "ratio": 1.2 }, "military": { "strikeRange": 40 } }
+},
+"characterWeights": [["standard", 1]],
 "civilizations": {
-  "Asian": { "characters": [["hinterhalt", 2], ["stuermer", 1]] }
+  "Asian": { "characterWeights": [["trickster", 2], ["rusher", 1]] }
 }
 ```
 
-Werte eines Moduls stehen im Charakter unter dem Modulnamen und überschreiben die Vorgabe des
-Moduls. Gewichte bei den Völkern bestimmen, wie oft ein Charakter gewählt wird.
+`traits` enthält die Vorgaben je Charakterzug. Ein Charakter kann sie unter der Kennung des
+Charakterzugs überschreiben, außerdem jeden allgemeinen Wert (nach dem des Volks). Die Gewichte
+(`characterWeights`, je Volk überschreibbar) bestimmen, wie oft ein Charakter gewählt wird.
 
-### Vorschlag für den Code
+### Code
 
-- Schnittstelle `IAiModule` mit optionalen Methoden je Entscheidungspunkt (z. B.
-  `WantedGarrison(...)`, `ScoreTarget(...)`, `LeadSquad(...)`, `ScoreTowerSpot(...)`).
-- Jedes Modul in eigener Datei unter `Ai/Modules/`, testbar für sich allein.
-- `AiPlayer` fragt an jedem Entscheidungspunkt die Module seines Charakters.
-- Arena: `--characters stuermer,hinterhalt`, um Charaktere gegeneinander zu messen.
-- Log (`L` im Spiel, `--log` in der Arena) nennt das Modul, das entschieden hat.
+- Basisklasse `AiTrait` mit überschreibbaren Methoden je Entscheidungspunkt (`LeadCampaign`, `Guard`;
+  weitere kommen mit den Charakterzügen, die sie brauchen).
+- Jeder Charakterzug in eigener Datei unter `Ai/Traits/` (`<Kennung>Trait`, z. B. `PincerTrait`).
+- `AiPlayer` fragt an jedem Entscheidungspunkt die Charakterzüge seines Charakters.
+- Client und Arena: `--characters ,general` legt den Charakter je Spieler fest.
+- Notizen eines Charakterzugs beginnen mit seiner Kennung; Client und Arena zeigen sie sofort an,
+  der Client mit deutschem Namen von Charakter und Charakterzug.
 
-## Module
+## Charakterzüge
 
 Status: alle **offen**. Aufwand grob: S (klein), M (mittel), L (groß).
+
+### Bewachung
+
+**`guardByThreat` – Bewachung nach Bedrohung** · **umgesetzt** (beim `general`, nicht beim `standard`)
+Untätige Soldaten bewachen die eigenen Militärgebäude, verteilt nach Stärke und Nähe feindlicher
+Trupps (`military.threatRange`); ohne Bedrohung sammeln sie sich am Heimatturm. Wer innerhalb von
+`military.guardDistance` seines Postens steht, bleibt. Entscheidungspunkt „Bewachung“ (`Guard`).
+Ohne diesen Charakterzug bleiben untätige Soldaten stehen, wo sie sind.
 
 ### Besatzung
 
@@ -104,9 +133,17 @@ zurückgewinnen (eigene Spielregel, für Mensch und KI gleich).
 Bogenschützen halten ein paar Felder Abstand hinter der Infanterie. Erreicht feindliche Infanterie
 die Bogenschützen, weichen diese zurück, statt in den Nahkampf zu geraten.
 
-**`pincer` – Zange und Finte** · L
+**`pincer` – Zange und Finte** · L · **umgesetzt** (Charakter `general`)
 Zwei Trupps: ein kleiner lockt die Verteidiger an einer Stelle heraus, der Hauptangriff kommt kurz
 darauf von der anderen Seite. Die Kampagne bekommt dafür zwei Sammelpunkte.
+Umsetzung: `Ai/Traits/PincerTrait.cs`. Finte (`feintShare`) sammelt sich am eigenen Gebäude nächst
+dem Ziel, die Hauptgruppe läuft über einen Wegpunkt im Bogen zu einem Bereitstellungspunkt
+(`flankAngle`, `flankDistance`, außer Reichweite der Bogenschützen des Ziels); beide bereit → Finte
+greift an, `strikeSeconds` später die Hauptgruppe. Nimmt `extraShare` zusätzliche Soldaten mit, gibt
+erst unter `retreatRatio` auf. Der Feldherr greift schon bei 1,2:1 an und lässt Guerilla weit vom
+eigenen Land sein (`strikeRange` 40), damit Soldaten für Feldzüge übrig bleiben.
+Beobachtet (Salomons, 3 Spieler): ab etwa Minute 37 mehrere Zangen; der Gegner zieht oft Soldaten
+zusammen, dann bricht der Feldherr ab – gewolltes Verhalten.
 
 **`flanking` – Hinterhalt durch Umgehung** · L
 Ein kleiner Trupp läuft in weitem Bogen um das gegnerische Lager, außerhalb der Sicht feindlicher
@@ -136,7 +173,7 @@ Ein Treffer dort kostet den Gegner mehr als ein beliebiger Turm.
 
 ### Gold
 
-Siehe [Gold als Hebel](#gold-als-hebel). Drei Module, je an einem eigenen Entscheidungspunkt.
+Siehe [Gold als Hebel](#gold-als-hebel). Drei Charakterzüge, je an einem eigenen Entscheidungspunkt.
 
 **`goldRace` – Gold früh sichern** · M
 Goldberge (Ägypter: Edelsteine) gelten von Anfang an als Expansionsziel, nicht erst nach der
@@ -188,22 +225,22 @@ dem Menschen fehlt.
 
 ## Charaktere (Entwurf)
 
-Noch nicht den Völkern zugeordnet – das machen wir, wenn die Module stehen.
+Noch nicht den Völkern zugeordnet – das machen wir, wenn die Charakterzüge stehen.
 
-| Charakter | Idee | Module |
+| Charakter (Kennung) | Idee | Charakterzüge |
 |---|---|---|
-| Standard | heutiges Verhalten | guerilla, campaign, guardByThreat, fullGarrison |
-| Stürmer | früh und oft angreifen, geringere Überlegenheit reicht | earlyRush, campaign, frontGarrison, waves |
-| Feldherr | geordnete Schlachten | formation, pincer, spellTiming, reinforceThreatened |
-| Hinterhältiger | dort zuschlagen, wo keiner hinschaut | flanking, exposedTowers, goldRaid, frontGarrison, jitter |
-| Landnehmer | wächst über Grenzen und nimmt Land ohne Kampf | landGrab, frontGarrison, economicTargets |
-| Wirtschafter | ruhig aufbauen, dann mit starken Soldaten zuschlagen | goldRace, goldGuard, powerSpike, fullGarrison, spellTiming |
+| Standard (`standard`) | eingebautes Verhalten | – (Guerilla, Feldzug, volle Besatzung sind eingebaut) |
+| Stürmer (`rusher`) | früh und oft angreifen, geringere Überlegenheit reicht | earlyRush, frontGarrison, waves |
+| Feldherr (`general`) | geordnete Schlachten | pincer, guardByThreat (umgesetzt); geplant: formation, spellTiming, reinforceThreatened |
+| Hinterhältiger (`trickster`) | dort zuschlagen, wo keiner hinschaut | flanking, exposedTowers, goldRaid, frontGarrison, jitter |
+| Landnehmer (`landTaker`) | wächst über Grenzen und nimmt Land ohne Kampf | landGrab, frontGarrison, economicTargets |
+| Wirtschafter (`merchant`) | ruhig aufbauen, dann mit starken Soldaten zuschlagen | goldRace, goldGuard, powerSpike, spellTiming |
 
 ## Schwierigkeit und Charakter
 
 Zwei unabhängige Achsen:
 
-- **Charakter** = *wie* die KI spielt (Stil, Module).
+- **Charakter** = *wie* die KI spielt (Stil, Charakterzüge).
 - **Schwierigkeit** = *wie gut* sie es tut (Wahrnehmung, Reaktion, Entscheidungsqualität).
 
 Ein Stürmer kann leicht oder schwer sein. Gebaut wird die beste KI (Schwer); leichtere Stufen
@@ -218,11 +255,11 @@ bekommen gezielte Abstriche. Die Stufen im Einzelnen stehen in `TODO.md` (Schwie
 | Reaktion | nur auf Angriffe im eigenen Land | auf entdeckte Feinde in der Nähe | auf alle Feinde in der Nähe, vorausschauend |
 | Soldaten aufstellen | irgendwo im Land | an Grenztürmen zum Feindland | an Grenztürmen zu feindlichen Truppen |
 | Guerilla | nein | ja | ja |
-| Module | wenige, einfache | Kampf-Module | alle des Charakters |
+| Charakterzüge | wenige, einfache | die für den Kampf | alle des Charakters |
 | Schwellen | eher zögerlich bzw. leichtsinnig | Standard | genau berechnet |
 | Denkpause | lang | mittel | kurz |
 
-Module können selbst nach Stufe abschwächen (z. B. `flanking` auf Leicht ohne Rücksicht auf
+Charakterzüge können selbst nach Stufe abschwächen (z. B. `flanking` auf Leicht ohne Rücksicht auf
 Sichtweite), statt nur an- oder abgeschaltet zu werden.
 
 ### Schwer muss gewinnen, nicht nur halten
@@ -309,10 +346,11 @@ Gold ist im Spiel genau dafür da, den Verteidigervorteil zu brechen und in die 
 
 ## Vorgehen
 
-1. Modul-Gerüst: Charaktere in `ai.json`, `IAiModule`, heutiges Verhalten als Standard-Charakter
-   (Verhalten unverändert, Arena-Ergebnisse gleich).
+1. ~~Gerüst für Charakterzüge~~ **umgesetzt**: Charaktere in `ai.json`, Basisklasse `AiTrait` (Entscheidungspunkte
+   als überschreibbare Methoden, bisher `LeadCampaign`), heutiges Verhalten = Charakter `standard`
+   ohne Charakterzüge. Weitere Entscheidungspunkte kommen mit den Charakterzügen, die sie brauchen.
 2. Arena um Messwerte zum Patt erweitern (Kampfkraft, Gold, Eroberungen, Verluste über die Zeit).
-3. Module einzeln umsetzen, je mit Test und Arena-Vergleich gegen den Standard; zuerst die, die das
+3. Charakterzüge einzeln umsetzen, je mit Test und Arena-Vergleich gegen den Standard; zuerst die, die das
    Patt brechen (`goldRace`, `goldGuard`, `goldRaid`, `powerSpike`, `economicTargets`, `multiFront`).
-4. Schwierigkeit als zweite Achse: Wahrnehmung, Reaktion, Schwellen, erlaubte Module.
+4. Schwierigkeit als zweite Achse: Wahrnehmung, Reaktion, Schwellen, erlaubte Charakterzüge.
 5. Charaktere den Völkern zuordnen.

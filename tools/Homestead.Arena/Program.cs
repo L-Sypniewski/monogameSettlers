@@ -8,21 +8,28 @@ using Homestead.Simulation.Economy;
 
 // AI against AI without a window: every player of a map is an AI player, the game runs as fast as
 // it can, and every few game minutes the players' key figures are printed.
-//   Homestead.Arena [map names...] [--all] [--minutes N] [--every N] [--peoples amazon,roman] [--seed N] [--log]
+//   Homestead.Arena [map names...] [--all] [--minutes N] [--every N] [--peoples amazon,roman] [--characters ,general] [--seed N] [--log] [--notes] [--profile]
 // Without map names: the first multiplayer map without start buildings. --all: every such map.
 // --peoples: peoples for players the map leaves open (player i: entry i mod count). Default: random,
 // with a fixed seed so runs stay comparable (--seed N for another draw).
+// --characters: AI character per player (ai.json characters; entry i for player i+1, empty: drawn).
+// --notes: every AI decision as it is made (otherwise only the traits' ones).
+// --profile: time per part of the simulation step for each report interval.
 
-string[] valueOptions = ["--minutes", "--every", "--peoples", "--seed"];
+string[] valueOptions = ["--minutes", "--every", "--peoples", "--characters", "--seed"];
 var names = args.Where((a, i) => !a.StartsWith("--") && (i == 0 || !valueOptions.Contains(args[i - 1]))).ToList();
 int minutes = IntOption("--minutes", 30);
 int every = IntOption("--every", 5);
 bool all = args.Contains("--all");
 bool showLog = args.Contains("--log");
+bool showNotes = args.Contains("--notes");
+bool profile = args.Contains("--profile");
 int peoplesAt = Array.IndexOf(args, "--peoples");
 var peoples = peoplesAt >= 0 && peoplesAt + 1 < args.Length
     ? args[peoplesAt + 1].Split(',').Select(p => Enum.Parse<Civilization>(p.Trim(), ignoreCase: true)).ToArray()
     : null;
+int charactersAt = Array.IndexOf(args, "--characters");
+var characters = charactersAt >= 0 && charactersAt + 1 < args.Length ? args[charactersAt + 1].Split(',').Select(c => c.Trim()).ToArray() : [];
 
 var installation = GameInstallation.Locate();
 var maps = installation.MapFiles
@@ -37,19 +44,43 @@ var siteSince = new Dictionary<int, long>();
 foreach (var (file, original) in maps)
 {
     siteSince.Clear();
-    var (world, report) = OriginalScenario.Load(original, freeChoice: peoples, random: new Random(IntOption("--seed", 1)));
+    var random = new Random(IntOption("--seed", 1));
+    var (world, report) = OriginalScenario.Load(original, freeChoice: peoples, random: random);
     for (int player = 0; player < report.Catalogs.Count; player++)
-        world.AiPlayers.Add(new AiPlayer(world, report.Catalogs[player], player));
+    {
+        var ai = new AiPlayer(world, report.Catalogs[player], player,
+            character: player < characters.Length && characters[player].Length > 0 ? characters[player] : null, random: random);
+        // Trait decisions as they happen (the log keeps only the latest).
+        ai.Noted += (a, line) =>
+        {
+            if (showNotes || a.TraitOfNote(line) is not null)
+                Console.WriteLine($"   P{a.Player + 1} {a.Character.Id}: {line}");
+        };
+        world.AiPlayers.Add(ai);
+    }
     Console.WriteLine($"== {Path.GetFileNameWithoutExtension(file)}: {report.Catalogs.Count} players " +
-                      $"({string.Join(", ", report.Catalogs.Select(c => c.Civilization))}), map {world.Map!.Size}");
+                      $"({string.Join(", ", world.AiPlayers.Select(a => $"{report.Catalogs[a.Player].Civilization} {a.Character.Id}"))}), map {world.Map!.Size}");
 
     var watch = Stopwatch.StartNew();
     long ticks = (long)minutes * 60 * World.TicksPerSecond;
+    long interval = every * 60 * World.TicksPerSecond;
+    if (profile)
+        world.StepProfile = new Dictionary<string, (long, long)>();
     for (long t = 1; t <= ticks; t++)
     {
         world.Step();
-        if (t % (every * 60 * World.TicksPerSecond) == 0 || t == ticks)
+        if (t % interval == 0 || t == ticks)
+        {
             Print(world, t);
+            if (world.StepProfile is { } parts)
+            {
+                long steps = t % interval == 0 ? interval : t % interval;
+                double ms = 1000.0 / Stopwatch.Frequency;
+                Console.WriteLine("   ms per tick (longest): " + string.Join(", ", parts.OrderByDescending(p => p.Value.Total)
+                    .Select(p => $"{p.Key} {p.Value.Total * ms / steps:F2} ({p.Value.Max * ms:F1})")));
+                parts.Clear();
+            }
+        }
     }
     Console.WriteLine($"   {watch.Elapsed.TotalSeconds:F1} s real time, {watch.Elapsed.TotalMilliseconds / ticks:F2} ms per tick, " +
                       $"pass-throughs {world.PassThroughs}, problems: {string.Join(", ", world.Production.Problems.Select(p => $"{p.Key} {p.Value}"))}");

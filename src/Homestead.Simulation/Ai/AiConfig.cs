@@ -77,14 +77,43 @@ public sealed record AiConfig
     /// </summary>
     public double MaxWaterShare { get; init; } = 0.4;
 
-    public static AiConfig Load(string? dataDirectory = null, Civilization? civilization = null)
+    /// <summary>
+    /// Characters by id (see <c>characters</c> in ai.json and docs/KI-TACTICS.md): the traits each plays
+    /// with, in order of priority, with their settings (<c>traits</c> defaults merged with the character's own).
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<TraitSettings>> Characters { get; init; } =
+        new Dictionary<string, IReadOnlyList<TraitSettings>> { [StandardCharacter] = [] };
+
+    /// <summary>Which character a player of this people gets, drawn by weight once per game.</summary>
+    public IReadOnlyList<(string Character, double Weight)> CharacterWeights { get; init; } = [(StandardCharacter, 1)];
+
+    public const string StandardCharacter = "standard";
+
+    /// <param name="Trait">The trait's id.</param>
+    public sealed record TraitSettings(string Trait, JsonElement Settings);
+
+    /// <param name="character">
+    /// A character whose own values (all but <c>traits</c> and the trait settings) override the general
+    /// ones, after the people's.
+    /// </param>
+    public static AiConfig Load(string? dataDirectory = null, Civilization? civilization = null, string? character = null)
     {
         string path = Path.Combine(dataDirectory ?? BuildingCatalog.DefaultDataDirectory, "ai.json");
         var node = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
         if (civilization is { } people && node["civilizations"]?[people.ToString()] is JsonObject overrides)
             Merge(node, overrides);
+        if (character is not null && node["characters"]?[character] is JsonObject own)
+        {
+            var traits = (own["traits"]?.AsArray() ?? []).Select(t => t!.GetValue<string>()).ToHashSet();
+            var values = new JsonObject();
+            foreach (var (key, value) in own)
+                if (key != "traits" && !traits.Contains(key))
+                    values[key] = value?.DeepClone();
+            Merge(node, values);
+        }
         using var document = JsonDocument.Parse(node.ToJsonString());
         var root = document.RootElement;
+        var characters = LoadCharacters(node);
         var expansion = root.GetProperty("expansion");
         var military = root.GetProperty("military");
         var attack = root.GetProperty("attack");
@@ -137,7 +166,37 @@ public sealed record AiConfig
             LateOres = expansion.TryGetProperty("lateOres", out var late)
                 ? late.EnumerateArray().Select(o => Enum.Parse<ResourceType>(o.GetString()!)).ToArray()
                 : [],
+            Characters = characters,
+            CharacterWeights = root.TryGetProperty("characterWeights", out var weights)
+                ? weights.EnumerateArray().Select(w => (w[0].GetString()!, w[1].GetDouble())).ToArray()
+                : [(StandardCharacter, 1)],
         };
+    }
+
+    /// <summary>The characters with each trait's settings: the trait defaults overridden by the character's values.</summary>
+    private static Dictionary<string, IReadOnlyList<TraitSettings>> LoadCharacters(JsonObject root)
+    {
+        var result = new Dictionary<string, IReadOnlyList<TraitSettings>> { [StandardCharacter] = [] };
+        if (root["characters"] is not JsonObject characters)
+            return result;
+        var defaults = root["traits"] as JsonObject;
+        foreach (var (name, value) in characters)
+        {
+            if (value is not JsonObject character)
+                continue;
+            var traits = new List<TraitSettings>();
+            foreach (var trait in character["traits"]?.AsArray() ?? [])
+            {
+                string traitId = trait!.GetValue<string>();
+                var settings = defaults?[traitId] is JsonObject d ? (JsonObject)d.DeepClone() : new JsonObject();
+                if (character[traitId] is JsonObject own)
+                    Merge(settings, own);
+                using var document = JsonDocument.Parse(settings.ToJsonString());
+                traits.Add(new TraitSettings(traitId, document.RootElement.Clone()));
+            }
+            result[name] = traits;
+        }
+        return result;
     }
 
     /// <summary>Copies the values of <paramref name="overrides"/> into <paramref name="target"/>, merging objects.</summary>

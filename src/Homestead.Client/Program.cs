@@ -8,6 +8,8 @@ using Homestead.Simulation.Buildings;
 //   --map <name>       map to open (file name without extension)
 //   --capture <dir>    render offscreen, save frames as PNG and quit (for checks without looking)
 //   --peoples <list>   peoples for players the map leaves open, e.g. amazon,roman (player i: entry i mod count)
+//   --characters <list> AI characters per player (ai.json characters), e.g. ,general,standard: entry i for
+//                      player i+1, empty or missing: drawn by the people's weights
 string? Option(string name)
 {
     int i = Array.IndexOf(args, name);
@@ -24,6 +26,7 @@ using Microsoft.Xna.Framework.Game game = Option("--scene") switch
 {
     "walk" => new WalkPocGame(gfx, capture),
     _ => new MapGame(installation, gfx, Option("--map"), capture,
-        Option("--peoples")?.Split(',').Select(p => Enum.Parse<Civilization>(p.Trim(), ignoreCase: true)).ToArray()),
+        Option("--peoples")?.Split(',').Select(p => Enum.Parse<Civilization>(p.Trim(), ignoreCase: true)).ToArray(),
+        Option("--characters")?.Split(',').Select(c => c.Trim()).ToArray()),
 };
 game.Run();
