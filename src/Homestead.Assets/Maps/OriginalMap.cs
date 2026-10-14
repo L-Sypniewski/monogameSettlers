@@ -57,6 +57,21 @@ public sealed class OriginalMap
 
     public static OriginalMap Open(string path)
     {
+        var (version, chunks) = ReadChunks(path, _ => true);
+        return new OriginalMap(path, version, chunks);
+    }
+
+    /// <summary>Number of players, read without decoding the rest of the map (for map lists).</summary>
+    public static int ReadPlayerCount(string path)
+    {
+        var (_, chunks) = ReadChunks(path, type => type == MapChunkType.MapInfo);
+        return chunks.TryGetValue(MapChunkType.MapInfo, out var info) && info.Length >= 8
+            ? (int)U32(info, 4)
+            : throw new InvalidDataException($"{path}: no {MapChunkType.MapInfo} chunk.");
+    }
+
+    private static (int Version, Dictionary<MapChunkType, byte[]> Chunks) ReadChunks(string path, Func<MapChunkType, bool> wanted)
+    {
         byte[] data = File.ReadAllBytes(path);
         if (data.Length < 16)
             throw new InvalidDataException($"{path}: file too short.");
@@ -77,10 +92,11 @@ public sealed class OriginalMap
                 throw new InvalidDataException($"{path}: broken chunk at 0x{pos:x}.");
 
             var type = (MapChunkType)(rawType & 0xffff);
-            chunks[type] = Decode(data.AsSpan(pos + 8, length - 8), (byte)type);
+            if (wanted(type))
+                chunks[type] = Decode(data.AsSpan(pos + 8, length - 8), (byte)type);
             pos += length;
         }
-        return new OriginalMap(path, version, chunks);
+        return (version, chunks);
     }
 
     private static byte[] Decode(ReadOnlySpan<byte> encoded, byte key)

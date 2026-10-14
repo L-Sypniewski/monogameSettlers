@@ -41,7 +41,12 @@ public sealed class MapGame : Game
 
     /// <summary>Draws the peoples of players the map leaves open ("random"): a new draw every game.</summary>
     private readonly Random _peopleDraw = new();
-    private readonly IReadOnlyList<Civilization>? _peoples;
+    private IReadOnlyList<Civilization>? _peoples;
+    private readonly string _mapDirectory;
+
+    /// <summary>Shown before the first map is loaded, until the game is started.</summary>
+    private StartScreen? _startScreen;
+    private readonly bool _showStartScreen;
 
     /// <summary>AI character per player from the command line (empty: drawn by the people's weights).</summary>
     private readonly IReadOnlyList<string> _characters;
@@ -130,9 +135,12 @@ public sealed class MapGame : Game
 
     /// <param name="peoples">Peoples for the players whose people the map leaves open (see <see cref="OriginalScenario.Load"/>).</param>
     /// <param name="characters">AI character per player (entry i for player i); empty or missing: drawn.</param>
+    /// <param name="startScreen">Show the start screen (map, peoples, colors) first.</param>
     public MapGame(GameInstallation installation, GfxDirectory gfx, string? mapName, string? captureDirectory,
-        IReadOnlyList<Civilization>? peoples = null, IReadOnlyList<string>? characters = null)
+        IReadOnlyList<Civilization>? peoples = null, IReadOnlyList<string>? characters = null, bool startScreen = false)
     {
+        _showStartScreen = startScreen;
+        _mapDirectory = installation.MapDirectory;
         _gfx = gfx;
         _peoples = peoples;
         _characters = characters ?? [];
@@ -177,7 +185,32 @@ public sealed class MapGame : Game
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
         _economyRenderer = new EconomyRenderer(_sprites);
         _font = new UiFont();
-        LoadMap(_mapIndex);
+        if (_showStartScreen)
+            _startScreen = new StartScreen(GraphicsDevice, _mapFiles, _mapDirectory, _mapIndex, _peoples);
+        else
+            LoadMap(_mapIndex);
+    }
+
+    private void UpdateStartScreen()
+    {
+        var choice = _startScreen!.Update(GraphicsDevice.Viewport.Bounds, out bool quit);
+        if (quit)
+            Exit();
+        if (Keyboard.GetState().IsKeyDown(Keys.F11) && !_previousKeys.IsKeyDown(Keys.F11))
+            ToggleFullScreen();
+        _previousKeys = Keyboard.GetState();
+        _previousMouse = Mouse.GetState();
+        if (choice is null)
+            return;
+        _startScreen.Dispose();
+        _startScreen = null;
+        PlayerColors.Assign(choice.OwnColor, choice.EnemyColor);
+        // Player 1 the own people, all others the opponents' one; random ones drawn per player.
+        _peoples = Enumerable.Range(0, 8)
+            .Select(player => (player == 0 ? choice.Own : choice.Enemy)
+                              ?? Enum.GetValues<Civilization>()[_peopleDraw.Next(Enum.GetValues<Civilization>().Length)])
+            .ToArray();
+        LoadMap(choice.MapIndex);
     }
 
     /// <summary>Building catalog of the own player (player 1): the people the map gives or the chosen one.</summary>
@@ -310,6 +343,12 @@ public sealed class MapGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        if (_startScreen is not null)
+        {
+            UpdateStartScreen();
+            base.Update(gameTime);
+            return;
+        }
         var updateClock = System.Diagnostics.Stopwatch.StartNew();
         // Capture runs ignore input: keyboard and mouse state are global and would leak in from other windows.
         if (_captureDirectory is null)
@@ -937,6 +976,15 @@ public sealed class MapGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        if (_startScreen is not null)
+        {
+            GraphicsDevice.Clear(new Color(12, 12, 16));
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _startScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            _spriteBatch.End();
+            base.Draw(gameTime);
+            return;
+        }
         _perf.BeginSection();
         RenderTarget2D? target = null;
         if (_captureDirectory is not null)
@@ -1412,7 +1460,8 @@ public sealed class MapGame : Game
 
     protected override void UnloadContent()
     {
-        _terrain.Dispose();
+        _terrain?.Dispose();
+        _startScreen?.Dispose();
         _sprites.Dispose();
         _buildMenu?.Dispose();
         _font.Dispose();

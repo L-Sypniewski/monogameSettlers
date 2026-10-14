@@ -5,7 +5,8 @@ using Homestead.Simulation.Buildings;
 
 // Options:
 //   --scene map|walk   map: terrain of an original map (default), walk: walking PoC on plain grass
-//   --map <name>       map to open (file name without extension)
+//   --map <name>       map to open (file name without extension); without it (and --capture) the start screen
+//                      offers map, peoples and colors
 //   --capture <dir>    render offscreen, save frames as PNG and quit (for checks without looking)
 //   --peoples <list>   peoples for players the map leaves open, e.g. amazon,roman (player i: entry i mod count)
 //   --characters <list> AI characters per player (ai.json characters), e.g. ,general,standard: entry i for
@@ -27,6 +28,7 @@ using Microsoft.Xna.Framework.Game game = Option("--scene") switch
     "walk" => new WalkPocGame(gfx, capture),
     _ => new MapGame(installation, gfx, Option("--map"), capture,
         Option("--peoples")?.Split(',').Select(p => Enum.Parse<Civilization>(p.Trim(), ignoreCase: true)).ToArray(),
-        Option("--characters")?.Split(',').Select(c => c.Trim()).ToArray()),
+        Option("--characters")?.Split(',').Select(c => c.Trim()).ToArray(),
+        startScreen: capture is null && Option("--map") is null),
 };
 game.Run();

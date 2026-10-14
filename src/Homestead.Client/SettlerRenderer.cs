@@ -18,7 +18,7 @@ public sealed class SettlerRenderer
     private const float WorkFramesPerTick = 0.5f;
 
     /// <summary>The frame of a bowman's shooting animation in which the arrow leaves the bow.</summary>
-    private const int ReleaseFrame = 17;
+    private const int ReleaseFrame = 15;
 
     private const int LookAroundMinTicks = 2 * World.TicksPerSecond;
     private const int LookAroundMaxTicks = 30 * World.TicksPerSecond;

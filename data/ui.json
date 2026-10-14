@@ -120,6 +120,8 @@
   "_soldiersComment": "Soldier upgrades in the small temple's panel: names of the soldier types and of the levels 1-3.",
   "soldierNames": { "Swordsman": "Schwertkämpfer", "Bowman": "Bogenschütze", "Pikeman": "Pikenier" },
   "soldierLevels": [ "Soldat", "Feldwebel", "Hauptmann" ],
+  "_peoplesComment": "German names of the peoples, for the start screen.",
+  "peoples": { "Roman": "Römer", "Egyptian": "Ägypter", "Asian": "Asiaten", "Amazon": "Amazonen" },
   "_aiComment": "German names of the AI characters and their traits (ids from ai.json, docs/KI-TACTICS.md), for messages and menus.",
   "aiCharacters": {
     "standard": "Standard", "general": "Feldherr", "rusher": "Stürmer", "trickster": "Hinterhältiger",
