@@ -150,7 +150,8 @@ public sealed class TerrainMesh : IDisposable
         }
     }
 
-    private RectangleF ChunkBounds(int cx, int cy)
+    /// <summary>World area a chunk can cover (also used by the fog layer, which shares the chunks).</summary>
+    public static RectangleF ChunkBounds(int cx, int cy)
     {
         int x0 = cx * ChunkSize, y0 = cy * ChunkSize;
         int x1 = x0 + ChunkSize, y1 = y0 + ChunkSize;

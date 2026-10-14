@@ -61,6 +61,16 @@ Einzelne Sequenzen (visuell bestätigt):
   à 2 Frames: Infanterie im Turmfenster (Schwertkämpfer, dann Pikeniere, je Stufe 1–3; Frame 0 blickt nach links,
   1 nach rechts). Römer/Asiaten 28–33, Ägypter 33–38, Amazonen 26–31.
 - Bogenschützen `ACTION1` (24 Frames je Richtung): der Pfeil verlässt den Bogen nach Frame 17.
+- Datei 04 (Sequenzen, keine GUI-Tabelle): Seitenpanel links, je Sequenz 3 Frames für 640/800/1024 Pixel Breite.
+  Sequenz 0/1: Minimap-Rahmen (links/rechts, 136×142, 176×170, 216×224), Sequenz 2: Panel darunter
+  (136×338, 176×430, 216×544), Sequenz 3: 8 Pixel breiter Streifen. Großes Panel ausgemessen: Hauptreiter y 0–62,
+  dunkle Leiste für Unterreiter y 64–102, Inhaltsbereich x 10–206, y 116–474, unten fünf Knöpfe.
+
+GUI-Bilder (Tabelle `0x11306`):
+- Gebäude-Icons (14/24/34/44): je Gebäude drei Größen hintereinander (klein, mittel, groß); JSettlers verweist auf die kleine.
+- Datei 03, Bau-Kategorien (je 27×24, 36×32, 45×40): 69–71 Grundgebäude, 72–74 Nahrung, 75–77 Militär,
+  78–80 Soziales; 81–92 dieselben gedrückt (gewählt). 51–68: Hauptreiter (Bauen, Waren, Siedler; je 33/44/55, ab 60 gedrückt).
+- Datei 02, GUI 20 (100×600): blaue Hintergrundtextur.
 
 ## Sequenz
 `02 14 00 00 08 00 00`, `u8 frameAnzahl`, dann `u32[frameAnzahl]` Offsets **relativ zum Sequenzanfang**.

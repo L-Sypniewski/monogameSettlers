@@ -119,6 +119,14 @@ public sealed class MapGame : Game
     private static readonly TimeSpan MaxBacklog = TimeSpan.FromSeconds(0.5);
     private TimeSpan _time;
 
+    /// <summary>Fog of war for player 1 (key V switches it off and on); capture runs only with HOMESTEAD_CAPTURE_FOG=1.</summary>
+    private bool _fogOn;
+    private Vision _vision = null!;
+    private FogLayer? _fog;
+    private BasicEffect _fogEffect = null!;
+    private TimeSpan _nextVision;
+    private static readonly TimeSpan VisionInterval = TimeSpan.FromSeconds(1);
+
     private bool _showBlocked;
     private bool _showObjects = true;
     private Vector2 _camera; // world position shown at the screen center
@@ -145,6 +153,7 @@ public sealed class MapGame : Game
         _peoples = peoples;
         _characters = characters ?? [];
         _captureDirectory = captureDirectory;
+        _fogOn = captureDirectory is null || Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOG") == "1";
         _mapFiles = installation.MapFiles.ToArray();
         // Default: the first multiplayer map (equal start equipment for every player).
         _mapIndex = mapName is null
@@ -180,6 +189,7 @@ public sealed class MapGame : Game
             VertexColorEnabled = true,
             LightingEnabled = false,
         };
+        _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
@@ -239,6 +249,12 @@ public sealed class MapGame : Game
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
         _objects = new MapObjectLayer(_sprites, _map.Area, _terrain);
+        _vision = new Vision(_gameMap.Size, player: 0);
+        _vision.Update(_world);
+        _fog?.Dispose();
+        _fog = new FogLayer(GraphicsDevice, _terrain);
+        _fog.SetTargets(_vision);
+        _nextVision = _time + VisionInterval;
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         // Every other player is a computer player.
         _playerCatalogs = report.Catalogs;
@@ -268,6 +284,7 @@ public sealed class MapGame : Game
         _terrain.Update(p.X, p.Y, _gameMap.HeightAt(p),
             _gameMap.TerrainAt(p) == TerrainType.Flattened ? TerrainKind.Flattened : _terrain.KindAt(p.X, p.Y));
         _objects?.SetCode(p.X, p.Y, _gameMap.ObjectCodeAt(p));
+        _fog?.Touch(p.X, p.Y);
     }
 
     /// <summary>Work area marks by grid row, computed once per selected building (too slow for every frame).</summary>
@@ -370,6 +387,15 @@ public sealed class MapGame : Game
             _accumulator -= World.TickDuration;
         }
         _perf.EndSimulation();
+
+        // Fog of war: what player 1 sees is checked once a second, the fog then fades to it.
+        if (_time >= _nextVision)
+        {
+            _vision.Update(_world);
+            _fog!.SetTargets(_vision);
+            _nextVision = _time + VisionInterval;
+        }
+        _fog!.Advance((float)elapsed.TotalSeconds);
 
         var cursor = ScreenToGrid(Mouse.GetState().Position.ToVector2());
         var logistics = _world.Logistics;
@@ -479,6 +505,11 @@ public sealed class MapGame : Game
             LoadMap(_mapIndex - 1);
         if (Pressed(Keys.B))
             _showBlocked = !_showBlocked;
+        if (Pressed(Keys.V))
+        {
+            _fogOn = !_fogOn;
+            _message = _fogOn ? "fog of war on (V)" : "fog of war off (V)";
+        }
         if (Pressed(Keys.O))
             _showObjects = !_showObjects;
         if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen), Profession.Carrier) is { } spawned)
@@ -1044,6 +1075,9 @@ public sealed class MapGame : Game
             }
             foreach (var settler in settlersByRow[y])
             {
+                // Under the fog, other players' settlers are seen only where player 1 sees now.
+                if (_fogOn && settler.Player != 0 && !_vision.IsVisible(settler.Position))
+                    continue;
                 _settlerRenderer.Draw(_spriteBatch, settler, _terrain, _world.Tick, alpha, PlayerColors.Of(settler.Player));
                 if (settler.SoldierType is { } type && settler.Health < _world.Military.Config.MaxHealth(type, settler.Level))
                     DrawHealthBar(settler, type, alpha);
@@ -1053,6 +1087,17 @@ public sealed class MapGame : Game
         foreach (var cloud in _world.DustClouds)
             _economyRenderer.DrawDustCloud(_spriteBatch, cloud.Position, (_world.Tick - cloud.Tick + alpha) / World.DustCloudTicks, _terrain);
         DrawArrows(alpha);
+        if (_fogOn)
+        {
+            // Over the world, under markers and previews: black, transparent where seen.
+            _spriteBatch.End();
+            _fogEffect.View = View;
+            _fogEffect.Projection = _effect.Projection;
+            GraphicsDevice.BlendState = BlendState.AlphaBlend;
+            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+            _fog!.Draw(_fogEffect, visible);
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: View);
+        }
 
         if (_selectedBuilding is { Exists: true } selectedBuilding)
             DrawBuildingFrame(selectedBuilding);
@@ -1123,7 +1168,7 @@ public sealed class MapGame : Game
 
     /// <summary>
     /// Arrows in flight, on top of everything: from the bow (on the tower or the field) towards the
-    /// target, in a slight arc, higher the further they fly.
+    /// target, in a flat arc, a little higher the further they fly.
     /// </summary>
     private void DrawArrows(float alpha)
     {
@@ -1140,7 +1185,7 @@ public sealed class MapGame : Game
             end.Y -= HitHeight;
 
             float progress = Math.Clamp((_world.Tick - arrow.Tick + alpha) / arrow.FlightTicks, 0, 1);
-            float arc = 4 + 0.15f * Vector2.Distance(start, end);
+            float arc = 2 + 0.06f * Vector2.Distance(start, end);
             var position = Vector2.Lerp(start, end, progress) - new Vector2(0, arc * 4 * progress * (1 - progress));
             // Six flight directions as on screen (SW, W, NW, NE, E, SE), angle measured with y down.
             var delta = end - start;
@@ -1461,6 +1506,8 @@ public sealed class MapGame : Game
     protected override void UnloadContent()
     {
         _terrain?.Dispose();
+        _fog?.Dispose();
+        _fogEffect?.Dispose();
         _startScreen?.Dispose();
         _sprites.Dispose();
         _buildMenu?.Dispose();

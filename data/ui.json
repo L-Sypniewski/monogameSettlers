@@ -1,9 +1,9 @@
 {
-  "_comment": "Build menu: the categories of the original's build menu with their buildings, in order (lists as in JSettlers' EBuildingsCategory, MIT). Buildings a people does not have are left out.",
+  "_comment": "Build menu: the categories of the original's build menu with their buildings, in order (lists as in JSettlers' EBuildingsCategory, MIT). Buildings a people does not have are left out. tab: GUI images (file 03, large size) of the category button, normal and selected.",
   "buildMenu": [
     {
       "name": "Basic",
-      "icon": "lumberjack",
+      "tab": [ 71, 83 ],
       "buildings": [
         "lumberjack",
         "sawmill",
@@ -22,7 +22,7 @@
     },
     {
       "name": "Food",
-      "icon": "farm",
+      "tab": [ 74, 86 ],
       "buildings": [
         "fisher",
         "farm",
@@ -42,7 +42,7 @@
     },
     {
       "name": "Military",
-      "icon": "tower",
+      "tab": [ 77, 89 ],
       "buildings": [
         "tower",
         "big_tower",
@@ -56,7 +56,7 @@
     },
     {
       "name": "Social",
-      "icon": "small_livinghouse",
+      "tab": [ 80, 92 ],
       "buildings": [
         "small_livinghouse",
         "medium_livinghouse",
