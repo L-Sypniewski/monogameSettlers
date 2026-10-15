@@ -25,6 +25,21 @@ public class IdlingTests
     }
 
     [Fact]
+    public void Idle_soldiers_step_apart_at_once_and_keep_a_field_between_them()
+    {
+        var world = new World(new GameMap(70), ProductionConfig.None);
+        var soldiers = Enumerable.Range(0, 12).Select(_ => world.SpawnSoldier(new GridPoint(35, 35), SoldierType.Swordsman)!).ToList();
+        bool Apart() => soldiers.All(a => soldiers.All(b => a == b || Pathfinding.PathFinder.Distance(a.Position, b.Position) >= 2));
+        Assert.False(Apart());
+
+        // Well under the idle time others wait before they stroll, plus the few steps.
+        Run(world, Idling.IdleTicks + 4 * World.StepTicks);
+
+        Assert.True(Apart(), string.Join(" ", soldiers.Select(s => $"{s.Position.X},{s.Position.Y}")));
+        Assert.All(soldiers, s => Assert.InRange(Pathfinding.PathFinder.Distance(s.Position, new GridPoint(35, 35)), 0, 5)); // they stay together
+    }
+
+    [Fact]
     public void A_strolling_carrier_takes_a_job_at_once()
     {
         var world = new World(new GameMap(70), ProductionConfig.None);

@@ -6,6 +6,7 @@ namespace Homestead.Simulation.Economy;
 /// Keeps idle carriers, soldiers, diggers, builders and geologists out of the way: one that has had nothing to do for <see cref="IdleTicks"/> and
 /// stands in a busy place (around a building, next to a pile, in a crowd) strolls to a quiet free
 /// field nearby. Strolling carriers stay available: logistics and recruitment can take them any time.
+/// Idle soldiers spread out at once (checked every tick) and keep a field between each other.
 /// </summary>
 /// <remarks>
 /// Found while watching the demo economy: carriers drop their goods at the storehouse and then stand
@@ -23,6 +24,9 @@ public sealed class Idling
     /// <summary>Tick from which a settler has been idle.</summary>
     private readonly Dictionary<int, long> _idleSince = new();
 
+    /// <summary>Tick from which a settler that found no quiet spot looks again.</summary>
+    private readonly Dictionary<int, long> _retryAt = new();
+
     internal Idling(World world)
     {
         _world = world;
@@ -32,17 +36,19 @@ public sealed class Idling
 
     internal void Tick()
     {
-        if (_world.Tick % Interval != 0)
-            return;
-
-        var taken = StrollTargets();
+        // Soldiers every tick, everyone else every Interval ticks.
+        bool everyone = _world.Tick % Interval == 0;
+        HashSet<GridPoint>? taken = null;
         foreach (var settler in _world.Settlers)
         {
+            if (!everyone && settler.Profession != Profession.Soldier)
+                continue;
             if (settler.IsStrolling && settler.Destination is null)
                 settler.IsStrolling = false;
             if (!IsIdle(settler))
             {
                 _idleSince.Remove(settler.Id);
+                _retryAt.Remove(settler.Id);
                 continue;
             }
             // Stranded outside the own land (it was lost): home to the nearest own building.
@@ -55,11 +61,21 @@ public sealed class Idling
                 continue;
             }
             long since = _idleSince.TryGetValue(settler.Id, out long s) ? s : _idleSince[settler.Id] = _world.Tick;
-            if (_world.Tick - since < IdleTicks || IsQuiet(settler.Position, settler))
+            bool soldier = settler.Profession == Profession.Soldier;
+            if (!soldier && _world.Tick - since < IdleTicks || IsQuiet(settler.Position, settler))
+                continue;
+            // Found no quiet spot a moment ago: not again every tick.
+            if (_retryAt.TryGetValue(settler.Id, out long retry) && _world.Tick < retry)
                 continue;
 
+            taken ??= StrollTargets();
             if (Stroll(settler, taken))
+            {
                 _idleSince.Remove(settler.Id);
+                _retryAt.Remove(settler.Id);
+            }
+            else
+                _retryAt[settler.Id] = _world.Tick + Interval;
         }
     }
 
@@ -84,9 +100,10 @@ public sealed class Idling
          || s.Workplace is null && s.Trade is not null)
         && !s.HasTask && !s.IsInside && s.Carrying is null && s.Destination is null && s.State != SettlerState.Stepping;
 
-    /// <summary>Free ground (no building, its surroundings or pile), no pile next to it, at most one neighbor.</summary>
+    /// <summary>Free ground (no building, its surroundings or pile), no pile next to it, at most one neighbor (soldiers: none).</summary>
     private bool IsQuiet(GridPoint p, Settler? self)
     {
+        int allowed = self?.Profession == Profession.Soldier ? 0 : 1;
         var map = _world.Map!;
         if (!map.IsWalkable(p) || !_world.IsFreeGround(p))
             return false;
@@ -101,14 +118,15 @@ public sealed class Idling
             if (_world.IsOccupied(n) && (self is null || self.Position != n))
                 neighbors++;
         }
-        return neighbors <= 1;
+        return neighbors <= allowed;
     }
 
     private GridPoint? QuietSpotNear(Settler settler, HashSet<GridPoint> taken)
     {
         var pathFinder = _world.PathFinder!;
         var from = settler.Position;
-        for (int r = 2; r <= SearchRadius; r++)
+        // Soldiers only step apart; the others leave the busy place.
+        for (int r = settler.Profession == Profession.Soldier ? 1 : 2; r <= SearchRadius; r++)
         for (int dy = -r; dy <= r; dy++)
         for (int dx = -r; dx <= r; dx++)
         {
