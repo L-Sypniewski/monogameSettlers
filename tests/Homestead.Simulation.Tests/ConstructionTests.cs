@@ -89,6 +89,63 @@ public class ConstructionTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Levelling_a_hillside_cuts_into_the_slope_around_the_site_from_the_top_down()
+    {
+        const int Slope = 3;
+        var map = new GameMap(60);
+        for (int i = 0; i < map.PointCount; i++)
+            map.SetHeight(map.Point(i), 20 + Slope * map.Point(i).X);
+        var before = Enumerable.Range(0, map.PointCount).Select(i => map.HeightAt(map.Point(i))).ToArray();
+        var world = new World(map);
+        int maxSlope = world.Production.Config.LevellingMaxSlope;
+        var site = world.PlaceConstructionSite(Romans["forester"], 0, new GridPoint(30, 30))!;
+        Assert.Equal(BuildingState.Flattening, site.State);
+        Spawn(world, Profession.Digger, 3, new GridPoint(20, 20));
+
+        int steepest = 0;
+        Run(world, 20_000, stopWhen: () =>
+        {
+            steepest = Math.Max(steepest, SteepestSlope(map));
+            return site.State != BuildingState.Flattening;
+        });
+
+        Assert.Equal(BuildingState.Constructing, site.State);
+        Assert.All(site.BlockedPoints, p => Assert.Equal(site.TargetHeight, map.HeightAt(p)));
+        var footprint = site.BlockedPoints.ToHashSet();
+        Assert.Contains(Enumerable.Range(0, map.PointCount),
+            i => !footprint.Contains(map.Point(i)) && map.HeightAt(map.Point(i)) != before[i]);
+        Assert.InRange(steepest, 0, maxSlope);
+    }
+
+    [Fact]
+    public void A_site_needing_too_much_levelling_cannot_be_placed()
+    {
+        var map = new GameMap(60);
+        for (int i = 0; i < map.PointCount; i++)
+            map.SetHeight(map.Point(i), 4 * map.Point(i).X);
+        var world = new World(map);
+
+        Assert.False(world.CanPlace(Romans["castle"], new GridPoint(30, 30), out string reason));
+        Assert.Equal("too steep to level", reason);
+        Assert.Equal(1f, world.LevellingEffort(Romans["castle"], new GridPoint(30, 30)));
+        Assert.True(world.CanPlace(Romans["tower"], new GridPoint(30, 30), out _), "a small building fits");
+    }
+
+    /// <summary>The greatest height difference between neighboring points of the map.</summary>
+    private static int SteepestSlope(GameMap map)
+    {
+        int steepest = 0;
+        for (int i = 0; i < map.PointCount; i++)
+        {
+            var p = map.Point(i);
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+                if (p.Neighbor((Direction)d) is var n && map.Contains(n))
+                    steepest = Math.Max(steepest, Math.Abs(map.HeightAt(n) - map.HeightAt(p)));
+        }
+        return steepest;
+    }
+
+    [Fact]
     public void Storehouse_supplies_construction_sites()
     {
         var world = new World(new GameMap(80), TestConfig.StoreAll);

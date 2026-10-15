@@ -150,6 +150,8 @@ public sealed partial class World
             return Fail("builders would stand outside own land", out reason);
         if (!DoorLeadsOut(definition, position))
             return Fail("the door would lead nowhere", out reason);
+        if (PlanLevelling(definition, position, player) is null)
+            return Fail("too steep to level", out reason);
         reason = "";
         return true;
 
@@ -200,6 +202,10 @@ public sealed partial class World
             return null;
         if (!force && !CanPlace(definition, position, out _, player))
             return null;
+        // Finished at once: so is the levelling (a loaded map stands as the editor left it).
+        if (!force && PlanLevelling(definition, position, player) is { } plan)
+            foreach (var (p, target) in plan.Targets)
+                map.SetHeight(p, target);
 
         var building = Register(definition, player, position, BuildingState.Finished);
         foreach (var p in building.BlockedPoints)
@@ -209,28 +215,105 @@ public sealed partial class World
         return building;
     }
 
-    /// <summary>The height a building's footprint is levelled to: the average of its points.</summary>
-    private int LevelHeight(BuildingDefinition definition, GridPoint position)
+    /// <summary>Points construction sites still level, by map index, with their target height.</summary>
+    private readonly Dictionary<int, int> _pendingLevels = new();
+
+    /// <summary>The height a point will have once the sites levelling it are done.</summary>
+    private int PlannedHeight(GridPoint p)
     {
         var map = RequireMap();
-        return (int)Math.Round(definition.Blocked.Average(o => map.HeightAt(position + o)));
+        return _pendingLevels.TryGetValue(map.Index(p), out int target) ? target : map.HeightAt(p);
     }
 
-    /// <summary>Mean height difference to level at which <see cref="LevellingEffort"/> reaches 1.</summary>
-    private const float SteepLevelling = 8;
-
     /// <summary>
-    /// How much levelling a site at <paramref name="position"/> needs, from 0 (flat) to 1 (steep): the mean
-    /// height difference of its footprint to the level height, up to <see cref="SteepLevelling"/>.
+    /// What levelling a site at <paramref name="position"/> takes, or null if too much: the footprint goes to its
+    /// mean height; ring by ring around it each point is cut or filled just enough that no neighbor
+    /// differs by more than <see cref="ProductionConfig.LevellingMaxSlope"/> (the point d rings out at most
+    /// d times that from the footprint height). It stops at the first ring left as it is: the ground
+    /// beyond is no steeper. Null when the height moved in all exceeds
+    /// <see cref="ProductionConfig.LevellingMaxWork"/> or a point to change cannot be: under a building,
+    /// levelled by another site, not walkable (water, trees, stones) or not on own land.
     /// </summary>
-    public float LevellingEffort(BuildingDefinition definition, GridPoint position)
+    internal LevellingPlan? PlanLevelling(BuildingDefinition definition, GridPoint position, int player)
     {
         var map = RequireMap();
-        if (definition.Blocked.Count == 0)
-            return 0;
-        int height = LevelHeight(definition, position);
-        float mean = (float)definition.Blocked.Average(o => Math.Abs(map.HeightAt(position + o) - height));
-        return Math.Min(1, mean / SteepLevelling);
+        var config = Production.Config;
+        var footprint = definition.Blocked.Select(o => position + o).ToHashSet();
+        if (footprint.Count == 0)
+            return new LevellingPlan(0, new Dictionary<GridPoint, int>(), 0);
+        int height = (int)Math.Round(footprint.Average(PlannedHeight));
+        var targets = new Dictionary<GridPoint, int>();
+        int work = 0;
+        foreach (var p in footprint)
+        {
+            if (_pendingLevels.ContainsKey(map.Index(p)))
+                return null;
+            int h = map.HeightAt(p);
+            if (h == height)
+                continue;
+            targets[p] = height;
+            work += Math.Abs(h - height);
+        }
+        if (work > config.LevellingMaxWork)
+            return null;
+        var seen = new HashSet<GridPoint>(footprint);
+        var ring = footprint.ToList();
+        for (int d = 1; ring.Count > 0; d++)
+        {
+            int low = height - config.LevellingMaxSlope * d, high = height + config.LevellingMaxSlope * d;
+            var next = new List<GridPoint>();
+            bool changed = false;
+            foreach (var p in ring)
+                for (int dir = 0; dir < DirectionExtensions.Count; dir++)
+                {
+                    var q = p.Neighbor((Direction)dir);
+                    if (!map.Contains(q) || !seen.Add(q))
+                        continue;
+                    next.Add(q);
+                    int h = PlannedHeight(q);
+                    int target = Math.Clamp(h, low, high);
+                    if (target == h)
+                        continue;
+                    int index = map.Index(q);
+                    if (_footprints.ContainsKey(index) || _pendingLevels.ContainsKey(index) || !map.IsWalkable(q)
+                        || TerritoryRules && map.OwnerAt(q) != player)
+                        return null;
+                    targets[q] = target;
+                    work += Math.Abs(h - target);
+                    changed = true;
+                    if (work > config.LevellingMaxWork)
+                        return null;
+                }
+            if (!changed)
+                break;
+            ring = next;
+        }
+        return new LevellingPlan(height, targets, work);
+    }
+
+    /// <summary>
+    /// How much levelling a site at <paramref name="position"/> needs, from 0 (none) to 1 (the most a site may
+    /// need, <see cref="ProductionConfig.LevellingMaxWork"/>, or more).
+    /// </summary>
+    public float LevellingEffort(BuildingDefinition definition, GridPoint position, int player = 0) =>
+        PlanLevelling(definition, position, player) is { } plan
+            ? Math.Min(1, plan.Work / (float)Math.Max(1, Production.Config.LevellingMaxWork))
+            : 1;
+
+    /// <summary>A point of the site reached its target height.</summary>
+    internal void Levelled(Building site, GridPoint p)
+    {
+        site.Unlevelled.Remove(p);
+        _pendingLevels.Remove(RequireMap().Index(p));
+    }
+
+    /// <summary>The site levels no more (done, or gone): its points are free for other sites.</summary>
+    private void DropLevelling(Building site)
+    {
+        var map = RequireMap();
+        foreach (var p in site.Unlevelled.Keys)
+            _pendingLevels.Remove(map.Index(p));
+        site.Unlevelled.Clear();
     }
 
     /// <summary>
@@ -243,11 +326,14 @@ public sealed partial class World
             return null;
 
         var map = RequireMap();
+        var plan = PlanLevelling(definition, position, player)!;
         var building = Register(definition, player, position, BuildingState.Flattening);
-        building.TargetHeight = LevelHeight(definition, position);
-        foreach (var p in building.BlockedPoints)
-            if (map.HeightAt(p) != building.TargetHeight)
-                building.Unlevelled.Add(p);
+        building.TargetHeight = plan.Height;
+        foreach (var (p, target) in plan.Targets)
+        {
+            building.Unlevelled[p] = target;
+            _pendingLevels[map.Index(p)] = target;
+        }
 
         foreach (var pile in definition.ConstructionPiles)
         {
@@ -281,6 +367,7 @@ public sealed partial class World
             return;
         building.Exists = false;
         var map = RequireMap();
+        DropLevelling(building);
         foreach (var p in building.BlockedPoints)
         {
             _footprints.Remove(map.Index(p));
@@ -325,7 +412,7 @@ public sealed partial class World
             map.AddBlocker(p);
         }
         MoveOffBlocked(building.BlockedPoints.ToList());
-        building.Unlevelled.Clear();
+        DropLevelling(building);
         building.State = BuildingState.Constructing;
         if (building.BuildStepsTotal == 0)
             FinishConstruction(building);
@@ -502,3 +589,9 @@ public sealed partial class World
 
 /// <summary>A building came down at <paramref name="Position"/> in tick <paramref name="Tick"/>.</summary>
 public sealed record DustCloud(GridPoint Position, long Tick);
+
+/// <summary>
+/// The levelling a construction site needs: the footprint's <paramref name="Height"/>, the target height of
+/// every point to change (footprint and slope around it) and the height to move in all.
+/// </summary>
+internal sealed record LevellingPlan(int Height, IReadOnlyDictionary<GridPoint, int> Targets, int Work);

@@ -63,8 +63,8 @@ public sealed class Building
     /// <summary>Height the footprint is levelled to.</summary>
     public int TargetHeight { get; internal set; }
 
-    /// <summary>Footprint points the diggers still have to level.</summary>
-    internal HashSet<GridPoint> Unlevelled { get; } = new();
+    /// <summary>Points the diggers still have to level (footprint and the slope around it), with their target height.</summary>
+    internal Dictionary<GridPoint, int> Unlevelled { get; } = new();
 
     internal void RemovePile(Pile pile) => _piles.Remove(pile);
 

@@ -118,6 +118,15 @@ public sealed record ProductionConfig
     /// <summary>Fields kept free between a new building and the surroundings of the others.</summary>
     public int BuildingMargin { get; init; }
 
+    /// <summary>Levelling: the greatest height difference between neighbors it leaves (or does not make worse).</summary>
+    public int LevellingMaxSlope { get; init; } = 8;
+
+    /// <summary>Levelling: height a digger moves a point by per work cycle.</summary>
+    public int LevellingHeightPerDig { get; init; } = 2;
+
+    /// <summary>Levelling: the most height a site may need moved in all; more and it cannot be built.</summary>
+    public int LevellingMaxWork { get; init; } = 300;
+
     /// <summary>
     /// Materials carriers bring to storehouses (null = all). Everything else stays at its producer's
     /// output pile until somebody needs it.
@@ -219,6 +228,9 @@ public sealed record ProductionConfig
             MineFoodPileCapacity = mineFood.TryGetProperty("pileCapacity", out var foodPile) ? foodPile.GetInt32() : Materials.MaxPileSize,
             KeptCarriers = root.GetProperty("recruitment").GetProperty("keptCarriers").GetDouble(),
             BuildingMargin = root.GetProperty("placement").GetProperty("margin").GetInt32(),
+            LevellingMaxSlope = root.GetProperty("levelling").GetProperty("maxSlope").GetInt32(),
+            LevellingHeightPerDig = root.GetProperty("levelling").GetProperty("heightPerDig").GetInt32(),
+            LevellingMaxWork = root.GetProperty("levelling").GetProperty("maxWork").GetInt32(),
             StoredMaterials = root.GetProperty("storage").GetProperty("materials").EnumerateArray()
                 .Select(m => Materials.Parse(m.GetString()!)!.Value).ToHashSet(),
             Residents = housing.GetProperty("residents").EnumerateObject().ToDictionary(r => r.Name, r => r.Value.GetInt32()),

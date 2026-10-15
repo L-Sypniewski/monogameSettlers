@@ -7,7 +7,10 @@ namespace Homestead.Simulation.Buildings;
 /// Sends diggers and builders to construction sites and runs their work.
 /// </summary>
 /// <remarks>
-/// Diggers level one footprint point per work cycle, up to <see cref="MaxDiggersPerSite"/> per site.
+/// Diggers move a point of the site (footprint, or the slope around it, see <see cref="World.PlanLevelling"/>)
+/// by up to <see cref="ProductionConfig.LevellingHeightPerDig"/> towards its target height per work cycle,
+/// never making the slope to a neighbor steeper than <see cref="ProductionConfig.LevellingMaxSlope"/>
+/// (on a hillside they start at the top), up to <see cref="MaxDiggersPerSite"/> per site.
 /// When all points are level, the site becomes solid and builders take the builder spots of the
 /// building definition. Each build cycle uses one unit of delivered material; without material a
 /// builder is released (idle, free for another site; it steps away from the site), and a site offers builder spots only while it
@@ -179,8 +182,22 @@ public sealed class Construction
             return;
 
         var site = a.Site;
-        _world.Map!.SetHeight(a.Spot, site.TargetHeight);
-        site.Unlevelled.Remove(a.Spot);
+        var map = _world.Map!;
+        if (site.Unlevelled.TryGetValue(a.Spot, out int target))
+        {
+            // A neighbor changed meanwhile: no step here while others dig on; alone, the step anyway.
+            int step = DigStep(site, a.Spot,
+                force: !_assignments.Values.Any(o => o.Site == site && o.Worker != a.Worker && o.Worker.Profession == Profession.Digger));
+            map.SetHeight(a.Spot, map.HeightAt(a.Spot) + step);
+            if (map.HeightAt(a.Spot) == target)
+                _world.Levelled(site, a.Spot);
+            else if (DigStep(site, a.Spot) != 0)
+            {
+                // More to do here, and the slopes allow it: another cycle on the same point.
+                a.TicksLeft = DigTicks;
+                return;
+            }
+        }
 
         if (FreeDigSpot(site, a.Spot, a.Worker) is { } next)
         {
@@ -240,10 +257,54 @@ public sealed class Construction
         if (others.Count >= MaxDiggersPerSite)
             return null;
         var taken = others.Select(o => o.Spot).ToHashSet();
-        var free = site.Unlevelled.Where(p => !taken.Contains(p)).ToList();
-        if (free.Count == 0)
+        var free = site.Unlevelled.Keys.Where(p => !taken.Contains(p)).ToList();
+        // Only where the slopes allow a step; should nothing allow one with nobody else at work (ground that
+        // was steeper than allowed), any point, so the site never gets stuck.
+        var workable = free.Where(p => DigStep(site, p) != 0).ToList();
+        if (workable.Count == 0 && others.Count == 0)
+            workable = free;
+        if (workable.Count == 0)
             return null;
-        return (free.MinBy(p => PathFinder.Distance(from, p)), Direction.SouthWest);
+        return (workable.MinBy(p => PathFinder.Distance(from, p)), Direction.SouthWest);
+    }
+
+    /// <summary>
+    /// The height change one work cycle makes at a point of the site: towards its target, at most
+    /// <see cref="ProductionConfig.LevellingHeightPerDig"/>, and only as far as no neighbor ends up more than
+    /// <see cref="ProductionConfig.LevellingMaxSlope"/> apart (or further apart than before). 0 if no step is
+    /// allowed; with <paramref name="force"/> the full step regardless.
+    /// </summary>
+    private int DigStep(Building site, GridPoint p, bool force = false)
+    {
+        var map = _world.Map!;
+        var config = _world.Production.Config;
+        if (!site.Unlevelled.TryGetValue(p, out int target))
+            return 0;
+        int height = map.HeightAt(p);
+        int direction = Math.Sign(target - height);
+        int most = Math.Min(Math.Max(1, config.LevellingHeightPerDig), Math.Abs(target - height));
+        if (force)
+        {
+            // Still the largest allowed step, if there is one.
+            int allowed = DigStep(site, p);
+            return allowed != 0 ? allowed : direction * most;
+        }
+        for (int step = most; step >= 1; step--)
+        {
+            int to = height + direction * step;
+            bool fits = true;
+            for (int d = 0; d < DirectionExtensions.Count && fits; d++)
+            {
+                var n = p.Neighbor((Direction)d);
+                if (!map.Contains(n))
+                    continue;
+                int neighbor = map.HeightAt(n);
+                fits = Math.Abs(to - neighbor) <= Math.Max(config.LevellingMaxSlope, Math.Abs(height - neighbor));
+            }
+            if (fits)
+                return direction * step;
+        }
+        return 0;
     }
 
     /// <summary>

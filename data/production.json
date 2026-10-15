@@ -73,6 +73,12 @@
     "_comment": "Fields a new building keeps free from the ground and the surroundings of other buildings (more room for settlers and the looks; 0 = touching allowed as in the original data).",
     "margin": 1
   },
+  "levelling": {
+    "_comment": "Levelling a construction site: its footprint goes to its mean height, and around it the ground is cut or filled ring by ring until no neighbor differs by more than maxSlope (99 % of the original terrain stays within 7). Work is the height moved in all; a place needing more than maxWork cannot be built on. Diggers move a point by heightPerDig per work cycle, never making a slope steeper than maxSlope, so on a hillside they start at the top.",
+    "maxSlope": 8,
+    "heightPerDig": 2,
+    "maxWork": 300
+  },
   "storage": {
     "_comment": "Units per storehouse pile; a storehouse has six piles, each holding one material at a time. A full storehouse takes nothing more: goods then wait at the producers.",
     "pileCapacity": 8,
