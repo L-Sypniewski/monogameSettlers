@@ -10,8 +10,34 @@
     "Bowman": { "health": 80, "damage": 7, "attackSeconds": 1.5, "range": 15 }
   },
   "levelBonus": [ 1.0, 1.3, 1.7 ],
-  "_doorComment": "Attacked military buildings: melee attackers first break the door (as much health as a level-1 soldier of type healthOf); 30 s without an attack on the door or its defenders repair it fully. fighters: how many melee attackers fit at the door at once (fields next to it; pikemen too, bowmen not at all), per building name, 2 elsewhere.",
-  "door": { "healthOf": "Pikeman", "regenSeconds": 30, "fighters": { "tower": 2, "big_tower": 2, "castle": 1 } },
+  "_doorComment": "Attacked military buildings: melee attackers first break the door (as much health as a level-1 soldier of type healthOf). With no enemy within calmRadius fields of the door fight for calmSeconds, the guard goes back in and the door repairs itself evenly, from broken to whole in regenSeconds (half after 15 s); already its first moment of repair takes another hit to break it. fighters: how many melee attackers fit at the door at once (fields next to it; pikemen too, bowmen not at all), per building name, 2 elsewhere.",
+  "door": {
+    "healthOf": "Pikeman", "regenSeconds": 30, "calmSeconds": 5, "calmRadius": 6,
+    "fighters": { "tower": 2, "big_tower": 2, "castle": 1 },
+    "_pointsComment": "Where a door fight takes place, per people and building, as grid offsets [x, y] from the door: guard = where the defender stands, fighters = where melee attackers fight it (the first 'fighters' of them are used). One step in x is 16 px to the right on screen, one step in y 9 px down and 8 px to the left; lower fields are drawn in front of the building. Buildings missing here (or with a field that is not walkable on the spot) get fields found automatically.",
+    "points": {
+      "Roman": {
+        "tower": { "guard": [1, 1], "fighters": [[2, 2], [1, 2]] },
+        "big_tower": { "guard": [0, 1], "fighters": [[0, 2], [1, 2]] },
+        "castle": { "guard": [0, 1], "fighters": [[0, 2]] }
+      },
+      "Egyptian": {
+        "tower": { "guard": [1, 1], "fighters": [[2, 2], [1, 2]] },
+        "big_tower": { "guard": [0, 1], "fighters": [[0, 2], [1, 2]] },
+        "castle": { "guard": [0, 1], "fighters": [[1, 2]] }
+      },
+      "Asian": {
+        "tower": { "guard": [0, 1], "fighters": [[1, 2], [0, 2]] },
+        "big_tower": { "guard": [0, 1], "fighters": [[1, 2], [0, 2]] },
+        "castle": { "guard": [0, 1], "fighters": [[0, 2]] }
+      },
+      "Amazon": {
+        "tower": { "guard": [1, 1], "fighters": [[2, 2], [1, 2]] },
+        "big_tower": { "guard": [0, 1], "fighters": [[0, 2], [1, 2]] },
+        "castle": { "guard": [1, 1], "fighters": [[2, 2]] }
+      }
+    }
+  },
   "sightRange": 15,
   "_buildingSightComment": "Fog of war: finished own buildings of these names reveal their surroundings up to this radius (other buildings only through land and settlers).",
   "buildingSight": { "lookout_tower": 45 },

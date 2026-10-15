@@ -51,6 +51,12 @@ public sealed partial class Military
     /// <summary>What is left of the military building's door (<see cref="MilitaryConfig.DoorHealth"/> when whole; 0 broken).</summary>
     public float DoorHealth(Building building) => _garrisons.TryGetValue(building.Id, out var g) ? g.DoorHealth : _config.DoorHealth;
 
+    /// <summary>Where the guard of the building's broken door stands, in front of the door.</summary>
+    public GridPoint FightPoint(Building building) => GarrisonOf(building) is { } g ? FightPointOf(g) : building.Door;
+
+    /// <summary>The fields next to <see cref="FightPoint"/> where melee attackers fight the door and its guard.</summary>
+    public IReadOnlyList<GridPoint> DoorSpots(Building building) => GarrisonOf(building) is { } g ? DoorSpotsOf(g) : [];
+
     /// <summary>The soldier standing in the building's broken door, if any.</summary>
     public Settler? DoorGuard(Building building) => _garrisons.TryGetValue(building.Id, out var g) ? g.Guard : null;
 
@@ -502,15 +508,18 @@ public sealed partial class Military
 
         public bool DoorBroken => DoorHealth <= 0;
 
-        /// <summary>The last hit on the door or a defender (for the door's repair).</summary>
-        public long LastAttack { get; set; }
+        /// <summary>The last tick an enemy was near the door fight or hit the door or its guard (see <see cref="MilitaryConfig.DoorCalmTicks"/>).</summary>
+        public long LastThreat { get; set; }
 
         /// <summary>The infantry soldier standing in the broken door (also in <see cref="Defending"/>).</summary>
         public Settler? Guard { get; set; }
 
         public long GuardNextHit { get; set; }
 
-        /// <summary>The fields next to the door where melee attackers fight (see <see cref="MilitaryConfig.DoorFighters"/>); found on first use.</summary>
+        /// <summary>Where the guard of a broken door stands: the field in front of the door; found on first use.</summary>
+        public GridPoint? FightPoint { get; set; }
+
+        /// <summary>The fields next to <see cref="FightPoint"/> where melee attackers fight (see <see cref="MilitaryConfig.DoorFighters"/>).</summary>
         public GridPoint[]? DoorSpots { get; set; }
 
         /// <summary>The attacker that killed the last defender: it takes the building.</summary>

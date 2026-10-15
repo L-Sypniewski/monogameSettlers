@@ -6,6 +6,12 @@ namespace Homestead.Simulation.Military;
 
 public sealed record SoldierStats(float Health, float Damage, int AttackTicks, int Range);
 
+/// <summary>
+/// Hand-set fields of a door fight, as offsets from the door: where the guard stands and where the melee
+/// attackers fight it (the first <see cref="MilitaryConfig.DoorFighters"/> of them).
+/// </summary>
+public sealed record DoorPoints(GridPoint Guard, IReadOnlyList<GridPoint> Fighters);
+
 /// <summary>Military balancing, loaded from <c>data/military.json</c>.</summary>
 public sealed record MilitaryConfig
 {
@@ -25,11 +31,23 @@ public sealed record MilitaryConfig
     /// <summary>Health of a military building's door, which melee attackers must break first.</summary>
     public float DoorHealth { get; init; } = 130;
 
-    /// <summary>A broken or damaged door is whole again after this many ticks without an attack.</summary>
+    /// <summary>A door repairs itself from broken to whole in this many ticks (evenly), once it is calm (<see cref="DoorCalmTicks"/>).</summary>
     public int DoorRegenTicks { get; init; } = 30 * World.TicksPerSecond;
+
+    /// <summary>
+    /// With no enemy within <see cref="DoorCalmRadius"/> of the door fight for this many ticks, the guard
+    /// goes back in and the door starts its repair.
+    /// </summary>
+    public int DoorCalmTicks { get; init; } = 5 * World.TicksPerSecond;
+
+    public int DoorCalmRadius { get; init; } = 6;
 
     /// <summary>How many melee attackers fit at the door of a building at once (by building name; 2 elsewhere).</summary>
     public IReadOnlyDictionary<string, int> DoorFighters { get; init; } = new Dictionary<string, int>();
+
+    /// <summary>Hand-set door fight fields per people and building name; missing ones are found automatically.</summary>
+    public IReadOnlyDictionary<(Civilization People, string Building), DoorPoints> DoorPoints { get; init; } =
+        new Dictionary<(Civilization, string), DoorPoints>();
 
     /// <summary>Soldiers react to enemies within this distance.</summary>
     public required int SightRange { get; init; }
@@ -78,6 +96,12 @@ public sealed record MilitaryConfig
             DoorFighters = door.ValueKind == JsonValueKind.Object && door.TryGetProperty("fighters", out var fighters)
                 ? fighters.EnumerateObject().ToDictionary(f => f.Name, f => f.Value.GetInt32())
                 : new Dictionary<string, int>(),
+            DoorPoints = door.ValueKind == JsonValueKind.Object && door.TryGetProperty("points", out var points)
+                ? ParseDoorPoints(points)
+                : new Dictionary<(Civilization, string), DoorPoints>(),
+            DoorCalmTicks = (int)Math.Round((door.ValueKind == JsonValueKind.Object && door.TryGetProperty("calmSeconds", out var calm) ? calm.GetDouble() : 5)
+                                            * World.TicksPerSecond),
+            DoorCalmRadius = door.ValueKind == JsonValueKind.Object && door.TryGetProperty("calmRadius", out var calmRadius) ? calmRadius.GetInt32() : 6,
             DoorRegenTicks = (int)Math.Round((door.ValueKind == JsonValueKind.Object ? door.GetProperty("regenSeconds").GetDouble() : 30) * World.TicksPerSecond),
             LevelBonus = root.GetProperty("levelBonus").EnumerateArray().Select(v => v.GetSingle()).ToArray(),
             SightRange = root.GetProperty("sightRange").GetInt32(),
@@ -88,6 +112,18 @@ public sealed record MilitaryConfig
             AttackRange = root.GetProperty("attackRange").GetInt32(),
             CombatStrength = root.TryGetProperty("combatStrength", out var strength) ? CombatStrengthConfig.Parse(strength) : CombatStrengthConfig.None,
         };
+    }
+
+    private static Dictionary<(Civilization, string), DoorPoints> ParseDoorPoints(JsonElement points)
+    {
+        static GridPoint Offset(JsonElement e) => new(e[0].GetInt32(), e[1].GetInt32());
+        var result = new Dictionary<(Civilization, string), DoorPoints>();
+        foreach (var people in points.EnumerateObject().Where(p => !p.Name.StartsWith('_')))
+            foreach (var building in people.Value.EnumerateObject())
+                result[(Enum.Parse<Civilization>(people.Name), building.Name)] = new DoorPoints(
+                    Offset(building.Value.GetProperty("guard")),
+                    building.Value.GetProperty("fighters").EnumerateArray().Select(Offset).ToArray());
+        return result;
     }
 
     /// <summary>The weapon a soldier type is trained with.</summary>

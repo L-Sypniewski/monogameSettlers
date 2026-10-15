@@ -1533,7 +1533,7 @@ public sealed class MapGame : Game
                 {
                     foreach (var type in Enum.GetValues<SoldierType>())
                         for (int i = 0; i < 3; i++)
-                            _world.SpawnSoldier(new GridPoint(start.X + 22 + i, start.Y + 4), type, player: 1);
+                            _world.SpawnSoldier(new GridPoint(start.X + 12 + i, start.Y + 6), type, level: 3, player: 1);
                     _world.Military.Attack(1, tower);
                 }
                 // HOMESTEAD_CAPTURE_SELECT=1: own soldiers of every type and level are selected (units panel at the left).

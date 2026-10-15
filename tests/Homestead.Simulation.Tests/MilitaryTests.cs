@@ -352,10 +352,14 @@ public class MilitaryTests(ITestOutputHelper output)
         var guard = world.Military.DoorGuard(tower);
         Assert.NotNull(guard);
         Assert.Equal(0, world.Military.DoorHealth(tower), 0);
-        Assert.Equal(tower.Door, guard.Position);
         Assert.Single(world.Military.Occupants(tower), s => s is not null); // the other one waits inside
+        // It steps out in front of the door and stays there.
+        var post = world.Military.FightPoint(tower);
+        Assert.Equal(1, PathFinder.Distance(post, tower.Door));
+        Run(world, 100, stopWhen: () => guard.Position == post && guard.State != SettlerState.Stepping);
+        Assert.Equal(post, guard.Position);
         Run(world, 2_000, stopWhen: () => guard.IsDead || attacker.IsDead);
-        Assert.Equal(tower.Door, guard.Position); // it never walks
+        Assert.Equal(post, guard.Position);
     }
 
     [Theory]
@@ -372,17 +376,46 @@ public class MilitaryTests(ITestOutputHelper output)
             attackers.Add(world.SpawnSoldier(new GridPoint(building.Door.X + 8 + i, building.Door.Y + 8), SoldierType.Pikeman, player: 1)!);
         world.Military.Attack(attackers, building);
 
-        int most = 0;
+        int most = 0, longest = 0;
         for (int t = 0; t < 8_000 && building.Player == 0; t++)
         {
             world.Step();
             var fighting = attackers.Where(a => !a.IsDead && a.Activity == Activity.Fighting).ToList();
             most = Math.Max(most, fighting.Count);
-            Assert.All(fighting, a => Assert.Equal(1, PathFinder.Distance(a.Position, building.Door)));
+            longest = Math.Max(longest, fighting.Select(a => a.ActivityTicks).DefaultIfEmpty(0).Max());
+            var post = world.Military.FightPoint(building);
+            Assert.All(fighting, a => Assert.Equal(1, PathFinder.Distance(a.Position, post)));
         }
 
         Assert.Equal(1, building.Player);
         Assert.Equal(fighters, most);
+        Assert.True(longest > 100, "the fighting animation runs on instead of starting over every tick");
+    }
+
+    [Fact]
+    public void Door_fight_fields_come_from_the_config_unless_one_is_not_walkable()
+    {
+        var points = new DoorPoints(new GridPoint(1, 2), [new GridPoint(2, 3), new GridPoint(1, 3), new GridPoint(0, 3)]);
+        var config = MilitaryConfig.Load() with
+        {
+            DoorPoints = new Dictionary<(Civilization, string), DoorPoints> { [(Civilization.Roman, "tower")] = points },
+        };
+        var world = new World(new GameMap(80), TestConfig.NoTools, config);
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 40))!;
+        world.SpawnSoldier(new GridPoint(45, 55), SoldierType.Swordsman);
+        Run(world, 3_000, stopWhen: () => world.Military.IsOccupied(tower));
+
+        Assert.Equal(tower.Door + points.Guard, world.Military.FightPoint(tower));
+        Assert.Equal([tower.Door + new GridPoint(2, 3), tower.Door + new GridPoint(1, 3)], world.Military.DoorSpots(tower)); // 2 for a tower
+
+        var walled = new World(new GameMap(80), TestConfig.NoTools, config with
+        {
+            DoorPoints = new Dictionary<(Civilization, string), DoorPoints> { [(Civilization.Roman, "tower")] = points with { Guard = new GridPoint(0, -1) } },
+        });
+        var other = walled.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 40))!;
+        walled.SpawnSoldier(new GridPoint(45, 55), SoldierType.Swordsman);
+        Run(walled, 3_000, stopWhen: () => walled.Military.IsOccupied(other));
+        Assert.Equal(other.Door + new GridPoint(1, 1), walled.Military.FightPoint(other)); // inside the tower: found automatically
     }
 
     [Fact]
@@ -406,7 +439,7 @@ public class MilitaryTests(ITestOutputHelper output)
 
         Run(world, 400, stopWhen: () => archer.IsDead);
 
-        Assert.Equal(tower.Door, guard.Position);
+        Assert.Equal(world.Military.FightPoint(tower), guard.Position);
         Assert.True(archer.IsDead || archer.Health < archerHealth, "the guard shoots from the door");
         Assert.Equal(guardHealth, guard.Health); // bowmen cannot hurt it
     }
@@ -439,27 +472,44 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void A_door_left_alone_is_repaired_and_its_guard_goes_back_in()
+    public void A_calm_door_takes_its_guard_back_in_and_repairs_itself_evenly()
     {
         var world = new World(new GameMap(80), TestConfig.NoTools);
+        var config = world.Military.Config;
         var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 40))!;
         world.SpawnSoldier(new GridPoint(45, 50), SoldierType.Swordsman, level: 3);
         Run(world, 3_000, stopWhen: () => world.Military.IsOccupied(tower));
-        var attacker = world.SpawnSoldier(new GridPoint(tower.Door.X + 5, tower.Door.Y + 5), SoldierType.Swordsman, player: 1)!;
-        world.Military.Attack([attacker], tower);
-        Run(world, 2_000, stopWhen: () => world.Military.DoorHealth(tower) < world.Military.Config.DoorHealth);
-        Run(world, 3 * World.TicksPerSecond);
-        // The attacker runs off before the door breaks.
-        world.Military.Move([attacker], new GridPoint(70, 70), forced: true);
-        float damaged = world.Military.DoorHealth(tower);
-        Assert.InRange(damaged, 1, world.Military.Config.DoorHealth - 1);
+        var post = world.Military.FightPoint(tower);
+        var attacker = world.SpawnSoldier(new GridPoint(tower.Door.X + 5, tower.Door.Y + 5), SoldierType.Swordsman, level: 3, player: 1)!;
 
-        Run(world, world.Military.Config.DoorRegenTicks - 10 * World.TicksPerSecond);
-        Assert.Equal(damaged, world.Military.DoorHealth(tower));
-        Run(world, 11 * World.TicksPerSecond);
-        Assert.Equal(world.Military.Config.DoorHealth, world.Military.DoorHealth(tower));
+        // Break the door, then run off as soon as its guard stands in front of it.
+        void BreakAndLeave()
+        {
+            world.Military.Attack([attacker], tower);
+            Run(world, 2_000, stopWhen: () => world.Military.DoorGuard(tower) is { } g && g.Position == post && g.State != SettlerState.Stepping);
+            Assert.Equal(0, world.Military.DoorHealth(tower));
+            world.Military.Move([attacker], new GridPoint(70, 70), forced: true);
+            Run(world, 400, stopWhen: () => PathFinder.Distance(attacker.Position, post) > config.DoorCalmRadius);
+        }
+
+        BreakAndLeave();
+        Run(world, config.DoorCalmTicks - 10);
+        Assert.Equal(0, world.Military.DoorHealth(tower));
+        Assert.NotNull(world.Military.DoorGuard(tower)); // still calm for less than 5 s
+        Run(world, 20);
+        Assert.InRange(world.Military.DoorHealth(tower), 0.01f, 3);
+        Run(world, 40, stopWhen: () => world.Military.DoorGuard(tower) is null);
         Assert.Null(world.Military.DoorGuard(tower));
         Assert.Single(world.Military.Occupants(tower), s => s is not null);
+
+        // Soon after the repair began, a single hit breaks it again.
+        Assert.True(world.Military.DoorHealth(tower) < config.Damage(SoldierType.Swordsman, 3) / 2);
+        BreakAndLeave();
+
+        Run(world, config.DoorCalmTicks + config.DoorRegenTicks / 2);
+        Assert.Equal(config.DoorHealth / 2, world.Military.DoorHealth(tower), config.DoorHealth * 0.03f); // half after 15 s
+        Run(world, config.DoorRegenTicks / 2 + 10);
+        Assert.Equal(config.DoorHealth, world.Military.DoorHealth(tower));
     }
 
     private static void Spawn(World world, int count, GridPoint near)
