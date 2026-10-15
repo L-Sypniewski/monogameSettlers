@@ -209,6 +209,30 @@ public sealed partial class World
         return building;
     }
 
+    /// <summary>The height a building's footprint is levelled to: the average of its points.</summary>
+    private int LevelHeight(BuildingDefinition definition, GridPoint position)
+    {
+        var map = RequireMap();
+        return (int)Math.Round(definition.Blocked.Average(o => map.HeightAt(position + o)));
+    }
+
+    /// <summary>Mean height difference to level at which <see cref="LevellingEffort"/> reaches 1.</summary>
+    private const float SteepLevelling = 8;
+
+    /// <summary>
+    /// How much levelling a site at <paramref name="position"/> needs, from 0 (flat) to 1 (steep): the mean
+    /// height difference of its footprint to the level height, up to <see cref="SteepLevelling"/>.
+    /// </summary>
+    public float LevellingEffort(BuildingDefinition definition, GridPoint position)
+    {
+        var map = RequireMap();
+        if (definition.Blocked.Count == 0)
+            return 0;
+        int height = LevelHeight(definition, position);
+        float mean = (float)definition.Blocked.Average(o => Math.Abs(map.HeightAt(position + o) - height));
+        return Math.Min(1, mean / SteepLevelling);
+    }
+
     /// <summary>
     /// Starts a construction site: diggers level the ground, carriers bring the construction material,
     /// builders turn it into the building.
@@ -220,9 +244,8 @@ public sealed partial class World
 
         var map = RequireMap();
         var building = Register(definition, player, position, BuildingState.Flattening);
-        var footprint = building.BlockedPoints.ToList();
-        building.TargetHeight = (int)Math.Round(footprint.Average(map.HeightAt));
-        foreach (var p in footprint)
+        building.TargetHeight = LevelHeight(definition, position);
+        foreach (var p in building.BlockedPoints)
             if (map.HeightAt(p) != building.TargetHeight)
                 building.Unlevelled.Add(p);
 

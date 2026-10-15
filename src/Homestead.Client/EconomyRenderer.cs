@@ -182,12 +182,13 @@ public sealed class EconomyRenderer
     }
 
     /// <summary>Semi-transparent preview of a building at a position, green if it fits, red if not.</summary>
-    public void DrawPreview(SpriteBatch batch, BuildingDefinition definition, GridPoint position, TerrainMesh terrain, bool fits)
+    /// <summary>The finished building, see-through, where it would be placed.</summary>
+    public void DrawPreview(SpriteBatch batch, BuildingDefinition definition, GridPoint position, TerrainMesh terrain, Color playerColor)
     {
         var anchor = Anchor(position, terrain);
-        var tint = (fits ? new Color(160, 255, 160) : new Color(255, 120, 120)) * 0.6f;
+        var tint = Color.White * 0.75f;
         foreach (var image in definition.FinalImages)
-            Sprites(image.File, image.Sequence).Draw(batch, image.Image, anchor, 1, Color.White, tint: tint);
+            Sprites(image.File, image.Sequence).Draw(batch, image.Image, anchor, 1, playerColor, tint: tint);
     }
 
     private static Vector2 Anchor(GridPoint p, TerrainMesh terrain) =>

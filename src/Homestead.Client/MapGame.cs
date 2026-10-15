@@ -84,6 +84,11 @@ public sealed class MapGame : Game
     private UiFont _font = null!;
     private int _placeIndex;
     private bool _placing;
+    /// <summary>Placement mode: where the chosen building fits in view, with its levelling effort (0 flat, 1 steep).</summary>
+    private readonly List<(GridPoint Spot, float Effort)> _buildSpots = new();
+    /// <summary>Checked points for <see cref="_buildSpotsFor"/>: when, and the levelling effort if the building fits.</summary>
+    private readonly Dictionary<GridPoint, (long Tick, float? Effort)> _buildSpotChecks = new();
+    private BuildingDefinition? _buildSpotsFor;
 
     private int _mapIndex;
     private OriginalMap _map = null!;
@@ -409,7 +414,9 @@ public sealed class MapGame : Game
         if (_placing)
         {
             var definition = _placeable[_placeIndex];
-            _world.CanPlace(definition, cursor, out string reason);
+            string reason = "";
+            if (BuildSpotNear(Mouse.GetState().Position.ToVector2()) is null)
+                _world.CanPlace(definition, cursor, out reason);
             _message = $"placing {definition.Name} (Q/E change, Shift+click finished, Esc stop){(reason.Length > 0 ? ": " + reason : "")}";
         }
         if (_selectedBuilding is { } selectedBuilding && !_placing)
@@ -745,11 +752,11 @@ public sealed class MapGame : Game
         if (_placing)
         {
             var definition = _placeable[_placeIndex];
-            var at = ScreenToGrid(screen);
             // Shift: finished at once (for testing), otherwise a construction site.
             bool instant = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
-            if (!_world.CanPlace(definition, at, out string reason))
+            if (BuildSpotNear(screen) is not { } at)
             {
+                _world.CanPlace(definition, ScreenToGrid(screen), out string reason);
                 _message = $"{definition.Name}: {reason}";
                 return;
             }
@@ -757,7 +764,10 @@ public sealed class MapGame : Game
             _message = !placed ? "could not place" : instant ? $"{definition.Name} placed" : $"{definition.Name} site placed";
             // Placed: the choice is done (choose again in the build menu for another one).
             if (placed)
+            {
                 _placing = false;
+                _buildSpotChecks.Clear();
+            }
             return;
         }
 
@@ -1158,11 +1168,17 @@ public sealed class MapGame : Game
         if (_dragStart is { } boxStart && !_placing)
             DrawSelectionBox(boxStart, Mouse.GetState().Position.ToVector2());
         DrawMagic(alpha);
-        if (_placing && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), viewport.Height))
+        if (_placing)
         {
-            var at = ScreenToGrid(Mouse.GetState().Position.ToVector2());
-            var definition = _placeable[_placeIndex];
-            _economyRenderer.DrawPreview(_spriteBatch, definition, at, _terrain, _world.CanPlace(definition, at, out _));
+            UpdateBuildSpots(visible);
+            foreach (var (spot, share) in _buildSpots)
+            {
+                var position = ToWorld(spot);
+                DrawDot((int)position.X - 2, (int)position.Y - 2, HealthColor(1 - share));
+            }
+            if (!SidePanel.Contains(Mouse.GetState().Position.ToVector2(), viewport.Height)
+                && BuildSpotNear(Mouse.GetState().Position.ToVector2()) is { } at)
+                _economyRenderer.DrawPreview(_spriteBatch, _placeable[_placeIndex], at, _terrain, PlayerColors.Of(0));
         }
         // Debug overlay on top of everything, so markers are not hidden behind trees.
         if (_showBlocked)
@@ -1388,11 +1404,15 @@ public sealed class MapGame : Game
     private void DrawSelectionMarker(Settler settler, float alpha)
     {
         var anchor = SettlerRenderer.Anchor(settler, _terrain, alpha);
-        var body = HealthColor(HealthLeft(settler));
+        DrawDot((int)anchor.X - 2, (int)anchor.Y - 34, HealthColor(HealthLeft(settler)));
+    }
+
+    /// <summary>A small round dot of <paramref name="body"/> color, lit from above, its top left corner given.</summary>
+    private void DrawDot(int left, int top, Color body)
+    {
         var light = Color.Lerp(body, Color.White, 0.35f);
         var highlight = Color.Lerp(body, Color.White, 0.75f);
         var shadow = Color.Lerp(body, Color.Black, 0.45f);
-        int left = (int)anchor.X - 2, top = (int)anchor.Y - 34;
         for (int y = 0; y < SelectionMarkerShape.Length; y++)
         for (int x = 0; x < SelectionMarkerShape[y].Length; x++)
         {
@@ -1403,6 +1423,73 @@ public sealed class MapGame : Game
             if (color is { } c)
                 _spriteBatch.Draw(_pixel, new Rectangle(left + x, top + y, 1, 1), c);
         }
+    }
+
+    /// <summary>How old a checked build spot may get before it is checked again.</summary>
+    private const int BuildSpotTicks = World.TicksPerSecond;
+
+    /// <summary>Time per frame for checking build spots: a whole view at once would make the game stutter.</summary>
+    private static readonly TimeSpan BuildSpotBudget = TimeSpan.FromMilliseconds(2);
+
+    /// <summary>
+    /// Collects where the chosen building fits in view (<see cref="_buildSpots"/>). Points are checked
+    /// within <see cref="BuildSpotBudget"/> per frame, unchecked ones first, and again once older than
+    /// <see cref="BuildSpotTicks"/>; until then the last result counts.
+    /// </summary>
+    private void UpdateBuildSpots(RectangleF visible)
+    {
+        var definition = _placeable[_placeIndex];
+        if (_buildSpotsFor != definition)
+        {
+            _buildSpotChecks.Clear();
+            _buildSpotsFor = definition;
+        }
+        // Points stand higher on screen than flat by their height: look a few rows further down.
+        int maxRows = 255 * ScreenProjection.HeightStep / ScreenProjection.RowHeight + 1;
+        int firstRow = Math.Max(0, (int)(visible.Y / ScreenProjection.RowHeight) - 1);
+        int lastRow = Math.Min(_gameMap.Size - 1, (int)((visible.Y + visible.Height) / ScreenProjection.RowHeight) + maxRows);
+        var inView = new List<GridPoint>();
+        for (int y = firstRow; y <= lastRow; y++)
+        {
+            int firstX = Math.Max(0, (int)((visible.X + y * ScreenProjection.TileWidth / 2f) / ScreenProjection.TileWidth) - 1);
+            int lastX = Math.Min(_gameMap.Size - 1,
+                (int)((visible.X + visible.Width + y * ScreenProjection.TileWidth / 2f) / ScreenProjection.TileWidth) + 1);
+            for (int x = firstX; x <= lastX; x++)
+            {
+                var p = new GridPoint(x, y);
+                var at = ToWorld(p);
+                if (at.X >= visible.X && at.X <= visible.X + visible.Width && at.Y >= visible.Y && at.Y <= visible.Y + visible.Height)
+                    inView.Add(p);
+            }
+        }
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        foreach (var p in inView.Where(p => !_buildSpotChecks.ContainsKey(p))
+                     .Concat(inView.Where(p => _buildSpotChecks.TryGetValue(p, out var c) && _world.Tick >= c.Tick + BuildSpotTicks))
+                     .ToList())
+        {
+            if (clock.Elapsed > BuildSpotBudget)
+                break;
+            _buildSpotChecks[p] = (_world.Tick, _world.CanPlace(definition, p, out _) ? _world.LevellingEffort(definition, p) : null);
+        }
+        _buildSpots.Clear();
+        foreach (var p in inView)
+            if (_buildSpotChecks.TryGetValue(p, out var check) && check.Effort is { } effort)
+                _buildSpots.Add((p, effort));
+    }
+
+    /// <summary>
+    /// The spot the chosen building fits on nearest to the screen point: the grid point under it or a
+    /// neighbor. Null if there is none.
+    /// </summary>
+    private GridPoint? BuildSpotNear(Vector2 screen)
+    {
+        var definition = _placeable[_placeIndex];
+        var world = Vector2.Transform(screen, Matrix.Invert(View));
+        var under = ScreenToGrid(screen);
+        return Enumerable.Range(0, DirectionExtensions.Count).Select(d => under.Neighbor((Direction)d)).Prepend(under)
+            .Where(p => _gameMap.Contains(p) && _world.CanPlace(definition, p, out _))
+            .Select(p => (GridPoint?)p)
+            .MinBy(p => Vector2.DistanceSquared(world, ToWorld(p!.Value)));
     }
 
     /// <summary>Health left as a fraction of the maximum; settlers that cannot be hurt count as healthy.</summary>
@@ -1589,6 +1676,14 @@ public sealed class MapGame : Game
                 {
                     _selectedBuilding = site;
                     _camera = ToWorld(site.Position);
+                }
+                // HOMESTEAD_CAPTURE_PLACE=<building>: placement mode for it, with its build spots.
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_PLACE") is { Length: > 0 } place
+                    && Array.FindIndex(_placeable, b => b.Name == place) is >= 0 and var index)
+                {
+                    _selectedBuilding = null;
+                    _placeIndex = index;
+                    _placing = true;
                 }
                 break;
             case 1200 when strike && _selectedBuilding is { Exists: true } torn:
