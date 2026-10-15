@@ -191,6 +191,29 @@ public class ProductionTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Lumberjack_prefers_trees_at_the_center_of_its_work_area()
+    {
+        var map = new GameMap(140);
+        var lumberjack = Romans["lumberjack"];
+        int radius = lumberjack.WorkRadius!.Value;
+        var position = new GridPoint(70, 70);
+        var moved = new GridPoint(70 + World.MaxWorkCenterDistance, 70);
+        var center = moved + new GridPoint(1, 0);
+        var edge = moved + new GridPoint(-radius + 2, 0); // nearer the door
+        map.SetObject(center, MapObjectKind.Tree);
+        map.SetObject(edge, MapObjectKind.Tree);
+        var world = new World(map, TestConfig.NoTools);
+        var building = world.PlaceBuilding(lumberjack, 0, position)!;
+        world.SetWorkCenter(building, moved);
+        Spawn(world, Profession.Carrier, 1, new GridPoint(80, 80));
+
+        Run(world, 10_000, stopWhen: () => world.Production.WorkerOf(building)?.Carrying == Material.Trunk);
+
+        Assert.False(MapObjectCodes.IsAdultTree(map.ObjectCodeAt(center)), "The tree at the center is cut first.");
+        Assert.True(MapObjectCodes.IsAdultTree(map.ObjectCodeAt(edge)));
+    }
+
+    [Fact]
     public void Work_center_stays_within_reach_of_the_building()
     {
         var world = new World(new GameMap(140), TestConfig.NoTools);
@@ -201,6 +224,11 @@ public class ProductionTests(ITestOutputHelper output)
         Assert.Equal(new GridPoint(75, 60), world.SetWorkCenter(building, new GridPoint(75, 60)));
         Assert.Equal(new GridPoint(75, 60), building.WorkCenter);
         Assert.Null(world.SetWorkCenter(world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(30, 30))!, new GridPoint(35, 35)));
+
+        // The gathering point of a barracks may be anywhere on the map.
+        var barrack = world.PlaceBuilding(Romans["barrack"], 0, new GridPoint(30, 100))!;
+        Assert.Equal(new GridPoint(130, 10), world.SetWorkCenter(barrack, new GridPoint(130, 10)));
+        Assert.True(world.Map!.Contains(world.SetWorkCenter(barrack, new GridPoint(500, 100))!.Value));
     }
 
     [Fact]

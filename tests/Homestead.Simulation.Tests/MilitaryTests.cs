@@ -597,15 +597,42 @@ public class MilitaryTests(ITestOutputHelper output)
         Assert.NotNull(guard);
         Run(world, 3_000, stopWhen: () => guard.IsDead);
         Assert.True(guard.IsDead);
-        var killer = world.Military.Conqueror(tower);
-        Assert.NotNull(killer);
-        Assert.Contains(killer, attackers);
 
-        Run(world, 1_000, stopWhen: () => tower.Player == 1);
-
+        // Taken in the same tick: the killer is inside at once.
         Assert.Equal(1, tower.Player);
-        Assert.Same(killer, world.Military.Occupants(tower).Single(s => s is not null));
+        var killer = world.Military.Occupants(tower).Single(s => s is not null)!;
+        Assert.Contains(killer, attackers);
+        Assert.True(killer.IsInside);
+        Assert.Equal(tower.Door, killer.Position);
+        Run(world, 1);
         Assert.All(attackers.Where(a => a != killer && !a.IsDead), a => Assert.False(a.HasTask));
+    }
+
+    [Fact]
+    public void A_taken_tower_stands_when_the_neighbouring_enemy_tower_is_taken_too()
+    {
+        var map = new GameMap(120);
+        var world = new World(map, TestConfig.NoTools);
+        var first = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(60, 60))!;
+        var second = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(72, 60))!;
+        world.SpawnSoldier(first.Door, SoldierType.Swordsman, player: 1);
+        world.SpawnSoldier(second.Door, SoldierType.Swordsman, player: 1);
+        Run(world, 3_000, stopWhen: () => world.Military.IsOccupied(first) && world.Military.IsOccupied(second));
+        Assert.Equal(1, map.OwnerAt(first.Position));
+
+        var attackers = Enumerable.Range(0, 4)
+            .Select(i => world.SpawnSoldier(new GridPoint(40 + i, 70), SoldierType.Swordsman, level: 3)!).ToList();
+        world.Military.Attack(attackers, first);
+        Run(world, 20_000, stopWhen: () => first.Player == 0);
+        Assert.Equal(0, first.Player);
+        Assert.Equal(0, map.OwnerAt(first.Position)); // its own ground, although the second tower still covers it
+
+        world.Military.Attack(attackers.Where(a => !a.IsDead && !a.IsInside), second);
+        Run(world, 20_000, stopWhen: () => second.Player == 0);
+
+        Assert.Equal(0, second.Player);
+        Assert.True(first.Exists, "the tower taken first went down with the land of the second");
+        Assert.Equal(0, first.Player);
     }
 
     [Fact]

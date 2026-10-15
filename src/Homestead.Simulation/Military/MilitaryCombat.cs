@@ -454,6 +454,8 @@ public sealed partial class Military
             _fighters.Remove(soldier.Id);
             return;
         }
+        if (_fighters.GetValueOrDefault(soldier.Id) != f)
+            return; // done earlier this tick (took a building with its strike)
         var stats = _config.Soldiers[soldier.SoldierType!.Value];
         // Frozen by a spell: stands still, strikes nobody.
         if (soldier.FrozenUntil > _world.Tick)
@@ -529,12 +531,7 @@ public sealed partial class Military
             if (g.IsEmpty)
             {
                 SetActivity(soldier, Activity.None);
-                // Nobody left inside: the one that struck the last defender down walks in, the others are done.
-                if (!MayCapture(g, soldier))
-                {
-                    EndAttack(f);
-                    return;
-                }
+                // Nobody left inside (and nobody struck a last defender down): the first at the door walks in.
                 if (soldier.Position == door && standing)
                 {
                     Capture(target, soldier);
@@ -874,36 +871,17 @@ public sealed partial class Military
         {
             Kill(enemy);
             if (home is { IsEmpty: true } && home.Building.Exists && !attacker.IsInside && !attacker.IsDead)
-                GoCapture(home, attacker);
+                Capture(home.Building, attacker); // the one striking the last defender down is inside at once
         }
     }
 
     /// <summary>The garrison whose door the soldier guards, if any.</summary>
     private Garrison? DefendedBy(Settler soldier) => _guards.GetValueOrDefault(soldier.Id);
 
-    /// <summary>The attacker struck the last defender down: it walks into the building to take it.</summary>
-    private void GoCapture(Garrison g, Settler attacker)
-    {
-        g.Conqueror = attacker;
-        if (!_fighters.TryGetValue(attacker.Id, out var f))
-            f = _fighters[attacker.Id] = new Fighter(attacker);
-        f.Target = g.Building;
-        f.MoveTo = null;
-        f.Enemy = null;
-        f.NextReplan = 0;
-        attacker.HasTask = true;
-        if (attacker.Destination is not null)
-            _world.WalkTo(attacker, attacker.StepTarget);
-    }
-
-    /// <summary>Whether the soldier may take the empty building: its conqueror, or anyone once that one is gone.</summary>
-    private bool MayCapture(Garrison g, Settler soldier) =>
-        g.Conqueror is not { } conqueror || conqueror == soldier || conqueror.IsDead
-        || !_fighters.TryGetValue(conqueror.Id, out var f) || f.Target != g.Building;
-
     private void Kill(Settler soldier)
     {
         Release(soldier);
+        _world.AddGhost(soldier);
         _world.Remove(soldier);
         Kills++;
     }
@@ -941,14 +919,13 @@ public sealed partial class Military
             Release(g, place);
         Unclaim(building);
         building.Player = attacker.Player;
-        g.Conqueror = null;
         g.DoorHealth = _config.DoorHealth; // the new owner starts behind a whole door
         _fighters.Remove(attacker.Id);
         SetActivity(attacker, Activity.None);
         int free = Enumerable.Range(0, g.Places.Length)
             .Where(i => attacker.SoldierType is { } type && building.Definition.Occupiers[i].Accepts(type))
             .DefaultIfEmpty(0).First();
-        _world.EnterBuilding(attacker);
+        _world.EnterBuildingAt(attacker, building.Door);
         g.Places[free] = attacker;
         // The new owner starts with the attacker alone.
         Garrison.Initial(building, attacker.SoldierType).CopyTo(g.Wanted, 0);

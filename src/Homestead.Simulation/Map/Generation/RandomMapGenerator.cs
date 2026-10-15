@@ -100,7 +100,8 @@ public sealed class RandomMapGenerator
         // A map whose starts cannot reach each other (forest or lake walls) is made again with the next draw.
         for (int attempt = 0; ; attempt++)
         {
-            _random = new Random(HashCode.Combine(_seed, attempt, 0x5eed));
+            // Not HashCode.Combine: it is salted per process, so the same seed would give another map after a restart.
+            _random = new Random(unchecked(_seed * 1_000_003 + attempt * 7_919 + 0x5eed));
             _noise = new Noise(_random.Next());
             var area = Make();
             if (attempt >= 7 || StartsConnected(area))

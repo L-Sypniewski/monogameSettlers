@@ -475,11 +475,24 @@ public sealed partial class World
         _dustClouds.Add(new DustCloud(building.Position, Tick));
     }
 
-    /// <summary>Dust clouds go once they are through.</summary>
+    /// <summary>How long the ghost rising from a fallen settler lasts.</summary>
+    public const int GhostTicks = 11 * TicksPerSecond / 5;
+
+    private readonly List<Ghost> _ghosts = new();
+
+    /// <summary>Ghosts rising where settlers died within the last <see cref="GhostTicks"/>.</summary>
+    public IReadOnlyList<Ghost> Ghosts => _ghosts;
+
+    /// <summary>The settler died: its ghost rises (for display).</summary>
+    internal void AddGhost(Settler settler) => _ghosts.Add(new Ghost(settler.Position, Tick, settler.Player));
+
+    /// <summary>Dust clouds and ghosts go once they are through.</summary>
     private void ClearDustClouds()
     {
         if (_dustClouds.Count > 0)
             _dustClouds.RemoveAll(c => Tick - c.Tick >= DustCloudTicks);
+        if (_ghosts.Count > 0)
+            _ghosts.RemoveAll(g => Tick - g.Tick >= GhostTicks);
     }
 
     /// <summary>Levelling is done: the footprint becomes solid and builders can start.</summary>
@@ -537,7 +550,8 @@ public sealed partial class World
     /// <summary>
     /// Moves the work area of <paramref name="building"/> to <paramref name="target"/>. A target farther
     /// than <see cref="MaxWorkCenterDistance"/> from the building (or off the map) is replaced by the
-    /// nearest point that is allowed. Returns the new center, or null if the building has no work area.
+    /// nearest point that is allowed; a gathering point (<see cref="Building.HasGatheringPoint"/>) may be
+    /// anywhere on the map. Returns the new center, or null if the building has no work area.
     /// </summary>
     public GridPoint? SetWorkCenter(Building building, GridPoint target)
     {
@@ -545,6 +559,11 @@ public sealed partial class World
             return null;
         var map = RequireMap();
         var center = target;
+        if (building.HasGatheringPoint && map.Contains(target))
+        {
+            building.WorkCenter = target;
+            return target;
+        }
         if (PathFinder.Distance(building.Position, target) > MaxWorkCenterDistance || !map.Contains(target))
         {
             // Nearest allowed point by straight-line distance (see PathFinder.InCircle), then by steps.
@@ -683,6 +702,9 @@ public sealed partial class World
 
 /// <summary>A building came down at <paramref name="Position"/> in tick <paramref name="Tick"/>.</summary>
 public sealed record DustCloud(GridPoint Position, long Tick);
+
+/// <summary>The ghost of a settler of <paramref name="Player"/> that died at <paramref name="Position"/>.</summary>
+public sealed record Ghost(GridPoint Position, long Tick, int Player);
 
 /// <summary>
 /// The levelling a construction site needs: the footprint's <paramref name="Height"/>, the target height of

@@ -41,6 +41,9 @@ public sealed class Building
     /// <summary>Whether the building has a work area its worker gathers in (and the player can move).</summary>
     public bool HasWorkArea => Definition.WorkRadius is > 0;
 
+    /// <summary>The work area is only a gathering point (barracks: new soldiers walk there), as far away as the player likes.</summary>
+    public bool HasGatheringPoint => Definition.Name == "barrack";
+
     /// <summary>Center of the work area: the definition's default until the player moves it (<see cref="World.SetWorkCenter"/>).</summary>
     public GridPoint WorkCenter { get; internal set; }
 

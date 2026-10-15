@@ -68,7 +68,9 @@ public class RandomMapTests(ITestOutputHelper output)
     public void Repeated_maps_copy_the_start_tile()
     {
         var map = RandomMapGenerator.Generate(new RandomMapSettings(4, MapSymmetry.Repeat), 3);
-        var surroundings = map.Players.Select(p => Surroundings(map.Area, p.StartX, p.StartY, 30)).ToList();
+        // The copied tile reaches homeRadius (36); water depth looks up to 8 fields further for land, so
+        // near its edge the depth may differ with what lies outside the tile.
+        var surroundings = map.Players.Select(p => Surroundings(map.Area, p.StartX, p.StartY, 36 - 8)).ToList();
         foreach (var other in surroundings.Skip(1))
             Assert.Equal(surroundings[0], other);
     }

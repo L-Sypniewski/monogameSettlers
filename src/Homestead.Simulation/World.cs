@@ -519,6 +519,22 @@ public sealed partial class World
         settler.IsInside = true;
     }
 
+    /// <summary>The settler goes into a building at once from wherever it is (taking it by the last strike).</summary>
+    internal void EnterBuildingAt(Settler settler, GridPoint door)
+    {
+        var map = RequireMap();
+        foreach (var p in new[] { settler.Position, settler.StepTarget })
+            if (_occupant[map.Index(p)] == settler.Id)
+                _occupant[map.Index(p)] = NoOccupant;
+        settler.State = SettlerState.Idle;
+        settler.StepProgress = 0;
+        settler.Path.Clear();
+        settler.Destination = null;
+        settler.IsStrolling = false;
+        settler.Position = door;
+        settler.IsInside = true;
+    }
+
     /// <summary>The settler comes out of the door (where it went in).</summary>
     internal void LeaveBuilding(Settler settler)
     {

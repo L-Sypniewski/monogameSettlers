@@ -29,11 +29,11 @@ public sealed class ControlGroups
     /// <summary>The living members of a group.</summary>
     public IReadOnlyList<Settler> Members(int index) => _groups[index];
 
-    /// <summary>The dead leave their groups.</summary>
+    /// <summary>The dead, soldiers who enter a building and those won over by a spell leave their groups.</summary>
     public void Update()
     {
         foreach (var group in _groups)
-            group.RemoveAll(s => s.IsDead);
+            group.RemoveAll(s => s.IsDead || s.IsInside || s.Player != 0);
     }
 
     /// <summary>The group whose icon is under the screen point.</summary>

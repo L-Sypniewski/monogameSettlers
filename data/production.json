@@ -96,8 +96,8 @@
   },
   "trees": { "growSeconds": 150, "stumpSeconds": 60 },
   "crops": {
-    "_comment": "What farm-like gatherers sow and harvest: growSeconds from sowing to ripe, on these grounds. regrows: starts over after the harvest instead of leaving free ground (vines, beehives). slopeBonus: grows up to (1 + slopeBonus) times as fast where the height to a neighbor differs by slopeHeight or more (vines on hillsides). farmland: sowing turns the grass into farmland (drawn as earth), which stays until the farm is torn down or lost.",
-    "grain": { "growSeconds": 200, "ground": [ "Grass" ], "farmland": true },
+    "_comment": "What farm-like gatherers sow and harvest: growSeconds from sowing to ripe, on these grounds. regrows: starts over after the harvest instead of leaving free ground (vines, beehives). slopeBonus: grows up to (1 + slopeBonus) times as fast where the height to a neighbor differs by slopeHeight or more (vines on hillsides). farmland: sowing turns the grass into farmland (drawn as earth), which stays until the farm is torn down or lost; farmlandRadius: also the free grass that many steps around (where farmland fits).",
+    "grain": { "growSeconds": 200, "ground": [ "Grass" ], "farmland": true, "farmlandRadius": 1 },
     "wine": { "growSeconds": 140, "ground": [ "Grass", "MountainBorderOuter" ], "regrows": true, "slopeBonus": 1.0, "slopeHeight": 4 },
     "rice": { "growSeconds": 120, "ground": [ "Mud", "MudBorder", "MudBorderOuter", "MoorBorderOuter" ] },
     "honey": { "growSeconds": 120, "ground": [ "Grass" ], "regrows": true }

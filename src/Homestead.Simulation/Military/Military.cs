@@ -60,9 +60,6 @@ public sealed partial class Military
     /// <summary>The soldier standing in the building's broken door, if any.</summary>
     public Settler? DoorGuard(Building building) => _garrisons.TryGetValue(building.Id, out var g) ? g.Guard : null;
 
-    /// <summary>The attacker that struck the building's last defender down and is on its way in, if any.</summary>
-    public Settler? Conqueror(Building building) => _garrisons.TryGetValue(building.Id, out var g) ? g.Conqueror : null;
-
     public bool IsOccupied(Building building) => _garrisons.TryGetValue(building.Id, out var g) && g.Places.Any(p => p is not null);
 
     /// <summary>How many soldiers of <paramref name="type"/> the military building wants (0 for other buildings).</summary>
@@ -422,14 +419,16 @@ public sealed partial class Military
 
     /// <summary>
     /// The building takes the land in its circle that is free or not protected by its owner's occupied
-    /// buildings; other players' buildings on the land taken go down.
+    /// buildings, and always the ground it stands on (a taken tower would otherwise stand on enemy land and
+    /// go down with the next change of land); other players' buildings on the land taken go down.
     /// </summary>
     private void Claim(Building building)
     {
         var map = _world.Map!;
         var taken = new HashSet<GridPoint>();
-        foreach (var p in TerritoryOf(building))
-            if (map.OwnerAt(p) is not { } owner || owner != building.Player && !Covers(owner, p))
+        var ground = building.BlockedPoints.Append(building.Door).Where(map.Contains).ToHashSet();
+        foreach (var p in TerritoryOf(building).Union(ground))
+            if (map.OwnerAt(p) is not { } owner || owner != building.Player && (ground.Contains(p) || !Covers(owner, p)))
             {
                 if (map.OwnerAt(p) is not null)
                     taken.Add(p);
@@ -523,9 +522,6 @@ public sealed partial class Military
 
         /// <summary>The fields next to <see cref="FightPoint"/> where melee attackers fight (see <see cref="MilitaryConfig.DoorFighters"/>).</summary>
         public GridPoint[]? DoorSpots { get; set; }
-
-        /// <summary>The attacker that killed the last defender: it takes the building.</summary>
-        public Settler? Conqueror { get; set; }
 
         public bool IsEmpty => Places.All(p => p is null) && Defending.Count == 0;
     }

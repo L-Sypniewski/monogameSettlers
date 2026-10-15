@@ -370,6 +370,12 @@ public sealed class MapGame : Game
         if (_selectedBuilding is not { Exists: true } building || building.Definition.WorkRadius is not { } radius || radius <= 0)
             yield break;
         var center = building.WorkCenter;
+        if (building.HasGatheringPoint)
+        {
+            foreach (var mark in GatheringPathMarks(building.Door, center))
+                yield return mark;
+            yield break;
+        }
         for (int ring = 0; ring < 4; ring++)
         {
             int r = Math.Max(1, (int)Math.Round(radius * (ring + 1) / 4.0));
@@ -379,6 +385,36 @@ public sealed class MapGame : Game
                         .Any(d => !PathFinder.InCircle(center, p.Neighbor((Direction)d), r)))
                     yield return (p, ring);
         }
+    }
+
+    /// <summary>Marks the <see cref="WorkAreaMarks"/> use for the flag at the end of a gathering path.</summary>
+    private const int GatheringFlag = -1;
+
+    /// <summary>
+    /// A gathering point (barracks): an inner-ring post on every second field of the way there, the flag
+    /// at its end. Where there is no way, the posts go straight.
+    /// </summary>
+    private IEnumerable<(GridPoint Point, int Ring)> GatheringPathMarks(GridPoint from, GridPoint to)
+    {
+        var points = new List<GridPoint>();
+        if (_world.PathFinder?.FindPath(from, to) is { } path)
+        {
+            var p = from;
+            foreach (var step in path)
+                points.Add(p = p.Neighbor(step));
+        }
+        else
+        {
+            for (var p = from; p != to && points.Count < 4 * _gameMap.Size;)
+            {
+                p = Enumerable.Range(0, DirectionExtensions.Count).Select(d => p.Neighbor((Direction)d))
+                    .MinBy(n => PathFinder.Distance(n, to));
+                points.Add(p);
+            }
+        }
+        for (int i = 1; i < points.Count - 1; i += 2)
+            yield return (points[i], 0);
+        yield return (to, GatheringFlag);
     }
 
     /// <summary>Border posts of grid row <paramref name="y"/>: owned points next to land of another owner.</summary>
@@ -935,6 +971,20 @@ public sealed class MapGame : Game
     private bool ShowsBuildingInfo => _selectedBuilding is { Exists: true } && !_placing && !CarriersSelected && !PriestsSelected;
 
     /// <summary>Only priests are selected: the menu at the left offers their spell.</summary>
+    /// <summary>The own buildings by name: finished, and under construction (for the build menu).</summary>
+    private Dictionary<string, (int Finished, int Building)> OwnBuildingCounts()
+    {
+        var counts = new Dictionary<string, (int Finished, int Building)>();
+        foreach (var building in _world.Buildings)
+        {
+            if (!building.Exists || building.Player != 0)
+                continue;
+            var (finished, constructing) = counts.GetValueOrDefault(building.Definition.Name);
+            counts[building.Definition.Name] = building.State == BuildingState.Finished ? (finished + 1, constructing) : (finished, constructing + 1);
+        }
+        return counts;
+    }
+
     private bool PriestsSelected => _group.Count > 0 && _group.All(s => s.Profession == Profession.Priest);
 
     /// <summary>Only carriers are selected: the menu at the left offers what they can become.</summary>
@@ -973,11 +1023,12 @@ public sealed class MapGame : Game
             return;
         }
         var clicked = ScreenToGrid(screen);
-        // A selected own building with a work area: move the work area there (at most 20 steps away).
+        // A selected own building with a work area: move the work area there (at most 20 steps away, a gathering point anywhere).
         if (_selectedBuilding is { Exists: true, Player: 0, HasWorkArea: true } worksite)
         {
             if (_world.SetWorkCenter(worksite, clicked) is { } center)
-                _message = center == clicked ? $"work area moved to {center.X},{center.Y}"
+                _message = worksite.HasGatheringPoint ? $"gathering point moved to {center.X},{center.Y}"
+                    : center == clicked ? $"work area moved to {center.X},{center.Y}"
                     : $"work area moved to {center.X},{center.Y} (at most {World.MaxWorkCenterDistance} fields away)";
             return;
         }
@@ -1175,13 +1226,19 @@ public sealed class MapGame : Game
         var buildingsByRow = _world.Buildings.Where(b => b.Exists).ToLookup(EconomyRenderer.DepthRow);
         var pilesByRow = _world.Piles.ToLookup(p => p.Position.Y);
         var signsByRow = _world.Geology.Signs.ToLookup(s => s.Key.Y);
+        var ghostsByRow = _world.Ghosts.ToLookup(g => g.Position.Y);
         var marksByRow = WorkAreaMarksByRow();
         int rows = _objects.RowCount(visible, out int firstRow);
         for (int y = firstRow; y < firstRow + rows; y++)
         {
             DrawBorderRow(y, visible);
             foreach (var (point, ring) in marksByRow[y])
-                _economyRenderer.DrawWorkAreaMark(_spriteBatch, point, ring, _terrain);
+            {
+                if (ring == GatheringFlag)
+                    _economyRenderer.DrawGatheringFlag(_spriteBatch, point, _terrain, PlayerColors.Of(_selectedBuilding!.Player), _time);
+                else
+                    _economyRenderer.DrawWorkAreaMark(_spriteBatch, point, ring, _terrain);
+            }
             foreach (var pile in pilesByRow[y])
                 _economyRenderer.DrawPile(_spriteBatch, pile, _terrain);
             foreach (var (point, sign) in signsByRow[y])
@@ -1204,6 +1261,10 @@ public sealed class MapGame : Game
                     continue;
                 _settlerRenderer.Draw(_spriteBatch, settler, _terrain, _world.Tick, alpha, PlayerColors.Of(settler.Player));
             }
+            foreach (var ghost in ghostsByRow[y])
+                if (!_fogOn || _vision.IsVisible(ghost.Position))
+                    _economyRenderer.DrawGhost(_spriteBatch, ghost.Position, (_world.Tick - ghost.Tick + alpha) / World.GhostTicks, _terrain,
+                        PlayerColors.Of(ghost.Player));
         }
 
         foreach (var cloud in _world.DustClouds)
@@ -1274,7 +1335,7 @@ public sealed class MapGame : Game
                 _world.Military.CombatStrength(0), unitsTop, background: unitsTop == 4);
         }
         else
-            _buildMenu!.Draw(_spriteBatch, _pixel, _placing ? _placeable[_placeIndex] : null, panelMouse);
+            _buildMenu!.Draw(_spriteBatch, _pixel, _font, _placing ? _placeable[_placeIndex] : null, panelMouse, OwnBuildingCounts());
         _spriteBatch.End();
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);

@@ -23,8 +23,9 @@ public enum GatherAction
 /// height to a neighbor differs by <see cref="SlopeHeight"/> or more.
 /// </summary>
 /// <param name="Farmland">Sowing turns the ground into farmland, which stays until the farm is gone.</param>
+/// <param name="FarmlandRadius">Sowing also turns the grass this many steps around into farmland (where it fits).</param>
 public sealed record CropRecipe(byte First, byte Ripe, int GrowTicks, IReadOnlySet<TerrainType> Ground, bool Regrows = false,
-    double SlopeBonus = 0, int SlopeHeight = 4, bool Farmland = false)
+    double SlopeBonus = 0, int SlopeHeight = 4, bool Farmland = false, int FarmlandRadius = 0)
 {
     public bool Contains(byte code) => code >= First && code <= Ripe;
 
@@ -197,7 +198,8 @@ public sealed record ProductionConfig
                 c.Value.TryGetProperty("regrows", out var regrows) && regrows.GetBoolean(),
                 c.Value.TryGetProperty("slopeBonus", out var slope) ? slope.GetDouble() : 0,
                 c.Value.TryGetProperty("slopeHeight", out var slopeHeight) ? slopeHeight.GetInt32() : 4,
-                c.Value.TryGetProperty("farmland", out var farmland) && farmland.GetBoolean()));
+                c.Value.TryGetProperty("farmland", out var farmland) && farmland.GetBoolean(),
+                c.Value.TryGetProperty("farmlandRadius", out var farmlandRadius) ? farmlandRadius.GetInt32() : 0));
         var mineFood = root.GetProperty("mineFood");
         var mines = root.GetProperty("mines").EnumerateObject().Where(m => !m.Name.StartsWith('_')).ToDictionary(
             m => m.Name,

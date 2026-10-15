@@ -28,6 +28,8 @@ public sealed class EconomyRenderer
     private const int MaxResourceAmount = 15;  // amount per field in original maps
     private const int DustFile = 13;           // a building coming down (JSettlers' MapObjectDrawer, MIT)
     private const int DustSequence = 38;
+    private const int GhostFile = 12;          // a settler's ghost rising in the player color (JSettlers' MapObjectDrawer, MIT)
+    private const int GhostSequence = 27;
 
     private readonly SpriteLibrary _library;
 
@@ -93,6 +95,16 @@ public sealed class EconomyRenderer
             return;
         int frame = (int)(time.TotalSeconds * FlagFramesPerSecond + building.Id) % sprites.FrameCount;
         sprites.Draw(batch, frame, Anchor(building.Position + offset, terrain), 1, playerColor);
+    }
+
+    /// <summary>The waving flag at a gathering point (the door flag of buildings without a worker).</summary>
+    public void DrawGatheringFlag(SpriteBatch batch, GridPoint p, TerrainMesh terrain, Color playerColor, TimeSpan time)
+    {
+        var sprites = Sprites(FlagFile, DoorFlagSequence);
+        if (sprites.FrameCount == 0)
+            return;
+        int frame = (int)(time.TotalSeconds * FlagFramesPerSecond) % sprites.FrameCount;
+        sprites.Draw(batch, frame, Anchor(p, terrain), 1, playerColor);
     }
 
     /// <summary>A border post of the player's land.</summary>
@@ -179,6 +191,16 @@ public sealed class EconomyRenderer
             return;
         int frame = Math.Clamp((int)(progress * sprites.FrameCount), 0, sprites.FrameCount - 1);
         sprites.Draw(batch, frame, Anchor(p, terrain), 1, Color.White);
+    }
+
+    /// <summary>The ghost rising where a settler died, in its player's color, <paramref name="progress"/> 0..1 through it.</summary>
+    public void DrawGhost(SpriteBatch batch, GridPoint p, float progress, TerrainMesh terrain, Color playerColor)
+    {
+        var sprites = Sprites(GhostFile, GhostSequence);
+        if (sprites.FrameCount == 0 || progress >= 1)
+            return;
+        int frame = Math.Clamp((int)(progress * sprites.FrameCount), 0, sprites.FrameCount - 1);
+        sprites.Draw(batch, frame, Anchor(p, terrain), 1, playerColor);
     }
 
     /// <summary>Semi-transparent preview of a building at a position, green if it fits, red if not.</summary>

@@ -754,11 +754,7 @@ public sealed partial class Production
             case GatherAction.Farm when CanSow(w.Target, CropOf(w), ignoreWorker: worker):
                 map.SetObjectCode(w.Target, CropOf(w).First);
                 if (CropOf(w).Farmland)
-                {
-                    _world.Trails.CutAround(w.Target);
-                    map.SetCover(w.Target, GroundCover.Farmland);
-                    _farmland[map.Index(w.Target)] = w.Building;
-                }
+                    MakeFarmland(w.Building, w.Target, CropOf(w).FarmlandRadius);
                 _growing[map.Index(w.Target)] = _world.Tick + StageTicks(CropOf(w), w.Target);
                 FieldsSown++;
                 break;
@@ -790,7 +786,7 @@ public sealed partial class Production
     }
 
     /// <summary>
-    /// Nearest usable target in the work radius: an adult tree with a free neighbor to stand on,
+    /// Usable target in the work radius nearest to its center (then to the door): an adult tree with a free neighbor to stand on,
     /// a quarry stone with a reachable spot two fields away (its ring is blocked), water with fish
     /// next to the shore, a river (waterworks), ripe grain, or a free spot to plant or sow on (randomized a little so
     /// forests and fields spread).
@@ -817,7 +813,7 @@ public sealed partial class Production
         var center = w.Building.WorkCenter;
         var door = w.Building.Door;
         int radius = definition.WorkRadius ?? DefaultRadius;
-        var candidates = new List<(GridPoint Target, GridPoint Spot, Direction Facing, int Distance)>();
+        var candidates = new List<(GridPoint Target, GridPoint Spot, Direction Facing, int Distance, int FromDoor)>();
 
         foreach (var p in Area(center, radius))
         {
@@ -852,20 +848,44 @@ public sealed partial class Production
             if (spot is not { } s || !_world.Reachable(w.Building.Player, door, s)
                 || _world.TerritoryRules && map.OwnerAt(s) != w.Building.Player)
                 continue;
-            candidates.Add((p, s, s == p ? Direction.SouthWest : FacingTowards(s, p), PathFinder.Distance(door, s)));
+            candidates.Add((p, s, s == p ? Direction.SouthWest : FacingTowards(s, p), PathFinder.Distance(center, p), PathFinder.Distance(door, s)));
         }
 
         if (candidates.Count == 0)
             return null;
         if (want is Want.TreeSpot or Want.FreeField)
         {
-            // Pick among the nearer half at random, so foresters and farmers do not plant a single line.
-            var near = candidates.OrderBy(c => c.Distance).Take(Math.Max(1, candidates.Count / 2)).ToList();
+            // Pick among the half nearer the center at random, so foresters and farmers do not plant a single line.
+            var near = candidates.OrderBy(c => c.Distance).ThenBy(c => c.FromDoor).Take(Math.Max(1, candidates.Count / 2)).ToList();
             var pick = near[_random.Next(near.Count)];
             return (pick.Target, pick.Spot, pick.Facing);
         }
-        var best = candidates.MinBy(c => c.Distance);
+        var best = candidates.MinBy(c => (c.Distance, c.FromDoor));
         return (best.Target, best.Spot, best.Facing);
+    }
+
+    /// <summary>
+    /// The farm sowed on <paramref name="sown"/>: it becomes farmland, and so does the free grass up to
+    /// <paramref name="radius"/> steps around in the farm's work area and on its land where farmland fits.
+    /// </summary>
+    private void MakeFarmland(Building farm, GridPoint sown, int radius)
+    {
+        var map = _world.Map!;
+        int workRadius = farm.Definition.WorkRadius ?? DefaultRadius;
+        Make(sown);
+        foreach (var p in PathFinder.Circle(sown, radius).Where(p => p != sown && PathFinder.Distance(sown, p) <= radius)
+                     .OrderBy(p => PathFinder.Distance(sown, p)))
+            if (map.Contains(p) && PathFinder.InCircle(farm.WorkCenter, p, workRadius) && map.CoverAt(p) == GroundCover.None && map.IsWalkable(p) && _world.IsFreeGround(p)
+                && (map.ObjectCodeAt(p) == MapObjectCodes.None || _growing.ContainsKey(map.Index(p)))
+                && map.OwnerAt(p) == map.OwnerAt(sown) && map.CoverFits(p, GroundCover.Farmland))
+                Make(p);
+
+        void Make(GridPoint p)
+        {
+            _world.Trails.CutAround(p);
+            map.SetCover(p, GroundCover.Farmland);
+            _farmland[map.Index(p)] = farm;
+        }
     }
 
     /// <summary>The farm is gone (torn down, lost): its farmland turns back into grass.</summary>

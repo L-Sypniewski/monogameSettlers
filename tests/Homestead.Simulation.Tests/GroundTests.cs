@@ -78,6 +78,24 @@ public class GroundTests
     }
 
     [Fact]
+    public void Sowing_grain_turns_the_grass_around_into_farmland_too()
+    {
+        var map = new GameMap(70);
+        var world = new World(map, TestConfig.NoTools);
+        world.PlaceBuilding(Romans["farm"], 0, new GridPoint(30, 20));
+        world.Spawn(new GridPoint(45, 40), Profession.Carrier);
+
+        for (int t = 0; t < 20_000 && world.Production.FieldsSown < 1; t++)
+            world.Step();
+
+        var field = Enumerable.Range(0, map.PointCount).Select(map.Point).Single(p => map.ObjectAt(p) == MapObjectKind.Field);
+        var farmland = Enumerable.Range(0, map.PointCount).Select(map.Point).Where(p => map.CoverAt(p) == GroundCover.Farmland).ToList();
+        Assert.Contains(field, farmland);
+        Assert.True(farmland.Count > 1, "the grass next to the field becomes farmland too");
+        Assert.All(farmland, p => Assert.InRange(PathFinder.Distance(field, p), 0, 1));
+    }
+
+    [Fact]
     public void Sown_grain_leaves_farmland_until_the_farm_is_torn_down()
     {
         var map = new GameMap(70);

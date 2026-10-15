@@ -107,7 +107,12 @@ public sealed class BuildMenu : IDisposable
         return new Rectangle(Content.X + i % Columns * width, Content.Y + i / Columns * CellHeight, width, CellHeight);
     }
 
-    public void Draw(SpriteBatch batch, Texture2D pixel, BuildingDefinition? placing, Vector2 cursor)
+    /// <summary>Width at the right of each cell for the counts next to the icon.</summary>
+    private const int CountWidth = 16;
+
+    /// <param name="counts">The player's buildings by name: finished, and under construction (shown right of the icon, zeros left out).</param>
+    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, BuildingDefinition? placing, Vector2 cursor,
+        IReadOnlyDictionary<string, (int Finished, int Building)> counts)
     {
         for (int i = 0; i < _categories.Count; i++)
         {
@@ -126,10 +131,30 @@ public sealed class BuildMenu : IDisposable
             bool selected = buildings[i] == placing, hover = rect.Contains(cursor);
             if (hover && !selected)
                 batch.Draw(pixel, rect, Color.White * 0.08f);
-            DrawIcon(batch, buildings[i], rect);
+            var (finished, building) = counts.GetValueOrDefault(buildings[i].Name);
+            var icon = rect;
+            if (finished > 0 || building > 0)
+            {
+                icon.Width -= CountWidth;
+                icon.X += 2;
+                DrawCount(batch, font, finished, new Vector2(rect.Right - 3, rect.Center.Y - 15), Color.White);
+                DrawCount(batch, font, building, new Vector2(rect.Right - 3, rect.Center.Y + 1), new Color(255, 200, 90));
+            }
+            DrawIcon(batch, buildings[i], icon);
             if (selected)
                 DrawFrame(batch, pixel, rect, Color.Gold);
         }
+    }
+
+    /// <summary>A count right-aligned at <paramref name="topRight"/>; nothing for zero.</summary>
+    private static void DrawCount(SpriteBatch batch, UiFont font, int count, Vector2 topRight, Color color)
+    {
+        if (count == 0)
+            return;
+        string text = count.ToString();
+        var size = font.Measure(text, 13);
+        font.Draw(batch, text, new Vector2(topRight.X - size.X + 1, topRight.Y + 1), Color.Black, 13);
+        font.Draw(batch, text, new Vector2(topRight.X - size.X, topRight.Y), color, 13);
     }
 
     private static void DrawFrame(SpriteBatch batch, Texture2D pixel, Rectangle rect, Color color)
