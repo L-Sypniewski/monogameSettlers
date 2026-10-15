@@ -1088,7 +1088,11 @@ public sealed class MapGame : Game
         RenderTarget2D? target = null;
         if (_captureDirectory is not null)
         {
-            target = new RenderTarget2D(GraphicsDevice, 960, 600);
+            // HOMESTEAD_CAPTURE_SIZE=<w>x<h>: picture size (default 960x600), e.g. 1920x1080 to measure drawing at full screen.
+            var size = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SIZE")?.Split('x');
+            target = size is [var w, var h] && int.TryParse(w, out int width) && int.TryParse(h, out int height)
+                ? new RenderTarget2D(GraphicsDevice, width, height)
+                : new RenderTarget2D(GraphicsDevice, 960, 600);
             GraphicsDevice.SetRenderTarget(target);
         }
 
@@ -1612,6 +1616,40 @@ public sealed class MapGame : Game
         }
     }
 
+    /// <summary>The capture camera sweeps over the map (benchmark of a long game, see <see cref="StartBenchmark"/>).</summary>
+    private bool _panning;
+
+    /// <summary>
+    /// HOMESTEAD_CAPTURE_MINUTES=<n>: the AI plays for player 1 too and the game runs n minutes ahead without drawing;
+    /// then the camera sweeps fast over the whole map, as when scrolling around in a long game.
+    /// </summary>
+    private void StartBenchmark(int minutes)
+    {
+        _zoom = 1;
+        _ownAi = NewAi(0);
+        _world.AiPlayers.Add(_ownAi);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 0; i < minutes * 60 * World.TicksPerSecond; i++)
+            _world.Step();
+        _vision.Update(_world);
+        _fog!.SetTargets(_vision);
+        _minimap!.Update(_vision, all: !_fogOn);
+        Console.WriteLine($"benchmark: {minutes} min played in {clock.Elapsed.TotalSeconds:F0} s, {_world.Settlers.Count} settlers, " +
+                          $"{_world.Buildings.Count(b => b.Exists)} buildings");
+        _panning = true;
+    }
+
+    /// <summary>A Lissajous sweep over the map at up to about 1000 world pixels per second (60 frames per second).</summary>
+    private void PanCamera()
+    {
+        float t = _capturedFrames / 60f;
+        float width = _gameMap.Size * ScreenProjection.TileWidth, height = _gameMap.Size * ScreenProjection.RowHeight;
+        // The map is a parallelogram on screen: rows shift left by half a tile each.
+        float y = height * (0.5f + 0.4f * MathF.Sin(t * 0.8f));
+        float x = width * (0.5f + 0.35f * MathF.Sin(t * 0.5f)) - y / ScreenProjection.RowHeight * ScreenProjection.TileWidth / 2f;
+        _camera = new Vector2(x, y);
+    }
+
     private void Capture(RenderTarget2D target)
     {
         GraphicsDevice.SetRenderTarget(null);
@@ -1623,8 +1661,12 @@ public sealed class MapGame : Game
         if (_capturedFrames % every == every - 1 || strike && _capturedFrames is 1202 or 1206
             || magic && _world.Magic.Effects.Count > 0 && _capturedFrames % 6 == 0)
         {
-            using var stream = File.Create(Path.Combine(_captureDirectory!, $"{_map.Name}_{_capturedFrames:D4}.png"));
-            target.SaveAsPng(stream, target.Width, target.Height);
+            // While panning, pictures are rare: saving one takes longer than a frame and would show as the longest.
+            if (!_panning || _capturedFrames % 1200 == 1199)
+            {
+                using var stream = File.Create(Path.Combine(_captureDirectory!, $"{_map.Name}_{_capturedFrames:D4}.png"));
+                target.SaveAsPng(stream, target.Width, target.Height);
+            }
             Console.WriteLine($"frame {_capturedFrames}: {_world.Settlers.Count} settlers · {_world.Military.Arrows.Count} arrows · {_perf.Summary} · {_sprites.PageCount} atlas pages");
         }
         target.Dispose();
@@ -1633,8 +1675,13 @@ public sealed class MapGame : Game
             CaptureGeologists(_capturedFrames + 1);
         if (magic)
             CaptureMagic(_capturedFrames + 1);
+        if (_panning)
+            PanCamera();
         switch (++_capturedFrames)
         {
+            case 1 when int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MINUTES"), out int minutes) && minutes > 0:
+                StartBenchmark(minutes);
+                break;
             case 1:
                 // HOMESTEAD_CAPTURE_ZOOM: closer look at details (flags, marks) in a capture run.
                 _zoom = float.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_ZOOM"),

@@ -6,7 +6,7 @@ namespace Homestead.Client;
 
 /// <summary>
 /// Frame timings and graphics counters, averaged over about a second: frames per second, milliseconds
-/// for the simulation, Update (simulation included) and Draw (CPU side), draw calls, sprites and texture switches.
+/// for the simulation, Update (simulation included) and Draw (CPU side), the longest frame, draw calls, sprites and texture switches.
 /// </summary>
 public sealed class PerfStats
 {
@@ -15,6 +15,7 @@ public sealed class PerfStats
     private double _windowStart;
     private int _frames;
     private double _simulation, _update, _draw;
+    private double _lastFrame, _longestFrame;
     private long _drawCalls, _sprites, _textures;
 
     public string Summary { get; private set; } = "";
@@ -37,15 +38,18 @@ public sealed class PerfStats
         _frames++;
 
         double now = _clock.Elapsed.TotalSeconds;
+        if (_lastFrame > 0)
+            _longestFrame = Math.Max(_longestFrame, (now - _lastFrame) * 1000);
+        _lastFrame = now;
         if (now - _windowStart < 1)
             return;
         double seconds = now - _windowStart;
         Summary = $"{_frames / seconds:F0} fps · sim {_simulation / _frames:F2} ms · update {_update / _frames:F2} ms (with sim) · " +
-                  $"draw {_draw / _frames:F2} ms · {_drawCalls / _frames} draw calls · {_sprites / _frames} sprites · " +
+                  $"draw {_draw / _frames:F2} ms · longest frame {_longestFrame:F0} ms · {_drawCalls / _frames} draw calls · {_sprites / _frames} sprites · " +
                   $"{_textures / _frames} texture switches";
         _windowStart = now;
         _frames = 0;
-        _simulation = _update = _draw = 0;
+        _simulation = _update = _draw = _longestFrame = 0;
         _drawCalls = _sprites = _textures = 0;
     }
 }
