@@ -232,7 +232,7 @@ public sealed class MapGame : Game
             return;
         _startScreen.Dispose();
         _startScreen = null;
-        PlayerColors.Assign(choice.OwnColor, choice.EnemyColor);
+        PlayerColors.Assign(choice.OwnColor, choice.EnemyColor, _peopleDraw);
         // Player 1 the own people, all others the opponents' one; random ones drawn per player.
         _peoples = Enumerable.Range(0, 8)
             .Select(player => (player == 0 ? choice.Own : choice.Enemy)

@@ -18,8 +18,8 @@ namespace Homestead.Client;
 /// </remarks>
 public sealed class StartScreen : IDisposable
 {
-    /// <summary>What was chosen: <c>null</c> as people means drawn at random.</summary>
-    public sealed record Choice(int MapIndex, Civilization? Own, Civilization? Enemy, int OwnColor, int EnemyColor);
+    /// <summary>What was chosen: <c>null</c> as people or color (palette index) means drawn at random.</summary>
+    public sealed record Choice(int MapIndex, Civilization? Own, Civilization? Enemy, int? OwnColor, int? EnemyColor);
 
     private const int RowHeight = 22;
     private const int Margin = 40;
@@ -52,8 +52,9 @@ public sealed class StartScreen : IDisposable
     private int _scroll;
     private Civilization? _own;
     private Civilization? _enemy;
-    private int _ownColor;
-    private int _enemyColor = 1;
+    /// <summary>Palette index of the chosen color; <c>null</c>: random (the default).</summary>
+    private int? _ownColor;
+    private int? _enemyColor;
 
     private OriginalMap? _map;
     private string? _mapError;
@@ -169,6 +170,7 @@ public sealed class StartScreen : IDisposable
 
     private static Rectangle RightArrow(Rectangle view, int row) => new(PanelX(view) + 140 + 28 + 140, RowY(view, row), 28, 28);
 
+    /// <summary>Color field <paramref name="index"/> of a row: 0 is "random", palette entry i is field i + 1.</summary>
     private static Rectangle SwatchAt(Rectangle view, int row, int index) =>
         new(PanelX(view) + 140 + index * (Swatch + 8), RowY(view, row), Swatch, Swatch);
 
@@ -226,9 +228,9 @@ public sealed class StartScreen : IDisposable
                     else
                         _enemy = Cycle(_enemy, step);
                 }
-                for (int i = 0; i < PlayerColors.Palette.Length; i++)
+                for (int i = 0; i <= PlayerColors.Palette.Length; i++)
                     if (SwatchAt(view, row + 1, i).Contains(at))
-                        PickColor(side, i);
+                        PickColor(side, i == 0 ? null : i - 1);
             }
             if (StartButton(view).Contains(at) && _map is not null)
                 return Start();
@@ -250,18 +252,18 @@ public sealed class StartScreen : IDisposable
         return index == 0 ? null : all[index - 1];
     }
 
-    /// <summary>Picks a color for one side; taking the other side's color swaps the two.</summary>
-    private void PickColor(int side, int color)
+    /// <summary>Picks a color for one side; taking the other side's color swaps the two (random is never taken).</summary>
+    private void PickColor(int side, int? color)
     {
         if (side == 0)
         {
-            if (color == _enemyColor)
+            if (color is not null && color == _enemyColor)
                 _enemyColor = _ownColor;
             _ownColor = color;
         }
         else
         {
-            if (color == _ownColor)
+            if (color is not null && color == _ownColor)
                 _ownColor = _enemyColor;
             _enemyColor = color;
         }
@@ -317,7 +319,13 @@ public sealed class StartScreen : IDisposable
         {
             batch.Draw(_preview, preview, Color.White);
             float scale = preview.Width / (float)_map.Area.Size;
-            var colors = PlayerColors.Ordered(_ownColor, _enemyColor);
+            // Random colors are not drawn yet: their start points show grey.
+            var free = Enumerable.Range(0, PlayerColors.Palette.Length).Where(i => i != _ownColor && i != _enemyColor).ToArray();
+            var colors = PlayerColors.Ordered(_ownColor ?? free[0], _enemyColor ?? free[1]);
+            if (_ownColor is null)
+                colors[0] = Color.Gray;
+            if (_enemyColor is null)
+                colors[1] = Color.Gray;
             for (int player = 0; player < _map.Players.Count; player++)
             {
                 var home = _map.Players[player];
@@ -357,13 +365,22 @@ public sealed class StartScreen : IDisposable
             var size = font.Measure(name, 16);
             font.Draw(batch, name, new Vector2((left.Right + right.X - size.X) / 2, left.Y + 4), fixedPeople is null ? Color.White : dim, 16);
 
-            int chosen = side == 0 ? _ownColor : _enemyColor;
-            for (int i = 0; i < PlayerColors.Palette.Length; i++)
+            int chosen = (side == 0 ? _ownColor : _enemyColor) is { } color ? color + 1 : 0;
+            for (int i = 0; i <= PlayerColors.Palette.Length; i++)
             {
                 var swatch = SwatchAt(view, row + 1, i);
-                if (i == chosen)
-                    batch.Draw(pixel, new Rectangle(swatch.X - 3, swatch.Y - 3, swatch.Width + 6, swatch.Height + 6), Color.White);
-                batch.Draw(pixel, swatch, PlayerColors.Palette[i]);
+                // Gold frame for the chosen one, a grey edge for all (black would vanish on the dark ground).
+                batch.Draw(pixel, new Rectangle(swatch.X - 3, swatch.Y - 3, swatch.Width + 6, swatch.Height + 6),
+                    i == chosen ? Color.Gold : new Color(90, 90, 95));
+                batch.Draw(pixel, new Rectangle(swatch.X - 1, swatch.Y - 1, swatch.Width + 2, swatch.Height + 2), new Color(12, 12, 16));
+                if (i == 0)
+                {
+                    batch.Draw(pixel, swatch, new Color(60, 60, 66));
+                    var mark = font.Measure("?", 18);
+                    font.Draw(batch, "?", new Vector2(swatch.Center.X - mark.X / 2, swatch.Center.Y - mark.Y / 2 - 1), Color.White, 18);
+                }
+                else
+                    batch.Draw(pixel, swatch, PlayerColors.Palette[i - 1]);
             }
         }
         if (_map is { Players.Count: > 2 })
