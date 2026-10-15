@@ -214,6 +214,8 @@ public sealed partial class Military
             SoldiersTrained++;
             b.Trainee = null;
             b.Training = false;
+            // The barracks' work area serves as the rally point of its new soldiers.
+            Move([trainee], b.Building.WorkCenter);
             return;
         }
 

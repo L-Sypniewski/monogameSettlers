@@ -23,7 +23,7 @@ namespace Homestead.Simulation.Economy;
 /// current step (dropping what it carries); a target it could not reach is skipped for a while.
 /// If the building disappears, the worker becomes a carrier again.
 /// </remarks>
-public sealed class Production
+public sealed partial class Production
 {
     public const int StallTicks = 400;
     public const int HandleTicks = 8;
@@ -184,6 +184,8 @@ public sealed class Production
                 _workplaces[building.Id] = new Workplace(building, new WorkshopRecipe([], [mine.Output], mine.Ticks), null) { Mine = mine };
             else if (_config.Gatherers.TryGetValue(name, out var gatherer))
                 _workplaces[building.Id] = new Workplace(building, null, gatherer);
+            else if (name == HospitalName)
+                _workplaces[building.Id] = new Workplace(building, null, null) { Hospital = new HospitalState() };
         }
     }
 
@@ -354,10 +356,20 @@ public sealed class Production
                     w.TicksLeft = 1; // no living space: he stays inside until the strike ends
                     break;
                 }
-                if (w.Workshop is { } recipe)
+                if (w.Hospital is not null)
+                    LookForPatients(w);
+                else if (w.Workshop is { } recipe)
                     StartWorkshopCycle(w, recipe);
                 else
                     StartGathering(w, w.Gatherer!);
+                break;
+
+            case Phase.ToHealSpot:
+                AdvanceToHealSpot(w);
+                break;
+
+            case Phase.Healing:
+                AdvanceHealing(w);
                 break;
 
             case Phase.ToPile:
@@ -618,6 +630,15 @@ public sealed class Production
 
     private void StartGathering(Workplace w, GathererRecipe recipe)
     {
+        // Full output pile: wait instead of starting a new pile next to it.
+        if (ProductOf(recipe) is { } product
+            && w.Building.Piles.FirstOrDefault(p => p.Role == PileRole.Offer && p.Material == product) is { } output
+            && output.Count >= output.Capacity)
+        {
+            w.Waiting = "output pile is full";
+            w.TicksLeft = RetryTicks;
+            return;
+        }
         var target = FindTarget(w, recipe.Action);
         if (target is not { } t)
         {
@@ -644,6 +665,17 @@ public sealed class Production
             GiveUp(w, "work spot unreachable");
         }
     }
+
+    /// <summary>What a gatherer brings home (null: nothing, e.g. a forester).</summary>
+    private static Material? ProductOf(GathererRecipe recipe) => recipe.Action switch
+    {
+        GatherAction.CutTree => Material.Trunk,
+        GatherAction.CutStone => Material.Stone,
+        GatherAction.Fish => Material.Fish,
+        GatherAction.DrawWater => Material.Water,
+        GatherAction.PlantTree => null,
+        _ => recipe.Output ?? Material.Crop,
+    };
 
     private void FinishGathering(Workplace w)
     {
@@ -1006,6 +1038,7 @@ public sealed class Production
 
     private void Dismiss(Workplace w)
     {
+        EndHealing(w);
         if (w.Recruit is { State: RecruitState.FetchingTool } recruit)
             _world.Recruitment.Cancel(recruit);
         else if (w.Recruit is { State: RecruitState.Done } done)
@@ -1032,6 +1065,8 @@ public sealed class Production
         ToOutput,
         Dropping,
         ToDoorToRest,
+        ToHealSpot,
+        Healing,
     }
 
     /// <summary>What a gatherer looks for.</summary>
@@ -1053,6 +1088,7 @@ public sealed class Production
         public GathererRecipe? Gatherer { get; } = gatherer;
         public MineRecipe? Mine { get; init; }
         public SmithRecipe? Smith { get; init; }
+        public HospitalState? Hospital { get; init; }
 
         /// <summary>Why the last cycle could not start (shown to the player), null while working.</summary>
         public string? Waiting { get; set; }

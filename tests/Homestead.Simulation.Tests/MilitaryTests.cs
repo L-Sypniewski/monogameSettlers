@@ -32,6 +32,23 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void New_soldiers_gather_in_the_work_area_of_their_barracks()
+    {
+        var world = new World(new GameMap(70), TestConfig.NoTools);
+        var barrack = world.PlaceBuilding(Romans["barrack"], 0, new GridPoint(30, 30))!;
+        var rally = world.SetWorkCenter(barrack, new GridPoint(40, 22))!.Value;
+        world.AddLooseGoods(new GridPoint(50, 50), Material.Sword, 2);
+        Spawn(world, 4, new GridPoint(40, 45));
+
+        Run(world, 10_000, stopWhen: () => world.Military.SoldiersTrained == 2
+                                         && world.Settlers.Where(s => s.Profession == Profession.Soldier).All(s => !s.HasTask));
+
+        var soldiers = world.Settlers.Where(s => s.Profession == Profession.Soldier).ToList();
+        Assert.Equal(2, soldiers.Count);
+        Assert.All(soldiers, s => Assert.InRange(PathFinder.Distance(s.Position, rally), 0, 2));
+    }
+
+    [Fact]
     public void Soldiers_occupy_a_tower_and_it_claims_the_land_around_it()
     {
         var map = new GameMap(100);
@@ -264,6 +281,70 @@ public class MilitaryTests(ITestOutputHelper output)
         var survivors = own.Where(s => !s.IsDead).ToList();
         Assert.NotEmpty(survivors);
         Assert.All(survivors, s => Assert.InRange(PathFinder.Distance(s.Position, destination), 0, 3));
+    }
+
+    [Fact]
+    public void A_hospital_calls_wounded_soldiers_one_by_one_and_heals_them()
+    {
+        var world = new World(new GameMap(100), TestConfig.NoTools);
+        var hospital = world.PlaceBuilding(Romans["hospital"], 0, new GridPoint(40, 40))!;
+        Spawn(world, 1, new GridPoint(30, 55)); // becomes the healer
+        var door = hospital.Door;
+        // Two own soldiers win a fight each and are left wounded, within call range of the door.
+        var wounded = new List<Settler>();
+        foreach (int dy in new[] { -6, 6 })
+        {
+            wounded.Add(world.SpawnSoldier(new GridPoint(door.X + 12, door.Y + dy), SoldierType.Swordsman, level: 3)!);
+            world.SpawnSoldier(new GridPoint(door.X + 15, door.Y + dy), SoldierType.Swordsman, level: 1, player: 1);
+        }
+        float max = world.Military.Config.MaxHealth(SoldierType.Swordsman, 3);
+        Run(world, 3_000, stopWhen: () => !world.Settlers.Any(s => s.Player == 1));
+        Assert.All(wounded, s => Assert.True(s.Health < max));
+
+        var healedAt = new Dictionary<Settler, long>();
+        Run(world, 5_000, stopWhen: () =>
+        {
+            foreach (var s in wounded.Where(s => s.Health >= max && !healedAt.ContainsKey(s)))
+                healedAt[s] = world.Tick;
+            return healedAt.Count == 2;
+        });
+
+        Assert.Equal(2, healedAt.Count);
+        Assert.Equal(2, world.Production.HealsDone);
+        Assert.True(Math.Abs(healedAt[wounded[0]] - healedAt[wounded[1]]) >= world.Military.Config.HospitalCallPauseTicks,
+            "the next soldier is called only after the pause");
+        Run(world, 20);
+        // Healed at the door (the first one may have stepped aside for the second).
+        Assert.All(wounded, s => Assert.InRange(PathFinder.Distance(s.Position, door), 0, 4));
+    }
+
+    [Fact]
+    public void Once_the_healer_is_out_the_soldier_is_healed_wherever_it_runs()
+    {
+        var world = new World(new GameMap(100), TestConfig.NoTools);
+        var hospital = world.PlaceBuilding(Romans["hospital"], 0, new GridPoint(40, 40))!;
+        Spawn(world, 1, new GridPoint(30, 55));
+        var door = hospital.Door;
+        var soldier = world.SpawnSoldier(new GridPoint(door.X + 12, door.Y), SoldierType.Swordsman, level: 3)!;
+        world.SpawnSoldier(new GridPoint(door.X + 15, door.Y), SoldierType.Swordsman, level: 1, player: 1);
+        float max = world.Military.Config.MaxHealth(SoldierType.Swordsman, 3);
+        Run(world, 3_000, stopWhen: () => !world.Settlers.Any(s => s.Player == 1));
+        Assert.True(soldier.Health < max);
+        var healer = world.Settlers.Single(s => s.Trade == "HEALER");
+
+        Run(world, 3_000, stopWhen: () => healer.Activity == Activity.Healing);
+        Assert.Equal(Activity.Healing, healer.Activity);
+        Assert.Equal(door.Neighbor(Direction.SouthWest), healer.Position); // a step down-left of the door
+        Assert.Equal(Direction.SouthEast, healer.Facing); // turned to the soldier down-right of him
+        Assert.True(soldier.Health < max);
+        world.Military.Move([soldier], new GridPoint(door.X + 20, door.Y + 10)); // runs off at once
+
+        Run(world, world.Military.Config.HealTicks + 5);
+
+        Assert.Equal(max, soldier.Health);
+        Assert.True(PathFinder.Distance(soldier.Position, door) > 1, "healed although it ran off");
+        Run(world, 200, stopWhen: () => healer.IsInside);
+        Assert.True(healer.IsInside, "the healer goes back in");
     }
 
     [Fact]

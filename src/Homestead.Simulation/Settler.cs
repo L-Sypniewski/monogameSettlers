@@ -57,6 +57,7 @@ public enum Activity
     Surveying,
     Signing,
     Casting,
+    Healing,
 }
 
 public enum SettlerState

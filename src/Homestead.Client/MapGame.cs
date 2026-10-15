@@ -1429,7 +1429,7 @@ public sealed class MapGame : Game
     private const int BuildSpotTicks = World.TicksPerSecond;
 
     /// <summary>Time per frame for checking build spots: a whole view at once would make the game stutter.</summary>
-    private static readonly TimeSpan BuildSpotBudget = TimeSpan.FromMilliseconds(2);
+    private static readonly TimeSpan BuildSpotBudget = TimeSpan.FromMilliseconds(6);
 
     /// <summary>
     /// Collects where the chosen building fits in view (<see cref="_buildSpots"/>). Points are checked
@@ -1469,7 +1469,7 @@ public sealed class MapGame : Game
         {
             if (clock.Elapsed > BuildSpotBudget)
                 break;
-            _buildSpotChecks[p] = (_world.Tick, _world.CanPlace(definition, p, out _) ? _world.LevellingEffort(definition, p) : null);
+            _buildSpotChecks[p] = (_world.Tick, _world.BuildSpotEffort(definition, p));
         }
         _buildSpots.Clear();
         foreach (var p in inView)

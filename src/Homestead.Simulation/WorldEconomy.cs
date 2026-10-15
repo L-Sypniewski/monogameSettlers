@@ -102,11 +102,24 @@ public sealed partial class World
     /// <summary>
     /// Checks whether a building fits at <paramref name="position"/>: footprint on the map, on allowed and
     /// walkable ground, not overlapping other buildings or their protected surroundings, and its own
-    /// surroundings (door, piles) on the map and not under another building.
+    /// surroundings (door, piles) on the map and not under another building, and not too steep to level
+    /// (<see cref="PlanLevelling"/>).
     /// </summary>
-    public bool CanPlace(BuildingDefinition definition, GridPoint position, out string reason, int player = 0)
+    public bool CanPlace(BuildingDefinition definition, GridPoint position, out string reason, int player = 0) =>
+        CanPlace(definition, position, out reason, player, out _);
+
+    /// <summary>
+    /// Where the building fits (<see cref="CanPlace(BuildingDefinition, GridPoint, out string, int)"/>), how much
+    /// levelling it needs there (see <see cref="LevellingEffort"/>); null where it does not fit.
+    /// </summary>
+    public float? BuildSpotEffort(BuildingDefinition definition, GridPoint position, int player = 0) =>
+        CanPlace(definition, position, out _, player, out var plan) ? Effort(plan!) : null;
+
+    private bool CanPlace(BuildingDefinition definition, GridPoint position, out string reason, int player, out LevellingPlan? plan)
     {
+        plan = null;
         var map = RequireMap();
+        var shape = ShapeOf(definition);
         foreach (var offset in definition.Blocked)
         {
             var p = position + offset;
@@ -115,17 +128,20 @@ public sealed partial class World
             int index = map.Index(p);
             if (_footprints.ContainsKey(index) || _protected.ContainsKey(index))
                 return Fail("too close to another building", out reason);
-            // Extra room between buildings, for the settlers and the looks.
-            int margin = Production.Config.BuildingMargin;
-            if (margin > 0 && PathFinder.Circle(p, margin).Any(q => map.Contains(q)
-                    && (_footprints.ContainsKey(map.Index(q)) || _protected.ContainsKey(map.Index(q)))))
-                return Fail("too close to another building", out reason);
             if (!map.IsWalkable(p) || _pilesByPoint.ContainsKey(index) || map.ObjectAt(p) == MapObjectKind.Field)
                 return Fail("something is in the way", out reason);
-            if (!definition.Ground.Contains(map.TerrainAt(p).GroundName()))
+            if (!shape.Ground[(int)map.TerrainAt(p)])
                 return Fail($"cannot build on {map.TerrainAt(p)}", out reason);
             if (TerritoryRules && map.OwnerAt(p) != player)
                 return Fail("not on own land", out reason);
+        }
+        // Extra room between buildings, for the settlers and the looks. Dearer than the checks above, so
+        // only for places that passed them (most fail there).
+        foreach (var offset in shape.Margin)
+        {
+            var q = position + offset;
+            if (map.Contains(q) && (_footprints.ContainsKey(map.Index(q)) || _protected.ContainsKey(map.Index(q))))
+                return Fail("too close to another building", out reason);
         }
         foreach (var offset in definition.Protected)
         {
@@ -136,8 +152,7 @@ public sealed partial class World
                 return Fail("too close to another building", out reason);
         }
         // Door and piles must be reachable, or carriers and workers could never get there.
-        foreach (var offset in definition.ConstructionPiles.Concat(definition.RequestPiles).Concat(definition.OfferPiles)
-                     .Select(pile => pile.Offset).Append(definition.Door))
+        foreach (var offset in shape.Reached)
         {
             var p = position + offset;
             if (!map.Contains(p) || !map.IsWalkable(p) || _footprints.ContainsKey(map.Index(p)))
@@ -146,11 +161,14 @@ public sealed partial class World
             if (TerritoryRules && map.OwnerAt(p) != player)
                 return Fail("door or pile place not on own land", out reason);
         }
-        if (TerritoryRules && definition.BuilderSpots.Any(s => !map.Contains(position + s.Offset) || map.OwnerAt(position + s.Offset) != player))
-            return Fail("builders would stand outside own land", out reason);
+        if (TerritoryRules)
+            foreach (var spot in definition.BuilderSpots)
+                if (!map.Contains(position + spot.Offset) || map.OwnerAt(position + spot.Offset) != player)
+                    return Fail("builders would stand outside own land", out reason);
         if (!DoorLeadsOut(definition, position))
             return Fail("the door would lead nowhere", out reason);
-        if (PlanLevelling(definition, position, player) is null)
+        plan = PlanLevelling(definition, position, player);
+        if (plan is null)
             return Fail("too steep to level", out reason);
         reason = "";
         return true;
@@ -163,6 +181,51 @@ public sealed partial class World
     }
 
     /// <summary>
+    /// What placement checks need of a building, worked out once: they run for every point in view
+    /// while placing, and often for the AI.
+    /// </summary>
+    private sealed class PlacementShape
+    {
+        public PlacementShape(BuildingDefinition definition, int margin)
+        {
+            Blocked = definition.Blocked.ToHashSet();
+            Margin = margin > 0 ? definition.Blocked.SelectMany(o => PathFinder.Circle(o, margin)).Distinct().ToArray() : [];
+            Reached = definition.ConstructionPiles.Concat(definition.RequestPiles).Concat(definition.OfferPiles)
+                .Select(pile => pile.Offset).Append(definition.Door).ToArray();
+            Ground = new bool[256];
+            foreach (var terrain in Enum.GetValues<TerrainType>())
+                Ground[(int)terrain] = definition.Ground.Contains(terrain.GroundName());
+        }
+
+        /// <summary>Footprint offsets.</summary>
+        public HashSet<GridPoint> Blocked { get; }
+
+        /// <summary>Offsets within the building margin of the footprint.</summary>
+        public GridPoint[] Margin { get; }
+
+        /// <summary>Offsets of the door and the piles: they must be reachable.</summary>
+        public GridPoint[] Reached { get; }
+
+        /// <summary>Whether the building may stand on a terrain, by terrain type.</summary>
+        public bool[] Ground { get; }
+    }
+
+    private readonly Dictionary<BuildingDefinition, PlacementShape> _shapes = new();
+
+    private PlacementShape ShapeOf(BuildingDefinition definition)
+    {
+        if (!_shapes.TryGetValue(definition, out var shape))
+            _shapes[definition] = shape = new PlacementShape(definition, Production.Config.BuildingMargin);
+        return shape;
+    }
+
+    // Buffers for the searches below, which run very often (single-threaded, like the whole world).
+    private readonly HashSet<GridPoint> _searchSeen = new();
+    private readonly Queue<GridPoint> _searchQueue = new();
+    private List<GridPoint> _searchRing = new();
+    private List<GridPoint> _searchNext = new();
+
+    /// <summary>
     /// Whether one can still walk away from the door once the building stands: a small flood fill from
     /// the door around the footprint. Found by the AI: a stonecutter against the blocked ring of a
     /// quarry stone, its door opening into a pocket between the building and the stone.
@@ -171,17 +234,22 @@ public sealed partial class World
     {
         const int Enough = 60;
         var map = RequireMap();
-        var footprint = definition.Blocked.Select(o => position + o).ToHashSet();
+        var footprint = ShapeOf(definition).Blocked;
         var door = position + definition.Door;
-        var seen = new HashSet<GridPoint> { door };
-        var queue = new Queue<GridPoint>(seen);
+        var seen = _searchSeen;
+        var queue = _searchQueue;
+        seen.Clear();
+        queue.Clear();
+        seen.Add(door);
+        queue.Enqueue(door);
         while (queue.Count > 0)
         {
             var p = queue.Dequeue();
             for (int d = 0; d < DirectionExtensions.Count; d++)
             {
                 var n = p.Neighbor((Direction)d);
-                if (!map.IsWalkable(n) || footprint.Contains(n) || _footprints.ContainsKey(map.Index(n)) || !seen.Add(n))
+                if (!map.IsWalkable(n) || footprint.Contains(new GridPoint(n.X - position.X, n.Y - position.Y))
+                    || _footprints.ContainsKey(map.Index(n)) || !seen.Add(n))
                     continue;
                 if (seen.Count >= Enough)
                     return true;
@@ -200,10 +268,11 @@ public sealed partial class World
         var map = RequireMap();
         if (definition.Blocked.Any(o => !map.Contains(position + o)))
             return null;
-        if (!force && !CanPlace(definition, position, out _, player))
+        LevellingPlan? plan = null;
+        if (!force && !CanPlace(definition, position, out _, player, out plan))
             return null;
         // Finished at once: so is the levelling (a loaded map stands as the editor left it).
-        if (!force && PlanLevelling(definition, position, player) is { } plan)
+        if (plan is not null)
             foreach (var (p, target) in plan.Targets)
                 map.SetHeight(p, target);
 
@@ -238,14 +307,24 @@ public sealed partial class World
     {
         var map = RequireMap();
         var config = Production.Config;
-        var footprint = definition.Blocked.Select(o => position + o).ToHashSet();
-        if (footprint.Count == 0)
+        var blocked = definition.Blocked;
+        if (blocked.Count == 0)
             return new LevellingPlan(0, new Dictionary<GridPoint, int>(), 0);
-        int height = (int)Math.Round(footprint.Average(PlannedHeight));
+        int sum = 0;
+        foreach (var offset in blocked)
+            sum += PlannedHeight(position + offset);
+        int height = (int)Math.Round(sum / (double)blocked.Count);
         var targets = new Dictionary<GridPoint, int>();
         int work = 0;
-        foreach (var p in footprint)
+        var seen = _searchSeen;
+        var ring = _searchRing;
+        seen.Clear();
+        ring.Clear();
+        foreach (var offset in blocked)
         {
+            var p = position + offset;
+            seen.Add(p);
+            ring.Add(p);
             if (_pendingLevels.ContainsKey(map.Index(p)))
                 return null;
             int h = map.HeightAt(p);
@@ -256,12 +335,11 @@ public sealed partial class World
         }
         if (work > config.LevellingMaxWork)
             return null;
-        var seen = new HashSet<GridPoint>(footprint);
-        var ring = footprint.ToList();
         for (int d = 1; ring.Count > 0; d++)
         {
             int low = height - config.LevellingMaxSlope * d, high = height + config.LevellingMaxSlope * d;
-            var next = new List<GridPoint>();
+            var next = _searchNext;
+            next.Clear();
             bool changed = false;
             foreach (var p in ring)
                 for (int dir = 0; dir < DirectionExtensions.Count; dir++)
@@ -286,7 +364,8 @@ public sealed partial class World
                 }
             if (!changed)
                 break;
-            ring = next;
+            (_searchRing, _searchNext) = (next, ring);
+            ring = _searchRing;
         }
         return new LevellingPlan(height, targets, work);
     }
@@ -296,9 +375,9 @@ public sealed partial class World
     /// need, <see cref="ProductionConfig.LevellingMaxWork"/>, or more).
     /// </summary>
     public float LevellingEffort(BuildingDefinition definition, GridPoint position, int player = 0) =>
-        PlanLevelling(definition, position, player) is { } plan
-            ? Math.Min(1, plan.Work / (float)Math.Max(1, Production.Config.LevellingMaxWork))
-            : 1;
+        PlanLevelling(definition, position, player) is { } plan ? Effort(plan) : 1;
+
+    private float Effort(LevellingPlan plan) => Math.Min(1, plan.Work / (float)Math.Max(1, Production.Config.LevellingMaxWork));
 
     /// <summary>A point of the site reached its target height.</summary>
     internal void Levelled(Building site, GridPoint p)
@@ -322,13 +401,12 @@ public sealed partial class World
     /// </summary>
     public Building? PlaceConstructionSite(BuildingDefinition definition, int player, GridPoint position)
     {
-        if (!CanPlace(definition, position, out _, player))
+        if (!CanPlace(definition, position, out _, player, out var plan))
             return null;
 
         var map = RequireMap();
-        var plan = PlanLevelling(definition, position, player)!;
         var building = Register(definition, player, position, BuildingState.Flattening);
-        building.TargetHeight = plan.Height;
+        building.TargetHeight = plan!.Height;
         foreach (var (p, target) in plan.Targets)
         {
             building.Unlevelled[p] = target;

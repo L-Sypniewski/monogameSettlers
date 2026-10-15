@@ -49,6 +49,15 @@ public sealed record MilitaryConfig
     public IReadOnlyDictionary<(Civilization People, string Building), DoorPoints> DoorPoints { get; init; } =
         new Dictionary<(Civilization, string), DoorPoints>();
 
+    /// <summary>Hospital: wounded idle soldiers within this distance of its door are called in.</summary>
+    public int HospitalCallRadius { get; init; } = 20;
+
+    /// <summary>Hospital: how long the healer takes to heal a soldier fully.</summary>
+    public int HealTicks { get; init; } = 2 * World.TicksPerSecond;
+
+    /// <summary>Hospital: after a heal, the healer waits this long before calling the next soldier.</summary>
+    public int HospitalCallPauseTicks { get; init; } = 10 * World.TicksPerSecond;
+
     /// <summary>Soldiers react to enemies within this distance.</summary>
     public required int SightRange { get; init; }
 
@@ -105,6 +114,10 @@ public sealed record MilitaryConfig
             DoorRegenTicks = (int)Math.Round((door.ValueKind == JsonValueKind.Object ? door.GetProperty("regenSeconds").GetDouble() : 30) * World.TicksPerSecond),
             LevelBonus = root.GetProperty("levelBonus").EnumerateArray().Select(v => v.GetSingle()).ToArray(),
             SightRange = root.GetProperty("sightRange").GetInt32(),
+            HospitalCallRadius = root.TryGetProperty("hospital", out var hospital) ? hospital.GetProperty("callRadius").GetInt32() : 20,
+            HealTicks = (int)Math.Round((hospital.ValueKind == JsonValueKind.Object ? hospital.GetProperty("healSeconds").GetDouble() : 2) * World.TicksPerSecond),
+            HospitalCallPauseTicks = (int)Math.Round((hospital.ValueKind == JsonValueKind.Object ? hospital.GetProperty("callPauseSeconds").GetDouble() : 10)
+                                                     * World.TicksPerSecond),
             BuildingSight = root.TryGetProperty("buildingSight", out var buildingSight)
                 ? buildingSight.EnumerateObject().ToDictionary(b => b.Name, b => b.Value.GetInt32())
                 : new Dictionary<string, int>(),

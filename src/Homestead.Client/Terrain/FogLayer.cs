@@ -6,8 +6,9 @@ namespace Homestead.Client.Terrain;
 
 /// <summary>
 /// Fog of war drawn over the world: per grid point a brightness (visible 1, explored <see cref="Explored"/>,
-/// unexplored 0), as black triangles on the terrain grid whose alpha is interpolated between the points,
-/// so edges are soft. New targets come from a <see cref="Vision"/> now and then; the shown brightness
+/// unexplored 0), as black triangles on the terrain grid whose alpha is interpolated between the points.
+/// Edges are soft over <see cref="SoftFields"/> fields: brightness fades out beyond seen land, so the
+/// view reaches a little further than the vision itself. New targets come from a <see cref="Vision"/> now and then; the shown brightness
 /// follows them over <see cref="FadeSeconds"/>. Triangles are kept per terrain chunk and rebuilt when a
 /// point in them changes.
 /// </summary>
@@ -17,6 +18,14 @@ public sealed class FogLayer : IDisposable
     public const float Explored = 0.55f;
 
     public const float FadeSeconds = 1f;
+
+    /// <summary>Over how many fields beyond seen (or explored) land the brightness fades out.</summary>
+    public const int SoftFields = 3;
+
+    /// <summary>Neighbor offsets of a grid point (as <c>Direction.Delta</c>).</summary>
+    private static readonly (int X, int Y)[] Neighbors = [(1, 0), (1, 1), (0, 1), (-1, 0), (-1, -1), (0, -1)];
+
+    private readonly Queue<int> _spread = new();
 
     private readonly GraphicsDevice _device;
     private readonly TerrainMesh _terrain;
@@ -53,9 +62,11 @@ public sealed class FogLayer : IDisposable
     public void SetTargets(Vision vision)
     {
         for (int i = 0; i < _target.Length; i++)
+            _target[i] = vision.IsVisible(i) ? 1 : vision.IsExplored(i) ? Explored : 0;
+        Soften();
+        for (int i = 0; i < _target.Length; i++)
         {
-            float target = vision.IsVisible(i) ? 1 : vision.IsExplored(i) ? Explored : 0;
-            _target[i] = target;
+            float target = _target[i];
             if (_first)
                 _shown[i] = target;
             else if (_shown[i] != target && !_isFading[i])
@@ -67,6 +78,48 @@ public sealed class FogLayer : IDisposable
         if (_first)
             Array.Clear(_built);
         _first = false;
+    }
+
+    /// <summary>
+    /// Lets brightness spill over to darker neighbors, losing 1 / (<see cref="SoftFields"/> + 1) per field,
+    /// so it fades out over <see cref="SoftFields"/> fields: a search from the points brighter than a neighbor.
+    /// </summary>
+    private void Soften()
+    {
+        const float Loss = 1f / (SoftFields + 1);
+        for (int y = 0; y < _size; y++)
+        for (int x = 0; x < _size; x++)
+        {
+            float spill = _target[y * _size + x] - Loss;
+            foreach (var (dx, dy) in Neighbors)
+            {
+                int nx = x + dx, ny = y + dy;
+                if (nx >= 0 && ny >= 0 && nx < _size && ny < _size && _target[ny * _size + nx] < spill)
+                {
+                    _spread.Enqueue(y * _size + x);
+                    break;
+                }
+            }
+        }
+        while (_spread.Count > 0)
+        {
+            int i = _spread.Dequeue();
+            int x = i % _size, y = i / _size;
+            float spill = _target[i] - Loss;
+            if (spill <= 0)
+                continue;
+            foreach (var (dx, dy) in Neighbors)
+            {
+                int nx = x + dx, ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= _size || ny >= _size)
+                    continue;
+                int n = ny * _size + nx;
+                if (_target[n] >= spill)
+                    continue;
+                _target[n] = spill;
+                _spread.Enqueue(n);
+            }
+        }
     }
 
     /// <summary>Moves the shown brightness toward the targets.</summary>

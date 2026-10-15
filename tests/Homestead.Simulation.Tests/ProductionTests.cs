@@ -77,6 +77,27 @@ public class ProductionTests(ITestOutputHelper output)
         Assert.True(MapObjectCodes.IsAdultTree(map.ObjectCodeAt(trees[3])), "The far tree is outside the work radius.");
     }
 
+    [Fact]
+    public void A_gatherer_with_a_full_output_pile_waits_instead_of_starting_a_new_pile()
+    {
+        var map = new GameMap(70);
+        for (int y = 36; y < 44; y += 2)
+            for (int x = 22; x < 38; x += 2)
+                map.SetObject(new GridPoint(x, y), MapObjectKind.Tree);
+        var world = new World(map, TestConfig.NoTools);
+        var lumberjack = world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(30, 30))!;
+        Spawn(world, Profession.Carrier, 1, new GridPoint(40, 35)); // becomes the lumberjack, nobody carries
+        var output = lumberjack.Piles.Single(p => p.Role == PileRole.Offer);
+
+        Run(world, 40_000, stopWhen: () => output.Count == output.Capacity);
+        Assert.Equal(output.Capacity, output.Count);
+        Run(world, 3_000);
+
+        Assert.Equal(output.Capacity, output.Count);
+        Assert.DoesNotContain(world.Piles, p => p.Role == PileRole.Loose && p.Material == Material.Trunk);
+        Assert.Contains("output pile is full", world.StatusOf(lumberjack));
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(3)]
