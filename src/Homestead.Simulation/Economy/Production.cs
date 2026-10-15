@@ -95,6 +95,9 @@ public sealed partial class Production
         b.Exists && b.Player == player && Produces(b.Definition.Name)
         && (b.State != BuildingState.Finished || _workplaces.GetValueOrDefault(b.Id) is null or { Phase: Phase.NeedsWorker }));
 
+    /// <summary>Whether the player can stop the building (<see cref="World.SetPaused"/>): a finished production building.</summary>
+    public bool CanPause(Building building) => _workplaces.ContainsKey(building.Id);
+
     private bool Produces(string name) =>
         _config.Workshops.ContainsKey(name) || _config.Smiths.ContainsKey(name) || _config.Mines.ContainsKey(name) || _config.Gatherers.ContainsKey(name);
 
@@ -111,6 +114,8 @@ public sealed partial class Production
             Phase.Recruiting when tool is { } t => $"worker is fetching the tool ({t})",
             Phase.Recruiting or Phase.WorkerComing => "worker is on the way",
             Phase.Inside when w.Worker?.IsStriking == true => "on strike",
+            Phase.Inside when building.IsPaused => "paused",
+            _ when building.IsPaused && w.Worker is not null => "pausing after this work",
             Phase.Inside => w.Waiting ?? "resting",
             Phase.ToPile or Phase.PickingUp or Phase.ToDoorToWork =>
                 w.Mine is null ? "fetching " + string.Join(" and ", w.Workshop!.Inputs) : "fetching food",
@@ -351,9 +356,9 @@ public sealed partial class Production
             case Phase.Inside:
                 if (--w.TicksLeft > 0)
                     break;
-                if (worker!.IsStriking)
+                if (worker!.IsStriking || w.Building.IsPaused)
                 {
-                    w.TicksLeft = 1; // no living space: he stays inside until the strike ends
+                    w.TicksLeft = 1; // no living space, or stopped: he stays inside until that ends
                     break;
                 }
                 if (w.Hospital is not null)

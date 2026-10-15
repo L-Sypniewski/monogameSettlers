@@ -46,6 +46,9 @@ public sealed class Building
 
     public IReadOnlyList<Pile> Piles => _piles;
 
+    /// <summary>Production stopped by the player (<see cref="World.SetPaused"/>): the worker stays inside once its work is done.</summary>
+    public bool IsPaused { get; internal set; }
+
     /// <summary>False once the building was removed; carriers heading here must react.</summary>
     public bool Exists { get; internal set; } = true;
 

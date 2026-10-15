@@ -1,0 +1,27 @@
+{
+  "_comment": "Hand-made changes to the building data generated from JSettlers (the other files in this directory, not to be edited by hand). Per people (all: every people, before the people's own) and building, each property given here replaces the generated one.",
+  "all": {
+    "_comment": "Mines stand on the mountain only (not its grass-side foot) and are not levelled: they go into the mountain.",
+    "coalmine": { "ground": ["MOUNTAIN", "MOUNTAINBORDER"], "levelling": false },
+    "ironmine": { "ground": ["MOUNTAIN", "MOUNTAINBORDER"], "levelling": false },
+    "goldmine": { "ground": ["MOUNTAIN", "MOUNTAINBORDER"], "levelling": false },
+    "gemsmine": { "ground": ["MOUNTAIN", "MOUNTAINBORDER"], "levelling": false },
+    "sulfurmine": { "ground": ["MOUNTAIN", "MOUNTAINBORDER"], "levelling": false }
+  },
+  "Roman": {
+    "castle": {
+      "_occupiersComment": "Only four bowmen on the roofs: one on each front tower (in its middle), two on the rear tower.",
+      "occupiers": [
+        { "type": "INFANTRY", "soldier": [-6, -3], "pixel": [-85, 41], "looksRight": false },
+        { "type": "INFANTRY", "soldier": [0, 2], "pixel": [-25, -1], "looksRight": false },
+        { "type": "INFANTRY", "soldier": [2, 3], "pixel": [-5, -2], "looksRight": true },
+        { "type": "INFANTRY", "soldier": [3, -1], "pixel": [44, 23], "looksRight": true },
+        { "type": "INFANTRY", "soldier": [0, 2], "pixel": [-23, 81], "looksRight": false },
+        { "type": "BOWMAN", "soldier": [-1, -1], "pixel": [-2, 13], "looksRight": false },
+        { "type": "BOWMAN", "soldier": [-7, -5], "pixel": [-64, 54], "looksRight": false },
+        { "type": "BOWMAN", "soldier": [-6, -11], "pixel": [-9, 92], "looksRight": false },
+        { "type": "BOWMAN", "soldier": [-5, -11], "pixel": [11, 92], "looksRight": false }
+      ]
+    }
+  }
+}

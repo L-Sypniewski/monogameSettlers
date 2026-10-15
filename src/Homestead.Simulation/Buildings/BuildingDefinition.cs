@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Homestead.Simulation.Economy;
 
 namespace Homestead.Simulation.Buildings;
@@ -46,6 +47,9 @@ public sealed class BuildingDefinition
 
     /// <summary>Ground types the building may be placed on (data names, e.g. GRASS, MOUNTAIN).</summary>
     public required IReadOnlySet<string> Ground { get; init; }
+
+    /// <summary>Whether a construction site is levelled first (mines are not: they go into the mountain).</summary>
+    public bool NeedsLevelling { get; init; } = true;
 
     public required IReadOnlyList<WorkSpot> BuilderSpots { get; init; }
 
@@ -110,11 +114,33 @@ public sealed class BuildingCatalog
     {
         string path = Path.Combine(dataDirectory ?? DefaultDataDirectory, "buildings",
             civilization.ToString().ToLowerInvariant() + ".json");
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var buildings = JsonNode.Parse(File.ReadAllText(path))!["buildings"]!.AsObject();
+        ApplyOverrides(buildings, civilization, Path.Combine(Path.GetDirectoryName(path)!, "overrides.json"));
         var definitions = new Dictionary<string, BuildingDefinition>();
-        foreach (var entry in document.RootElement.GetProperty("buildings").EnumerateObject())
-            definitions[entry.Name] = Parse(entry.Name, civilization, entry.Value);
+        foreach (var (name, building) in buildings)
+            definitions[name] = Parse(name, civilization, JsonSerializer.SerializeToElement(building));
         return new BuildingCatalog(civilization, definitions);
+    }
+
+    /// <summary>
+    /// Hand-made changes (<c>buildings/overrides.json</c>): each property given replaces the generated one,
+    /// those under <c>all</c> for every people, then those under the people's name.
+    /// </summary>
+    private static void ApplyOverrides(JsonObject buildings, Civilization civilization, string path)
+    {
+        if (!File.Exists(path))
+            return;
+        var root = JsonNode.Parse(File.ReadAllText(path))!;
+        foreach (var section in new[] { "all", civilization.ToString() })
+        {
+            if (root[section] is not JsonObject overrides)
+                continue;
+            foreach (var (name, changes) in overrides)
+                if (buildings[name] is JsonObject building && changes is JsonObject properties)
+                    foreach (var (key, value) in properties)
+                        if (!key.StartsWith('_'))
+                            building[key] = value?.DeepClone();
+        }
     }
 
     private static Direction ParseDirection(string name) => name switch
@@ -179,6 +205,7 @@ public sealed class BuildingCatalog
             Protected = Points(b.GetProperty("protected")),
             Door = OutsideDoor(Point(b.GetProperty("door")), Points(b.GetProperty("blocked"))),
             Ground = b.GetProperty("ground").EnumerateArray().Select(g => g.GetString()!).ToHashSet(),
+            NeedsLevelling = !b.TryGetProperty("levelling", out var levelling) || levelling.GetBoolean(),
             BuilderSpots = builderSpots,
             BuildMarks = b.GetProperty("positions").TryGetProperty("buildmark", out var marks)
                 ? marks.EnumerateArray().Select(m => new GridPoint(m.GetProperty("dx").GetInt32(), m.GetProperty("dy").GetInt32())).ToArray()

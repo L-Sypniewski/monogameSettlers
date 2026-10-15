@@ -137,9 +137,13 @@ public sealed partial class AiPlayer
         }
     }
 
-    /// <summary>The target's garrison plus enemy soldiers outside near it, as they fight at the target.</summary>
+    /// <summary>
+    /// The target's garrison (weighted by <c>attack.garrisonWeight</c>: a castle's is worth more) plus
+    /// enemy soldiers outside near it, as they fight at the target.
+    /// </summary>
     internal double Defense(Building target) =>
         _world.Military.Occupants(target).Where(s => s is not null).Sum(s => Strength(s!, target.Position))
+        * (_config.Attack.GarrisonWeight?.GetValueOrDefault(target.Definition.Name, 1.0) ?? 1.0)
         + _world.Settlers.Where(s => s.Profession == Profession.Soldier && s.Player != Player && !s.IsInside && !s.IsDead
                                      && PathFinder.Distance(s.Position, target.Position) <= _config.Attack.DefenseRadius)
             .Sum(s => Strength(s, target.Position));

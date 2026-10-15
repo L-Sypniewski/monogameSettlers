@@ -17,6 +17,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 2);
         map.SetResource(new GridPoint(29, 31), ResourceType.IronOre, 5); // wrong kind for a coal mine
         var world = new World(map, TestConfig.NoTools with { OrePerAmount = 2 });
+        TestMaps.Mountain(world.Map!, new GridPoint(30, 30));
         var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50))!;
         world.AddLooseGoods(new GridPoint(10, 50), Material.Bread, 8);
@@ -44,6 +45,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         var map = new GameMap(70);
         map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 2);
         var world = new World(map, TestConfig.NoTools with { OrePerAmount = 2 });
+        TestMaps.Mountain(world.Map!, new GridPoint(30, 30));
         var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
         Assert.True(mine.Piles.Any(p => p.Material == Material.Fish), "the Roman coal mine takes fish");
         world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50));
@@ -63,6 +65,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 1);
         var config = TestConfig.NoTools with { OrePerAmount = 2, RegenerateTicks = 300 };
         var world = new World(map, config);
+        TestMaps.Mountain(world.Map!, new GridPoint(30, 30));
         var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50))!;
         world.AddLooseGoods(new GridPoint(10, 50), Material.Bread, 8);
@@ -97,6 +100,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         var map = new GameMap(70);
         map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 8);
         var world = new World(map, TestConfig.NoTools with { MineFoodPileCapacity = 4 });
+        TestMaps.Mountain(world.Map!, new GridPoint(30, 30));
         var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
         world.AddLooseGoods(new GridPoint(10, 50), Material.Bread, 8);
         Spawn(world, Profession.Carrier, 4, new GridPoint(20, 20));
@@ -164,6 +168,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         for (int dy = -3; dy <= 3; dy++)
         for (int dx = -3; dx <= 3; dx++)
             map.SetResource(new GridPoint(80 + dx, 80 + dy), ResourceType.Coal, 8);
+        TestMaps.Mountain(map, new GridPoint(80, 80));
         var world = new World(map, TestConfig.NoTools);
         var anchors = new[] { ("stock", 60, 55), ("farm", 60, 15), ("waterworks", 40, 45), ("mill", 50, 80), ("baker", 65, 95), ("coalmine", 80, 80) };
         foreach (var (name, x, y) in anchors)

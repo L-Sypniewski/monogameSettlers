@@ -43,6 +43,7 @@ public sealed partial class AiPlayer
     private readonly MapSurvey _survey;
     private readonly List<string> _log = new();
     private long _nextSurvey;
+    private long _nextForesterCheck;
     private bool _lacksRoom;
 
     /// <summary>Resource-bound buildings that found no spot near their resource (the expansion goes for more of it).</summary>
@@ -122,6 +123,7 @@ public sealed partial class AiPlayer
         TearDownUseless(mine);
         TearDownSpareHouse(mine);
         mine.RemoveAll(b => !b.Exists);
+        PauseForesters(mine);
         FollowStrikes(mine);
         FollowCampaign();
         LeadPriests();
@@ -213,6 +215,31 @@ public sealed partial class AiPlayer
     /// it at least spareRoom places would still be free and no house is wanted. Its material comes back
     /// in part. The biggest such house first.
     /// </summary>
+    /// <summary>
+    /// Foresters stop planting while their work area has <see cref="AiConfig.ForesterMaxTrees"/> trees or more
+    /// (saplings count: they grow up), and start again below.
+    /// </summary>
+    private void PauseForesters(List<Building> mine)
+    {
+        if (_world.Tick < _nextForesterCheck)
+            return;
+        _nextForesterCheck = _world.Tick + _config.ForesterCheckTicks;
+        var map = _world.Map!;
+        foreach (var forester in mine)
+        {
+            if (forester.Definition.Name != "forester" || !_world.Production.CanPause(forester))
+                continue;
+            int trees = PathFinder.Circle(forester.WorkCenter, forester.Definition.WorkRadius ?? Production.DefaultRadius)
+                .Count(p => map.Contains(p) && map.ObjectAt(p) == MapObjectKind.Tree);
+            bool pause = trees >= _config.ForesterMaxTrees;
+            if (pause != forester.IsPaused)
+            {
+                _world.SetPaused(forester, pause);
+                Note($"forester at {forester.Position.X},{forester.Position.Y}: {trees} trees, {(pause ? "stopped" : "restarted")}");
+            }
+        }
+    }
+
     private void TearDownSpareHouse(List<Building> mine)
     {
         if (_world.Housing.Room(Player) is not { } room || HouseWanted(mine))

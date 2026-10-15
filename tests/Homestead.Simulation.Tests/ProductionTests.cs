@@ -98,6 +98,35 @@ public class ProductionTests(ITestOutputHelper output)
         Assert.Contains("output pile is full", world.StatusOf(lumberjack));
     }
 
+    [Fact]
+    public void A_paused_building_finishes_its_work_and_then_stays_inside()
+    {
+        var map = new GameMap(70);
+        for (int y = 36; y < 44; y += 2)
+            for (int x = 22; x < 38; x += 2)
+                map.SetObject(new GridPoint(x, y), MapObjectKind.Tree);
+        var world = new World(map, TestConfig.NoTools);
+        var lumberjack = world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(30, 30))!;
+        Spawn(world, Profession.Carrier, 1, new GridPoint(40, 35));
+        var output = lumberjack.Piles.Single(p => p.Role == PileRole.Offer);
+
+        Run(world, 20_000, stopWhen: () => world.StatusOf(lumberjack).Contains("working outside"));
+        world.SetPaused(lumberjack, true);
+        Assert.Contains("pausing", world.StatusOf(lumberjack));
+        Run(world, 20_000, stopWhen: () => world.StatusOf(lumberjack) == "paused");
+
+        Assert.Equal("paused", world.StatusOf(lumberjack));
+        int cut = world.Production.TreesCut;
+        Assert.Equal(cut, output.Count); // the tree under way was felled and brought home
+        Run(world, 5_000);
+        Assert.Equal(cut, world.Production.TreesCut);
+        Assert.True(world.Production.WorkerOf(lumberjack)!.IsInside);
+
+        world.SetPaused(lumberjack, false);
+        Run(world, 20_000, stopWhen: () => world.Production.TreesCut > cut);
+        Assert.True(world.Production.TreesCut > cut, "works again once restarted");
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(3)]

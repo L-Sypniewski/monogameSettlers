@@ -301,14 +301,15 @@ public sealed partial class World
     /// d times that from the footprint height). It stops at the first ring left as it is: the ground
     /// beyond is no steeper. Null when the height moved in all exceeds
     /// <see cref="ProductionConfig.LevellingMaxWork"/> or a point to change cannot be: under a building,
-    /// levelled by another site, not walkable (water, trees, stones) or not on own land.
+    /// levelled by another site, not walkable (water, trees, stones) or not on own land. Buildings that need
+    /// no levelling (mines) get an empty plan.
     /// </summary>
     internal LevellingPlan? PlanLevelling(BuildingDefinition definition, GridPoint position, int player)
     {
         var map = RequireMap();
         var config = Production.Config;
         var blocked = definition.Blocked;
-        if (blocked.Count == 0)
+        if (blocked.Count == 0 || !definition.NeedsLevelling)
             return new LevellingPlan(0, new Dictionary<GridPoint, int>(), 0);
         int sum = 0;
         foreach (var offset in blocked)
@@ -485,8 +486,11 @@ public sealed partial class World
         var map = RequireMap();
         foreach (var p in building.BlockedPoints)
         {
-            map.SetHeight(p, building.TargetHeight);
-            map.SetTerrain(p, TerrainType.Flattened);
+            if (building.Definition.NeedsLevelling)
+            {
+                map.SetHeight(p, building.TargetHeight);
+                map.SetTerrain(p, TerrainType.Flattened);
+            }
             map.AddBlocker(p);
         }
         MoveOffBlocked(building.BlockedPoints.ToList());
@@ -513,6 +517,16 @@ public sealed partial class World
         pile.Count--;
         pile.Capacity--; // the demand shrinks with every unit built in
         return true;
+    }
+
+    /// <summary>
+    /// Stops or restarts the production of <paramref name="building"/>: a stopped one finishes the work under
+    /// way, then its worker stays inside.
+    /// </summary>
+    public void SetPaused(Building building, bool paused)
+    {
+        if (building.Exists)
+            building.IsPaused = paused;
     }
 
     /// <summary>How far (in steps) the player may move a work center away from its building.</summary>

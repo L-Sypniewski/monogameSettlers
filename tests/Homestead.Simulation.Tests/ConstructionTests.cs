@@ -131,6 +131,31 @@ public class ConstructionTests(ITestOutputHelper output)
         Assert.True(world.CanPlace(Romans["tower"], new GridPoint(30, 30), out _), "a small building fits");
     }
 
+    [Fact]
+    public void Mines_stand_on_mountains_only_and_are_not_levelled()
+    {
+        var map = new GameMap(60);
+        var world = new World(map);
+        Assert.False(world.CanPlace(Romans["coalmine"], new GridPoint(30, 30), out string reason));
+        Assert.Equal("cannot build on Grass", reason);
+
+        // A steep mountain: far too much levelling for any other building.
+        for (int i = 0; i < map.PointCount; i++)
+        {
+            map.SetTerrain(map.Point(i), TerrainType.Mountain);
+            map.SetHeight(map.Point(i), 4 * map.Point(i).X);
+        }
+        Assert.Equal(0f, world.LevellingEffort(Romans["coalmine"], new GridPoint(30, 30)));
+        var site = world.PlaceConstructionSite(Romans["coalmine"], 0, new GridPoint(30, 30))!;
+
+        Assert.Equal(BuildingState.Constructing, site.State); // nothing to level
+        foreach (var p in site.BlockedPoints)
+        {
+            Assert.Equal(4 * p.X, map.HeightAt(p));
+            Assert.Equal(TerrainType.Mountain, map.TerrainAt(p));
+        }
+    }
+
     /// <summary>The greatest height difference between neighboring points of the map.</summary>
     private static int SteepestSlope(GameMap map)
     {

@@ -664,6 +664,12 @@ public sealed class MapGame : Game
                 if (released && possible)
                     _world.Military.ChangeWanted(_selectedBuilding!, type, delta);
             }
+            // A production building's stop/restart button.
+            if (onMenu && released && _buildingInfo.PauseAt(panelCursor, SidePanel.ContentHeight, _world, _selectedBuilding!, 0))
+            {
+                _world.SetPaused(_selectedBuilding!, !_selectedBuilding!.IsPaused);
+                _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)} {(_selectedBuilding.IsPaused ? "stopped" : "restarted")}";
+            }
             // The info panel's tear-down button (asks first).
             if (onMenu && released && _buildingInfo.Click(panelCursor, SidePanel.ContentHeight, _selectedBuilding!, 0))
             {
@@ -1642,6 +1648,19 @@ public sealed class MapGame : Game
                 {
                     _world.Magic.AddMana(0, 30);
                     _world.Magic.Upgrade(0, SoldierType.Swordsman);
+                }
+                // HOMESTEAD_CAPTURE_FOCUS=castle (or another military building): one with all its places wanted and soldiers to fill them.
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") is { } focus && Own.Find(focus) is { Occupiers.Count: > 0 } fort
+                    && !_world.Buildings.Any(b => b.Definition == fort)
+                    && PathFinder.Circle(start, 45).OrderBy(p => PathFinder.Distance(start, p))
+                        .Where(p => fort.Blocked.Concat(fort.Protected).All(o => _world.Map!.IsWalkable(p + o)) && !_world.CanPlace(fort, p, out var why)
+                                    && why == "not on own land")
+                        .Select(p => _world.PlaceBuilding(fort, 0, p, force: true)).FirstOrDefault() is { } placed)
+                {
+                    foreach (var type in new[] { SoldierType.Bowman, SoldierType.Swordsman })
+                        while (_world.Military.ChangeWanted(placed, type, 1)) { }
+                    for (int i = 0; i < fort.Occupiers.Count; i++)
+                        _world.SpawnSoldier(placed.Door, i % 2 == 0 ? SoldierType.Bowman : SoldierType.Swordsman);
                 }
                 _selectedBuilding = _world.Buildings.FirstOrDefault(b => b.Definition.Name == (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") ?? "lumberjack"));
                 // HOMESTEAD_CAPTURE_BATTLE=1: enemy soldiers attack the start tower.

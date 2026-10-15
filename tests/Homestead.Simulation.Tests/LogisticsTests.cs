@@ -294,7 +294,9 @@ public class LogisticsTests(ITestOutputHelper output)
     {
         // No ore in the ground: the mines only collect their food (piles big enough for all of it).
         var world = new World(new GameMap(80), ProductionConfig.Load() with { MineFoodPileCapacity = 8 });
+        TestMaps.Mountain(world.Map!, new GridPoint(25, 30));
         var coal = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(25, 30))!;
+        TestMaps.Mountain(world.Map!, new GridPoint(55, 30));
         var iron = world.PlaceBuilding(Romans["ironmine"], 0, new GridPoint(55, 30))!;
         world.AddLooseGoods(new GridPoint(40, 50), Material.Bread, 8);
         for (int i = 0; i < 8; i++)
@@ -312,7 +314,9 @@ public class LogisticsTests(ITestOutputHelper output)
     public void Goods_go_to_the_nearest_building_of_the_drawn_type()
     {
         var world = new World(new GameMap(90), ProductionConfig.Load() with { MineFoodPileCapacity = 8 });
+        TestMaps.Mountain(world.Map!, new GridPoint(25, 30));
         var near = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(25, 30))!;
+        TestMaps.Mountain(world.Map!, new GridPoint(70, 30));
         var far = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(70, 30))!;
         world.AddLooseGoods(new GridPoint(30, 45), Material.Bread, 5);
         for (int i = 0; i < 5; i++)

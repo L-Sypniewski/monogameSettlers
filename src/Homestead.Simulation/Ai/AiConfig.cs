@@ -36,8 +36,10 @@ public sealed record AiConfig
     /// <param name="Commit">Share of the spare soldiers left after the force is chosen that come along as well (1: all of them).</param>
     /// <param name="AbortRatio">After gathering the campaign is given up below this times the defence (0: never).</param>
     /// <param name="MaxDistance">Targets at most this far from the own military building nearest them (0: any distance).</param>
+    /// <param name="GarrisonWeight">Per building name: its garrison counts this many times in the defence (missing: 1).</param>
     public sealed record AttackRules(double Ratio, int DefenseRadius, int PathClearance, int GatherTicks, int MinSoldiers,
-        double ArmyRatio, double Commit = 0, double AbortRatio = 0, int MaxDistance = 0);
+        double ArmyRatio, double Commit = 0, double AbortRatio = 0, int MaxDistance = 0,
+        IReadOnlyDictionary<string, double>? GarrisonWeight = null);
     public required int MaxSites { get; init; }
     public required int MaxTowerSites { get; init; }
     public required int FreeCarriers { get; init; }
@@ -59,6 +61,12 @@ public sealed record AiConfig
 
     /// <summary>A living house is torn down when the living space left over without it is still at least this much.</summary>
     public int SpareRoom { get; init; } = 15;
+
+    /// <summary>A forester is stopped while at least this many trees (saplings too) stand in its work area, restarted below.</summary>
+    public int ForesterMaxTrees { get; init; } = 10;
+
+    /// <summary>How often the foresters' work areas are looked at.</summary>
+    public int ForesterCheckTicks { get; init; } = 10 * World.TicksPerSecond;
     public required int StockWhenWaiting { get; init; }
     public required IReadOnlyList<(string Building, int Count)> BuildOrder { get; init; }
     public required string ExpansionBuilding { get; init; }
@@ -138,7 +146,10 @@ public sealed record AiConfig
                 attack.TryGetProperty("armyRatio", out var armyRatio) ? armyRatio.GetDouble() : attack.GetProperty("ratio").GetDouble(),
                 attack.TryGetProperty("commit", out var commit) ? commit.GetDouble() : 0,
                 attack.TryGetProperty("abortRatio", out var abortRatio) ? abortRatio.GetDouble() : attack.GetProperty("ratio").GetDouble(),
-                attack.TryGetProperty("maxDistance", out var maxDistance) ? maxDistance.GetInt32() : 0),
+                attack.TryGetProperty("maxDistance", out var maxDistance) ? maxDistance.GetInt32() : 0,
+                attack.TryGetProperty("garrisonWeight", out var garrisonWeight)
+                    ? garrisonWeight.EnumerateObject().Where(w => !w.Name.StartsWith('_')).ToDictionary(w => w.Name, w => w.Value.GetDouble())
+                    : null),
             Military = new MilitaryRules(
                 (int)Math.Round(military.GetProperty("thinkSeconds").GetDouble() * World.TicksPerSecond),
                 military.GetProperty("groupRadius").GetInt32(),
@@ -158,6 +169,9 @@ public sealed record AiConfig
             House = root.GetProperty("house").GetString()!,
             HouseWhenConvertible = root.TryGetProperty("houseWhenConvertible", out var convertible) ? convertible.GetInt32() : 4,
             SpareRoom = root.TryGetProperty("spareRoom", out var spare) ? spare.GetInt32() : 15,
+            ForesterMaxTrees = root.TryGetProperty("forester", out var forester) && forester.TryGetProperty("maxTrees", out var maxTrees) ? maxTrees.GetInt32() : 10,
+            ForesterCheckTicks = (int)Math.Round((root.TryGetProperty("forester", out var foresterCheck) && foresterCheck.TryGetProperty("checkSeconds", out var check)
+                ? check.GetDouble() : 10) * World.TicksPerSecond),
             CarriersPerProductionBuilding = root.TryGetProperty("carriersPerProductionBuilding", out var perBuilding) ? perBuilding.GetDouble() : 2,
             HouseSizes = root.TryGetProperty("houseSizes", out var sizes)
                 ? sizes.EnumerateArray().Select(s => new HouseSize(s.GetProperty("building").GetString()!,

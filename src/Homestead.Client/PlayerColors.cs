@@ -8,7 +8,7 @@ public static class PlayerColors
     /// <summary>The colors to choose from on the start screen.</summary>
     public static readonly Color[] Palette =
     [
-        Color.Red, Color.RoyalBlue, Color.LimeGreen, Color.Magenta, Color.Orange,
+        Color.Red, Color.RoyalBlue, Color.LimeGreen, Color.Orange, Color.Magenta,
         new Color(255, 175, 205), // light pink
         new Color(255, 238, 200), // cream
         new Color(35, 35, 35), // black: a little light left, so the tinted parts keep their shading

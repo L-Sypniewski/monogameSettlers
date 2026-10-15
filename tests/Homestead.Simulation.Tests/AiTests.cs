@@ -53,6 +53,30 @@ public class AiTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void The_ai_stops_a_forester_with_enough_trees_and_restarts_it_once_they_are_gone()
+    {
+        var map = new GameMap(80);
+        var world = new World(map, TestConfig.NoTools);
+        var forester = world.PlaceBuilding(Romans["forester"], 0, new GridPoint(40, 40))!;
+        var trees = Enumerable.Range(0, 10).Select(i => new GridPoint(34 + 2 * i, 50)).ToArray();
+        foreach (var tree in trees)
+            map.SetObject(tree, MapObjectKind.Tree);
+        var ai = new AiPlayer(world, Romans, 0);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 15 * World.TicksPerSecond && !forester.IsPaused; t++)
+            world.Step();
+        Assert.True(forester.IsPaused, "ten trees in the work area");
+
+        map.SetObjectCode(trees[0], MapObjectCodes.None);
+        for (int t = 0; t < 15 * World.TicksPerSecond && forester.IsPaused; t++)
+            world.Step();
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.False(forester.IsPaused, "nine trees left");
+    }
+
+    [Fact]
     public void Defenders_strike_the_enemies_they_stand_against()
     {
         var map = new GameMap(160);

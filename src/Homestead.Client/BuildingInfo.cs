@@ -12,7 +12,8 @@ namespace Homestead.Client;
 /// <summary>
 /// Shown at the left edge instead of the build menu while a building is selected: its name and image;
 /// for own buildings also its state, the goods in its piles (construction sites: material delivered
-/// of needed) and a mine's hit rate, and at the bottom a button to tear it down (asks first). A finished
+/// of needed) and a mine's hit rate, and at the bottom a button to tear it down (asks first), above it for
+/// production buildings one to stop or restart them. A finished
 /// small temple also offers the soldier upgrades for mana, a finished military building its garrison per
 /// soldier type with buttons for more or fewer. Names and states come from <c>data/ui.json</c>.
 /// </summary>
@@ -173,6 +174,16 @@ public sealed partial class BuildingInfo
 
     private static Rectangle DemolishButton(int height) => new(Margin, height - Margin - 28, Inner, 28);
 
+    /// <summary>The button stopping or restarting production, above the tear-down button.</summary>
+    private static Rectangle PauseButton(int height) => new(Margin, height - Margin - 28 - 6 - 28, Inner, 28);
+
+    private static bool OffersPause(World world, Building building) =>
+        world.Production.CanPause(building) && !OffersUpgrades(world, building) && !OffersGarrison(building);
+
+    /// <summary>Whether the screen point is on the stop/restart button of an own production building.</summary>
+    public bool PauseAt(Vector2 screen, int height, World world, Building building, int ownPlayer) =>
+        building.Player == ownPlayer && _confirming != building && OffersPause(world, building) && PauseButton(height).Contains(screen);
+
     private static Rectangle YesButton(int height) => new(Margin, height - Margin - 28, Inner / 2 - 2, 28);
 
     private static Rectangle NoButton(int height) => new(Margin + Inner / 2 + 2, height - Margin - 28, Inner / 2 - 2, 28);
@@ -219,6 +230,8 @@ public sealed partial class BuildingInfo
         if (building.Player != ownPlayer)
             return;
         DrawDemolish(batch, pixel, height, font, building, cursor);
+        if (OffersPause(world, building) && _confirming != building)
+            Button(batch, pixel, font, PauseButton(height), building.IsPaused ? "Fortsetzen" : "Anhalten", cursor);
         if (OffersUpgrades(world, building) && _confirming != building)
             DrawUpgrades(batch, pixel, height, font, settlers, people, world, ownPlayer, cursor);
         if (OffersGarrison(building) && _confirming != building)

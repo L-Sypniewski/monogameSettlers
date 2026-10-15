@@ -9,6 +9,8 @@
   "carriersPerProductionBuilding": 4,
   "_spareRoomComment": "Living space no one needs (carriers turned soldiers): a living house that has released all its residents is torn down for its material when, without it, at least spareRoom places would still be left over and no house is wanted. The biggest such house goes first.",
   "spareRoom": 15,
+  "_foresterComment": "Every checkSeconds the AI stops each forester with at least maxTrees trees (saplings too) in its work area and restarts the others.",
+  "forester": { "maxTrees": 10, "checkSeconds": 10 },
   "_houseSizesComment": "Which living house: the first of houseSizes whose sawmills and stonecutters (finished) the player has, otherwise house. Per people below, after what their houses cost (Egyptians build with stone, Asians and Amazons with planks).",
   "houseSizes": [
     { "building": "big_livinghouse", "sawmills": 2, "stonecutters": 3 },
@@ -102,9 +104,11 @@
     "_comment": "Campaigns against enemy land. Defence comes first: idle soldiers needed against enemies near the own land stay back, and no campaign starts while enemies stand on the own land. Target: an occupied enemy military building; its defence is its garrison plus enemy soldiers within defenseRadius. Preferred are targets close to the own land, weakly defended, with no enemy group within pathClearance of the way there. A campaign starts when the spare soldiers have ratio times the target's defence and the AI's whole army has armyRatio (default: ratio; 0: any) times that enemy's (at least minSoldiers). commit (0-1, default 0): that share of the spare soldiers left over comes along as well (1: full strength). The soldiers first gather at the own military building nearest the target (at most gatherSeconds); the campaign is given up when they then have less than abortRatio (default: ratio; 0: never) times the defence, otherwise they attack together; they retreat when they fall below military.retreatRatio (0: never), and go home when it is over. maxDistance (default 0: any): targets at most this far from the own military building nearest them.",
     "ratio": 1.5,
     "defenseRadius": 15,
-    "pathClearance": 8,
+    "pathClearance": 15,
     "gatherSeconds": 60,
-    "minSoldiers": 4
+    "minSoldiers": 4,
+    "_garrisonWeightComment": "Per building name: its garrison counts this many times in the defence (others once). A castle's soldiers are much harder to get at (one fighter at the door, bowmen on the roofs).",
+    "garrisonWeight": { "castle": 2 }
   },
   "_characterComment": "Characters (docs/KI-TACTICS.md): traits on top of the built-in behavior, in order of priority. A character may override a trait's settings under the trait's name and any general value (after the people's), e.g. \"general\": { \"traits\": [\"pincer\"], \"pincer\": { \"feintShare\": 0.5 } }. buildOrderMoves (building: places, negative = earlier) shifts every entry of a building in the people's build order. Made-up characters for trying out (arena, tournament): traits joined by '+' (pincer+guardByThreat), and @path=value on top of a character or traits (general@attack.ratio=1.3@buildOrderMoves.barrack=-5). characterWeights: which character a player gets, drawn once per game (per people under civilizations). The client and the arena can name it per player with --characters.",
   "traits": {
