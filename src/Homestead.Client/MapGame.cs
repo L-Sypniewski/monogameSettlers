@@ -82,9 +82,11 @@ public sealed class MapGame : Game
     private readonly SelectionPanel _selectionPanel = new();
     private readonly SpellMenu _spellMenu = new();
 
-    /// <summary>The spell button was clicked: the next click on the map casts it.</summary>
+    /// <summary>A spell button was clicked: the next click on the map casts <see cref="_aimSpell"/>.</summary>
     private bool _aiming;
+    private Spell? _aimSpell;
     private ControlGroups _controlGroups = new();
+    private readonly CheatMenu _cheats = new();
     private readonly BuildingInfo _buildingInfo = new();
     private UiFont _font = null!;
     private int _placeIndex;
@@ -172,6 +174,7 @@ public sealed class MapGame : Game
         IReadOnlyList<Civilization>? peoples = null, IReadOnlyList<string>? characters = null, bool startScreen = false)
     {
         _showStartScreen = startScreen;
+        AddCheats();
         _mapDirectory = installation.MapDirectory;
         _gfx = gfx;
         _peoples = peoples;
@@ -640,6 +643,8 @@ public sealed class MapGame : Game
             int sent = _world.Military.Attack(0, target);
             _message = sent > 0 ? $"{sent} soldiers attack {target.Definition.Name}" : "no soldiers in range or not an enemy military building";
         }
+        if (Pressed(Keys.C))
+            _cheats.IsOpen = !_cheats.IsOpen;
         if (Pressed(Keys.K))
         {
             // Test soldiers: two of each kind, for player 0 (with Shift for player 1).
@@ -691,14 +696,23 @@ public sealed class MapGame : Game
         if (groupIcon is { } clickedGroup && released)
             SelectGroup(clickedGroup);
         onMenu |= groupIcon is not null;
+        // The cheat menu below them (C).
+        if (released)
+            _cheats.Click(cursorScreen, GraphicsDevice.Viewport.Width);
+        onMenu |= _cheats.Contains(cursorScreen, GraphicsDevice.Viewport.Width);
         if (!PriestsSelected)
             _aiming = false;
         if (PriestsSelected)
         {
-            if (onMenu && released && _spellMenu.Contains(panelCursor))
+            var spells = _world.Magic.SpellsOf(0);
+            if (onMenu && released && _spellMenu.SpellAt(panelCursor, spells.Count) is { } index)
             {
-                _aiming = !_aiming && _world.Magic.SpellOf(0) is { } spell && _world.Magic.Mana(0) >= spell.Cost;
-                _message = _aiming ? "click on a fight to cast" : "not enough mana";
+                var spell = spells[index];
+                bool again = _aiming && _aimSpell == spell;
+                _aiming = !again && _world.Magic.Mana(0) >= spell.Cost;
+                _aimSpell = spell;
+                _message = again ? "" : !_aiming ? "not enough mana"
+                    : "click where the spell should work";
             }
         }
         else if (CarriersSelected)
@@ -855,11 +869,11 @@ public sealed class MapGame : Game
         {
             _aiming = false;
             var aimedAt = ScreenToGrid(screen);
-            _message = _world.Magic.Cast(_group, aimedAt) switch
+            _message = _world.Magic.Cast(_group, aimedAt, _aimSpell) switch
             {
-                CastResult.Started => $"casting {_world.Magic.SpellOf(0)?.Name} at {aimedAt.X},{aimedAt.Y}",
+                CastResult.Started => $"casting {_aimSpell?.Name} at {aimedAt.X},{aimedAt.Y}",
                 CastResult.NoMana => "not enough mana",
-                CastResult.NoFight => "spells work only where there is a fight",
+                CastResult.NoTarget => "nobody there this spell works on",
                 CastResult.Unreachable => "no way there",
                 CastResult.NoPriest => "all priests are busy",
                 _ => "this people knows no spell",
@@ -971,6 +985,27 @@ public sealed class MapGame : Game
     private bool ShowsBuildingInfo => _selectedBuilding is { Exists: true } && !_placing && !CarriersSelected && !PriestsSelected;
 
     /// <summary>Only priests are selected: the menu at the left offers their spell.</summary>
+    /// <summary>The entries of the cheat menu (C): own units in the middle of the view, mana.</summary>
+    private void AddCheats()
+    {
+        GridPoint Center() => ScreenToGrid(new Vector2(GraphicsDevice.Viewport.Width / 2f, GraphicsDevice.Viewport.Height / 2f));
+        void Units(string label, int count, Func<GridPoint, Settler?> spawn) => _cheats.Add($"{count} {label}", () =>
+        {
+            int made = Enumerable.Range(0, count).Count(_ => spawn(Center()) is not null);
+            _message = $"cheat: {made} {label}";
+        });
+        foreach (var (type, name) in new[] { (SoldierType.Swordsman, "Schwertkämpfer"), (SoldierType.Bowman, "Bogenschützen"), (SoldierType.Pikeman, "Pikeniere") })
+            Units(name, 5, at => _world.SpawnSoldier(at, type, _world.Magic.SoldierLevel(0, type)));
+        Units("Priester", 1, at => _world.Magic.SpawnPriest(at, 0));
+        Units("Geologen", 2, at => _world.Spawn(at, Profession.Geologist));
+        Units("Träger", 5, at => _world.Spawn(at, Profession.Carrier));
+        _cheats.Add("+50 Mana", () =>
+        {
+            _world.Magic.AddMana(0, 50);
+            _message = $"cheat: mana {_world.Magic.Mana(0)}";
+        });
+    }
+
     /// <summary>The own buildings by name: finished, and under construction (for the build menu).</summary>
     private Dictionary<string, (int Finished, int Building)> OwnBuildingCounts()
     {
@@ -1322,9 +1357,10 @@ public sealed class MapGame : Game
             int unitsTop = 4;
             if (PriestsSelected)
             {
-                _spellMenu.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _settlerRenderer, Own.Civilization, _world.Magic.SpellOf(0),
-                    _world.Magic.Mana(0), _aiming, panelMouse);
-                unitsTop = 140;
+                var spells = _world.Magic.SpellsOf(0);
+                _spellMenu.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _settlerRenderer, Own.Civilization, spells,
+                    _world.Magic.Mana(0), _aiming ? _aimSpell : null, panelMouse);
+                unitsTop = SpellMenu.Bottom(spells.Count) + 36;
             }
             else if (CarriersSelected)
             {
@@ -1341,6 +1377,7 @@ public sealed class MapGame : Game
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, _font, _settlerRenderer, Own.Civilization, _group,
             Mouse.GetState().Position.ToVector2());
+        _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, Mouse.GetState().Position.ToVector2());
         // Bottom right, stacked upwards: performance (F3), then the game time (T).
         int bottom = viewport.Height;
         if (_showPerf)
@@ -1419,16 +1456,30 @@ public sealed class MapGame : Game
     /// Spells: the area while aiming (white where there is a fight, red elsewhere), a ring in the spell's
     /// color where one took effect, and a mark above frozen (blue) and hasted (orange) soldiers.
     /// </summary>
+    private const float SummonFlameDelay = 0.2f;
+    private const float SummonFlameSeconds = 1f;
+
     private void DrawMagic(float alpha)
     {
         int radius = _world.Magic.Config.Radius;
         if (_aiming && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height))
         {
             var target = ScreenToGrid(Mouse.GetState().Position.ToVector2());
-            DrawRing(target, radius, _world.Magic.IsFight(target) ? Color.White : Color.Red);
+            DrawRing(target, radius, _aimSpell is { } spell && _world.Magic.HasTargets(spell, 0, target) ? Color.White : Color.Red);
         }
         foreach (var effect in _world.Magic.Effects)
         {
+            if (effect.Kind == SpellKind.SummonGoods)
+            {
+                // A flame over each pile, one after the other.
+                for (int i = 0; i < effect.Points.Count; i++)
+                {
+                    float seconds = (_world.Tick - effect.Tick + alpha) / World.TicksPerSecond - i * SummonFlameDelay;
+                    if (seconds >= 0 && seconds < SummonFlameSeconds)
+                        _economyRenderer.DrawFlame(_spriteBatch, effect.Points[i], seconds, _terrain);
+                }
+                continue;
+            }
             float age = (_world.Tick - effect.Tick + alpha) / SpellEffect.ShowTicks;
             var color = effect.Kind switch
             {
@@ -1690,7 +1741,7 @@ public sealed class MapGame : Game
 
     /// <summary>
     /// HOMESTEAD_CAPTURE_MAGIC=1: a big temple and the own people's mana chain next to the start, mana,
-    /// a fight nearby, and the priest casts its spell there.
+    /// a fight nearby, and the priest casts its spell there; =summon: no fight, the priest summons goods there.
     /// </summary>
     private void CaptureMagic(int frame)
     {
@@ -1714,6 +1765,9 @@ public sealed class MapGame : Game
         }
         else if (frame == 200)
         {
+            _camera = ToWorld(battle);
+            if (CaptureSummon)
+                return;
             for (int i = 0; i < 10; i++)
             {
                 _world.SpawnSoldier(new GridPoint(battle.X - 1, battle.Y - 5 + i), SoldierType.Swordsman, level: 3);
@@ -1725,9 +1779,12 @@ public sealed class MapGame : Game
         {
             _group.Clear();
             _group.AddRange(_world.Settlers.Where(s => s.Player == 0 && s.Profession == Profession.Priest));
-            Console.WriteLine($"magic: {_group.Count} priests, mana {_world.Magic.Mana(0)}, cast: {_world.Magic.Cast(_group, battle)}");
+            var spell = CaptureSummon ? _world.Magic.SpellsOf(0).FirstOrDefault(s => s.Kind == SpellKind.SummonGoods) : null;
+            Console.WriteLine($"magic: {_group.Count} priests, mana {_world.Magic.Mana(0)}, cast: {_world.Magic.Cast(_group, battle, spell)}");
         }
     }
+
+    private static bool CaptureSummon => Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MAGIC") == "summon";
 
     /// <summary>The capture camera sweeps over the map (benchmark of a long game, see <see cref="StartBenchmark"/>).</summary>
     private bool _panning;
@@ -1777,7 +1834,7 @@ public sealed class MapGame : Game
         GraphicsDevice.SetRenderTarget(null);
         // HOMESTEAD_CAPTURE_STRIKE=1: the focused building comes down (dust), carriers without room strike.
         bool strike = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_STRIKE") == "1";
-        bool magic = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MAGIC") == "1";
+        bool magic = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MAGIC") is "1" or "summon";
         // HOMESTEAD_CAPTURE_EVERY=<n>: a picture every n frames instead of every 120 (arrows in flight).
         int every = int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVERY"), out int n) && n > 0 ? n : 120;
         if (_capturedFrames % every == every - 1 || strike && _capturedFrames is 1202 or 1206

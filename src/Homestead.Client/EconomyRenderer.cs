@@ -28,6 +28,9 @@ public sealed class EconomyRenderer
     private const int MaxResourceAmount = 15;  // amount per field in original maps
     private const int DustFile = 13;           // a building coming down (JSettlers' MapObjectDrawer, MIT)
     private const int DustSequence = 38;
+    private const int FlameFile = 13;          // a medium flame, looping
+    private const int FlameSequence = 40;
+    private const float FlameFramesPerSecond = 24;
     private const int GhostFile = 12;          // a settler's ghost rising in the player color (JSettlers' MapObjectDrawer, MIT)
     private const int GhostSequence = 27;
 
@@ -190,6 +193,16 @@ public sealed class EconomyRenderer
         if (sprites.FrameCount == 0 || progress >= 1)
             return;
         int frame = Math.Clamp((int)(progress * sprites.FrameCount), 0, sprites.FrameCount - 1);
+        sprites.Draw(batch, frame, Anchor(p, terrain), 1, Color.White);
+    }
+
+    /// <summary>A flame over a pile summoned by a spell, <paramref name="seconds"/> after it lit.</summary>
+    public void DrawFlame(SpriteBatch batch, GridPoint p, float seconds, TerrainMesh terrain)
+    {
+        var sprites = Sprites(FlameFile, FlameSequence);
+        if (sprites.FrameCount == 0)
+            return;
+        int frame = (int)(seconds * FlameFramesPerSecond) % sprites.FrameCount;
         sprites.Draw(batch, frame, Anchor(p, terrain), 1, Color.White);
     }
 

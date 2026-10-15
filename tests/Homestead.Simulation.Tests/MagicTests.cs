@@ -65,14 +65,63 @@ public class MagicTests
     }
 
     [Fact]
-    public void A_spell_is_only_cast_where_there_is_a_fight_and_costs_mana()
+    public void A_spell_is_only_cast_where_it_works_on_someone_and_costs_mana()
     {
         var world = TwoPeoples(out var priest, Romans);
         var target = new GridPoint(20, 20);
         Assert.Equal(CastResult.NoMana, world.Magic.Cast([priest], target));
         world.Magic.AddMana(0, 100);
-        Assert.Equal(CastResult.NoFight, world.Magic.Cast([priest], target));
+        Assert.Equal(CastResult.NoTarget, world.Magic.Cast([priest], target));
+        world.SpawnSoldier(target, SoldierType.Swordsman);
+        Assert.Equal(CastResult.NoTarget, world.Magic.Cast([priest], target)); // only own soldiers there
         Assert.Equal(100, world.Magic.Mana(0));
+
+        // An enemy alone is enough, no fight needed.
+        var enemy = world.SpawnSoldier(new GridPoint(target.X + 2, target.Y), SoldierType.Swordsman, player: 1)!;
+        world.Military.Move([enemy], enemy.Position, forced: true); // it stays put
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], target));
+        Run(world, 1_000, () => world.Magic.SpellsCast > 0);
+        Assert.Equal(0, enemy.Player);
+    }
+
+    [Theory]
+    [InlineData(Civilization.Roman)]
+    [InlineData(Civilization.Egyptian)]
+    public void Every_people_summons_piles_of_goods_without_a_fight(Civilization people)
+    {
+        var catalog = BuildingCatalog.Load(people);
+        var spell = TwoPeoples(out var priest, catalog).Magic.SpellsOf(0).Single(s => s.Kind == SpellKind.SummonGoods);
+        Assert.Equal(30, spell.Cost);
+        var stone = new List<int>();
+        for (int seed = 0; seed < 12; seed++)
+        {
+            var world = TwoPeoples(out priest, catalog, seed);
+            world.Magic.AddMana(0, 100);
+            var target = new GridPoint(priest.Position.X + world.Magic.Range, priest.Position.Y); // within range: no walking
+            Assert.Equal(CastResult.Started, world.Magic.Cast([priest], target, spell));
+            Run(world, 400, () => world.Magic.SpellsCast > 0);
+
+            Assert.Equal(70, world.Magic.Mana(0));
+            var piles = world.Piles.Where(p => p.Role == PileRole.Loose).ToList();
+            var regular = piles.Where(p => p.Material != Material.Stone).ToList();
+            Assert.InRange(regular.Count, 3, 4);
+            Assert.All(piles, p => Assert.InRange(p.Count, 4, 8));
+            Assert.All(piles, p => Assert.True(PathFinder.InCircle(target, p.Position, world.Magic.Config.Radius)));
+            Assert.All(regular, p => Assert.Contains(p.Material!.Value, spell.Goods.SelectMany(g => g)));
+            Assert.Equal(piles.Count, world.Magic.Effects.Single().Points.Count);
+            stone.Add(piles.Count - regular.Count);
+        }
+        if (people == Civilization.Egyptian)
+            Assert.Contains(1, stone); // half the time
+        else
+            Assert.All(stone, n => Assert.Equal(0, n));
+    }
+
+    [Fact]
+    public void Spells_reach_half_as_far_again_as_bowmen()
+    {
+        var world = TwoPeoples(out _, Romans);
+        Assert.Equal((int)Math.Round(world.Military.Config.Soldiers[SoldierType.Bowman].Range * 1.5), world.Magic.Range);
     }
 
     [Fact]
@@ -203,9 +252,9 @@ public class MagicTests
     }
 
     /// <summary>Player 0 has the given people (and a priest of it, from a big temple), player 1 is Asian.</summary>
-    private static World TwoPeoples(out Settler priest, BuildingCatalog people)
+    private static World TwoPeoples(out Settler priest, BuildingCatalog people, int seed = 0)
     {
-        var world = new World(new GameMap(90), TestConfig.NoTools) { Peoples = [people.Civilization, Civilization.Asian] };
+        var world = new World(new GameMap(90), TestConfig.NoTools, seed: seed) { Peoples = [people.Civilization, Civilization.Asian] };
         world.PlaceBuilding(people["big_temple"], 0, new GridPoint(20, 40));
         Run(world, 20);
         priest = world.Settlers.Single(s => s.Profession == Profession.Priest);

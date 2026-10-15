@@ -29,8 +29,8 @@ public enum CastResult
     NoSpell,
     NoMana,
 
-    /// <summary>Nobody is fighting at the target.</summary>
-    NoFight,
+    /// <summary>Nobody the spell works on is at the target.</summary>
+    NoTarget,
     Unreachable,
 }
 
@@ -42,7 +42,7 @@ public enum CastResult
 /// <see cref="MagicConfig.PriestTicks"/>. Small temples turn the drink delivered to them into mana for
 /// their player. A priest ordered to cast walks until the target is within the bowmen's range, then
 /// casts (the mana is paid when the casting starts, the spell works when it ends). Spells only work
-/// where there is a fight; priests can be attacked like soldiers.
+/// where there is someone they work on (<see cref="HasTargets"/>); priests can be attacked like soldiers.
 /// Watchdog: a priest that does not get within range for <see cref="StallTicks"/> drops the order.
 /// </remarks>
 public sealed class Magic
@@ -142,15 +142,21 @@ public sealed class Magic
         return UpgradeResult.Done;
     }
 
-    /// <summary>The spell of a priest's people.</summary>
-    public Spell? SpellOf(Settler priest) =>
-        _config.Spells.GetValueOrDefault(priest.People ?? _world.PeopleOf(priest.Player));
+    /// <summary>The spells a priest knows: its people's own first, then the common ones.</summary>
+    public IReadOnlyList<Spell> SpellsOf(Settler priest) =>
+        _config.Spells.GetValueOrDefault(priest.People ?? _world.PeopleOf(priest.Player)) ?? [];
 
-    /// <summary>The spell the priests of a player's people know.</summary>
-    public Spell? SpellOf(int player) => _config.Spells.GetValueOrDefault(_world.PeopleOf(player));
+    /// <summary>The spells the priests of a player's people know.</summary>
+    public IReadOnlyList<Spell> SpellsOf(int player) => _config.Spells.GetValueOrDefault(_world.PeopleOf(player)) ?? [];
 
-    /// <summary>How far from a priest a spell can be cast: the bowmen's range.</summary>
-    public int Range => _world.Military.Config.Soldiers[SoldierType.Bowman].Range;
+    /// <summary>The own spell of a priest's people (its first).</summary>
+    public Spell? SpellOf(Settler priest) => SpellsOf(priest).FirstOrDefault();
+
+    /// <summary>The own spell of a player's people (its first).</summary>
+    public Spell? SpellOf(int player) => SpellsOf(player).FirstOrDefault();
+
+    /// <summary>How far from a priest a spell can be cast: the bowmen's range times <see cref="MagicConfig.RangeFactor"/>.</summary>
+    public int Range => (int)Math.Round(_world.Military.Config.Soldiers[SoldierType.Bowman].Range * _config.RangeFactor);
 
     /// <summary>Whether a priest is casting or on the way to.</summary>
     public bool IsBusy(Settler priest) => _orders.ContainsKey(priest.Id);
@@ -162,6 +168,18 @@ public sealed class Magic
     public bool IsFight(GridPoint target) => _world.Settlers
         .Where(s => s.Profession == Profession.Soldier && !s.IsInside && !s.IsDead && PathFinder.InCircle(target, s.Position, _config.Radius))
         .Select(s => s.Player).Distinct().Skip(1).Any();
+
+    /// <summary>
+    /// Whether the spell of the player would work on someone at the point: enemy soldiers in the radius
+    /// (Convert, Scatter; Freeze also enemy priests), own soldiers (Haste); SummonGoods works anywhere.
+    /// </summary>
+    public bool HasTargets(Spell spell, int player, GridPoint target) => spell.Kind == SpellKind.SummonGoods
+        || _world.Settlers.Any(s => !s.IsInside && !s.IsDead && PathFinder.InCircle(target, s.Position, _config.Radius) && spell.Kind switch
+        {
+            SpellKind.Haste => s.Player == player && s.Profession == Profession.Soldier,
+            SpellKind.Freeze => s.Player != player && s.Profession is Profession.Soldier or Profession.Priest,
+            _ => s.Player != player && s.Profession == Profession.Soldier,
+        });
 
     /// <summary>A short description for the player (null for buildings other than temples).</summary>
     public string? Status(Building building)
@@ -178,20 +196,23 @@ public sealed class Magic
     }
 
     /// <summary>
-    /// Orders one of the priests (the nearest to the target that is free) to cast its spell at the target.
+    /// Orders one of the priests (the nearest to the target that is free and knows a spell of that kind) to
+    /// cast a spell at the target: its own version of <paramref name="spell"/>, or its people's own spell.
     /// </summary>
-    public CastResult Cast(IEnumerable<Settler> priests, GridPoint target)
+    public CastResult Cast(IEnumerable<Settler> priests, GridPoint target, Spell? spell = null)
     {
-        var free = priests.Where(p => p.Profession == Profession.Priest && !p.IsDead && !p.IsInside && !IsBusy(p)).ToList();
+        var free = priests.Where(p => p.Profession == Profession.Priest && !p.IsDead && !p.IsInside && !IsBusy(p)
+                                      && (spell is null || SpellsOf(p).Any(s => s.Kind == spell.Kind))).ToList();
         if (free.Count == 0)
             return CastResult.NoPriest;
         var priest = free.MinBy(p => PathFinder.Distance(p.Position, target))!;
-        if (SpellOf(priest) is not { } spell)
+        spell = spell is null ? SpellOf(priest) : SpellsOf(priest).First(s => s.Kind == spell.Kind);
+        if (spell is null)
             return CastResult.NoSpell;
         if (Mana(priest.Player) < spell.Cost)
             return CastResult.NoMana;
-        if (!IsFight(target))
-            return CastResult.NoFight;
+        if (!HasTargets(spell, priest.Player, target))
+            return CastResult.NoTarget;
         var order = new CastOrder(priest, target, spell) { LastProgress = _world.Tick, Best = PathFinder.Distance(priest.Position, target) };
         if (!InRange(priest, target) && !WalkTowards(priest, target))
             return CastResult.Unreachable;
@@ -221,12 +242,8 @@ public sealed class Magic
             {
                 if (_world.Tick < _nextPriest.GetValueOrDefault(building.Id))
                     continue;
-                if (_world.Spawn(building.Door, Profession.Priest, building.Player) is { } priest)
-                {
-                    priest.People = building.Definition.Civilization;
-                    priest.Health = _config.PriestHealth;
+                if (SpawnPriest(building.Door, building.Player, building.Definition.Civilization) is not null)
                     PriestsSent++;
-                }
                 _nextPriest[building.Id] = _world.Tick + _config.PriestTicks;
             }
             else if (building.Definition.Name == _config.Temple)
@@ -241,6 +258,16 @@ public sealed class Magic
                 _nextMana[building.Id] = _world.Tick + _config.TempleTicks;
             }
         }
+    }
+
+    /// <summary>A new priest of the people (default: the player's) near the point (temples, debugging).</summary>
+    public Settler? SpawnPriest(GridPoint near, int player, Civilization? people = null)
+    {
+        if (_world.Spawn(near, Profession.Priest, player) is not { } priest)
+            return null;
+        priest.People = people ?? _world.PeopleOf(player);
+        priest.Health = _config.PriestHealth;
+        return priest;
     }
 
     private bool InRange(Settler priest, GridPoint target) => PathFinder.Distance(priest.Position, target) <= Range;
@@ -303,7 +330,7 @@ public sealed class Magic
             _world.WalkTo(priest, priest.StepTarget);
         if (priest.State == SettlerState.Stepping)
             return;
-        if (Mana(priest.Player) < order.Spell.Cost || !IsFight(order.Target))
+        if (Mana(priest.Player) < order.Spell.Cost || !HasTargets(order.Spell, priest.Player, order.Target))
         {
             Finish(order);
             return;
@@ -328,6 +355,11 @@ public sealed class Magic
     internal void Apply(Spell spell, int player, GridPoint target)
     {
         SpellsCast++;
+        if (spell.Kind == SpellKind.SummonGoods)
+        {
+            _effects.Add(new SpellEffect(spell.Kind, target, _config.Radius, _world.Tick) { Points = SummonGoods(spell, target) });
+            return;
+        }
         _effects.Add(new SpellEffect(spell.Kind, target, _config.Radius, _world.Tick));
         var inArea = _world.Settlers
             .Where(s => !s.IsInside && !s.IsDead && PathFinder.InCircle(target, s.Position, _config.Radius))
@@ -371,6 +403,43 @@ public sealed class Magic
         }
     }
 
+    /// <summary>
+    /// Piles of random goods appear on free points around the target, a field apart (nearer ones first,
+    /// a little shuffled); returns where.
+    /// </summary>
+    private IReadOnlyList<GridPoint> SummonGoods(Spell spell, GridPoint target)
+    {
+        var map = _world.Map!;
+        var piles = new List<Material>();
+        int count = _random.Next(spell.Piles.Min, spell.Piles.Max + 1);
+        for (int i = 0; i < count && spell.Goods.Count > 0; i++)
+        {
+            var group = spell.Goods[_random.Next(spell.Goods.Count)];
+            piles.Add(group[_random.Next(group.Count)]);
+        }
+        foreach (var (material, chance) in spell.Extra)
+            if (_random.NextDouble() < chance)
+                piles.Add(material);
+
+        var spots = PathFinder.Circle(target, _config.Radius)
+            .Where(p => map.Contains(p) && PathFinder.InCircle(target, p, _config.Radius))
+            .OrderBy(p => PathFinder.Distance(target, p) + _random.NextDouble() * 2)
+            .ToList();
+        var placed = new List<GridPoint>();
+        foreach (var material in piles)
+        {
+            int amount = Math.Min(_random.Next(spell.Amount.Min, spell.Amount.Max + 1), Materials.MaxPileSize);
+            foreach (var spot in spots)
+            {
+                if (placed.Any(p => PathFinder.Distance(p, spot) < 2) || _world.AddLooseGoods(spot, material, amount) is null)
+                    continue;
+                placed.Add(spot);
+                break;
+            }
+        }
+        return placed;
+    }
+
     private static Direction FacingTowards(GridPoint from, GridPoint to)
     {
         var best = Direction.SouthWest;
@@ -402,4 +471,7 @@ public sealed class Magic
 public sealed record SpellEffect(SpellKind Kind, GridPoint Target, int Radius, long Tick)
 {
     public const int ShowTicks = 2 * World.TicksPerSecond;
+
+    /// <summary>SummonGoods: where the piles appeared.</summary>
+    public IReadOnlyList<GridPoint> Points { get; init; } = [];
 }
