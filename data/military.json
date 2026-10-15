@@ -41,6 +41,8 @@
   "_hospitalComment": "Hospital: its healer calls the nearest wounded own idle soldier within callRadius fields of the door to the field in front of it. Whenever a wounded own soldier stands still at the door, the healer comes out, heals it fully in healSeconds and goes back in; after a heal it waits callPauseSeconds before calling the next one (soldiers that come by themselves are healed at once).",
   "hospital": { "callRadius": 40, "healSeconds": 2, "callPauseSeconds": 10 },
   "sightRange": 15,
+  "_geologistHealthComment": "Geologists of other players are fought like soldiers (they do not strike back) and have this much health.",
+  "geologistHealth": 40,
   "_buildingSightComment": "Fog of war: finished own buildings of these names reveal their surroundings up to this radius (other buildings only through land and settlers).",
   "buildingSight": { "lookout_tower": 45 },
   "_combatPathRadiusComment": "Near the enemy, soldiers plan their way within this radius around everyone standing (own soldiers too).",

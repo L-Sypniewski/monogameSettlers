@@ -114,9 +114,8 @@ public sealed partial class AiPlayer
         double strength = c.Soldiers.Sum(s => Strength(s, target.Position)), defense = Defense(target);
         if (!c.Attacking)
         {
+            // Weighed again every think, also on the way to the gathering point.
             bool gathered = c.Soldiers.All(s => PathFinder.Distance(s.Position, c.Rally) <= _config.Military.GuardDistance);
-            if (!gathered && _world.Tick - c.Since < rules.GatherTicks)
-                return;
             if (strength < defense * rules.AbortRatio)
             {
                 Note($"gives up the campaign against {target.Position.X},{target.Position.Y}: the defence got stronger");
@@ -124,6 +123,8 @@ public sealed partial class AiPlayer
                 _campaign = null;
                 return;
             }
+            if (!gathered && _world.Tick - c.Since < rules.GatherTicks)
+                return;
             _world.Military.Attack(c.Soldiers, target);
             c.Attacking = true;
             Note($"attacks the {target.Definition.Name} at {target.Position.X},{target.Position.Y} with {c.Soldiers.Count} soldiers");
@@ -160,7 +161,7 @@ public sealed partial class AiPlayer
         for (int i = 0; i <= steps; i++)
         {
             var p = new GridPoint(from.X + (target.Position.X - from.X) * i / steps, from.Y + (target.Position.Y - from.Y) * i / steps);
-            if (EnemyGroups.Any(g => PathFinder.Distance(g.Center, target.Position) > rules.DefenseRadius
+            if (EnemyGroups.Any(g => g.Armed && PathFinder.Distance(g.Center, target.Position) > rules.DefenseRadius
                                      && PathFinder.Distance(g.Center, p) <= rules.PathClearance))
                 return false;
         }

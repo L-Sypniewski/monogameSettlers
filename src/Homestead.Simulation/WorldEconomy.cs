@@ -447,6 +447,7 @@ public sealed partial class World
         building.Exists = false;
         var map = RequireMap();
         DropLevelling(building);
+        Production.RemoveFarmland(building);
         foreach (var p in building.BlockedPoints)
         {
             _footprints.Remove(map.Index(p));

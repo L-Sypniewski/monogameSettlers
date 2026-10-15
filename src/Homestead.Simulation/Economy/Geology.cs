@@ -67,10 +67,11 @@ public sealed class Geology
         return (now, later);
     }
 
-    private static void MakeGeologist(Settler settler)
+    private void MakeGeologist(Settler settler)
     {
         settler.Profession = Profession.Geologist;
         settler.Trade = null;
+        settler.Health = _world.Military.Config.GeologistHealth;
     }
 
     /// <summary>Fields geologists examine: mountain ground.</summary>

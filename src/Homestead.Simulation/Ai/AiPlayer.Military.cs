@@ -6,10 +6,11 @@ namespace Homestead.Simulation.Ai;
 /// <summary>
 /// The AI's soldiers outside buildings. It knows where every enemy soldier is (for now). Defence comes
 /// first: enemies on the own land are fought at once, and enough soldiers stay back against enemies
-/// close to it. Idle soldiers strike enemy groups near the land when they clearly outnumber them
+/// close to it. Idle soldiers strike enemy groups (soldiers, also geologists) near the land when they clearly outnumber them
 /// (guerilla) – also those held back against them, as long as enough stay against the others – and spare ones go on campaigns against enemy military buildings (see AiPlayer.Campaign). Strikes
 /// and campaigns are re-checked every think (follow, reinforce, retreat); afterwards the soldiers go
-/// home. The rest stand guard at the own military buildings, most where enemies are closest.
+/// home. The rest are placed by the character's traits (decision point "guarding"). Soldiers walking on a
+/// plain move order of the AI (to a post, home) count as idle: their order is weighed again every think.
 /// </summary>
 public sealed partial class AiPlayer
 {
@@ -24,11 +25,18 @@ public sealed partial class AiPlayer
         public GridPoint Center { get; set; } = center;
     }
 
-    /// <summary>Enemy soldiers outside buildings, grouped (seen at the last military think).</summary>
+    /// <summary>Enemy soldiers and geologists outside buildings, grouped (seen at the last military think).</summary>
     public IReadOnlyList<EnemyGroup> EnemyGroups { get; private set; } = [];
 
-    /// <summary>Enemy soldiers close together; <see cref="Strength"/> as they would fight at <see cref="Center"/>.</summary>
-    public sealed record EnemyGroup(GridPoint Center, IReadOnlyList<Settler> Soldiers, double Strength);
+    /// <summary>
+    /// Enemy soldiers (and geologists, which do not fight) close together; <see cref="Strength"/> as they would
+    /// fight at <see cref="Center"/>.
+    /// </summary>
+    public sealed record EnemyGroup(GridPoint Center, IReadOnlyList<Settler> Soldiers, double Strength)
+    {
+        /// <summary>Whether there are soldiers among them (not just geologists).</summary>
+        public bool Armed => Soldiers.Any(s => s.Profession == Profession.Soldier);
+    }
 
     private void Command(List<Building> mine)
     {
@@ -52,11 +60,16 @@ public sealed partial class AiPlayer
 
         // Guerilla outside the own land, the weakest worthwhile group first. It comes before holding
         // soldiers back: the defenders may strike the enemies they stand against themselves; only
-        // those needed against the other groups close to the land stay out of it.
+        // those needed against the other groups close to the land stay out of it. An attack on the land
+        // (enemies under way or fighting) is met anywhere; enemies just standing around not deep in
+        // their own land (military.hinterlandDepth).
         foreach (var group in EnemyGroups.Where(g => !onOwnLand(g) && near(g, config.StrikeRange) && untargeted(g)).OrderBy(g => g.Strength))
         {
+            bool standing = IsStanding(group);
+            if (standing && InHinterland(group))
+                continue;
             var pool = idle.Except(Reserve(idle, EnemyGroups.Where(g => g != group && threatening(g)))).ToList();
-            if (!TryStrike(group, pool, "strikes"))
+            if (!TryStrike(group, pool, "strikes", standing ? "standing around" : "attacking the land"))
                 continue;
             idle.RemoveAll(_strikes[^1].Soldiers.Contains);
             break;
@@ -66,8 +79,8 @@ public sealed partial class AiPlayer
         var guards = Reserve(idle, EnemyGroups.Where(threatening));
         var spare = idle.Except(guards).ToList();
 
-        // A campaign against enemy land, never while enemies stand on the own land.
-        if (_campaign is null && !EnemyGroups.Any(onOwnLand))
+        // A campaign against enemy land, never while enemy soldiers stand on the own land.
+        if (_campaign is null && !EnemyGroups.Any(g => g.Armed && onOwnLand(g)))
             StartCampaign(military, spare);
 
         // Decision point "guarding": the first trait that takes it places the idle soldiers; without one they stay where they are.
@@ -122,11 +135,31 @@ public sealed partial class AiPlayer
         }
     }
 
+    /// <summary>Enemies just standing around: none of them walks or fights (otherwise they attack the land).</summary>
+    private static bool IsStanding(EnemyGroup group) =>
+        group.Soldiers.All(s => s.Destination is null && s.State != SettlerState.Stepping && s.Activity is not (Activity.Fighting or Activity.Shooting));
+
+    /// <summary>
+    /// Whether the group stands deeper than <see cref="AiConfig.MilitaryRules.HinterlandDepth"/> in the land of
+    /// the player it stands on (other than this one): no point of other land within that distance.
+    /// </summary>
+    private bool InHinterland(EnemyGroup group)
+    {
+        int depth = _config.Military.HinterlandDepth;
+        var map = _world.Map!;
+        if (depth <= 0 || map.OwnerAt(group.Center) is not { } owner || owner == Player)
+            return false;
+        foreach (var p in PathFinder.Circle(group.Center, depth))
+            if (map.Contains(p) && map.OwnerAt(p) != owner)
+                return false;
+        return true;
+    }
+
     /// <summary>
     /// Sends the nearest soldiers of <paramref name="pool"/> against the group if they get strikeRatio
     /// times the strength they will meet: the group plus enemy groups waiting on the way there.
     /// </summary>
-    private bool TryStrike(EnemyGroup group, List<Settler> pool, string verb)
+    private bool TryStrike(EnemyGroup group, List<Settler> pool, string verb, string? remark = null)
     {
         var config = _config.Military;
         var candidates = pool.Where(s => PathFinder.Distance(s.Position, group.Center) <= config.StrikeRange * 2)
@@ -138,7 +171,8 @@ public sealed partial class AiPlayer
         double strength = 0;
         foreach (var soldier in candidates)
         {
-            if (strength >= opposition * config.StrikeRatio)
+            // Geologists alone do not fight back: one soldier will do.
+            if (strength >= opposition * config.StrikeRatio && strikers.Count > 0)
                 break;
             strikers.Add(soldier);
             strength += Strength(soldier, group.Center);
@@ -147,7 +181,7 @@ public sealed partial class AiPlayer
             return false;
         _world.Military.Move(strikers, group.Center);
         _strikes.Add(new Strike(strikers, group.Soldiers.ToHashSet(), group.Center));
-        Note($"{verb} {group.Soldiers.Count} enemies at {group.Center.X},{group.Center.Y} with {strikers.Count} soldiers");
+        Note($"{verb} {group.Soldiers.Count} enemies at {group.Center.X},{group.Center.Y} with {strikers.Count} soldiers{(remark is null ? "" : $" ({remark})")}");
         pool.RemoveAll(strikers.Contains);
         return true;
     }
@@ -170,6 +204,47 @@ public sealed partial class AiPlayer
         return guards;
     }
 
+    /// <summary>Whether enemy soldiers stand within <c>military.threatRange</c> of an own military building.</summary>
+    internal bool Threatened(List<Building> military) =>
+        EnemyGroups.Any(g => g.Armed && military.Any(b => PathFinder.Distance(b.Position, g.Center) <= _config.Military.ThreatRange));
+
+    /// <summary>Occupied military buildings of other players (where the enemy is).</summary>
+    internal List<Building> EnemyMilitary() =>
+        _world.Buildings.Where(b => b.Exists && b.Player != Player && IsMilitary(b) && b.State == BuildingState.Finished).ToList();
+
+    /// <summary>
+    /// Shares the idle soldiers out evenly among the posts (the first ones get one more where it does not
+    /// come out even). Who is already at a post or on the way to it (within <c>military.guardDistance</c>)
+    /// stays there while it has room; the others go to the nearest post with room left.
+    /// </summary>
+    internal void Distribute(IReadOnlyList<Building> posts, List<Settler> idle)
+    {
+        if (posts.Count == 0)
+            return;
+        int guardDistance = _config.Military.GuardDistance;
+        var room = posts.Select((_, i) => idle.Count / posts.Count + (i < idle.Count % posts.Count ? 1 : 0)).ToArray();
+        var left = new List<Settler>();
+        foreach (var soldier in idle)
+        {
+            int at = Enumerable.Range(0, posts.Count).Where(i => room[i] > 0)
+                .FirstOrDefault(i => PathFinder.Distance(Heading(soldier), posts[i].Door) <= guardDistance, -1);
+            if (at >= 0)
+                room[at]--;
+            else
+                left.Add(soldier);
+        }
+        var sent = new Dictionary<int, List<Settler>>();
+        foreach (var soldier in left)
+        {
+            int to = Enumerable.Range(0, posts.Count).Where(i => room[i] > 0).MinBy(i => PathFinder.Distance(soldier.Position, posts[i].Door));
+            room[to]--;
+            (sent.TryGetValue(to, out var list) ? list : sent[to] = new List<Settler>()).Add(soldier);
+        }
+        foreach (var (i, soldiers) in sent)
+            _world.Military.Move(soldiers, posts[i].Door);
+        idle.Clear();
+    }
+
     /// <summary>Where soldiers go when a strike or campaign is over.</summary>
     internal GridPoint HomeDoor() => _home is { Exists: true } h && h.Player == Player ? h.Door
         : _world.Buildings.Where(b => b.Exists && b.Player == Player && IsMilitary(b)).Select(b => b.Door).FirstOrDefault();
@@ -185,11 +260,18 @@ public sealed partial class AiPlayer
         return group.Strength + onTheWay.Sum(g => g.Strength);
     }
 
-    /// <summary>Own soldiers free for orders: outside, idle, not part of a running strike or campaign.</summary>
+    /// <summary>
+    /// Own soldiers free for orders: outside, idle or walking on a plain move order (to a post, home), not part
+    /// of a running strike or campaign.
+    /// </summary>
     private List<Settler> IdleSoldiers() => _world.Settlers
-        .Where(s => s.Player == Player && s.Profession == Profession.Soldier && !s.HasTask && !s.IsInside && !s.IsDead
+        .Where(s => s.Player == Player && s.Profession == Profession.Soldier && !s.IsInside && !s.IsDead
+                    && (!s.HasTask || _world.Military.MoveTarget(s) is not null)
                     && !_strikes.Any(k => k.Soldiers.Contains(s)) && _campaign?.Soldiers.Contains(s) != true)
         .ToList();
+
+    /// <summary>Where an idle soldier will stand: where it walks to on a move order, otherwise where it is.</summary>
+    internal GridPoint Heading(Settler soldier) => _world.Military.MoveTarget(soldier) ?? soldier.Position;
 
     /// <summary>
     /// Checks the running strikes every think: the enemy group is found again (it may have moved or
@@ -265,7 +347,7 @@ public sealed partial class AiPlayer
     /// <summary>Enemy soldiers outside buildings, joined into groups of neighbours within <paramref name="radius"/>.</summary>
     private List<EnemyGroup> FindEnemyGroups(int radius)
     {
-        var enemies = _world.Settlers.Where(s => s.Profession == Profession.Soldier && s.Player != Player && !s.IsInside && !s.IsDead).ToList();
+        var enemies = _world.Settlers.Where(s => s.Profession is Profession.Soldier or Profession.Geologist && s.Player != Player && !s.IsInside && !s.IsDead).ToList();
         var groups = new List<EnemyGroup>();
         var left = new HashSet<Settler>(enemies);
         while (left.Count > 0)
@@ -292,11 +374,12 @@ public sealed partial class AiPlayer
     /// </summary>
     internal double Strength(Settler soldier, GridPoint at) => Power(soldier) * _world.Military.CombatStrengthAt(soldier.Player, at);
 
-    /// <summary>Health times damage per second, without the combat strength.</summary>
+    /// <summary>Health times damage per second, without the combat strength (0 for geologists: they do not fight).</summary>
     private double Power(Settler soldier)
     {
         var military = _world.Military.Config;
-        var type = soldier.SoldierType!.Value;
+        if (soldier.SoldierType is not { } type)
+            return 0;
         double perSecond = military.Damage(type, soldier.Level) * World.TicksPerSecond / military.Soldiers[type].AttackTicks;
         return soldier.Health * perSecond;
     }

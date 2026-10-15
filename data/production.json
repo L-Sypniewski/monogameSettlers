@@ -96,13 +96,20 @@
   },
   "trees": { "growSeconds": 150, "stumpSeconds": 60 },
   "crops": {
-    "_comment": "What farm-like gatherers sow and harvest: growSeconds from sowing to ripe, on these grounds. regrows: starts over after the harvest instead of leaving free ground (vines, beehives). slopeBonus: grows up to (1 + slopeBonus) times as fast where the height to a neighbor differs by slopeHeight or more (vines on hillsides).",
-    "grain": { "growSeconds": 100, "ground": [ "Grass" ] },
+    "_comment": "What farm-like gatherers sow and harvest: growSeconds from sowing to ripe, on these grounds. regrows: starts over after the harvest instead of leaving free ground (vines, beehives). slopeBonus: grows up to (1 + slopeBonus) times as fast where the height to a neighbor differs by slopeHeight or more (vines on hillsides). farmland: sowing turns the grass into farmland (drawn as earth), which stays until the farm is torn down or lost.",
+    "grain": { "growSeconds": 200, "ground": [ "Grass" ], "farmland": true },
     "wine": { "growSeconds": 140, "ground": [ "Grass", "MountainBorderOuter" ], "regrows": true, "slopeBonus": 1.0, "slopeHeight": 4 },
     "rice": { "growSeconds": 120, "ground": [ "Mud", "MudBorder", "MudBorderOuter", "MoorBorderOuter" ] },
     "honey": { "growSeconds": 120, "ground": [ "Grass" ], "regrows": true }
   },
   "stones": { "stonesPerCut": 1 },
+  "walking": {
+    "_comment": "Walking speed by ground, for every settler: trailSpeed times as fast on a trail, mountainSpeed times on mountains (Mountain, MountainBorder). A trail forms on plain grass where carriers on a job stepped trailSteps times, each step less than trailFadeSeconds after the one before; a trail nobody walked on for trailFadeSeconds fades.",
+    "trailSpeed": 1.2,
+    "mountainSpeed": 0.8,
+    "trailSteps": 6,
+    "trailFadeSeconds": 300
+  },
   "resources": {
     "_comment": "Mountains and waters: a field of the original maps holds an amount of 0-15 (mostly 8). orePerAmount/fishPerAmount = units per amount step, so a mine's stock scales with it. regenerateSeconds: a depleted field regains one step this often (0 = never).",
     "orePerAmount": 4,

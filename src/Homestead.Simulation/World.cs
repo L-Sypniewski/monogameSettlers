@@ -27,8 +27,14 @@ public sealed partial class World
 {
     public const int TicksPerSecond = 20;
 
-    /// <summary>Ticks for one grid step (0.4 s).</summary>
+    /// <summary>Ticks for one grid step on plain ground (0.4 s).</summary>
     public const int StepTicks = 8;
+
+    /// <summary>Step progress per tick on plain ground (see <see cref="Settler.StepProgress"/>).</summary>
+    public const int BaseStepSpeed = 100;
+
+    /// <summary>Progress a step takes: <see cref="StepTicks"/> on plain ground, fewer on trails, more on mountains.</summary>
+    public const int StepUnits = StepTicks * BaseStepSpeed;
 
     public const int ReplanAfterTicks = 6;
     public const int PassThroughAfterTicks = 40;
@@ -86,11 +92,15 @@ public sealed partial class World
         {
             _occupant = [];
         }
+        Trails = new Trails(this, config.Walking);
     }
 
     public static TimeSpan TickDuration { get; } = TimeSpan.FromSeconds(1.0 / TicksPerSecond);
 
     public GameMap? Map { get; }
+
+    /// <summary>Trails trodden by carriers, and the walking speed by ground.</summary>
+    public Trails Trails { get; }
 
     public PathFinder? PathFinder { get; }
 
@@ -152,6 +162,7 @@ public sealed partial class World
             Magic.Tick();
             Measure("housing/geology/magic", ref mark);
             Idling.Tick();
+            Trails.Tick();
             Measure("idling", ref mark);
             foreach (var ai in AiPlayers)
                 ai.Tick();
@@ -250,14 +261,17 @@ public sealed partial class World
 
     private void AdvanceStep(Settler settler)
     {
-        if (++settler.TicksIntoStep < StepTicks)
+        settler.StepProgress += settler.StepSpeed;
+        if (settler.StepProgress < StepUnits)
             return;
 
         var map = Map!;
         var from = settler.Position;
         settler.Position = from.Neighbor(settler.Facing);
-        settler.TicksIntoStep = 0;
+        // What is left over goes into the next step (faster ground does not round to whole ticks).
+        settler.StepProgress = Math.Min(settler.StepProgress - StepUnits, settler.StepSpeed - 1);
         settler.State = SettlerState.Idle;
+        Trails.Stepped(settler);
         if (_occupant[map.Index(from)] == settler.Id)
             _occupant[map.Index(from)] = NoOccupant;
         // After a pass-through the field may still belong to the other settler; take it once free.
@@ -317,12 +331,15 @@ public sealed partial class World
         var map = Map!;
         settler.Path.Dequeue();
         settler.Facing = direction;
+        // Leftover progress only carries on straight from the step before.
+        if (settler.WaitingTicks > 0)
+            settler.StepProgress = 0;
         settler.State = SettlerState.Stepping;
-        settler.TicksIntoStep = 0;
         settler.WaitingTicks = 0;
         if (_occupant[map.Index(settler.Position)] == settler.Id)
             _occupant[map.Index(settler.Position)] = NoOccupant;
         var target = settler.Position.Neighbor(direction);
+        settler.StepSpeed = Trails.StepSpeed(target);
         if (_occupant[map.Index(target)] == NoOccupant)
             _occupant[map.Index(target)] = settler.Id;
     }
@@ -443,7 +460,7 @@ public sealed partial class World
                 continue;
             var destination = settler.Destination;
             settler.State = SettlerState.Idle;
-            settler.TicksIntoStep = 0;
+            settler.StepProgress = 0;
             settler.Path.Clear();
             settler.Destination = null;
             settler.Position = free;
@@ -463,7 +480,7 @@ public sealed partial class World
             if (_occupant[map.Index(p)] == settler.Id)
                 _occupant[map.Index(p)] = NoOccupant;
         settler.State = SettlerState.Idle;
-        settler.TicksIntoStep = 0;
+        settler.StepProgress = 0;
         settler.Path.Clear();
         settler.Destination = null;
         settler.IsStrolling = false;

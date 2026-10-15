@@ -115,6 +115,13 @@ public sealed partial class Military
         }
     }
 
+    /// <summary>
+    /// Where the soldier walks on a plain (not forced) move order while it is neither fighting nor
+    /// attacking a building on the way; null otherwise. Such a soldier may take a new order any time.
+    /// </summary>
+    public GridPoint? MoveTarget(Settler soldier) =>
+        _fighters.TryGetValue(soldier.Id, out var f) && f is { MoveTo: { } to, Forced: false, Target: null, Enemy: null } ? to : null;
+
     /// <summary>Orders the given soldiers to attack an enemy military building (enemies on the way first).</summary>
     public int Attack(IEnumerable<Settler> soldiers, Building target)
     {
@@ -171,7 +178,7 @@ public sealed partial class Military
         // fighter is what made long games slow.
         _combatants.Clear();
         foreach (var settler in _world.Settlers)
-            if (settler.Profession is Profession.Soldier or Profession.Priest && !settler.IsInside && !settler.IsDead)
+            if (settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist && !settler.IsInside && !settler.IsDead)
                 _combatants.Add(settler);
         if (_world.Tick % EngageInterval == 0)
             EngageIdleSoldiers();
@@ -182,11 +189,11 @@ public sealed partial class Military
             Advance(fighter);
     }
 
-    /// <summary>Soldiers and priests outside the buildings at the start of this tick.</summary>
+    /// <summary>Soldiers, priests and geologists outside the buildings at the start of this tick.</summary>
     private readonly List<Settler> _combatants = new();
 
     /// <summary>
-    /// Enemy soldiers and priests outside the buildings: who can be fought. Not door guards: only the
+    /// Enemy soldiers, priests and geologists outside the buildings: who can be fought. Not door guards: only the
     /// attackers at the door fight them (see <see cref="Advance"/>).
     /// </summary>
     private IEnumerable<Settler> EnemiesOf(int player) =>

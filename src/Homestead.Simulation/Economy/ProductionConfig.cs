@@ -22,12 +22,13 @@ public enum GatherAction
 /// With <see cref="SlopeBonus"/> it grows faster on slopes: up to (1 + bonus) times as fast where the
 /// height to a neighbor differs by <see cref="SlopeHeight"/> or more.
 /// </summary>
+/// <param name="Farmland">Sowing turns the ground into farmland, which stays until the farm is gone.</param>
 public sealed record CropRecipe(byte First, byte Ripe, int GrowTicks, IReadOnlySet<TerrainType> Ground, bool Regrows = false,
-    double SlopeBonus = 0, int SlopeHeight = 4)
+    double SlopeBonus = 0, int SlopeHeight = 4, bool Farmland = false)
 {
     public bool Contains(byte code) => code >= First && code <= Ripe;
 
-    public static readonly CropRecipe Grain = new(MapObjectCodes.FirstGrain, MapObjectCodes.RipeGrain, 100 * World.TicksPerSecond,
+    public static readonly CropRecipe Grain = new(MapObjectCodes.FirstGrain, MapObjectCodes.RipeGrain, 200 * World.TicksPerSecond,
         new HashSet<TerrainType> { TerrainType.Grass });
 }
 
@@ -105,6 +106,9 @@ public sealed record ProductionConfig
     /// <summary>How geologists search (see <see cref="Geology"/>).</summary>
     public GeologistRules Geologists { get; init; } = new(10, 3 * World.TicksPerSecond, 2 * World.TicksPerSecond,
         4 * 60 * World.TicksPerSecond, 9 * 60 * World.TicksPerSecond);
+
+    /// <summary>Walking speed by ground and how trails form (see <see cref="Trails"/>); <see cref="WalkingRules.Plain"/>: same speed everywhere, no trails.</summary>
+    public WalkingRules Walking { get; init; } = WalkingRules.Plain;
 
     /// <summary>Units of food one food pile of a mine holds.</summary>
     public int MineFoodPileCapacity { get; init; } = Materials.MaxPileSize;
@@ -192,7 +196,8 @@ public sealed record ProductionConfig
                 c.Value.GetProperty("ground").EnumerateArray().Select(t => Enum.Parse<TerrainType>(t.GetString()!)).ToHashSet(),
                 c.Value.TryGetProperty("regrows", out var regrows) && regrows.GetBoolean(),
                 c.Value.TryGetProperty("slopeBonus", out var slope) ? slope.GetDouble() : 0,
-                c.Value.TryGetProperty("slopeHeight", out var slopeHeight) ? slopeHeight.GetInt32() : 4));
+                c.Value.TryGetProperty("slopeHeight", out var slopeHeight) ? slopeHeight.GetInt32() : 4,
+                c.Value.TryGetProperty("farmland", out var farmland) && farmland.GetBoolean()));
         var mineFood = root.GetProperty("mineFood");
         var mines = root.GetProperty("mines").EnumerateObject().Where(m => !m.Name.StartsWith('_')).ToDictionary(
             m => m.Name,
@@ -247,6 +252,10 @@ public sealed record ProductionConfig
                     Ticks(geologists, "signSeconds"), (int)(geologists.GetProperty("signMinutes")[0].GetDouble() * 60 * World.TicksPerSecond),
                     (int)(geologists.GetProperty("signMinutes")[1].GetDouble() * 60 * World.TicksPerSecond))
                 : new GeologistRules(10, 3 * World.TicksPerSecond, 2 * World.TicksPerSecond, 4 * 60 * World.TicksPerSecond, 9 * 60 * World.TicksPerSecond),
+            Walking = root.TryGetProperty("walking", out var walking)
+                ? new WalkingRules(walking.GetProperty("trailSpeed").GetDouble(), walking.GetProperty("mountainSpeed").GetDouble(),
+                    walking.GetProperty("trailSteps").GetInt32(), Ticks(walking, "trailFadeSeconds"))
+                : WalkingRules.Plain,
             DemolitionPayback = root.TryGetProperty("demolition", out var demolition) ? demolition.GetProperty("payback").GetDouble() : 0.5,
             Depletion = root.TryGetProperty("depletion", out var depletion)
                 ? new Depletion(depletion.GetProperty("stone").GetInt32(), depletion.GetProperty("mountain").GetInt32(), depletion.GetProperty("fish").GetInt32())
@@ -264,3 +273,13 @@ public sealed record Depletion(int Stone, int Mountain, int Fish);
 /// <paramref name="SignMinTicks"/> and <paramref name="SignMaxTicks"/>.
 /// </summary>
 public sealed record GeologistRules(int SearchRadius, int SurveyTicks, int SignTicks, int SignMinTicks, int SignMaxTicks);
+
+/// <summary>
+/// Walking speed by ground: <paramref name="TrailSpeed"/> times as fast on a trail, <paramref name="MountainSpeed"/>
+/// times on mountains. A trail forms on grass where carriers at work stepped <paramref name="TrailSteps"/> times
+/// (0: never), each step less than <paramref name="TrailFadeTicks"/> after the one before; unused that long, it fades.
+/// </summary>
+public sealed record WalkingRules(double TrailSpeed, double MountainSpeed, int TrailSteps, int TrailFadeTicks)
+{
+    public static WalkingRules Plain { get; } = new(1, 1, 0, 0);
+}

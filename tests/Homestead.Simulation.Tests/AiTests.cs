@@ -4,6 +4,7 @@ using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Homestead.Simulation.Map;
+using Homestead.Simulation.Pathfinding;
 using Xunit.Abstractions;
 
 namespace Homestead.Simulation.Tests;
@@ -215,7 +216,7 @@ public class AiTests(ITestOutputHelper output)
         var world = new World(new GameMap(40), TestConfig.NoTools);
         Assert.Equal(["waves", "frontGarrison"], new AiPlayer(world, Romans, 0, character: "waves+frontGarrison").Character.Traits.Select(t => t.Id));
         Assert.Throws<ArgumentException>(() => new AiPlayer(world, Romans, 0, character: "waves+nothing"));
-        Assert.Equal(["waves", "pincer", "guardByThreat"], new AiPlayer(world, Romans, 0, character: "general+waves").Character.Traits.Select(t => t.Id));
+        Assert.Equal(["waves", "pincer", "everyOtherTower", "guardByThreat"], new AiPlayer(world, Romans, 0, character: "general+waves").Character.Traits.Select(t => t.Id));
     }
 
     [Fact]
@@ -355,5 +356,155 @@ public class AiTests(ITestOutputHelper output)
             // Nothing stuck: every construction site of the start phase got finished.
             Assert.True(world.Buildings.Count(b => b.Exists && b.Player == ai.Player && b.State != BuildingState.Finished) <= 4);
         }
+    }
+
+    [Fact]
+    public void Soldiers_walking_to_a_post_take_up_a_strike_on_the_way()
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman); // the garrison
+        world.Step();
+        var walking = Enumerable.Range(0, 3).Select(i => world.SpawnSoldier(new GridPoint(44 + i, 84), SoldierType.Swordsman)!).ToList();
+        world.Military.Move(walking, new GridPoint(40, 20));
+        for (int i = 0; i < 2; i++)
+            world.SpawnSoldier(new GridPoint(40 + i, 125), SoldierType.Swordsman, player: 1);
+        var ai = new AiPlayer(world, Romans, 0);
+        world.AiPlayers.Add(ai);
+
+        // Long before they would arrive up there.
+        for (int t = 0; t < 3 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("strikes")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(ai.Log, l => l.Contains("strikes 2 enemies"));
+    }
+
+    [Fact]
+    public void Enemy_geologists_are_struck_and_killed()
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        world.Step();
+        world.SpawnSoldier(new GridPoint(44, 84), SoldierType.Swordsman);
+        world.SpawnSoldier(new GridPoint(45, 84), SoldierType.Swordsman);
+        var carrier = world.Spawn(new GridPoint(40, 122), Profession.Carrier, player: 1)!;
+        world.Geology.Convert([carrier]);
+        Assert.Equal(Profession.Geologist, carrier.Profession);
+        var ai = new AiPlayer(world, Romans, 0);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 60 * World.TicksPerSecond && !carrier.IsDead; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(ai.Log, l => l.Contains("strikes 1 enemies") && l.Contains("with 1 soldiers"));
+        Assert.True(carrier.IsDead);
+    }
+
+    [Theory]
+    [InlineData(20, false)] // deep in their land: left alone
+    [InlineData(4, true)] // at the edge of it
+    public void Enemies_standing_deep_in_their_land_are_left_alone_with_a_hinterland_depth(int landRadius, bool struck)
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 60), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        world.Step();
+        foreach (var p in PathFinder.Circle(new GridPoint(40, 120), landRadius))
+            map.SetOwner(p, 1);
+        for (int i = 0; i < 8; i++)
+            world.SpawnSoldier(new GridPoint(42 + i, 66), SoldierType.Swordsman);
+        world.SpawnSoldier(new GridPoint(40, 120), SoldierType.Swordsman, player: 1);
+        var ai = new AiPlayer(world, Romans, 0, character: "standard@military.hinterlandDepth=8");
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 10 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("strikes")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Equal(struck, ai.Log.Any(l => l.Contains("strikes 1 enemies") && l.Contains("standing around")));
+    }
+
+    [Fact]
+    public void Every_other_tower_gets_the_idle_soldiers()
+    {
+        var world = new World(new GameMap(200), TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var towers = new[] { 30, 50, 70, 90 }.Select(x => world.PlaceBuilding(Romans["tower"], 0, new GridPoint(x, 80), force: true)!).ToList();
+        world.PlaceBuilding(Romans["tower"], 1, new GridPoint(185, 80), force: true);
+        foreach (var tower in towers)
+            world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        world.Step();
+        for (int i = 0; i < 8; i++)
+            world.SpawnSoldier(new GridPoint(30 + i, 90), SoldierType.Swordsman);
+        var ai = new AiPlayer(world, Romans, 0, character: "frontGarrison+everyOtherTower");
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 40 * World.TicksPerSecond; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        int Near(Building b) => world.Settlers.Count(s => s.Player == 0 && !s.IsInside && PathFinder.Distance(s.Position, b.Door) <= 6);
+        // Front first: the tower nearest the enemy and the one after its neighbor.
+        Assert.Equal([0, 4, 0, 4], towers.Select(Near));
+    }
+
+    [Fact]
+    public void Front_towers_get_the_idle_soldiers()
+    {
+        var world = new World(new GameMap(200), TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var back = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 80), force: true)!;
+        var front = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(70, 80), force: true)!;
+        var side = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(110, 30), force: true)!;
+        world.PlaceBuilding(Romans["tower"], 1, new GridPoint(185, 80), force: true);
+        foreach (var tower in new[] { back, front, side })
+            world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        world.Step();
+        for (int i = 0; i < 8; i++)
+            world.SpawnSoldier(new GridPoint(30 + i, 90), SoldierType.Swordsman);
+        var ai = new AiPlayer(world, Romans, 0, character: "frontGarrison+frontTowers");
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 90 * World.TicksPerSecond; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        int Near(Building b) => world.Settlers.Count(s => s.Player == 0 && !s.IsInside && PathFinder.Distance(s.Position, b.Door) <= 6);
+        Assert.Equal(0, Near(back));
+        Assert.Equal(4, Near(front));
+        Assert.Equal(4, Near(side));
+    }
+
+    [Fact]
+    public void Rotating_towers_change_every_minute()
+    {
+        var world = new World(new GameMap(200), TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var towers = Enumerable.Range(0, 10).Select(i => world.PlaceBuilding(Romans["tower"], 0, new GridPoint(20 + i % 5 * 30, 50 + i / 5 * 60), force: true)!).ToList();
+        foreach (var tower in towers)
+            world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        world.Step();
+        for (int i = 0; i < 6; i++)
+            world.SpawnSoldier(new GridPoint(30 + i, 90), SoldierType.Swordsman);
+        var ai = new AiPlayer(world, Romans, 0, character: "frontGarrison+rotatingTowers");
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 130 * World.TicksPerSecond; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        var rounds = ai.Log.Where(l => l.Contains("rotatingTowers: guards")).Select(l => l[(l.IndexOf("guards", StringComparison.Ordinal) + 7)..]).ToList();
+        Assert.True(rounds.Count >= 3, string.Join(" | ", rounds));
+        Assert.All(rounds, r => Assert.Equal(3, r.Split(' ').Length)); // 30 % of 10
+        Assert.True(rounds.Distinct().Count() > 1);
     }
 }

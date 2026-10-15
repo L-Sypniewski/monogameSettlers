@@ -120,6 +120,27 @@ Feind, sonst Heimatturm). Zieht der Feind weiter ins eigene Land, fallen ihm Ver
 in den Rücken. Zusammen mit `frontGarrison` (Hinterland dünn, mehr Soldaten frei) ein Zwischenlager
 für Überfälle. Steht im Charakter vor `guardByThreat` (beide am Entscheidungspunkt „Bewachung“).
 
+**Türme verteilen** · **umgesetzt**
+Ohne Bedrohung (keine feindlichen Soldaten in `military.threatRange` eigener Militärgebäude) verteilen
+diese Charakterzüge die untätigen Soldaten gleichmäßig auf ausgewählte Türme; bei Bedrohung übernimmt
+der nächste Charakterzug (`guardByThreat`), sie stehen daher im Charakter davor:
+- `frontTowers` – Türme zur Front (`skirmisher`): Türme, von denen aus das nächste feindliche
+  Militärgebäude ohne Umweg erreichbar ist (Weg höchstens `detour` × Luftlinie + 5) und kein eigenes
+  Militärgebäude dazwischen steht.
+- `everyOtherTower` – Jeder zweite Turm (`general`, `legion`): von der Front aus jeder zweite – ein Turm
+  fällt weg, wenn ein Nachbar (höchstens `neighborFactor` × Abstand zum nächsten Turm) schon gewählt ist.
+  Größere Gruppen, die schnell bei den ausgelassenen Nachbarn sind.
+- `rotatingTowers` – Wechselnde Türme (`unyielding`): zufällig `share` (30 %) der Türme, alle
+  `rotateSeconds` (60) neu gelost (fester Seed der Welt).
+Der `hothead` behält alles auf einem Haufen (kein solcher Charakterzug).
+
+Die KI wägt Militärbefehle jede Sekunde neu (`military.thinkSeconds` 1): Soldaten auf einem einfachen
+Laufbefehl der KI (zum Posten, heim) zählen als untätig, Feldzüge werden schon auf dem Weg zum
+Sammelpunkt aufgegeben, wenn die Verteidigung zu stark geworden ist. Guerilla trifft auch feindliche
+Geologen (ein Soldat genügt). `military.hinterlandDepth` (`skirmisher`: 8) unterscheidet Angriffe auf
+Land (Feinde laufen oder kämpfen – überall angegriffen) von herumstehenden Feinden, die nur angegriffen
+werden, wenn sie höchstens so tief im eigenen Land ihres Besitzers stehen.
+
 ### Besatzung
 
 **`frontGarrison` – Besatzung nach Frontlage** · M · **umgesetzt** (Charakter `hothead`)

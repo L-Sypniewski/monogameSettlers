@@ -41,6 +41,9 @@ public sealed partial class Production
     /// <summary>Saplings and crops (by point index) and when they change next.</summary>
     private readonly Dictionary<int, long> _growing = new();
 
+    /// <summary>Farmland (by point index) and the farm that sowed it last; it goes with that farm.</summary>
+    private readonly Dictionary<int, Building> _farmland = new();
+
     /// <summary>Stones already taken at the current size of a quarry stone (see StonesPerCut).</summary>
     private readonly Dictionary<int, int> _stoneCuts = new();
 
@@ -750,6 +753,11 @@ public sealed partial class Production
                 return;
             case GatherAction.Farm when CanSow(w.Target, CropOf(w), ignoreWorker: worker):
                 map.SetObjectCode(w.Target, CropOf(w).First);
+                if (CropOf(w).Farmland)
+                {
+                    map.SetCover(w.Target, GroundCover.Farmland);
+                    _farmland[map.Index(w.Target)] = w.Building;
+                }
                 _growing[map.Index(w.Target)] = _world.Tick + StageTicks(CropOf(w), w.Target);
                 FieldsSown++;
                 break;
@@ -857,6 +865,18 @@ public sealed partial class Production
         }
         var best = candidates.MinBy(c => c.Distance);
         return (best.Target, best.Spot, best.Facing);
+    }
+
+    /// <summary>The farm is gone (torn down, lost): its farmland turns back into grass.</summary>
+    internal void RemoveFarmland(Building farm)
+    {
+        var map = _world.Map!;
+        foreach (int index in _farmland.Where(f => f.Value == farm).Select(f => f.Key).ToList())
+        {
+            _farmland.Remove(index);
+            if (map.CoverAt(map.Point(index)) == GroundCover.Farmland)
+                map.SetCover(map.Point(index), GroundCover.None);
+        }
     }
 
     private bool IsWater(GridPoint p) => _world.Map!.TerrainAt(p) is TerrainType.Water or TerrainType.River;

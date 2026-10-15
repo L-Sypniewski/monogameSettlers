@@ -55,6 +55,9 @@ public abstract class AiTrait
         [FrontGarrisonTrait.TraitId] = settings => new FrontGarrisonTrait(settings),
         [EarlyArmyTrait.TraitId] = settings => new EarlyArmyTrait(settings),
         [ForwardBaseTrait.TraitId] = settings => new ForwardBaseTrait(settings),
+        [FrontTowersTrait.TraitId] = settings => new FrontTowersTrait(settings),
+        [EveryOtherTowerTrait.TraitId] = settings => new EveryOtherTowerTrait(settings),
+        [RotatingTowersTrait.TraitId] = settings => new RotatingTowersTrait(settings),
     };
 
     public static IEnumerable<string> Known => Factories.Keys;

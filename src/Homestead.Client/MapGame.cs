@@ -299,11 +299,19 @@ public sealed class MapGame : Game
         _camera = ToWorld(_start);
     }
 
-    /// <summary>Diggers, woodcutters, stonecutters and foresters change the map: keep terrain and objects in sync.</summary>
+    /// <summary>
+    /// Diggers, woodcutters, stonecutters, foresters, farms and carriers change the map: keep terrain and objects
+    /// in sync. Farmland shows as earth, trails as sand paths; the original's transition tiles to grass join neighbors.
+    /// </summary>
     private void OnPointChanged(GridPoint p)
     {
-        _terrain.Update(p.X, p.Y, _gameMap.HeightAt(p),
-            _gameMap.TerrainAt(p) == TerrainType.Flattened ? TerrainKind.Flattened : _terrain.KindAt(p.X, p.Y));
+        var kind = _gameMap.CoverAt(p) switch
+        {
+            GroundCover.Farmland => TerrainKind.Earth,
+            GroundCover.Trail => TerrainKind.Sand,
+            _ => _gameMap.TerrainAt(p) == TerrainType.Flattened ? TerrainKind.Flattened : _terrain.OriginalKindAt(p.X, p.Y),
+        };
+        _terrain.Update(p.X, p.Y, _gameMap.HeightAt(p), kind);
         _objects?.SetCode(p.X, p.Y, _gameMap.ObjectCodeAt(p));
         _fog?.Touch(p.X, p.Y);
     }
@@ -807,7 +815,12 @@ public sealed class MapGame : Game
         bool adding = ShiftDown(Keyboard.GetState());
         if (hit is { Player: 0 } && Selectable(hit))
         {
-            var selection = ByPriority(adding ? _group.Append(hit) : [hit]);
+            // Ctrl: every own settler of that kind (soldiers: of that type, whatever their rank).
+            var clicked = ControlDown(Keyboard.GetState())
+                ? _world.Settlers.Where(s => s.Player == 0 && !s.IsInside && Selectable(s)
+                                             && s.Profession == hit.Profession && s.SoldierType == hit.SoldierType).ToList()
+                : [hit];
+            var selection = ByPriority(adding ? _group.Concat(clicked) : clicked);
             _group.Clear();
             _group.AddRange(selection);
             _selected = null;
@@ -877,6 +890,8 @@ public sealed class MapGame : Game
                 return chosen;
         return [];
     }
+
+    private static bool ControlDown(KeyboardState keys) => keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
 
     private static bool ShiftDown(KeyboardState keys) => keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift);
 

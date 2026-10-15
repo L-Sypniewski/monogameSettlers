@@ -126,7 +126,11 @@ public sealed class Settler
     /// <summary>Target of the current step (equals <see cref="Position"/> when not stepping).</summary>
     public GridPoint StepTarget => State == SettlerState.Stepping ? Position.Neighbor(Facing) : Position;
 
-    public int TicksIntoStep { get; internal set; }
+    /// <summary>How far into the current step, 0 to <see cref="World.StepUnits"/>.</summary>
+    public int StepProgress { get; internal set; }
+
+    /// <summary>Progress per tick of the current step: <see cref="World.BaseStepSpeed"/>, more on trails, less on mountains.</summary>
+    public int StepSpeed { get; internal set; } = World.BaseStepSpeed;
 
     /// <summary>Where the settler is walking to, or null when it has no order.</summary>
     public GridPoint? Destination { get; internal set; }

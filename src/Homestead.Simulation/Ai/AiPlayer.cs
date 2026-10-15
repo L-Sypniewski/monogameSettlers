@@ -505,7 +505,7 @@ public sealed partial class AiPlayer
                 break;
             var p = anchor + offset;
             if (!map.Contains(p) || map.OwnerAt(p) != Player || !_world.CanPlace(definition, p, out _, Player)
-                || !_world.Reachable(Player, homeDoor, p + definition.Door))
+                || !_world.Reachable(Player, homeDoor, p + definition.Door) || OnFields(definition, p))
                 continue;
             if (isMine)
             {
@@ -534,8 +534,10 @@ public sealed partial class AiPlayer
             // Big waterworks (Egyptian) cannot stand close to the bank; the worker walks there.
             "waterworks" => Around(p + (definition.WorkCenter ?? default), (definition.WorkRadius ?? Production.DefaultRadius) - 2,
                 q => map.TerrainAt(q) == TerrainType.River ? 1 : 0) > 0,
-            "farm" => Around(p + (definition.WorkCenter ?? default), 6,
-                q => map.TerrainAt(q) == TerrainType.Grass && map.ObjectCodeAt(q) == MapObjectCodes.None && _world.IsFreeGround(q) ? 1 : 0) >= 20,
+            // Room for the fields below the farm: free grass not sown or kept for the fields of another farm.
+            "farm" => Around(p + (definition.WorkCenter ?? default), definition.WorkRadius ?? 6,
+                q => map.TerrainAt(q) == TerrainType.Grass && map.ObjectCodeAt(q) == MapObjectCodes.None && map.CoverAt(q) == GroundCover.None
+                     && _world.IsFreeGround(q) && !InFields(q) ? 1 : 0) >= FarmFieldPoints,
             // Vines, rice and beehives: enough free ground of their kind around.
             _ when _world.Production.Config.Gatherers.TryGetValue(definition.Name, out var gatherer) && gatherer.Action == GatherAction.Farm
                    && _world.Production.Config.Crops.TryGetValue(gatherer.Crop, out var crop) =>
@@ -546,6 +548,51 @@ public sealed partial class AiPlayer
     }
 
     private bool IsWater(GridPoint p) => _world.Map!.TerrainAt(p) is TerrainType.Water or TerrainType.River;
+
+    /// <summary>Free grass a new farm wants around its work center (below it) for its fields.</summary>
+    private const int FarmFieldPoints = 35;
+
+    /// <summary>Points this close to the work center of an own farm are kept for its fields.</summary>
+    private const int FieldRadius = 4;
+
+    /// <summary>
+    /// Whether the building would stand on farmland or on the fields kept for an own farm (around its work
+    /// center, sown or not yet): the AI builds elsewhere.
+    /// </summary>
+    private bool OnFields(BuildingDefinition definition, GridPoint p)
+    {
+        var map = _world.Map!;
+        var fields = FieldCenters();
+        foreach (var offset in definition.Blocked)
+        {
+            var q = p + offset;
+            if (map.Contains(q) && map.CoverAt(q) == GroundCover.Farmland || InFields(q, fields))
+                return true;
+        }
+        return false;
+    }
+
+    private bool InFields(GridPoint q) => InFields(q, FieldCenters());
+
+    private static bool InFields(GridPoint q, List<GridPoint> fields) => fields.Any(c => PathFinder.Distance(c, q) <= FieldRadius);
+
+    private long _fieldCentersTick = -1;
+    private List<GridPoint> _fieldCenters = [];
+
+    /// <summary>Work centers of the own farms whose crop turns into farmland (sites too), once per tick.</summary>
+    private List<GridPoint> FieldCenters()
+    {
+        if (_fieldCentersTick == _world.Tick)
+            return _fieldCenters;
+        var config = _world.Production.Config;
+        _fieldCenters = _world.Buildings
+            .Where(b => b.Exists && b.Player == Player && config.Gatherers.TryGetValue(b.Definition.Name, out var g)
+                        && g.Action == GatherAction.Farm && config.Crops.TryGetValue(g.Crop, out var crop) && crop.Farmland)
+            .Select(b => b.Position + (b.Definition.WorkCenter ?? default))
+            .ToList();
+        _fieldCentersTick = _world.Tick;
+        return _fieldCenters;
+    }
 
     private int Around(GridPoint center, int radius, Func<GridPoint, int> value)
     {
@@ -699,7 +746,7 @@ public sealed partial class AiPlayer
             if (PathFinder.Distance(p, target) + 6 > closest)
                 break;
             if (!map.Contains(p) || map.OwnerAt(p) != Player || !_world.CanPlace(tower, p, out _, Player)
-                || !_world.Reachable(Player, _home!.Door, p + tower.Door))
+                || !_world.Reachable(Player, _home!.Door, p + tower.Door) || OnFields(tower, p))
                 continue;
             double share = WaterShare(p, radius);
             if (share <= _config.MaxWaterShare)

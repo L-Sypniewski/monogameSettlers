@@ -51,7 +51,7 @@ internal sealed class ForwardBaseTrait(JsonElement settings) : AiTrait
             _post = post;
         }
 
-        var coming = idle.Where(s => PathFinder.Distance(s.Position, post.Door) > config.GuardDistance).ToList();
+        var coming = idle.Where(s => PathFinder.Distance(ai.Heading(s), post.Door) > config.GuardDistance).ToList();
         if (coming.Count > 0)
             world.Military.Move(coming, post.Door, forced: post != front); // falling back: no fighting on the way
         idle.Clear();

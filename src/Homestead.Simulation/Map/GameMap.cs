@@ -25,6 +25,9 @@ public sealed class GameMap
     private readonly ResourceType[] _resourceType;
     private readonly byte[] _resourceAmount;
 
+    /// <summary>What lies on the ground of a point (farmland, trail); see <see cref="GroundCover"/>.</summary>
+    private readonly GroundCover[] _cover;
+
     public GameMap(int size)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 2);
@@ -39,6 +42,7 @@ public sealed class GameMap
         Array.Fill(_owner, NoOwner);
         _resourceType = new ResourceType[size * size];
         _resourceAmount = new byte[size * size];
+        _cover = new GroundCover[size * size];
     }
 
     public int Size { get; }
@@ -153,7 +157,25 @@ public sealed class GameMap
     public void SetTerrain(GridPoint p, TerrainType terrain)
     {
         _terrain[Index(p)] = terrain;
+        // Farmland and trails lie on grass only (levelled for a building: gone).
+        if (terrain != TerrainType.Grass)
+            _cover[Index(p)] = GroundCover.None;
         UpdateWalkable(Index(p));
+        PointChanged?.Invoke(p);
+    }
+
+    /// <summary>Farmland or trail on the point (walkable as before, only the look and the walking speed change).</summary>
+    public GroundCover CoverAt(GridPoint p) => _cover[Index(p)];
+
+    public GroundCover CoverAt(int index) => _cover[index];
+
+    public TerrainType TerrainAt(int index) => _terrain[index];
+
+    public void SetCover(GridPoint p, GroundCover cover)
+    {
+        if (_cover[Index(p)] == cover)
+            return;
+        _cover[Index(p)] = cover;
         PointChanged?.Invoke(p);
     }
 

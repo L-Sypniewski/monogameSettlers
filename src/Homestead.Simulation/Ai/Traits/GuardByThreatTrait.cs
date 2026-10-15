@@ -31,11 +31,11 @@ internal sealed class GuardByThreatTrait : AiTrait
         foreach (var post in posts.Distinct())
         {
             int wanted = posts.Count(p => p == post);
-            // Who is already there stays; the nearest of the others come.
-            int present = idle.Count(s => PathFinder.Distance(s.Position, post.Door) <= config.GuardDistance);
-            var coming = idle.Where(s => PathFinder.Distance(s.Position, post.Door) > config.GuardDistance)
+            // Who is already there (or on the way) stays; the nearest of the others come.
+            int present = idle.Count(s => PathFinder.Distance(ai.Heading(s), post.Door) <= config.GuardDistance);
+            var coming = idle.Where(s => PathFinder.Distance(ai.Heading(s), post.Door) > config.GuardDistance)
                 .OrderBy(s => PathFinder.Distance(s.Position, post.Door)).Take(wanted - present).ToList();
-            idle.RemoveAll(s => PathFinder.Distance(s.Position, post.Door) <= config.GuardDistance);
+            idle.RemoveAll(s => PathFinder.Distance(ai.Heading(s), post.Door) <= config.GuardDistance);
             if (coming.Count == 0)
                 continue;
             ai.World.Military.Move(coming, post.Door);

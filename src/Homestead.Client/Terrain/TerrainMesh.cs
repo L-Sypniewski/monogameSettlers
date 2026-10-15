@@ -83,6 +83,7 @@ public sealed class TerrainMesh : IDisposable
     private readonly GraphicsDevice _device;
     private readonly int _size;
     private readonly TerrainKind[] _kinds;
+    private readonly TerrainKind[] _originalKinds;
     private readonly byte[] _heights;
     private readonly VertexBuffer?[] _chunks;
     private readonly int _chunksPerRow;
@@ -93,6 +94,7 @@ public sealed class TerrainMesh : IDisposable
         _size = area.Size;
         _heights = (byte[])area.Height.Clone();
         _kinds = area.Landscape.Select(TerrainKinds.FromOriginal).ToArray();
+        _originalKinds = (TerrainKind[])_kinds.Clone();
         _chunksPerRow = (_size - 1 + ChunkSize - 1) / ChunkSize;
         _chunks = new VertexBuffer?[_chunksPerRow * _chunksPerRow];
     }
@@ -102,6 +104,9 @@ public sealed class TerrainMesh : IDisposable
     public int HeightAt(int x, int y) => _heights[Math.Clamp(y, 0, _size - 1) * _size + Math.Clamp(x, 0, _size - 1)];
 
     public TerrainKind KindAt(int x, int y) => _kinds[Math.Clamp(y, 0, _size - 1) * _size + Math.Clamp(x, 0, _size - 1)];
+
+    /// <summary>The terrain of the point as the map was loaded (what farmland or a trail on it leaves behind).</summary>
+    public TerrainKind OriginalKindAt(int x, int y) => _originalKinds[Math.Clamp(y, 0, _size - 1) * _size + Math.Clamp(x, 0, _size - 1)];
 
     /// <summary>
     /// Changes height and terrain of a point at runtime (e.g. levelled by diggers). The chunks with

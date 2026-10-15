@@ -49,6 +49,9 @@ public sealed record MilitaryConfig
     public IReadOnlyDictionary<(Civilization People, string Building), DoorPoints> DoorPoints { get; init; } =
         new Dictionary<(Civilization, string), DoorPoints>();
 
+    /// <summary>Health of a geologist: soldiers fight geologists of other players like soldiers (they do not strike back).</summary>
+    public float GeologistHealth { get; init; } = 40;
+
     /// <summary>Hospital: wounded idle soldiers within this distance of its door are called in.</summary>
     public int HospitalCallRadius { get; init; } = 20;
 
@@ -114,6 +117,7 @@ public sealed record MilitaryConfig
             DoorRegenTicks = (int)Math.Round((door.ValueKind == JsonValueKind.Object ? door.GetProperty("regenSeconds").GetDouble() : 30) * World.TicksPerSecond),
             LevelBonus = root.GetProperty("levelBonus").EnumerateArray().Select(v => v.GetSingle()).ToArray(),
             SightRange = root.GetProperty("sightRange").GetInt32(),
+            GeologistHealth = root.TryGetProperty("geologistHealth", out var geologistHealth) ? geologistHealth.GetSingle() : 40,
             HospitalCallRadius = root.TryGetProperty("hospital", out var hospital) ? hospital.GetProperty("callRadius").GetInt32() : 20,
             HealTicks = (int)Math.Round((hospital.ValueKind == JsonValueKind.Object ? hospital.GetProperty("healSeconds").GetDouble() : 2) * World.TicksPerSecond),
             HospitalCallPauseTicks = (int)Math.Round((hospital.ValueKind == JsonValueKind.Object ? hospital.GetProperty("callPauseSeconds").GetDouble() : 10)

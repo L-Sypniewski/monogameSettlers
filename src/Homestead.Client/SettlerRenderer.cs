@@ -307,7 +307,7 @@ public sealed class SettlerRenderer
     }
 
     private static float StepProgress(Settler settler, float tickAlpha) =>
-        Math.Clamp((settler.TicksIntoStep + tickAlpha) / World.StepTicks, 0, 1);
+        Math.Clamp((settler.StepProgress + tickAlpha * settler.StepSpeed) / World.StepUnits, 0, 1);
 
     private static Vector2 ToWorld(GridPoint p, TerrainMesh terrain) =>
         ScreenProjection.ToWorld(p.X, p.Y, terrain.HeightAt(p.X, p.Y));

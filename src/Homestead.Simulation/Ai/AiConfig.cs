@@ -16,8 +16,12 @@ public sealed record AiConfig
 
     /// <summary>The AI's soldiers outside buildings (see <c>military</c> in ai.json).</summary>
     /// <param name="RetreatRatio">A running strike is called off when the strikers fall below this times the enemy's strength.</param>
+    /// <param name="HinterlandDepth">
+    /// Guerilla against enemies just standing around (not attacking the land): none deeper than this in their own
+    /// player's land, counted from its edge (0: anywhere).
+    /// </param>
     public sealed record MilitaryRules(int ThinkTicks, int GroupRadius, int StrikeRange, double StrikeRatio, int ThreatRange, int GuardDistance,
-        double RetreatRatio = 1.0);
+        double RetreatRatio = 1.0, int HinterlandDepth = 0);
 
     public required AttackRules Attack { get; init; }
 
@@ -157,7 +161,8 @@ public sealed record AiConfig
                 military.GetProperty("strikeRatio").GetDouble(),
                 military.GetProperty("threatRange").GetInt32(),
                 military.GetProperty("guardDistance").GetInt32(),
-                military.TryGetProperty("retreatRatio", out var retreat) ? retreat.GetDouble() : 1.0),
+                military.TryGetProperty("retreatRatio", out var retreat) ? retreat.GetDouble() : 1.0,
+                military.TryGetProperty("hinterlandDepth", out var hinterland) ? hinterland.GetInt32() : 0),
             Magic = root.TryGetProperty("magic", out var magic)
                 ? new MagicRules(magic.GetProperty("priestDistance").GetInt32(), magic.GetProperty("minTargets").GetInt32(),
                     magic.TryGetProperty("upgradeOrder", out var order)

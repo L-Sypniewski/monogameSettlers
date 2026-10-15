@@ -3,13 +3,16 @@ using Homestead.Simulation.Map;
 namespace Homestead.Simulation.Pathfinding;
 
 /// <summary>
-/// A* search on the six-neighbor grid with uniform step costs. Search buffers are allocated once
+/// A* search on the six-neighbor grid; a step costs by the ground it enters (see <see cref="SetStepCosts"/>:
+/// trails cheaper, mountains dearer, as settlers walk there). Search buffers are allocated once
 /// per map and reused, so a search allocates only its result. Not thread-safe.
 /// </summary>
 public sealed class PathFinder
 {
     private readonly GameMap _map;
     private readonly int[] _cost;
+    private readonly int[] _steps;
+    private int _plainCost = 1, _trailCost = 1, _mountainCost = 1, _minCost = 1;
     private readonly byte[] _arrivedFrom;
     private readonly int[] _seenStamp;
     private readonly int[] _closedStamp;
@@ -25,12 +28,25 @@ public sealed class PathFinder
     {
         _map = map;
         _cost = new int[map.PointCount];
+        _steps = new int[map.PointCount];
         _arrivedFrom = new byte[map.PointCount];
         _seenStamp = new int[map.PointCount];
         _closedStamp = new int[map.PointCount];
         _regions = new Regions(map, sameOwner: false);
         _landRegions = new Regions(map, sameOwner: true);
     }
+
+    /// <summary>What a step onto plain ground, a trail and a mountain costs (proportional to the time it takes).</summary>
+    public void SetStepCosts(int plain, int trail, int mountain)
+    {
+        (_plainCost, _trailCost, _mountainCost) = (plain, trail, mountain);
+        _minCost = Math.Min(plain, Math.Min(trail, mountain));
+    }
+
+    private int StepCost(int index) =>
+        _map.CoverAt(index) == GroundCover.Trail ? _trailCost
+        : _map.TerrainAt(index) is TerrainType.Mountain or TerrainType.MountainBorder ? _mountainCost
+        : _plainCost;
 
     /// <summary>Number of nodes expanded by the last search (for tests and profiling).</summary>
     public int LastExpandedNodes { get; private set; }
@@ -102,8 +118,9 @@ public sealed class PathFinder
         int targetIndex = _map.Index(target);
         _open.Clear();
         _cost[startIndex] = 0;
+        _steps[startIndex] = 0;
         _seenStamp[startIndex] = _stamp;
-        _open.Enqueue(startIndex, Priority(0, Distance(start, target)));
+        _open.Enqueue(startIndex, Priority(0, Distance(start, target) * _minCost));
 
         while (_open.TryDequeue(out int current, out _))
         {
@@ -116,7 +133,6 @@ public sealed class PathFinder
                 return BuildPath(startIndex, targetIndex);
 
             int x = current % size, y = current / size;
-            int nextCost = _cost[current] + 1;
             for (int d = 0; d < DirectionExtensions.Count; d++)
             {
                 var delta = ((Direction)d).Delta();
@@ -127,13 +143,15 @@ public sealed class PathFinder
                 if (!_map.IsWalkable(next) || _closedStamp[next] == _stamp || avoid?.Contains(next) == true
                     || ownLandOf is not null && _map.OwnerAt(next) != landOf)
                     continue;
+                int nextCost = _cost[current] + StepCost(next);
                 if (_seenStamp[next] == _stamp && _cost[next] <= nextCost)
                     continue;
 
                 _seenStamp[next] = _stamp;
                 _cost[next] = nextCost;
+                _steps[next] = _steps[current] + 1;
                 _arrivedFrom[next] = (byte)d;
-                _open.Enqueue(next, Priority(nextCost, Distance(new GridPoint(nx, ny), target)));
+                _open.Enqueue(next, Priority(nextCost, Distance(new GridPoint(nx, ny), target) * _minCost));
             }
         }
         return null;
@@ -144,7 +162,7 @@ public sealed class PathFinder
 
     private Direction[] BuildPath(int startIndex, int targetIndex)
     {
-        var steps = new Direction[_cost[targetIndex]];
+        var steps = new Direction[_steps[targetIndex]];
         int size = _map.Size;
         for (int index = targetIndex, i = steps.Length - 1; index != startIndex; i--)
         {
