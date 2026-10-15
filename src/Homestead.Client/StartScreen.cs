@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Homestead.Assets.Maps;
 using Homestead.Simulation.Buildings;
+using Homestead.Simulation.Map.Generation;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -13,6 +14,8 @@ namespace Homestead.Client;
 /// </summary>
 /// <remarks>
 /// The list shows one category at a time (buttons above it, as in the original), sorted by player count.
+/// The last category is the random map generator: instead of the list its settings and the last random
+/// maps played; every change makes the map again with the same seed, "Neu würfeln" draws a new one.
 /// On multiplayer maps the start positions are drawn at random; a click on a position's "?" assigns it a
 /// player (or makes it random again). Mouse: click selects, wheel scrolls the list, arrows change the
 /// people, a click on the color takes the next free one (right click: the previous one). Keys: up/down/PgUp/PgDn
@@ -27,7 +30,10 @@ public sealed class StartScreen : IDisposable
     /// What was chosen: settings per player (entry 0 is the own one) and, on multiplayer maps, per start
     /// position (map player) the player taking it (<c>null</c>: drawn); <c>null</c> as a whole: as the map says.
     /// </summary>
-    public sealed record Choice(int MapIndex, IReadOnlyList<PlayerSetup> Players, IReadOnlyList<int?>? Positions);
+    public sealed record Choice(int MapIndex, IReadOnlyList<PlayerSetup> Players, IReadOnlyList<int?>? Positions, RandomMap? Random = null);
+
+    /// <summary>A random map: the generator makes it again from its settings and seed.</summary>
+    public sealed record RandomMap(RandomMapSettings Settings, int Seed);
 
     private const int RowHeight = 22;
     private const int Margin = 40;
@@ -44,7 +50,31 @@ public sealed class StartScreen : IDisposable
     private sealed record MapEntry(int Index, string Name, int Players, int Category);
 
     /// <summary>Map categories: the folders of the original's map directory (the tutorial counts as single player).</summary>
-    private static readonly string[] Categories = ["Einzelspieler", "Mehrspieler", "Eigene"];
+    private static readonly string[] Categories = ["Einzelspieler", "Mehrspieler", "Eigene", "Zufallsgenerator"];
+
+    private const int RandomCategory = 3;
+
+    /// <summary>One setting of the random map generator: its row label, the values to choose from and how they map to the settings.</summary>
+    private sealed record RandomOption(string Label, string[] Values, Func<RandomMapSettings, int> Get,
+        Func<RandomMapSettings, int, RandomMapSettings> Set, string? Hint = null);
+
+    private static readonly string[] Levels = ["wenig", "mittel", "viel"];
+    private static readonly string[] SymmetryNames = ["Nein", "Achsen", "Wiederholung"];
+
+    private static readonly RandomOption[] RandomOptions =
+    [
+        new("Spieler", ["2", "3", "4", "5", "6"], s => s.Players - RandomMapSettings.MinPlayers,
+            (s, v) => s with { Players = v + RandomMapSettings.MinPlayers }, "Die Kartengröße wächst mit der Spielerzahl."),
+        new("Symmetrie", SymmetryNames, s => (int)s.Symmetry, (s, v) => s with { Symmetry = (MapSymmetry)v },
+            "Achsen: jeder Spieler hat das Spiegelbild seiner Nachbarn (bei 5 Spielern annähernd). Wiederholung: gleiche Umgebung um jeden Start."),
+        new("Flüsse", Levels, s => (int)s.Rivers, (s, v) => s with { Rivers = (Abundance)v }, "Flüsse und Seen."),
+        new("Rohstoffe", Levels, s => (int)s.Resources, (s, v) => s with { Resources = (Abundance)v }, "Kohle, Erze, Edelsteine, Schwefel in den Bergen; Fisch."),
+        new("Steine", Levels, s => (int)s.Stones, (s, v) => s with { Stones = (Abundance)v }, "Steinvorkommen für Steinmetze."),
+        new("Wälder", Levels, s => (int)s.Forests, (s, v) => s with { Forests = (Abundance)v }),
+        new("Dekoration", Levels, s => (int)s.Decorations, (s, v) => s with { Decorations = (Abundance)v }, "Büsche, Blumen, Pilze, Gräber, Felsen."),
+        new("Schätze", ["aus", "normal", "viel"], s => (int)s.Treasures, (s, v) => s with { Treasures = (TreasureLevel)v },
+            "Warenstapel im Land zwischen den Spielern: Gold, Edelsteine, Eisen, Kohle, Waffen, Steine, Werkzeuge."),
+    ];
 
     private static int CategoryOf(string folder) => folder.ToUpperInvariant() switch
     {
@@ -77,6 +107,10 @@ public sealed class StartScreen : IDisposable
     private int?[] _positions = [];
     /// <summary>Start position whose player menu is open.</summary>
     private int? _positionMenu;
+
+    private RandomMapSettings _randomSettings = new();
+    private int _randomSeed = Random.Shared.Next();
+    private readonly RandomMapHistory _history = new();
 
     private OriginalMap? _map;
     private string? _mapError;
@@ -118,8 +152,9 @@ public sealed class StartScreen : IDisposable
     }
 
     /// <summary>Shows the maps of <paramref name="category"/>: by player count, unreadable ones last, then by name.</summary>
-    private void ShowCategory(int category)
+    public void ShowCategory(int category)
     {
+        category = Math.Clamp(category, 0, Categories.Length - 1);
         _category = category;
         _shown = _entries.Where(e => e.Category == category)
             .OrderBy(e => e.Players == 0 ? int.MaxValue : e.Players)
@@ -171,25 +206,34 @@ public sealed class StartScreen : IDisposable
     private void Select(int index)
     {
         _selected = Math.Clamp(index, 0, Math.Max(0, _shown.Length - 1));
+        if (_category == RandomCategory)
+            Show(() => RandomMapGenerator.Generate(_randomSettings, _randomSeed));
+        else if (_shown.Length == 0)
+            Show(null, "keine Karten in dieser Kategorie");
+        else
+            Show(() => OriginalMap.Open(_mapFiles[_shown[_selected].Index]));
+    }
+
+    /// <summary>Shows the map <paramref name="open"/> gives (none: <paramref name="error"/>) with its preview.</summary>
+    private void Show(Func<OriginalMap>? open, string? error = null)
+    {
         _preview?.Dispose();
         _preview = null;
         _map = null;
-        _mapError = null;
+        _mapError = error;
         _positionMenu = null;
         _positions = [];
-        if (_shown.Length == 0)
-        {
-            _mapError = "keine Karten in dieser Kategorie";
-            return;
-        }
         try
         {
-            _map = OriginalMap.Open(_mapFiles[_shown[_selected].Index]);
-            _preview = new Texture2D(_device, _map.Area.Size, _map.Area.Size);
-            _preview.SetData(MapOverview.Pixels(_map.Area));
-            _positions = new int?[_map.Players.Count];
+            if (open is not null)
+            {
+                _map = open();
+                _preview = new Texture2D(_device, _map.Area.Size, _map.Area.Size);
+                _preview.SetData(MapOverview.Pixels(_map.Area));
+                _positions = new int?[_map.Players.Count];
+            }
         }
-        catch (Exception e) when (e is InvalidDataException or IOException)
+        catch (Exception e) when (e is InvalidDataException or IOException || _category == RandomCategory)
         {
             _map = null;
             _mapError = e.Message;
@@ -197,9 +241,39 @@ public sealed class StartScreen : IDisposable
         EnsurePlayers();
     }
 
+    /// <summary>Makes the random map again with these settings and seed.</summary>
+    private void ShowRandom(RandomMapSettings settings, int seed)
+    {
+        _randomSettings = settings;
+        _randomSeed = seed;
+        Select(0);
+    }
+
     // Layout, from the viewport.
     private static Rectangle ListArea(Rectangle view) =>
         new(Margin, 90 + TabHeight + 6, Math.Min(420, view.Width * 2 / 5), Math.Max(RowHeight, view.Height - 90 - TabHeight - 6 - Margin));
+
+    // The random map generator's panel in place of the list: last maps, then one row per setting.
+    private static Rectangle RecentRow(Rectangle view, int entry)
+    {
+        var list = ListArea(view);
+        return new Rectangle(list.X, list.Y + 26 + entry * RowHeight, list.Width, RowHeight);
+    }
+
+    private const int OptionRow = 32;
+
+    private static int OptionY(Rectangle view, int option) => RecentRow(view, RandomMapHistory.Size).Y + 34 + option * OptionRow;
+
+    private static Rectangle OptionValue(Rectangle view, int option, int value)
+    {
+        var list = ListArea(view);
+        int left = list.X + 110;
+        int width = (list.Right - 6 - left) / RandomOptions[option].Values.Length;
+        return new Rectangle(left + value * width, OptionY(view, option), width - 4, OptionRow - 6);
+    }
+
+    private static Rectangle RerollButton(Rectangle view) =>
+        new(ListArea(view).X + 8, OptionY(view, RandomOptions.Length) + 8, 200, 36);
 
     private static Rectangle Tab(Rectangle view, int category)
     {
@@ -295,6 +369,12 @@ public sealed class StartScreen : IDisposable
         int rows = VisibleRows(view);
         int move = (Pressed(Keys.Down) ? 1 : 0) - (Pressed(Keys.Up) ? 1 : 0)
                    + (Pressed(Keys.PageDown) ? rows : 0) - (Pressed(Keys.PageUp) ? rows : 0);
+        if (_category == RandomCategory)
+        {
+            move = 0;
+            if (Pressed(Keys.R))
+                ShowRandom(_randomSettings, Random.Shared.Next());
+        }
         if (move != 0)
         {
             Select(_selected + move);
@@ -315,7 +395,9 @@ public sealed class StartScreen : IDisposable
         {
             var at = mouse.Position;
             var list = ListArea(view);
-            if (list.Contains(at))
+            if (_category == RandomCategory)
+                ClickRandomPanel(view, at);
+            else if (list.Contains(at))
             {
                 int index = _scroll + (at.Y - list.Y) / RowHeight;
                 if (index < _shown.Length && index != _selected)
@@ -344,9 +426,29 @@ public sealed class StartScreen : IDisposable
         return null;
     }
 
-    private Choice Start() => new(_shown[_selected].Index,
-        Enumerable.Range(0, PlayerCount).Select(p => new PlayerSetup(_peoples[p], _colors[p], _hardcore[p])).ToArray(),
-        RandomPositions ? _positions.ToArray() : null);
+    private void ClickRandomPanel(Rectangle view, Point at)
+    {
+        var entries = _history.Entries;
+        for (int entry = 0; entry < entries.Count; entry++)
+            if (RecentRow(view, entry).Contains(at))
+                ShowRandom(entries[entry].Settings, entries[entry].Seed);
+        for (int option = 0; option < RandomOptions.Length; option++)
+            for (int value = 0; value < RandomOptions[option].Values.Length; value++)
+                if (OptionValue(view, option, value).Contains(at) && RandomOptions[option].Get(_randomSettings) != value)
+                    ShowRandom(RandomOptions[option].Set(_randomSettings, value), _randomSeed);
+        if (RerollButton(view).Contains(at))
+            ShowRandom(_randomSettings, Random.Shared.Next());
+    }
+
+    private Choice Start()
+    {
+        var players = Enumerable.Range(0, PlayerCount).Select(p => new PlayerSetup(_peoples[p], _colors[p], _hardcore[p])).ToArray();
+        var positions = RandomPositions ? _positions.ToArray() : null;
+        if (_category != RandomCategory)
+            return new Choice(_shown[_selected].Index, players, positions);
+        _history.Add(_randomSettings, _randomSeed);
+        return new Choice(-1, players, positions, new RandomMap(_randomSettings, _randomSeed));
+    }
 
     /// <summary>
     /// Start position per player: the assigned ones, the others drawn from the positions left
@@ -428,11 +530,16 @@ public sealed class StartScreen : IDisposable
             batch.Draw(pixel, tab, current ? new Color(70, 60, 30) : tab.Contains(hover) ? new Color(55, 50, 42) : new Color(35, 33, 30));
             if (current)
                 batch.Draw(pixel, new Rectangle(tab.X, tab.Bottom - 2, tab.Width, 2), Color.Gold);
-            var size = font.Measure(Categories[category], 16);
+            int fontSize = font.Measure(Categories[category], 16).X > tab.Width - 8 ? 13 : 16;
+            var size = font.Measure(Categories[category], fontSize);
             font.Draw(batch, Categories[category], new Vector2(tab.Center.X - size.X / 2, tab.Center.Y - size.Y / 2 - 1),
-                current ? Color.White : Color.LightGray, 16);
+                current ? Color.White : Color.LightGray, fontSize);
         }
         var list = ListArea(view);
+        if (_category == RandomCategory)
+            DrawRandomPanel(batch, pixel, font, view, hover);
+        else
+        {
         batch.Draw(pixel, list, new Color(25, 25, 30));
         int rows = VisibleRows(view);
         for (int r = 0; r < rows && _scroll + r < _shown.Length; r++)
@@ -455,6 +562,7 @@ public sealed class StartScreen : IDisposable
             int height = Math.Max(16, list.Height * rows / _shown.Length);
             int y = list.Y + (list.Height - height) * _scroll / Math.Max(1, _shown.Length - rows);
             batch.Draw(pixel, new Rectangle(list.Right - 4, y, 4, height), dim);
+        }
         }
 
         // Selected map: preview with its start positions, facts.
@@ -479,7 +587,8 @@ public sealed class StartScreen : IDisposable
             }
             int textX = preview.Right + 20;
             font.Draw(batch, _map.Name, new Vector2(textX, preview.Y), Color.White, 22);
-            font.Draw(batch, $"{(_map.IsSinglePlayer ? "Einzelspieler" : "Mehrspieler")} · {_map.Players.Count} Spieler",
+            string kind = _category == RandomCategory ? "Zufallskarte" : _map.IsSinglePlayer ? "Einzelspieler" : "Mehrspieler";
+            font.Draw(batch, $"{kind} · {_map.Players.Count} Spieler",
                 new Vector2(textX, preview.Y + 34), Color.LightGray);
             font.Draw(batch, $"{_map.Area.Size} × {_map.Area.Size} Felder", new Vector2(textX, preview.Y + 56), Color.LightGray);
             if (_map.Buildings.Count > 0)
@@ -551,7 +660,9 @@ public sealed class StartScreen : IDisposable
         if (hint is not null)
             font.Draw(batch, hint, new Vector2(x, start.Y - 22), dim, 12);
         DrawButton(batch, pixel, font, start, "Spiel starten", _map is not null && start.Contains(hover), 18);
-        font.Draw(batch, "Enter: starten · Esc: beenden · Pfeiltasten/Mausrad: Karte · Tab: Kategorie",
+        font.Draw(batch, _category == RandomCategory
+                ? "Enter: starten · Esc: beenden · R: neu würfeln · Tab: Kategorie"
+                : "Enter: starten · Esc: beenden · Pfeiltasten/Mausrad: Karte · Tab: Kategorie",
             new Vector2(start.Right + 20, start.Y + 14), dim, 13);
 
         // The position menu over everything else.
@@ -571,6 +682,67 @@ public sealed class StartScreen : IDisposable
                     batch.Draw(pixel, swatch, ShownColor(item - 1));
                     font.Draw(batch, PlayerName(item - 1), new Vector2(entry.X + 24, entry.Y + 3), Color.White, 14);
                 }
+            }
+        }
+    }
+
+    /// <summary>The random map generator in place of the list: last maps, settings, "Neu würfeln" and the hint of the setting under the mouse.</summary>
+    private void DrawRandomPanel(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle view, Point hover)
+    {
+        var list = ListArea(view);
+        var dim = new Color(150, 150, 150);
+        batch.Draw(pixel, list, new Color(25, 25, 30));
+        font.Draw(batch, "Vorherige Karten", new Vector2(list.X + 8, list.Y + 4), Color.Gold, 15);
+        var entries = _history.Entries;
+        if (entries.Count == 0)
+            font.Draw(batch, "noch keine gespielt", new Vector2(list.X + 8, RecentRow(view, 0).Y + 3), dim, 14);
+        for (int entry = 0; entry < entries.Count; entry++)
+        {
+            var e = entries[entry];
+            var row = RecentRow(view, entry);
+            bool current = e.Settings == _randomSettings && e.Seed == _randomSeed;
+            if (current)
+                batch.Draw(pixel, row, new Color(70, 60, 30));
+            else if (row.Contains(hover))
+                batch.Draw(pixel, row, new Color(45, 45, 50));
+            font.Draw(batch, $"{e.Settings.Players} Spieler · {SymmetryNames[(int)e.Settings.Symmetry]} · #{(uint)e.Seed:X8}",
+                new Vector2(row.X + 8, row.Y + 3), current ? Color.White : Color.LightGray);
+            string date = e.Created.ToString("dd.MM. HH:mm");
+            font.Draw(batch, date, new Vector2(row.Right - 10 - font.Measure(date).X, row.Y + 3), dim);
+        }
+
+        font.Draw(batch, "Einstellungen", new Vector2(list.X + 8, OptionY(view, 0) - 26), Color.Gold, 15);
+        string? hint = null;
+        for (int option = 0; option < RandomOptions.Length; option++)
+        {
+            var o = RandomOptions[option];
+            font.Draw(batch, o.Label, new Vector2(list.X + 8, OptionY(view, option) + 4), Color.White, 15);
+            int chosen = o.Get(_randomSettings);
+            for (int value = 0; value < o.Values.Length; value++)
+            {
+                var box = OptionValue(view, option, value);
+                bool hot = box.Contains(hover);
+                if (hot || new Rectangle(list.X, OptionY(view, option), list.Width, OptionRow).Contains(hover))
+                    hint = o.Hint;
+                batch.Draw(pixel, box, value == chosen ? new Color(110, 90, 40) : hot ? new Color(70, 65, 55) : new Color(45, 43, 40));
+                if (value == chosen)
+                    batch.Draw(pixel, new Rectangle(box.X, box.Bottom - 2, box.Width, 2), Color.Gold);
+                int fontSize = font.Measure(o.Values[value], 14).X > box.Width - 4 ? 12 : 14;
+                var size = font.Measure(o.Values[value], fontSize);
+                font.Draw(batch, o.Values[value], new Vector2(box.Center.X - size.X / 2, box.Center.Y - size.Y / 2 - 1),
+                    value == chosen ? Color.White : Color.LightGray, fontSize);
+            }
+        }
+        var reroll = RerollButton(view);
+        DrawButton(batch, pixel, font, reroll, "Neu würfeln", reroll.Contains(hover));
+        font.Draw(batch, $"#{(uint)_randomSeed:X8}", new Vector2(reroll.Right + 14, reroll.Y + 10), dim, 14);
+        if (hint is not null)
+        {
+            int y = reroll.Bottom + 10;
+            foreach (string line in font.Wrap(hint, list.Width - 16, 12))
+            {
+                font.Draw(batch, line, new Vector2(list.X + 8, y), dim, 12);
+                y += 16;
             }
         }
     }

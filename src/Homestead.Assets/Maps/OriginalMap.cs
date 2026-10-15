@@ -27,6 +27,23 @@ public sealed class OriginalMap
         Stacks = ReadRecords(MapChunkType.Stacks, 8, (c, p) => new MapStack(U16(c, p), U16(c, p + 2), c[p + 4], c[p + 5]));
     }
 
+    private OriginalMap(string name, MapArea area, IReadOnlyList<MapPlayer> players, IReadOnlyList<MapStack> stacks, int startResources)
+    {
+        Path = name;
+        Version = 0x0A;
+        Chunks = new Dictionary<MapChunkType, byte[]>();
+        (IsSinglePlayer, PlayerCount, StartResources) = (false, players.Count, startResources);
+        Players = players;
+        Area = area;
+        Settlers = [];
+        Buildings = [];
+        Stacks = stacks;
+    }
+
+    /// <summary>A multiplayer map made in memory (random maps): no buildings or settlers, every player gets the start equipment.</summary>
+    public static OriginalMap Create(string name, MapArea area, IReadOnlyList<MapPlayer> players, IReadOnlyList<MapStack> stacks, int startResources) =>
+        new(name, area, players, stacks, startResources);
+
     public string Path { get; }
 
     public string Name => System.IO.Path.GetFileNameWithoutExtension(Path);

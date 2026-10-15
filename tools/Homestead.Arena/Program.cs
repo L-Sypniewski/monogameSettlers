@@ -5,12 +5,14 @@ using Homestead.Simulation;
 using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
+using Homestead.Simulation.Map.Generation;
 
 // AI against AI without a window: every player of a map is an AI player, the game runs as fast as
 // it can, and every few game minutes the players' key figures are printed.
 //   Homestead.Arena [map names...] [--all] [--minutes N] [--every N] [--peoples amazon,roman] [--characters ,general] [--seed N] [--log] [--notes] [--profile]
 //                   [--until-decided] [--csv file] [--tag text]
 // Without map names: the first multiplayer map without start buildings. --all: every such map.
+// A map name random[:players[:none|mirror|repeat[:seed]]] plays a random map (seed: --seed by default).
 // --peoples: peoples for players the map leaves open (player i: entry i mod count). Default: random,
 // with a fixed seed so runs stay comparable (--seed N for another draw; it also seeds the world's chance).
 // --characters: AI character per player (ai.json characters; entry i for player i+1, empty: drawn).
@@ -39,13 +41,18 @@ int charactersAt = Array.IndexOf(args, "--characters");
 var characters = charactersAt >= 0 && charactersAt + 1 < args.Length ? args[charactersAt + 1].Split(',').Select(c => c.Trim()).ToArray() : [];
 
 var installation = GameInstallation.Locate();
+var randomMaps = names.Select(n => RandomMapSettings.ParseName(n, IntOption("--seed", 1))).OfType<(RandomMapSettings Settings, int Seed)>()
+    .Select(r => RandomMapGenerator.Generate(r.Settings, r.Seed))
+    .Select(m => (File: m.Name, Map: m)).ToList();
+names.RemoveAll(n => RandomMapSettings.ParseName(n) is not null);
 var maps = installation.MapFiles
-    .Where(f => names.Count == 0 ? true : names.Any(n => Path.GetFileNameWithoutExtension(f).Equals(n, StringComparison.OrdinalIgnoreCase)))
+    .Where(f => names.Count == 0 ? randomMaps.Count == 0 : names.Any(n => Path.GetFileNameWithoutExtension(f).Equals(n, StringComparison.OrdinalIgnoreCase)))
     .Select(f => (File: f, Map: OriginalMap.Open(f)))
     .Where(m => names.Count > 0 || m.Map is { IsSinglePlayer: false, Buildings.Count: 0 })
     .ToList();
 if (!all && names.Count == 0)
     maps = maps.Take(1).ToList();
+maps.AddRange(randomMaps);
 
 var siteSince = new Dictionary<int, long>();
 foreach (var (file, original) in maps)

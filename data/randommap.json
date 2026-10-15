@@ -1,0 +1,32 @@
+{
+  "_comment": "Random map generator (start screen tab 'Zufallsgenerator'). Values per setting level: few/medium/many (treasures: off/normal/many). Shares are of the land, counts per player.",
+  "sizes": { "2": 320, "3": 384, "4": 448, "5": 480, "6": 512 },
+  "startResources": 2,
+  "_layout": "seaMargin: water fields at the map edge; startDistance: start points this share of the land radius from the center; homeRadius: what the players' surroundings guarantee (mountain, pond with stream, forest, stones) lies within it, with 'Wiederholung' it is copied to every player.",
+  "seaMargin": 10,
+  "startDistance": 0.58,
+  "homeRadius": 36,
+  "mountainShare": 0.07,
+  "snowLine": 105,
+  "lakesPerPlayer": { "few": 0.5, "medium": 1, "many": 1.5 },
+  "riversPerPlayer": { "few": 1, "medium": 2, "many": 3.5 },
+  "swampsPerPlayer": 0.75,
+  "_resources": "cover: share of mountain fields with ore (veins), amount: range of the amount (0-15 as in the original maps); fish: amount in shallow water.",
+  "resources": {
+    "few": { "cover": 0.3, "min": 4, "max": 8, "fish": 4 },
+    "medium": { "cover": 0.5, "min": 8, "max": 12, "fish": 8 },
+    "many": { "cover": 0.75, "min": 12, "max": 15, "fish": 12 }
+  },
+  "veinWeights": { "Coal": 35, "IronOre": 30, "GoldOre": 15, "Sulfur": 10, "Gems": 10 },
+  "stoneClustersPerPlayer": { "few": 2, "medium": 4, "many": 7 },
+  "forestShare": { "few": 0.08, "medium": 0.16, "many": 0.26 },
+  "treeDensity": 0.4,
+  "decorationShare": { "few": 0.006, "medium": 0.018, "many": 0.045 },
+  "treasureSitesPerPlayer": { "off": 0, "normal": 2, "many": 5 },
+  "_treasureGoods": "Material: weight. A site has 1-3 piles of 3-8.",
+  "treasureGoods": {
+    "GOLD": 4, "GEMS": 3, "IRON": 3, "COAL": 3, "STONE": 3,
+    "SWORD": 2, "BOW": 1, "SPEAR": 1,
+    "HAMMER": 1, "AXE": 1, "PICK": 1, "SAW": 1, "SCYTHE": 1, "FISHINGROD": 1
+  }
+}

@@ -8,6 +8,7 @@ using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map;
+using Homestead.Simulation.Map.Generation;
 using Homestead.Simulation.Pathfinding;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -95,6 +96,8 @@ public sealed class MapGame : Game
     private BuildingDefinition? _buildSpotsFor;
 
     private int _mapIndex;
+    /// <summary>Random map asked for on the command line (<c>--map random:…</c>).</summary>
+    private readonly (RandomMapSettings Settings, int Seed)? _randomMap;
     private OriginalMap _map = null!;
     private TerrainMesh _terrain = null!;
     private MapObjectLayer _objects = null!;
@@ -176,6 +179,7 @@ public sealed class MapGame : Game
         _captureDirectory = captureDirectory;
         _fogOn = captureDirectory is null || Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOG") == "1";
         _mapFiles = installation.MapFiles.ToArray();
+        _randomMap = mapName is null ? null : RandomMapSettings.ParseName(mapName, defaultSeed: Random.Shared.Next());
         // Default: the first multiplayer map (equal start equipment for every player).
         _mapIndex = mapName is null
             ? Math.Max(0, Array.FindIndex(_mapFiles, f => OriginalMap.Open(f) is { IsSinglePlayer: false, Buildings.Count: 0 }))
@@ -218,7 +222,14 @@ public sealed class MapGame : Game
         _economyRenderer = new EconomyRenderer(_sprites);
         _font = new UiFont();
         if (_showStartScreen)
+        {
             _startScreen = new StartScreen(GraphicsDevice, _mapFiles, _mapDirectory, _mapIndex, _peoples);
+            // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps).
+            if (_captureDirectory is not null && int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START"), out int category))
+                _startScreen.ShowCategory(category);
+        }
+        else if (_randomMap is { } random)
+            LoadMap(RandomMapGenerator.Generate(random.Settings, random.Seed));
         else
             LoadMap(_mapIndex);
     }
@@ -245,7 +256,10 @@ public sealed class MapGame : Game
             .ToArray();
         _hardcore = Enumerable.Range(0, players.Count).Where(p => players[p].Hardcore).ToHashSet();
         _positions = choice.Positions is { } chosen ? StartScreen.ResolvePositions(chosen, _peopleDraw) : null;
-        LoadMap(choice.MapIndex);
+        if (choice.Random is { } random)
+            LoadMap(RandomMapGenerator.Generate(random.Settings, random.Seed));
+        else
+            LoadMap(choice.MapIndex);
     }
 
     /// <summary>Building catalog of the own player (player 1): the people the map gives or the chosen one.</summary>
@@ -267,8 +281,13 @@ public sealed class MapGame : Game
     private void LoadMap(int index)
     {
         _mapIndex = (index % _mapFiles.Length + _mapFiles.Length) % _mapFiles.Length;
+        LoadMap(OriginalMap.Open(_mapFiles[_mapIndex]));
+    }
+
+    private void LoadMap(OriginalMap map)
+    {
         _terrain?.Dispose();
-        _map = OriginalMap.Open(_mapFiles[_mapIndex]);
+        _map = map;
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
         (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples, random: _peopleDraw,
             hardcore: _hardcore.Where(p => p < _map.Players.Count),
@@ -1103,10 +1122,21 @@ public sealed class MapGame : Game
     {
         if (_startScreen is not null)
         {
+            // Capture runs with HOMESTEAD_CAPTURE_START=1 save one picture of the start screen and quit.
+            var startTarget = _captureDirectory is null ? null : NewCaptureTarget();
+            GraphicsDevice.SetRenderTarget(startTarget);
             GraphicsDevice.Clear(new Color(12, 12, 16));
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             _startScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
             _spriteBatch.End();
+            if (startTarget is not null)
+            {
+                GraphicsDevice.SetRenderTarget(null);
+                using (var stream = File.Create(Path.Combine(_captureDirectory!, "start.png")))
+                    startTarget.SaveAsPng(stream, startTarget.Width, startTarget.Height);
+                startTarget.Dispose();
+                Exit();
+            }
             base.Draw(gameTime);
             return;
         }
@@ -1114,11 +1144,7 @@ public sealed class MapGame : Game
         RenderTarget2D? target = null;
         if (_captureDirectory is not null)
         {
-            // HOMESTEAD_CAPTURE_SIZE=<w>x<h>: picture size (default 960x600), e.g. 1920x1080 to measure drawing at full screen.
-            var size = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SIZE")?.Split('x');
-            target = size is [var w, var h] && int.TryParse(w, out int width) && int.TryParse(h, out int height)
-                ? new RenderTarget2D(GraphicsDevice, width, height)
-                : new RenderTarget2D(GraphicsDevice, 960, 600);
+            target = NewCaptureTarget();
             GraphicsDevice.SetRenderTarget(target);
         }
 
@@ -1674,6 +1700,15 @@ public sealed class MapGame : Game
         float y = height * (0.5f + 0.4f * MathF.Sin(t * 0.8f));
         float x = width * (0.5f + 0.35f * MathF.Sin(t * 0.5f)) - y / ScreenProjection.RowHeight * ScreenProjection.TileWidth / 2f;
         _camera = new Vector2(x, y);
+    }
+
+    /// <summary>HOMESTEAD_CAPTURE_SIZE=&lt;w&gt;x&lt;h&gt;: picture size (default 960x600), e.g. 1920x1080 to measure drawing at full screen.</summary>
+    private RenderTarget2D NewCaptureTarget()
+    {
+        var size = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SIZE")?.Split('x');
+        return size is [var w, var h] && int.TryParse(w, out int width) && int.TryParse(h, out int height)
+            ? new RenderTarget2D(GraphicsDevice, width, height)
+            : new RenderTarget2D(GraphicsDevice, 960, 600);
     }
 
     private void Capture(RenderTarget2D target)
