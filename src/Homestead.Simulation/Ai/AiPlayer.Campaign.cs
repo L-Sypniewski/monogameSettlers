@@ -133,16 +133,18 @@ public sealed partial class AiPlayer
         if (strength < defense * _config.Military.RetreatRatio)
         {
             Note($"retreats from {target.Position.X},{target.Position.Y}");
-            _world.Military.Move(c.Soldiers, HomeDoor(), forced: true);
+            _world.Military.Move(c.Soldiers, RetreatDoor(CenterOf(c.Soldiers), target.Door), forced: true);
             _campaign = null;
         }
     }
 
     /// <summary>
     /// The target's garrison (weighted by <c>attack.garrisonWeight</c>: a castle's is worth more) plus
-    /// enemy soldiers outside near it, as they fight at the target.
+    /// enemy soldiers outside near it, as they fight at the target, plus the bowmen of other enemy military
+    /// buildings that reach it.
     /// </summary>
     internal double Defense(Building target) =>
+        TowerFire([target.Position], except: target) +
         _world.Military.Occupants(target).Where(s => s is not null).Sum(s => Strength(s!, target.Position))
         * (_config.Attack.GarrisonWeight?.GetValueOrDefault(target.Definition.Name, 1.0) ?? 1.0)
         + _world.Settlers.Where(s => s.Profession == Profession.Soldier && s.Player != Player && !s.IsInside && !s.IsDead

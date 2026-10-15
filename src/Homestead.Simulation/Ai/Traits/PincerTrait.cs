@@ -176,7 +176,7 @@ internal sealed class PincerTrait(JsonElement settings) : AiTrait
                     if (Strength() < ai.Defense(target) * ai.Config.Military.RetreatRatio)
                     {
                         ai.Note($"pincer: retreats from {where}");
-                        world.Military.Move(campaign.Soldiers, ai.HomeDoor(), forced: true);
+                        world.Military.Move(campaign.Soldiers, ai.RetreatDoor(AiPlayer.CenterOf(campaign.Soldiers), target.Door), forced: true);
                         return false;
                     }
                     return true;

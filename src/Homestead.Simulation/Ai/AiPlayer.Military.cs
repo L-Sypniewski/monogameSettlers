@@ -249,16 +249,48 @@ public sealed partial class AiPlayer
     internal GridPoint HomeDoor() => _home is { Exists: true } h && h.Player == Player ? h.Door
         : _world.Buildings.Where(b => b.Exists && b.Player == Player && IsMilitary(b)).Select(b => b.Door).FirstOrDefault();
 
-    /// <summary>The group's strength plus that of other enemy groups near the way from <paramref name="from"/> to it.</summary>
+    /// <summary>
+    /// The group's strength plus that of other enemy groups near the way from <paramref name="from"/> to it
+    /// and of the bowmen in enemy military buildings within reach of the way or the group (they shoot from
+    /// safety: a single soldier next to a full castle is not alone).
+    /// </summary>
     private double Opposition(EnemyGroup group, GridPoint from)
     {
         int clearance = _config.Attack.PathClearance;
         int steps = Math.Max(1, PathFinder.Distance(from, group.Center) / 3);
-        var onTheWay = EnemyGroups.Where(g => !g.Soldiers.Any(group.Soldiers.Contains) && Enumerable.Range(0, steps + 1).Any(i =>
-            PathFinder.Distance(g.Center, new GridPoint(from.X + (group.Center.X - from.X) * i / steps,
-                from.Y + (group.Center.Y - from.Y) * i / steps)) <= clearance));
-        return group.Strength + onTheWay.Sum(g => g.Strength);
+        var way = Enumerable.Range(0, steps + 1).Select(i => new GridPoint(from.X + (group.Center.X - from.X) * i / steps,
+            from.Y + (group.Center.Y - from.Y) * i / steps)).ToList();
+        var onTheWay = EnemyGroups.Where(g => !g.Soldiers.Any(group.Soldiers.Contains) && way.Any(p => PathFinder.Distance(g.Center, p) <= clearance));
+        return group.Strength + onTheWay.Sum(g => g.Strength) + TowerFire(way);
     }
+
+    /// <summary>
+    /// Strength of the bowmen in enemy military buildings that reach one of <paramref name="points"/>
+    /// (apart from <paramref name="except"/>), as they fight from their own land.
+    /// </summary>
+    internal double TowerFire(IReadOnlyCollection<GridPoint> points, Building? except = null)
+    {
+        int range = _world.Military.Config.Soldiers[SoldierType.Bowman].Range;
+        return EnemyMilitary().Where(b => b != except && points.Any(p => PathFinder.Distance(b.Position, p) <= range))
+            .Sum(b => _world.Military.Occupants(b).Where(s => s is { SoldierType: SoldierType.Bowman }).Sum(s => Strength(s!, b.Position)));
+    }
+
+    /// <summary>
+    /// Where soldiers retreat to from <paramref name="from"/>: the nearest own military building that is not
+    /// nearer to the enemies at <paramref name="enemy"/> than they are (not through them), otherwise home.
+    /// </summary>
+    internal GridPoint RetreatDoor(GridPoint from, GridPoint enemy)
+    {
+        int danger = PathFinder.Distance(from, enemy);
+        var pathFinder = _world.PathFinder!;
+        return _world.Buildings.Where(b => b.Exists && b.Player == Player && IsMilitary(b) && b.State == BuildingState.Finished
+                                           && PathFinder.Distance(b.Door, enemy) >= danger && pathFinder.AreConnected(from, b.Door))
+            .MinBy(b => PathFinder.Distance(b.Door, from))?.Door ?? HomeDoor();
+    }
+
+    /// <summary>Middle of the soldiers' positions.</summary>
+    internal static GridPoint CenterOf(IReadOnlyCollection<Settler> soldiers) =>
+        new((int)soldiers.Average(s => s.Position.X), (int)soldiers.Average(s => s.Position.Y));
 
     /// <summary>
     /// Own soldiers free for orders: outside, idle or walking on a plain move order (to a post, home), not part
@@ -276,7 +308,8 @@ public sealed partial class AiPlayer
     /// <summary>
     /// Checks the running strikes every think: the enemy group is found again (it may have moved or
     /// got reinforcements), the strikers follow it, idle soldiers nearby join when the odds got worse,
-    /// and when they are still too weak the strike is called off and the strikers retreat home.
+    /// and when they are still too weak the strike is called off and the strikers retreat to the nearest
+    /// own military building away from the enemies.
     /// </summary>
     private void FollowStrikes(List<Building> mine)
     {
@@ -303,7 +336,7 @@ public sealed partial class AiPlayer
 
             double strength = strike.Soldiers.Sum(s => Strength(s, group.Center));
             // What they will meet: the group and whoever waits on the way to it.
-            var from = new GridPoint((int)strike.Soldiers.Average(s => s.Position.X), (int)strike.Soldiers.Average(s => s.Position.Y));
+            var from = CenterOf(strike.Soldiers);
             double opposition = Opposition(group, from);
             if (strength < opposition * config.RetreatRatio)
             {
@@ -326,7 +359,7 @@ public sealed partial class AiPlayer
                 }
                 else
                 {
-                    _world.Military.Move(strike.Soldiers, HomeDoor(), forced: true);
+                    _world.Military.Move(strike.Soldiers, RetreatDoor(from, group.Center), forced: true);
                     Note($"calls off the strike at {group.Center.X},{group.Center.Y}: {group.Soldiers.Count} enemies are too strong");
                     _strikes.Remove(strike);
                     continue;

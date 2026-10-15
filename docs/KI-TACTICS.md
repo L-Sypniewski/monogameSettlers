@@ -139,7 +139,11 @@ Laufbefehl der KI (zum Posten, heim) zählen als untätig, Feldzüge werden scho
 Sammelpunkt aufgegeben, wenn die Verteidigung zu stark geworden ist. Guerilla trifft auch feindliche
 Geologen (ein Soldat genügt). `military.hinterlandDepth` (`skirmisher`: 8) unterscheidet Angriffe auf
 Land (Feinde laufen oder kämpfen – überall angegriffen) von herumstehenden Feinden, die nur angegriffen
-werden, wenn sie höchstens so tief im eigenen Land ihres Besitzers stehen.
+werden, wenn sie höchstens so tief im eigenen Land ihres Besitzers stehen. Zur Stärke eines Ziels
+zählen auch die Bogenschützen feindlicher Militärgebäude, die den Weg oder das Ziel erreichen (ein
+Soldat neben einer voll besetzten Burg ist nicht allein); ebenso bei Feldzügen die Bogenschützen
+benachbarter Gebäude. Wer sich zurückzieht, läuft zum nächsten eigenen Militärgebäude, das nicht näher
+am Feind liegt – nicht den ganzen Weg heim.
 
 ### Besatzung
 
@@ -293,7 +297,7 @@ Ziel: je Volk ein Charakter, der sich als Gegner eigen anfühlt. Definiert in `a
 | Ägypter | Hitzkopf (`hothead`) | temperamentvoll, greift immer mit voller Stärke an | earlyArmy, frontGarrison; `ratio` 1,2, `commit` 1, Guerilla bei 1,2:1 bis 120 Felder (mit earlyArmy gegen Standard 0,56 statt 0,52, entscheidet mehr Partien) |
 | Asiaten | Unbeugsamer (`unyielding`) | gibt niemals auf, zieht sich nie zurück | guardByThreat; `abortRatio` 0,5, `retreatRatio` 0,5 (bei 0 lief er sich tot: 0,35 Punkte gegen Standard, mit 0,5: 0,50), `ratio` 1,4 |
 | Römer | Legion (`legion`) | wirtschaftlich stark, greift gebündelt in Wellen an | waves, pincer, guardByThreat; `minSoldiers` 8, `commit` 0,6; Gold 10 Plätze früher; 5 Baustellen |
-| Amazonen | Plänklerin (`skirmisher`) | auf Nummer sicher, schwächt den Gegner mit kleinen Guerillas | guardByThreat; Feldzug erst bei 2:1, aber ohne Armee-Vergleich ab 2 Soldaten und nur bis 50 Felder (`maxDistance`; ohne griff sie in Minute 1 einen Turm quer über die Karte an und verlor danach alles); Guerilla bis 150 Felder bei 1,3:1, Rückzug schon unter 1,2 |
+| Amazonen | Plänklerin (`skirmisher`) | auf Nummer sicher, schwächt den Gegner mit kleinen Guerillas | guardByThreat; Feldzug erst bei 2:1, aber ohne Armee-Vergleich ab 2 Soldaten und nur bis 50 Felder (`maxDistance`; ohne griff sie in Minute 1 einen Turm quer über die Karte an und verlor danach alles); Guerilla bis 150 Felder bei 2:1 (bei 1,3:1 mit Rückzug unter 1,2 kehrten die kleinen Trupps beim ersten Anzeichen von Gefahr um), Rückzug unter 1:1 |
 
 Leitlinie: Spielstil, Abwechslung und Spaß vor exakter Balance. Jedes Volk soll sich als Gegner
 erkennbar anders spielen, mit Stärken und ausnutzbaren Schwächen. Beobachtet (Arena, Amazonen gegen

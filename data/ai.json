@@ -163,7 +163,7 @@
   "characters": {
     "standard": { "traits": [] },
     "general": { "traits": ["pincer", "everyOtherTower", "guardByThreat"], "attack": { "ratio": 1.2 }, "military": { "strikeRange": 40 } },
-    "_peoplesComment": "One character per people (characterWeights under civilizations), each a recognisable opponent. Egyptians (hothead): hot-tempered, military early, attack at slight superiority with all they have, thin garrisons in the back. Asians (unyielding): hardly ever give up or retreat (only below half the defence; never at all bled them out). Romans (legion): strong economy with early gold, attack bundled in waves, pincers. Amazons (skirmisher): play safe at home (garrisons full, campaigns only at 2:1), but wear the enemy down with small guerilla groups far out; campaigns only near the own land (an outpost far away is lost again). Idle soldiers without a threat: hothead keeps them in one heap at home, unyielding on a changing third of its towers, legion and general on every other tower, skirmisher on the towers facing the enemy; enemies standing around deep in their own land are left alone by the skirmisher (that mostly goes wrong).",
+    "_peoplesComment": "One character per people (characterWeights under civilizations), each a recognisable opponent. Egyptians (hothead): hot-tempered, military early, attack at slight superiority with all they have, thin garrisons in the back. Asians (unyielding): hardly ever give up or retreat (only below half the defence; never at all bled them out). Romans (legion): strong economy with early gold, attack bundled in waves, pincers. Amazons (skirmisher): play safe at home (garrisons full, campaigns only at 2:1), but wear the enemy down with guerilla groups far out (at 2:1, so they do not turn round at the first sign of danger); campaigns only near the own land (an outpost far away is lost again). Idle soldiers without a threat: hothead keeps them in one heap at home, unyielding on a changing third of its towers, legion and general on every other tower, skirmisher on the towers facing the enemy; enemies standing around deep in their own land are left alone by the skirmisher (that mostly goes wrong).",
     "hothead": {
       "traits": ["earlyArmy", "frontGarrison"],
       "attack": { "ratio": 1.2, "armyRatio": 1.0, "commit": 1.0, "minSoldiers": 3 },
@@ -184,7 +184,7 @@
     "skirmisher": {
       "traits": ["frontTowers", "guardByThreat"],
       "attack": { "ratio": 2.0, "armyRatio": 0, "minSoldiers": 2, "maxDistance": 50 },
-      "military": { "strikeRange": 150, "strikeRatio": 1.3, "retreatRatio": 1.2, "hinterlandDepth": 8 }
+      "military": { "strikeRange": 150, "strikeRatio": 2.0, "retreatRatio": 1.0, "hinterlandDepth": 8 }
     }
   },
   "characterWeights": [["standard", 1]],
