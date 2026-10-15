@@ -1,5 +1,12 @@
 {
   "_comment": "Build menu: the categories of the original's build menu with their buildings, in order (lists as in JSettlers' EBuildingsCategory, MIT). Buildings a people does not have are left out. tab: GUI images (file 03, large size) of the category button, normal and selected.",
+  "_portraitsComment": "Unit portraits in the stone frame (GUI images of the people's file, the large 40x60 one; the medium and small are the two before it). soldiers: the first, then swordsman, pikeman, bowman of level 1, the same of level 2 and 3, three images apart.",
+  "portraits": {
+    "Roman": { "file": 14, "BEARER": 134, "GEOLOGIST": 185, "MAGE": 203, "soldiers": 209 },
+    "Egyptian": { "file": 24, "BEARER": 128, "GEOLOGIST": 179, "MAGE": 197, "soldiers": 200 },
+    "Asian": { "file": 34, "BEARER": 140, "GEOLOGIST": 191, "MAGE": 215, "soldiers": 218 },
+    "Amazon": { "file": 44, "BEARER": 137, "GEOLOGIST": 188, "MAGE": 206, "soldiers": 209 }
+  },
   "buildMenu": [
     {
       "name": "Basic",

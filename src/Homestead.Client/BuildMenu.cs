@@ -25,7 +25,8 @@ public sealed class BuildMenu : IDisposable
 
     // Areas of the large panel (216 × 544), measured on the image.
     private static readonly Rectangle TabBar = new(10, 64, 196, 39);
-    private static readonly Rectangle Content = new(10, 118, 196, 354);
+    /// <summary>The content area of the blue panel, below the bars (panel space); the other menus there use it too.</summary>
+    public static readonly Rectangle Content = new(10, 118, 196, 354);
     private const int Columns = 3;
     private const int CellHeight = 70;
 

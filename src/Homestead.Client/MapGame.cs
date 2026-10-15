@@ -76,6 +76,7 @@ public sealed class MapGame : Game
     private BuildingCatalog? _romans;
     private BuildingDefinition[] _placeable = [];
     private BuildMenu? _buildMenu;
+    private Portraits? _portraits;
     private SidePanel _sidePanel = null!;
     private Minimap? _minimap;
     private readonly ConversionMenu _conversionMenu = new();
@@ -275,6 +276,8 @@ public sealed class MapGame : Game
             return;
         _buildMenu?.Dispose();
         _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog);
+        _portraits?.Dispose();
+        _portraits = new Portraits(GraphicsDevice, _gfx, catalog.Civilization);
         _placeable = catalog.All.Where(b => b.ConstructionPiles.Count > 0)
             .OrderBy(b => b.Name).ToArray();
         _placeIndex = Math.Max(0, Array.FindIndex(_placeable, b => b.Name == "lumberjack"));
@@ -1354,21 +1357,21 @@ public sealed class MapGame : Game
         else if (_group.Count > 0)
         {
             // The selected units (below the spell or conversion menu for priests or carriers) and the combat strength.
-            int unitsTop = 4;
+            int unitsTop = BuildMenu.Content.Y;
             if (PriestsSelected)
             {
                 var spells = _world.Magic.SpellsOf(0);
-                _spellMenu.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _settlerRenderer, Own.Civilization, spells,
+                _spellMenu.Draw(_spriteBatch, _pixel, _font, _settlerRenderer, _portraits!, Own.Civilization, spells,
                     _world.Magic.Mana(0), _aiming ? _aimSpell : null, panelMouse);
-                unitsTop = SpellMenu.Bottom(spells.Count) + 36;
+                unitsTop = SpellMenu.Bottom(spells.Count);
             }
             else if (CarriersSelected)
             {
-                _conversionMenu.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _settlerRenderer, Own.Civilization, panelMouse);
-                unitsTop = 78;
+                _conversionMenu.Draw(_spriteBatch, _pixel, _settlerRenderer, _portraits!, Own.Civilization, panelMouse);
+                unitsTop = ConversionMenu.Bottom;
             }
-            _selectionPanel.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _settlerRenderer, Own.Civilization, _group,
-                _world.Military.CombatStrength(0), unitsTop, background: unitsTop == 4);
+            _selectionPanel.Draw(_spriteBatch, _font, _settlerRenderer, _portraits!, Own.Civilization, _group,
+                _world.Military.CombatStrength(0), unitsTop);
         }
         else
             _buildMenu!.Draw(_spriteBatch, _pixel, _font, _placing ? _placeable[_placeIndex] : null, panelMouse, OwnBuildingCounts());
@@ -1968,6 +1971,7 @@ public sealed class MapGame : Game
         _startScreen?.Dispose();
         _sprites.Dispose();
         _buildMenu?.Dispose();
+        _portraits?.Dispose();
         _font.Dispose();
         _atlas.Dispose();
         _effect.Dispose();
