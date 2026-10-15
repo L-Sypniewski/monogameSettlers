@@ -20,13 +20,13 @@ public static class PlayerColors
     public static Color Of(int player) => _colors[(player % _colors.Length + _colors.Length) % _colors.Length];
 
     /// <summary>
-    /// Player 1 gets palette entry <paramref name="own"/>, player 2 <paramref name="enemy"/>, further players
-    /// the remaining palette colors in order. <c>null</c>: random (see <see cref="Resolve"/>).
+    /// Player i gets palette entry <paramref name="chosen"/>[i] (<c>null</c>: random, see <see cref="Resolve"/>),
+    /// further players the remaining palette colors in order.
     /// </summary>
-    public static void Assign(int? own, int? enemy, Random random)
+    public static void Assign(IReadOnlyList<int?> chosen, Random random)
     {
-        var colors = Resolve([own, enemy], random);
-        _colors = Ordered(colors[0], colors[1]);
+        var colors = Resolve(chosen, random);
+        _colors = colors.Select(c => Palette[c]).Concat(Palette.Where((_, i) => !colors.Contains(i))).ToArray();
     }
 
     /// <summary>
@@ -45,13 +45,11 @@ public static class PlayerColors
                 continue;
             }
             var free = Enumerable.Range(0, Palette.Length).Where(c => !taken.Contains(c)).ToArray();
+            if (free.Length == 0)
+                free = Enumerable.Range(0, Palette.Length).ToArray(); // more players than colors
             result[i] = free[random.Next(free.Length)];
             taken.Add(result[i]);
         }
         return result;
     }
-
-    /// <summary>The colors per player that <see cref="Assign"/> gives for two chosen colors.</summary>
-    public static Color[] Ordered(int own, int enemy) =>
-        new[] { Palette[own], Palette[enemy] }.Concat(Palette.Where((_, i) => i != own && i != enemy)).ToArray();
 }

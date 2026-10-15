@@ -136,6 +136,14 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
      am Rohstoff bzw. nahe der Heimat; Vorrat für einen Steinmetz bleibt immer übrig; Abriss erschöpfter Gebäude
    - [x] Strategische Expansion (nicht im Original): Türme gezielt Richtung fehlender Steine, Erze, Bäume,
      Wasser oder Platz – damit kein Spiel mangels Gebirge/Steinen im Startgebiet stehen bleibt
+   - [x] Expansion zu weit entfernten Zielen (z. B. Gebirge auf „Frontier“): fehlt im Umkreis von 60 Feldern
+     um das Ziel ein Turmplatz, geht der Turm auf den eigenen Platz, der dem Ziel am nächsten liegt – Turm
+     für Turm hin, statt auf Wasser/Platz auszuweichen
+   - [ ] Erz-Bedarf erst bei echter Menge erfüllt (Mindestmenge wie bei Steinen, nur Felder mit Gebirge)
+   - [ ] Fernziele nicht abwechselnd verfolgen: liegen Kohle und Eisen in entgegengesetzten Richtungen,
+     wechselt die KI Turm für Turm die Richtung
+   - [ ] Alternative Taktiken, wenn ein Rohstoff (v. a. Gebirge) auf der eigenen Insel fehlt bzw. auf der
+     ganzen Karte fehlt
    - [x] Lagerhaus erst, wenn ein Schmied/die Goldschmelze in Menge produziert (eingelagert werden nur Werkzeuge,
      Waffen, Gold – einstellbar in `production.json`; Lagerstapel fassen 8)
    - [x] `tools/Homestead.Arena`: KI gegen KI ohne Fenster auf allen Mehrspieler-Karten, Kennzahlen und

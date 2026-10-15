@@ -668,15 +668,18 @@ public sealed partial class AiPlayer
                 continue;
             if (NearestUnclaimed(c => wanted(c) && Uncovered(c)) is not { } target)
                 continue;
-            if (PlaceTower(tower, target, mine, resource: need is not ("land" or "room")) is { } site)
+            if (PlaceTower(tower, target, mine, resource: need is not ("land" or "room")) is not { } site)
             {
-                Note($"expands towards {need} at {target.X},{target.Y}: tower at {site.Position.X},{site.Position.Y}");
-                if (need == "room")
-                    _lacksRoom = false;
-                if (need == "water")
-                    _noSpot.Remove("waterworks");
-                return;
+                NoteOnce($"expand:{need}", $"cannot expand towards {need} at {target.X},{target.Y}: no tower spot");
+                continue;
             }
+            _reported.Remove($"expand:{need}");
+            Note($"expands towards {need} at {target.X},{target.Y}: tower at {site.Position.X},{site.Position.Y}");
+            if (need == "room")
+                _lacksRoom = false;
+            if (need == "water")
+                _noSpot.Remove("waterworks");
+            return;
         }
     }
 
@@ -740,9 +743,8 @@ public sealed partial class AiPlayer
         int radius = (int)_world.Military.Config.Territory.GetValueOrDefault(tower.Name, 20);
         GridPoint? leastWater = null;
         double leastShare = double.MaxValue;
-        foreach (var offset in Spiral)
+        foreach (var p in TowerCandidates(target))
         {
-            var p = target + offset;
             if (PathFinder.Distance(p, target) + 6 > closest)
                 break;
             if (!map.Contains(p) || map.OwnerAt(p) != Player || !_world.CanPlace(tower, p, out _, Player)
@@ -760,6 +762,29 @@ public sealed partial class AiPlayer
             return _world.PlaceConstructionSite(tower, Player, spot);
         }
         return null;
+    }
+
+    /// <summary>
+    /// Points nearest the target first: the spiral around it, then, for targets farther than the spiral
+    /// reaches, the own land beyond it, so the towers walk towards a far target step by step.
+    /// </summary>
+    private IEnumerable<GridPoint> TowerCandidates(GridPoint target)
+    {
+        // The circle holds every point up to this grid distance (and some beyond): sorted by distance throughout.
+        var origin = new GridPoint(0, 0);
+        foreach (var offset in Spiral.TakeWhile(o => PathFinder.Distance(origin, o) <= TowerSearchRadius))
+            yield return target + offset;
+        var map = _world.Map!;
+        var beyond = new List<GridPoint>();
+        for (int y = 0; y < map.Size; y++)
+        for (int x = 0; x < map.Size; x++)
+        {
+            var p = new GridPoint(x, y);
+            if (map.OwnerAt(p) == Player && PathFinder.Distance(p, target) > TowerSearchRadius)
+                beyond.Add(p);
+        }
+        foreach (var p in beyond.OrderBy(p => PathFinder.Distance(p, target)))
+            yield return p;
     }
 
     /// <summary>Share of water among the unclaimed points within <paramref name="radius"/> (every other point sampled).</summary>

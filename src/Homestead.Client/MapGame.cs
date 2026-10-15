@@ -42,8 +42,10 @@ public sealed class MapGame : Game
     /// <summary>Draws the peoples of players the map leaves open ("random"): a new draw every game.</summary>
     private readonly Random _peopleDraw = new();
     private IReadOnlyList<Civilization>? _peoples;
-    /// <summary>The computer players get the hardcore head start (start screen).</summary>
-    private bool _hardcore;
+    /// <summary>Players with the hardcore head start (start screen).</summary>
+    private IReadOnlySet<int> _hardcore = new HashSet<int>();
+    /// <summary>Start position (map player) per player, from the start screen; null: as the map says.</summary>
+    private int[]? _positions;
     private readonly string _mapDirectory;
 
     /// <summary>Shown before the first map is loaded, until the game is started.</summary>
@@ -234,13 +236,15 @@ public sealed class MapGame : Game
             return;
         _startScreen.Dispose();
         _startScreen = null;
-        PlayerColors.Assign(choice.OwnColor, choice.EnemyColor, _peopleDraw);
-        // Player 1 the own people, all others the opponents' one; random ones drawn per player.
-        _peoples = Enumerable.Range(0, 8)
-            .Select(player => (player == 0 ? choice.Own : choice.Enemy)
+        var players = choice.Players;
+        PlayerColors.Assign(players.Select(p => p.Color).ToArray(), _peopleDraw);
+        // Random peoples drawn per player.
+        _peoples = Enumerable.Range(0, Math.Max(8, players.Count))
+            .Select(player => (player < players.Count ? players[player].People : null)
                               ?? Enum.GetValues<Civilization>()[_peopleDraw.Next(Enum.GetValues<Civilization>().Length)])
             .ToArray();
-        _hardcore = choice.Hardcore;
+        _hardcore = Enumerable.Range(0, players.Count).Where(p => players[p].Hardcore).ToHashSet();
+        _positions = choice.Positions is { } chosen ? StartScreen.ResolvePositions(chosen, _peopleDraw) : null;
         LoadMap(choice.MapIndex);
     }
 
@@ -267,7 +271,8 @@ public sealed class MapGame : Game
         _map = OriginalMap.Open(_mapFiles[_mapIndex]);
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
         (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples, random: _peopleDraw,
-            hardcore: _hardcore ? Enumerable.Range(1, Math.Max(0, _map.Players.Count - 1)) : null);
+            hardcore: _hardcore.Where(p => p < _map.Players.Count),
+            positions: _positions?.Length == _map.Players.Count ? _positions : null);
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
         _objects = new MapObjectLayer(_sprites, _map.Area, _terrain);
@@ -293,8 +298,10 @@ public sealed class MapGame : Game
                               $"({string.Join(", ", ai.Character.Traits.Select(t => _aiNames.Trait(t.Id)))})");
         }
         _wanderers.Clear();
-        _start = _map.Players.Count > 0
-            ? new GridPoint(_map.Players[0].StartX, _map.Players[0].StartY)
+        // The camera starts at the own start position (drawn ones included).
+        var home = _map.Players.Count > 0 ? _map.Players[_positions?.Length == _map.Players.Count ? _positions[0] : 0] : null;
+        _start = home is not null
+            ? new GridPoint(home.StartX, home.StartY)
             : new GridPoint(_map.Area.Size / 2, _map.Area.Size / 2);
         _selected = null;
         _group.Clear();

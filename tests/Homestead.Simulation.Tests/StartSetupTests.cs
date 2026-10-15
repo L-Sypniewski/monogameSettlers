@@ -2,6 +2,7 @@ using Homestead.Assets;
 using Homestead.Assets.Maps;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
+using Homestead.Simulation.Pathfinding;
 using Xunit.Abstractions;
 
 namespace Homestead.Simulation.Tests;
@@ -54,5 +55,29 @@ public class StartSetupTests(ITestOutputHelper output)
                 .Any(p => world.CanPlace(romans["sawmill"], p, out _, player: 0));
             Assert.True(fits, $"{original.Name}: a sawmill fits on the own land");
         }
+    }
+
+    [Fact]
+    public void Players_can_take_other_start_positions()
+    {
+        GameInstallation installation;
+        try { installation = GameInstallation.Locate(); }
+        catch (Exception) { output.WriteLine("No installation found, skipped."); return; }
+
+        var original = installation.MapFiles.Select(OriginalMap.Open)
+            .First(m => !m.IsSinglePlayer && m.Buildings.Count == 0 && m.Players.Count >= 2);
+        int count = original.Players.Count;
+        // Reversed: player i starts where map player count - 1 - i would.
+        var positions = Enumerable.Range(0, count).Select(i => count - 1 - i).ToArray();
+        var (world, _) = OriginalScenario.Load(original, positions: positions);
+
+        for (int player = 0; player < count; player++)
+        {
+            var home = original.Players[positions[player]];
+            var tower = world.Buildings.Single(b => b.Player == player && b.Definition.Name == "tower");
+            Assert.True(PathFinder.Distance(tower.Position, new GridPoint(home.StartX, home.StartY)) <= 2,
+                $"player {player + 1} starts at map player {positions[player] + 1}");
+        }
+        Assert.Throws<ArgumentException>(() => OriginalScenario.Load(original, positions: Enumerable.Repeat(0, count).ToArray()));
     }
 }

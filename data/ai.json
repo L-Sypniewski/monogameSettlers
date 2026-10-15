@@ -317,16 +317,16 @@
         ["fisher", 1],
         ["coalmine", 1],
         ["ironmine", 1],
-        ["waterworks", 1],
+        ["ironmelt", 1],
+        ["weaponsmith", 1],
         ["farm", 1],
+        ["waterworks", 1],
         ["mill", 1],
         ["baker", 1],
-        ["ironmelt", 1],
         ["toolsmith", 1],
         ["lumberjack", 4],
         ["forester", 3],
         ["stonecutter", 2],
-        ["weaponsmith", 1],
         ["barrack", 1],
         ["pig_farm", 1],
         ["slaughterhouse", 1],
@@ -357,8 +357,8 @@
         ["stonecutter", 3]
       ],
       "houseSizes": [
-        { "building": "big_livinghouse", "sawmills": 3, "stonecutters": 2 },
-        { "building": "medium_livinghouse", "sawmills": 2, "stonecutters": 1 }
+        { "building": "big_livinghouse", "sawmills": 2, "stonecutters": 2 },
+        { "building": "medium_livinghouse", "sawmills": 1, "stonecutters": 1 }
       ]
     }
   }
