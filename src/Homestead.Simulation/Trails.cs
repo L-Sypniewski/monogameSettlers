@@ -7,7 +7,8 @@ namespace Homestead.Simulation;
 /// Walking speed by ground and the trails carriers tread (see <c>walking</c> in production.json). A carrier
 /// on a job that steps onto plain grass leaves a trace; after <see cref="WalkingRules.TrailSteps"/> such steps,
 /// each less than <see cref="WalkingRules.TrailFadeTicks"/> after the one before, the point becomes a trail
-/// (<see cref="GroundCover.Trail"/>), not next to rivers or water and never on farmland (farms sow over trails).
+/// (<see cref="GroundCover.Trail"/>), never on or next to farmland, rivers or other ground than grass
+/// (<see cref="GameMap.CoverFits"/>); farms sow over trails and cut them back around their fields.
 /// Everybody walks faster on trails and slower on mountains, and the path search knows it. A trail
 /// nobody stepped on for <see cref="WalkingRules.TrailFadeTicks"/> fades back to grass.
 /// </summary>
@@ -60,7 +61,7 @@ public sealed class Trails
             _trodden[index] = (_rules.TrailSteps, _world.Tick);
             return;
         }
-        if (!settler.IsCarrier || !settler.HasTask || cover != GroundCover.None || map.TerrainAt(p) != TerrainType.Grass || NearWater(p))
+        if (!settler.IsCarrier || !settler.HasTask || cover != GroundCover.None || !map.CoverFits(p, GroundCover.Trail))
             return;
         var (steps, last) = _trodden.GetValueOrDefault(index);
         if (_world.Tick - last >= _rules.TrailFadeTicks)
@@ -70,16 +71,21 @@ public sealed class Trails
             map.SetCover(p, GroundCover.Trail);
     }
 
-    private bool NearWater(GridPoint p)
+    /// <summary>Farmland was sown on <paramref name="p"/>: trails on it and next to it go.</summary>
+    internal void CutAround(GridPoint p)
     {
         var map = _world.Map!;
+        Cut(p);
         for (int d = 0; d < DirectionExtensions.Count; d++)
+            Cut(p.Neighbor((Direction)d));
+
+        void Cut(GridPoint q)
         {
-            var q = p.Neighbor((Direction)d);
-            if (map.Contains(q) && map.TerrainAt(q) is TerrainType.River or TerrainType.Water)
-                return true;
+            if (!map.Contains(q) || map.CoverAt(q) != GroundCover.Trail)
+                return;
+            _trodden.Remove(map.Index(q));
+            map.SetCover(q, GroundCover.None);
         }
-        return false;
     }
 
     internal void Tick()

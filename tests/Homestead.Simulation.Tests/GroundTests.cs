@@ -165,4 +165,53 @@ public class GroundTests
         Assert.True(fields.Count >= 3);
         Assert.All(fields, p => Assert.Equal(GroundCover.Farmland, map.CoverAt(p)));
     }
+
+    [Fact]
+    public void Farmland_keeps_a_point_away_from_rivers_and_cuts_trails_around_it()
+    {
+        var map = new GameMap(70);
+        var world = new World(map, TestConfig.NoTools.WithCropGrowTicks("grain", 700));
+        var farm = world.PlaceBuilding(Romans["farm"], 0, new GridPoint(30, 20))!;
+        var center = farm.Position + farm.Definition.WorkCenter!.Value;
+        int radius = farm.Definition.WorkRadius!.Value;
+        // A river through the fields, trails all around.
+        for (int y = 0; y < 70; y++)
+            map.SetTerrain(new GridPoint(center.X, y), TerrainType.River);
+        foreach (var p in PathFinder.Circle(center, radius + 2))
+            if (map.TerrainAt(p) == TerrainType.Grass)
+                map.SetCover(p, GroundCover.Trail);
+        world.PlaceBuilding(Romans["stock"], 0, new GridPoint(55, 25));
+        for (int i = 0; i < 3; i++)
+            world.Spawn(new GridPoint(45 + i, 40), Profession.Carrier);
+
+        for (int t = 0; t < 20_000 && world.Production.FieldsSown < 6; t++)
+            world.Step();
+
+        var farmland = Enumerable.Range(0, map.PointCount).Select(map.Point).Where(p => map.CoverAt(p) == GroundCover.Farmland).ToList();
+        Assert.True(farmland.Count >= 6, $"{farmland.Count} farmland");
+        foreach (var p in farmland)
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+            {
+                var q = p.Neighbor((Direction)d);
+                Assert.NotEqual(TerrainType.River, map.TerrainAt(q));
+                Assert.NotEqual(GroundCover.Trail, map.CoverAt(q));
+            }
+    }
+
+    [Theory]
+    [InlineData(TerrainType.DesertBorderOuter)]
+    [InlineData(TerrainType.MudBorderOuter)]
+    [InlineData(TerrainType.Sand)]
+    public void Trails_keep_a_point_away_from_other_ground_and_farmland(TerrainType ground)
+    {
+        var map = new GameMap(30);
+        map.SetTerrain(new GridPoint(10, 10), ground);
+        map.SetCover(new GridPoint(20, 10), GroundCover.Farmland);
+
+        Assert.False(map.CoverFits(new GridPoint(11, 10), GroundCover.Trail));
+        Assert.False(map.CoverFits(new GridPoint(11, 10), GroundCover.Farmland));
+        Assert.True(map.CoverFits(new GridPoint(12, 10), GroundCover.Trail));
+        Assert.False(map.CoverFits(new GridPoint(21, 10), GroundCover.Trail));
+        Assert.True(map.CoverFits(new GridPoint(21, 10), GroundCover.Farmland));
+    }
 }

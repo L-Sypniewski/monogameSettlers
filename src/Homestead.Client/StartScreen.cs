@@ -19,7 +19,7 @@ namespace Homestead.Client;
 public sealed class StartScreen : IDisposable
 {
     /// <summary>What was chosen: <c>null</c> as people or color (palette index) means drawn at random.</summary>
-    public sealed record Choice(int MapIndex, Civilization? Own, Civilization? Enemy, int? OwnColor, int? EnemyColor);
+    public sealed record Choice(int MapIndex, Civilization? Own, Civilization? Enemy, int? OwnColor, int? EnemyColor, bool Hardcore);
 
     private const int RowHeight = 22;
     private const int Margin = 40;
@@ -55,6 +55,8 @@ public sealed class StartScreen : IDisposable
     /// <summary>Palette index of the chosen color; <c>null</c>: random (the default).</summary>
     private int? _ownColor;
     private int? _enemyColor;
+    /// <summary>Opponents get the <see cref="Homestead.Simulation.Hardcore"/> head start.</summary>
+    private bool _hardcore;
 
     private OriginalMap? _map;
     private string? _mapError;
@@ -174,6 +176,11 @@ public sealed class StartScreen : IDisposable
     private static Rectangle SwatchAt(Rectangle view, int row, int index) =>
         new(PanelX(view) + 140 + index * (Swatch + 8), RowY(view, row), Swatch, Swatch);
 
+    /// <summary>The hardcore checkbox, right of the opponents' people.</summary>
+    private static Rectangle HardcoreBox(Rectangle view) => new(RightArrow(view, 2).Right + 24, RowY(view, 2), 28, 28);
+
+    private const string HardcoreHint = "Hardcore: Gegner mit +10 % Kampfkraft, +30 % Siedlern je Wohnhaus, +20 % Lebenspunkten, −25 % Baukosten, 10 % schnellerer Produktion, mehr Startausstattung.";
+
     private static Rectangle StartButton(Rectangle view) => new(PanelX(view), RowY(view, 4) + 12, 220, 44);
 
     private int VisibleRows(Rectangle view) => ListArea(view).Height / RowHeight;
@@ -232,6 +239,8 @@ public sealed class StartScreen : IDisposable
                     if (SwatchAt(view, row + 1, i).Contains(at))
                         PickColor(side, i == 0 ? null : i - 1);
             }
+            if (HardcoreLabel(view).Contains(at))
+                _hardcore = !_hardcore;
             if (StartButton(view).Contains(at) && _map is not null)
                 return Start();
         }
@@ -240,7 +249,14 @@ public sealed class StartScreen : IDisposable
         return null;
     }
 
-    private Choice Start() => new(_shown[_selected].Index, _own, _enemy, _ownColor, _enemyColor);
+    private Choice Start() => new(_shown[_selected].Index, _own, _enemy, _ownColor, _enemyColor, _hardcore);
+
+    /// <summary>The checkbox together with its label: a click on either toggles it.</summary>
+    private static Rectangle HardcoreLabel(Rectangle view)
+    {
+        var box = HardcoreBox(view);
+        return new Rectangle(box.X, box.Y, box.Width + 110, box.Height);
+    }
 
     /// <summary>Next people in the order random, Romans, Egyptians, Asians, Amazons.</summary>
     private static Civilization? Cycle(Civilization? people, int step)
@@ -383,7 +399,19 @@ public sealed class StartScreen : IDisposable
                     batch.Draw(pixel, swatch, PlayerColors.Palette[i - 1]);
             }
         }
-        if (_map is { Players.Count: > 2 })
+        // Hardcore checkbox: grey edge, a gold square inside when on.
+        var hardcore = HardcoreBox(view);
+        bool hardcoreHot = HardcoreLabel(view).Contains(hover);
+        batch.Draw(pixel, new Rectangle(hardcore.X - 2, hardcore.Y - 2, hardcore.Width + 4, hardcore.Height + 4),
+            hardcoreHot ? Color.Gold : new Color(90, 90, 95));
+        batch.Draw(pixel, hardcore, new Color(25, 25, 30));
+        if (_hardcore)
+            batch.Draw(pixel, new Rectangle(hardcore.X + 6, hardcore.Y + 6, hardcore.Width - 12, hardcore.Height - 12), Color.Gold);
+        font.Draw(batch, "Hardcore", new Vector2(hardcore.Right + 10, hardcore.Y + 5), _hardcore ? Color.Gold : Color.White, 16);
+
+        if (hardcoreHot)
+            font.Draw(batch, HardcoreHint, new Vector2(x, RowY(view, 4) - 10), dim, 12);
+        else if (_map is { Players.Count: > 2 })
             font.Draw(batch, "Weitere Gegner bekommen das Gegnervolk und die übrigen Farben.",
                 new Vector2(x, RowY(view, 4) - 10), dim, 12);
 

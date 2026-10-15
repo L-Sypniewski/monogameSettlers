@@ -414,7 +414,7 @@ public sealed partial class Production
                     worker!.Carrying = null;
                     _world.EnterBuilding(worker);
                     w.Phase = Phase.Producing;
-                    w.TicksLeft = w.Workshop!.Ticks;
+                    w.TicksLeft = WorkTicks(w, w.Workshop!.Ticks);
                 }
                 else if (stalledWork)
                 {
@@ -460,7 +460,7 @@ public sealed partial class Production
                 {
                     worker!.Facing = w.Facing;
                     BeginHandling(w, ActivityAt(w), Phase.Gathering);
-                    w.TicksLeft = w.Gatherer!.WorkTicks;
+                    w.TicksLeft = WorkTicks(w, w.Gatherer!.WorkTicks);
                 }
                 else if (stalledSpot)
                 {
@@ -507,7 +507,7 @@ public sealed partial class Production
                 if (Arrived(w, out bool stalledRest))
                 {
                     _world.EnterBuilding(worker!);
-                    Rest(w, w.Gatherer?.RestTicks ?? 0);
+                    Rest(w, WorkTicks(w, w.Gatherer?.RestTicks ?? 0));
                 }
                 else if (stalledRest)
                 {
@@ -605,7 +605,7 @@ public sealed partial class Production
                 // Still fed from the last meal: straight back into the mine.
                 w.Waiting = null;
                 w.Phase = Phase.Producing;
-                w.TicksLeft = recipe.Ticks;
+                w.TicksLeft = WorkTicks(w, recipe.Ticks);
                 return;
             }
             // The preferred food first, otherwise the fullest pile so the kinds get used evenly.
@@ -701,7 +701,7 @@ public sealed partial class Production
                 {
                     // The tree has fallen: a moment before the trunk is picked up.
                     w.Phase = Phase.AfterFelling;
-                    w.TicksLeft = w.Gatherer.PickupTicks;
+                    w.TicksLeft = WorkTicks(w, w.Gatherer.PickupTicks);
                     return;
                 }
                 worker.Carrying = Material.Trunk;
@@ -755,6 +755,7 @@ public sealed partial class Production
                 map.SetObjectCode(w.Target, CropOf(w).First);
                 if (CropOf(w).Farmland)
                 {
+                    _world.Trails.CutAround(w.Target);
                     map.SetCover(w.Target, GroundCover.Farmland);
                     _farmland[map.Index(w.Target)] = w.Building;
                 }
@@ -884,12 +885,12 @@ public sealed partial class Production
     /// <summary>Waterworks draw fresh water from rivers only, not from the sea.</summary>
     private bool IsRiver(GridPoint p) => _world.Map!.TerrainAt(p) == TerrainType.River;
 
-    /// <summary>Free ground of the crop's kind for a new field (fields may touch each other).</summary>
+    /// <summary>Free ground of the crop's kind for a new field (fields may touch each other; farmland keeps its distance, <see cref="GameMap.CoverFits"/>).</summary>
     private bool CanSow(GridPoint p, CropRecipe crop, Settler? ignoreWorker)
     {
         var map = _world.Map!;
         return map.Contains(p) && map.IsWalkable(p) && map.ObjectCodeAt(p) == MapObjectCodes.None
-               && crop.Ground.Contains(map.TerrainAt(p)) && _world.IsFreeGround(p)
+               && crop.Ground.Contains(map.TerrainAt(p)) && (!crop.Farmland || map.CoverFits(p, GroundCover.Farmland)) && _world.IsFreeGround(p)
                && (!_world.IsOccupied(p) || ignoreWorker is not null && ignoreWorker.Position == p);
     }
 
@@ -956,6 +957,9 @@ public sealed partial class Production
         GatherAction.Farm => _world.Map!.ObjectCodeAt(w.Target) == CropOf(w).Ripe ? Activity.Harvesting : Activity.Sowing,
         _ => Activity.Planting,
     };
+
+    /// <summary>A work time at the building: shorter for hardcore players.</summary>
+    private int WorkTicks(Workplace w, int ticks) => _world.IsHardcore(w.Building.Player) ? Hardcore.WorkTicks(ticks) : ticks;
 
     private void Rest(Workplace w, int ticks)
     {

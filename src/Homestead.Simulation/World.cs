@@ -61,6 +61,19 @@ public sealed partial class World
 
     public Civilization PeopleOf(int player) => player < Peoples.Count ? Peoples[player] : Civilization.Roman;
 
+    /// <summary>Players with the <see cref="Hardcore"/> head start (set before the game starts).</summary>
+    public HashSet<int> HardcorePlayers { get; } = new();
+
+    public bool IsHardcore(int player) => HardcorePlayers.Contains(player);
+
+    /// <summary>Full hit points of the player's soldiers of the type and level.</summary>
+    public float MaxHealth(int player, SoldierType type, int level) =>
+        Military.Config.MaxHealth(type, level) * (IsHardcore(player) ? Hardcore.HealthFactor : 1);
+
+    /// <summary>Units of material the construction pile asks of the player.</summary>
+    public int ConstructionCost(int player, PileDefinition pile) =>
+        IsHardcore(player) ? Hardcore.Cost(pile.Required) : pile.Required;
+
     /// <summary>What the game's chance is drawn from: the same seed plays the same game.</summary>
     public int Seed { get; }
 
@@ -207,7 +220,7 @@ public sealed partial class World
             return null;
         soldier.SoldierType = type;
         soldier.Level = Math.Clamp(level, 1, 3);
-        soldier.Health = Military.Config.MaxHealth(type, soldier.Level);
+        soldier.Health = MaxHealth(player, type, soldier.Level);
         return soldier;
     }
 

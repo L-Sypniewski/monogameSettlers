@@ -171,6 +171,30 @@ public sealed class GameMap
 
     public TerrainType TerrainAt(int index) => _terrain[index];
 
+    /// <summary>
+    /// Whether <paramref name="cover"/> may lie on the grass point <paramref name="p"/>. Farmland and trails draw
+    /// with the original's tiles for earth and sand, whose transitions would join them with rivers, swamps,
+    /// deserts and each other: one point of grass (or levelled ground) stays between them and any other ground.
+    /// Farmland may touch trails, though, since sowing cuts them back (<see cref="Trails.CutAround"/>).
+    /// </summary>
+    public bool CoverFits(GridPoint p, GroundCover cover)
+    {
+        if (!Contains(p) || TerrainAt(p) != TerrainType.Grass)
+            return false;
+        for (int d = 0; d < DirectionExtensions.Count; d++)
+        {
+            var q = p.Neighbor((Direction)d);
+            if (!Contains(q))
+                continue;
+            if (TerrainAt(q) is not (TerrainType.Grass or TerrainType.Flattened))
+                return false;
+            var other = CoverAt(q);
+            if (other != GroundCover.None && other != cover && !(cover == GroundCover.Farmland && other == GroundCover.Trail))
+                return false;
+        }
+        return true;
+    }
+
     public void SetCover(GridPoint p, GroundCover cover)
     {
         if (_cover[Index(p)] == cover)

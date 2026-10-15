@@ -48,20 +48,37 @@ public static class OriginalScenario
     /// without that too they are Romans.
     /// </param>
     /// <param name="seed">The world's seed (see <see cref="World.Seed"/>).</param>
+    /// <param name="hardcore">Players with the <see cref="Hardcore"/> head start (also in their start equipment).</param>
+    /// <param name="positions">
+    /// The map player whose start position (with its people preset, buildings, settlers) each player takes:
+    /// entry i for player i, a permutation of the map's players. Without it player i takes map player i.
+    /// </param>
     public static (World World, LoadReport Report) Load(OriginalMap original, string? dataDirectory = null,
-        IReadOnlyList<Civilization>? freeChoice = null, Random? random = null, int seed = 0)
+        IReadOnlyList<Civilization>? freeChoice = null, Random? random = null, int seed = 0, IEnumerable<int>? hardcore = null,
+        IReadOnlyList<int>? positions = null)
     {
+        int count = original.Players.Count;
+        if (positions is not null && (positions.Count != count || positions.Distinct().Count() != count || positions.Any(p => p < 0 || p >= count)))
+            throw new ArgumentException("positions must be a permutation of the map's players", nameof(positions));
+        // Map player → player, and back.
+        int PositionOf(int player) => positions is not null && player < count ? positions[player] : player;
+        var owners = Enumerable.Range(0, count).ToArray();
+        for (int player = 0; player < count; player++)
+            owners[PositionOf(player)] = player;
+        int OwnerOf(int mapPlayer) => mapPlayer >= 0 && mapPlayer < count ? owners[mapPlayer] : mapPlayer;
+
         var peoples = Enum.GetValues<Civilization>();
         var drawn = new Dictionary<int, Civilization>();
         var map = GameMap.FromOriginal(original.Area);
         var world = new World(map, seed: seed) { TerritoryRules = true };
+        world.HardcorePlayers.UnionWith(hardcore ?? []);
         var catalogs = new Dictionary<Civilization, BuildingCatalog>();
         var skipped = new List<string>();
 
         BuildingCatalog CatalogOf(int player)
         {
-            var civilization = player < original.Players.Count && original.Players[player].Tribe is >= 0 and <= 3
-                ? (Civilization)original.Players[player].Tribe
+            var civilization = player < count && original.Players[PositionOf(player)].Tribe is >= 0 and <= 3
+                ? (Civilization)original.Players[PositionOf(player)].Tribe
                 : freeChoice is { Count: > 0 } ? freeChoice[player % freeChoice.Count]
                 : random is null ? Civilization.Roman
                 : drawn.TryGetValue(player, out var people) ? people
@@ -75,13 +92,14 @@ public static class OriginalScenario
         foreach (var b in original.Buildings)
         {
             string? name = b.Type < BuildingNames.Length ? BuildingNames[b.Type] : null;
-            var definition = name is null ? null : CatalogOf(b.Player).Find(name);
+            int owner = OwnerOf(b.Player);
+            var definition = name is null ? null : CatalogOf(owner).Find(name);
             if (definition is null)
             {
                 skipped.Add($"building type {b.Type} ({name ?? "unknown"}) at {b.X},{b.Y}");
                 continue;
             }
-            if (world.PlaceBuilding(definition, b.Player, new GridPoint(b.X, b.Y), force: true) is { } building)
+            if (world.PlaceBuilding(definition, owner, new GridPoint(b.X, b.Y), force: true) is { } building)
             {
                 world.Housing.MarkPopulated(building); // the map lists the residents as settlers
                 buildings++;
@@ -105,8 +123,8 @@ public static class OriginalScenario
         {
             var (profession, soldier, level) = SettlerOf(s.Type);
             var settler = soldier is { } type
-                ? world.SpawnSoldier(new GridPoint(s.X, s.Y), type, level, s.Player)
-                : world.Spawn(new GridPoint(s.X, s.Y), profession, s.Player);
+                ? world.SpawnSoldier(new GridPoint(s.X, s.Y), type, level, OwnerOf(s.Player))
+                : world.Spawn(new GridPoint(s.X, s.Y), profession, OwnerOf(s.Player));
             if (settler is not null)
                 settlers++;
         }
@@ -115,9 +133,10 @@ public static class OriginalScenario
         if (!original.IsSinglePlayer && original.Buildings.Count == 0)
         {
             var setup = StartSetup.Load(dataDirectory);
-            for (int player = 0; player < original.Players.Count; player++)
+            for (int player = 0; player < count; player++)
             {
-                var start = new GridPoint(original.Players[player].StartX, original.Players[player].StartY);
+                var home = original.Players[PositionOf(player)];
+                var start = new GridPoint(home.StartX, home.StartY);
                 if (setup.Apply(world, CatalogOf(player), player, start, original.StartResources) is not null)
                     buildings++;
                 else

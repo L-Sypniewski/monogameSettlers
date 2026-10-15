@@ -209,7 +209,7 @@ public sealed partial class Military
             trainee.SoldierType = b.Becomes;
             // The level the player's upgrades (small temple) give newly trained soldiers of the type.
             trainee.Level = _world.Magic.SoldierLevel(b.Building.Player, b.Becomes);
-            trainee.Health = _config.MaxHealth(b.Becomes, trainee.Level);
+            trainee.Health = _world.MaxHealth(trainee.Player, b.Becomes, trainee.Level);
             trainee.HasTask = false;
             SoldiersTrained++;
             b.Trainee = null;

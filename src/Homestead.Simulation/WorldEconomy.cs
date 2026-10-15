@@ -416,10 +416,11 @@ public sealed partial class World
 
         foreach (var pile in definition.ConstructionPiles)
         {
-            if (pile.Material is not { } material || pile.Required <= 0)
+            int cost = ConstructionCost(player, pile);
+            if (pile.Material is not { } material || cost <= 0)
                 continue;
-            AddPile(new Pile(_nextPileId++, position + pile.Offset, PileRole.Request, material, pile.Required, building), building);
-            building.BuildStepsTotal += pile.Required;
+            AddPile(new Pile(_nextPileId++, position + pile.Offset, PileRole.Request, material, cost, building), building);
+            building.BuildStepsTotal += cost;
         }
 
         if (building.Unlevelled.Count == 0)
@@ -462,8 +463,8 @@ public sealed partial class World
         var builtIn = building.Definition.ConstructionPiles.Where(p => p.Material is not null)
             .GroupBy(p => p.Material!.Value)
             .Select(g => (Material: g.Key, Count: building.State == BuildingState.Finished
-                ? g.Sum(p => p.Required)
-                : g.Sum(p => p.Required) - building.Piles.Where(p => p.Role == PileRole.Request && p.AcceptedMaterial == g.Key).Sum(p => p.Capacity)))
+                ? g.Sum(p => ConstructionCost(building.Player, p))
+                : g.Sum(p => ConstructionCost(building.Player, p)) - building.Piles.Where(p => p.Role == PileRole.Request && p.AcceptedMaterial == g.Key).Sum(p => p.Capacity)))
             .ToList();
         foreach (var pile in building.Piles.ToList())
             RemovePileDroppingGoods(building, pile);

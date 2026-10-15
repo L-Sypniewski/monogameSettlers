@@ -824,7 +824,8 @@ public sealed partial class Military
     /// <summary>
     /// Combat strength of the player away from own land (neutral or enemy land): 1 / number of players,
     /// raised by the goods (gold; Egyptians: gems count double) lying on the player's own land, each
-    /// further percent dearer (<see cref="CombatStrengthConfig.Bonus"/>); at most 1. Recomputed at most once per tick.
+    /// further percent dearer (<see cref="CombatStrengthConfig.Bonus"/>); at most 1, plus the flat
+    /// <see cref="Hardcore.CombatStrengthBonus"/> of hardcore players. Recomputed at most once per tick.
     /// </summary>
     public float CombatStrength(int player)
     {
@@ -841,13 +842,16 @@ public sealed partial class Military
             float start = 1f / _world.PlayerCount;
             strength = start + _config.CombatStrength.Bonus(units, 1 - start);
         }
+        strength += HardcoreBonus(player);
         _strengths[player] = (_world.Tick, strength);
         return strength;
     }
 
-    /// <summary>The player's combat strength at the point: always 1 on own land.</summary>
+    /// <summary>The player's combat strength at the point: always 1 on own land (plus the hardcore bonus).</summary>
     public float CombatStrengthAt(int player, GridPoint at) =>
-        _world.Map?.OwnerAt(at) == player ? 1 : CombatStrength(player);
+        _world.Map?.OwnerAt(at) == player ? 1 + HardcoreBonus(player) : CombatStrength(player);
+
+    private float HardcoreBonus(int player) => _world.IsHardcore(player) ? Hardcore.CombatStrengthBonus : 0;
 
     /// <summary>The soldier's combat strength where it stands.</summary>
     public float CombatStrengthOf(Settler soldier) => CombatStrengthAt(soldier.Player, soldier.Position);

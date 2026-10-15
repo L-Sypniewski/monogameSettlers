@@ -42,6 +42,8 @@ public sealed class MapGame : Game
     /// <summary>Draws the peoples of players the map leaves open ("random"): a new draw every game.</summary>
     private readonly Random _peopleDraw = new();
     private IReadOnlyList<Civilization>? _peoples;
+    /// <summary>The computer players get the hardcore head start (start screen).</summary>
+    private bool _hardcore;
     private readonly string _mapDirectory;
 
     /// <summary>Shown before the first map is loaded, until the game is started.</summary>
@@ -238,6 +240,7 @@ public sealed class MapGame : Game
             .Select(player => (player == 0 ? choice.Own : choice.Enemy)
                               ?? Enum.GetValues<Civilization>()[_peopleDraw.Next(Enum.GetValues<Civilization>().Length)])
             .ToArray();
+        _hardcore = choice.Hardcore;
         LoadMap(choice.MapIndex);
     }
 
@@ -263,7 +266,8 @@ public sealed class MapGame : Game
         _terrain?.Dispose();
         _map = OriginalMap.Open(_mapFiles[_mapIndex]);
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
-        (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples, random: _peopleDraw);
+        (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples, random: _peopleDraw,
+            hardcore: _hardcore ? Enumerable.Range(1, Math.Max(0, _map.Players.Count - 1)) : null);
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
         _objects = new MapObjectLayer(_sprites, _map.Area, _terrain);
@@ -1520,7 +1524,7 @@ public sealed class MapGame : Game
     /// <summary>Health left as a fraction of the maximum; settlers that cannot be hurt count as healthy.</summary>
     private float HealthLeft(Settler settler)
     {
-        float max = settler.SoldierType is { } type ? _world.Military.Config.MaxHealth(type, settler.Level)
+        float max = settler.SoldierType is { } type ? _world.MaxHealth(settler.Player, type, settler.Level)
             : settler.Profession == Profession.Priest ? _world.Magic.Config.PriestHealth
             : 0;
         return max > 0 ? Math.Clamp(settler.Health / max, 0, 1) : 1;

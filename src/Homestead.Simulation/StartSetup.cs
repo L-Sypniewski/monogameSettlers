@@ -73,7 +73,15 @@ public sealed class StartSetup
             }
         if (equipment.Settlers.GetValueOrDefault(nameof(SoldierType.Swordsman)) == 0)
             military.ChangeWanted(tower, SoldierType.Swordsman, -1);
-        PlaceGoods(world, tower, equipment.Goods.ToList());
+        var goods = equipment.Goods.ToList();
+        if (world.IsHardcore(player))
+        {
+            // Beyond the tower's places: they wait at the door, ready to meet an early rush.
+            for (int i = 0; i < Hardcore.StartSoldiers; i++)
+                world.SpawnSoldier(tower.Door, SoldierType.Swordsman, player: player);
+            goods.AddRange(Hardcore.StartGoods);
+        }
+        PlaceGoods(world, tower, goods);
         for (int i = 0; i < equipment.Settlers.GetValueOrDefault("Carrier"); i++)
             world.Spawn(start + new GridPoint(3, 5), Profession.Carrier, player);
         // Specialists come equipped: their tools are not in the piles, so no other trade can take them first.

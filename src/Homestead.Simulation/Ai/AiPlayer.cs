@@ -352,8 +352,8 @@ public sealed partial class AiPlayer
         return stock - demand;
     }
 
-    private static int Cost(BuildingDefinition definition, Material material) =>
-        definition.ConstructionPiles.Where(p => p.Material == material).Sum(p => p.Required);
+    private int Cost(BuildingDefinition definition, Material material) =>
+        definition.ConstructionPiles.Where(p => p.Material == material).Sum(p => _world.ConstructionCost(Player, p));
 
     /// <summary>
     /// Whether <paramref name="free"/> units cover <paramref name="needed"/> (cost plus what is kept back),
@@ -536,7 +536,7 @@ public sealed partial class AiPlayer
                 q => map.TerrainAt(q) == TerrainType.River ? 1 : 0) > 0,
             // Room for the fields below the farm: free grass not sown or kept for the fields of another farm.
             "farm" => Around(p + (definition.WorkCenter ?? default), definition.WorkRadius ?? 6,
-                q => map.TerrainAt(q) == TerrainType.Grass && map.ObjectCodeAt(q) == MapObjectCodes.None && map.CoverAt(q) == GroundCover.None
+                q => map.CoverFits(q, GroundCover.Farmland) && map.ObjectCodeAt(q) == MapObjectCodes.None && map.CoverAt(q) != GroundCover.Farmland
                      && _world.IsFreeGround(q) && !InFields(q) ? 1 : 0) >= FarmFieldPoints,
             // Vines, rice and beehives: enough free ground of their kind around.
             _ when _world.Production.Config.Gatherers.TryGetValue(definition.Name, out var gatherer) && gatherer.Action == GatherAction.Farm

@@ -69,7 +69,7 @@ public sealed partial class Production
 
     private bool IsWounded(Settler s, int player) =>
         s.Profession == Profession.Soldier && s.Player == player && !s.IsDead && !s.IsInside && s.SoldierType is { } type
-        && s.Health < _world.Military.Config.MaxHealth(type, s.Level);
+        && s.Health < _world.MaxHealth(s.Player, type, s.Level);
 
     /// <summary>Where the healer stands to heal: a step down-left of the door (on screen), or the door itself.</summary>
     private GridPoint HealerSpot(Workplace w)
@@ -155,7 +155,7 @@ public sealed partial class Production
         if (--w.TicksLeft > 0)
             return;
         if (patient.SoldierType is { } type)
-            patient.Health = _world.Military.Config.MaxHealth(type, patient.Level);
+            patient.Health = _world.MaxHealth(patient.Player, type, patient.Level);
         HealsDone++;
         w.Hospital.NextCall = _world.Tick + _world.Military.Config.HospitalCallPauseTicks;
         EndHealing(w);

@@ -253,7 +253,7 @@ public sealed partial class BuildingInfo
         }
 
         // Goods: on a construction site delivered of needed, otherwise what lies in the piles.
-        var goods = Goods(building);
+        var goods = Goods(world, building);
         if (goods.Count == 0)
             return;
         y += 8;
@@ -302,13 +302,13 @@ public sealed partial class BuildingInfo
         return _active;
     }
 
-    private static List<(Material Material, string Text)> Goods(Building building)
+    private static List<(Material Material, string Text)> Goods(World world, Building building)
     {
         if (building.State != BuildingState.Finished)
         {
             // Construction piles count their capacity down as material is built in.
             var needed = building.Definition.ConstructionPiles.Where(p => p.Material is not null)
-                .GroupBy(p => p.Material!.Value).ToDictionary(g => g.Key, g => g.Sum(p => p.Required));
+                .GroupBy(p => p.Material!.Value).ToDictionary(g => g.Key, g => g.Sum(p => world.ConstructionCost(building.Player, p)));
             return needed.Select(n =>
             {
                 var piles = building.Piles.Where(p => p.Role == PileRole.Request && p.AcceptedMaterial == n.Key).ToList();

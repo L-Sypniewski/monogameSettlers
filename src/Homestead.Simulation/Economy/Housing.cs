@@ -40,8 +40,13 @@ public sealed class Housing
     public int Released { get; private set; }
 
     /// <summary>Residents the house has yet to release (null if it is no living house).</summary>
-    public int? ResidentsLeft(Building house) => _config.Residents.TryGetValue(house.Definition.Name, out int total)
+    public int? ResidentsLeft(Building house) => Residents(house) is { } total
         ? total - _released.GetValueOrDefault(house.Id)
+        : null;
+
+    /// <summary>Residents the house releases in all (null if it is no living house); more for hardcore players.</summary>
+    private int? Residents(Building house) => _config.Residents.TryGetValue(house.Definition.Name, out int total)
+        ? _world.IsHardcore(house.Player) ? Hardcore.Residents(total) : total
         : null;
 
     /// <summary>Whether the building is a living house.</summary>
@@ -53,7 +58,7 @@ public sealed class Housing
     /// <summary>The house already has its residents (houses of a loaded map: the map lists its settlers itself).</summary>
     public void MarkPopulated(Building house)
     {
-        if (_config.Residents.TryGetValue(house.Definition.Name, out int total))
+        if (Residents(house) is { } total)
             _released[house.Id] = total;
     }
 
