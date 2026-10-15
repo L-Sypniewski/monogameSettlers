@@ -311,6 +311,62 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Idle_soldiers_take_an_enemy_tower_within_sight_on_their_own()
+    {
+        var world = new World(new GameMap(100), TestConfig.NoTools);
+        var enemyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(50, 50))!;
+        world.SpawnSoldier(enemyTower.Door, SoldierType.Swordsman, player: 1);
+        Run(world, 2_000, stopWhen: () => world.Military.IsOccupied(enemyTower));
+        var door = enemyTower.Door;
+        var far = world.SpawnSoldier(new GridPoint(door.X - 30, door.Y), SoldierType.Swordsman, level: 3)!;
+        Run(world, 200);
+        Assert.False(far.HasTask, "a tower out of sight is left alone");
+
+        var near = Enumerable.Range(0, 3).Select(i => world.SpawnSoldier(new GridPoint(door.X - 10 + i, door.Y + 2), SoldierType.Swordsman, level: 3)!).ToList();
+        Run(world, 20_000, stopWhen: () => enemyTower.Player == 0);
+
+        Assert.Equal(0, enemyTower.Player);
+        Assert.Equal(1, world.Military.Captures);
+        Assert.Contains(near, s => s.IsInside);
+    }
+
+    [Fact]
+    public void A_soldier_goes_for_a_nearer_enemy_tower_before_a_farther_enemy_soldier()
+    {
+        var world = new World(new GameMap(100), TestConfig.NoTools);
+        var enemyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(40, 50))!;
+        world.SpawnSoldier(enemyTower.Door, SoldierType.Swordsman, player: 1);
+        Run(world, 2_000, stopWhen: () => world.Military.IsOccupied(enemyTower));
+        var door = enemyTower.Door;
+        var start = new GridPoint(door.X + 4, door.Y);
+        var soldier = world.SpawnSoldier(start, SoldierType.Swordsman, level: 3)!;
+        world.SpawnSoldier(new GridPoint(door.X + 14, door.Y), SoldierType.Swordsman, player: 1);
+
+        Run(world, 60);
+
+        Assert.True(PathFinder.Distance(soldier.Position, door) < PathFinder.Distance(start, door), "it heads for the door");
+    }
+
+    [Fact]
+    public void Soldiers_moving_past_an_enemy_tower_take_it_unless_the_move_is_forced()
+    {
+        foreach (bool forced in new[] { false, true })
+        {
+            var world = new World(new GameMap(100), TestConfig.NoTools);
+            var enemyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(50, 40))!;
+            world.SpawnSoldier(enemyTower.Door, SoldierType.Swordsman, player: 1);
+            Run(world, 2_000, stopWhen: () => world.Military.IsOccupied(enemyTower));
+            var y = enemyTower.Door.Y + 8;
+            var own = Enumerable.Range(0, 3).Select(i => world.SpawnSoldier(new GridPoint(10 + i, y), SoldierType.Swordsman, level: 3)!).ToList();
+
+            world.Military.Move(own, new GridPoint(90, y), forced);
+            Run(world, 20_000, stopWhen: () => enemyTower.Player == 0 || own.All(s => !s.HasTask));
+
+            Assert.Equal(forced ? 1 : 0, enemyTower.Player);
+        }
+    }
+
+    [Fact]
     public void A_defender_goes_back_into_its_place_after_winning()
     {
         var world = new World(new GameMap(80), TestConfig.NoTools);

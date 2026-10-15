@@ -16,6 +16,12 @@ namespace Homestead.Simulation.Military;
 /// that come within sight.
 /// </remarks>
 /// <remarks>
+/// Enemy military buildings are taken the same way on their own: an idle soldier or one on a (not forced)
+/// move order attacks the nearest defended enemy military building whose door is within sight
+/// (<see cref="NearestEnemyBuilding"/>) unless an enemy soldier is nearer: whichever is nearer comes first
+/// (<see cref="PreferNearer"/>). A moving one carries on afterwards if it did not move in.
+/// </remarks>
+/// <remarks>
 /// Attacked buildings: the soldiers stay inside (bowmen keep shooting from the top). Without an enemy an
 /// attacker walks to its target's door: melee soldiers (pikemen too, as if their range were 1) break it
 /// from the few fields next to it (<see cref="MilitaryConfig.DoorFighters"/>; the others queue behind),
@@ -194,15 +200,97 @@ public sealed partial class Military
     private int HitInterval(Settler soldier, SoldierStats stats) =>
         soldier.HastedUntil > _world.Tick ? Math.Max(1, (int)Math.Round(stats.AttackTicks / soldier.HasteFactor)) : stats.AttackTicks;
 
-    /// <summary>Soldiers standing around fight enemies that come within sight.</summary>
+    /// <summary>Soldiers standing around fight enemies that come within sight, then take enemy military buildings in sight.</summary>
     private void EngageIdleSoldiers()
     {
         foreach (var soldier in _world.Settlers.Where(s => s.Profession == Profession.Soldier && !s.HasTask && !s.IsInside).ToList())
-            if (NearestEnemy(soldier.Position, soldier.Player, _config.Sight(soldier.SoldierType!.Value)) is not null)
-            {
-                soldier.HasTask = true;
+        {
+            var enemy = NearestEnemy(soldier.Position, soldier.Player, _config.Sight(soldier.SoldierType!.Value));
+            var building = NearestEnemyBuilding(soldier);
+            if (building is not null && (enemy is null
+                    || PathFinder.Distance(soldier.Position, building.Door) < PathFinder.Distance(soldier.Position, enemy.Position)))
+                _fighters[soldier.Id] = new Fighter(soldier) { Target = building, AutoTarget = true };
+            else if (enemy is not null)
                 _fighters[soldier.Id] = new Fighter(soldier);
+            else
+                continue;
+            soldier.HasTask = true;
+        }
+    }
+
+    /// <summary>Buildings a soldier could not reach on its own: (soldier id, building id) → until when it does not try again.</summary>
+    private readonly Dictionary<(int Soldier, int Building), long> _unreachableBuildings = new();
+
+    /// <summary>
+    /// The nearest defended enemy military building whose door is within the soldier's sight and that it
+    /// did not just fail to reach.
+    /// </summary>
+    private Building? NearestEnemyBuilding(Settler soldier)
+    {
+        int sight = _config.Sight(soldier.SoldierType!.Value);
+        Building? nearest = null;
+        int best = int.MaxValue;
+        foreach (var g in _garrisons.Values)
+        {
+            var building = g.Building;
+            if (building.Player == soldier.Player || !building.Exists || g.IsEmpty)
+                continue;
+            int distance = PathFinder.Distance(soldier.Position, building.Door);
+            if (distance > sight || distance >= best)
+                continue;
+            if (_unreachableBuildings.TryGetValue((soldier.Id, building.Id), out long until))
+            {
+                if (until > _world.Tick)
+                    continue;
+                _unreachableBuildings.Remove((soldier.Id, building.Id));
             }
+            nearest = building;
+            best = distance;
+        }
+        return nearest;
+    }
+
+    /// <summary>
+    /// Enemy soldiers and enemy buildings count alike for a soldier free to choose (no attack order, not
+    /// forced): it goes for whichever is nearer, an enemy within reach always first.
+    /// </summary>
+    private void PreferNearer(Fighter f, SoldierStats stats)
+    {
+        var soldier = f.Soldier;
+        int enemyDistance = f.Enemy is { } enemy ? PathFinder.Distance(soldier.Position, enemy.Position) : int.MaxValue;
+        if (enemyDistance <= stats.Range)
+            return;
+        if (f.Target is null && _world.Tick % EngageInterval == 0 && NearestEnemyBuilding(soldier) is { } building)
+        {
+            f.Target = building;
+            f.AutoTarget = true;
+            f.NextReplan = -10 * ReplanTicks; // head for its door right away
+        }
+        if (f.Target is { } target && f.Enemy is not null && PathFinder.Distance(soldier.Position, target.Door) < enemyDistance)
+        {
+            f.Enemy = null;
+            if (f.Chasing)
+                f.NextReplan = -10 * ReplanTicks; // back to the door right away
+        }
+    }
+
+    /// <summary>
+    /// An attack the soldier took up on its own is over: on a move order it carries on, otherwise it is done.
+    /// </summary>
+    /// <param name="unreachable">The building could not be reached: leave it for a while.</param>
+    private void EndAttack(Fighter f, bool unreachable = false)
+    {
+        if (f.AutoTarget && unreachable && f.Target is { } target)
+            _unreachableBuildings[(f.Soldier.Id, target.Id)] = _world.Tick + UnreachableTicks;
+        if (f.AutoTarget && f.MoveTo is not null)
+        {
+            f.Target = null;
+            f.AutoTarget = false;
+            SetActivity(f.Soldier, Activity.None);
+            f.NextReplan = -10 * ReplanTicks; // walk on right away
+            return;
+        }
+        Dismiss(f);
     }
 
     /// <summary>
@@ -370,7 +458,12 @@ public sealed partial class Military
         if (f.Forced)
             f.Enemy = null;
         else
+        {
             ChooseEnemy(f, stats);
+            if (f.Target is null || f.AutoTarget)
+                PreferNearer(f, stats);
+        }
+        f.Chasing = f.Enemy is not null;
 
         if (f.Enemy is { } enemy)
         {
@@ -416,13 +509,13 @@ public sealed partial class Military
         {
             if (!target.Exists || target.Player == soldier.Player)
             {
-                Dismiss(f);
+                EndAttack(f);
                 return;
             }
             bool standing = soldier.State != SettlerState.Stepping;
             if (!_garrisons.TryGetValue(target.Id, out var g))
             {
-                Dismiss(f);
+                EndAttack(f);
                 return;
             }
             var door = target.Door;
@@ -432,7 +525,7 @@ public sealed partial class Military
                 // Nobody left inside: the one that struck the last defender down walks in, the others are done.
                 if (!MayCapture(g, soldier))
                 {
-                    Dismiss(f);
+                    EndAttack(f);
                     return;
                 }
                 if (soldier.Position == door && standing)
@@ -487,7 +580,7 @@ public sealed partial class Military
                         .Select(p => (GridPoint?)p).MinBy(p => PathFinder.Distance(soldier.Position, p!.Value));
                     var wait = free ?? QueueSpot(soldier, fightPoint, bowman ? BowmanDoorDistance : 2, spots.Append(door).ToArray());
                     if (!_world.WalkTo(soldier, wait) && !_world.WalkTo(soldier, door))
-                        Dismiss(f);
+                        EndAttack(f, unreachable: true);
                     f.NextReplan = _world.Tick;
                 }
                 return;
@@ -495,7 +588,7 @@ public sealed partial class Military
             if (soldier.Destination is null || _world.Tick >= f.NextReplan + 10 * ReplanTicks)
             {
                 if (!_world.WalkTo(soldier, door))
-                    Dismiss(f);
+                    EndAttack(f, unreachable: true);
                 f.NextReplan = _world.Tick;
             }
             return;
@@ -915,6 +1008,12 @@ public sealed partial class Military
 
         /// <summary>Forced move order: no fighting on the way.</summary>
         public bool Forced { get; init; }
+
+        /// <summary>The <see cref="Target"/> was taken up on its own (seen, not ordered).</summary>
+        public bool AutoTarget { get; set; }
+
+        /// <summary>It went for an enemy soldier last tick.</summary>
+        public bool Chasing { get; set; }
     }
 }
 

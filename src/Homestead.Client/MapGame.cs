@@ -338,16 +338,6 @@ public sealed class MapGame : Game
         }
     }
 
-    /// <summary>A small bar above a wounded soldier: green for the health left, red for the rest.</summary>
-    private void DrawHealthBar(Settler soldier, SoldierType type, float alpha)
-    {
-        float left = Math.Clamp(soldier.Health / _world.Military.Config.MaxHealth(type, soldier.Level), 0, 1);
-        var anchor = SettlerRenderer.Anchor(soldier, _terrain, alpha);
-        var bar = new Rectangle((int)anchor.X - 8, (int)anchor.Y - 34, 16, 2);
-        _spriteBatch.Draw(_pixel, bar, Color.DarkRed);
-        _spriteBatch.Draw(_pixel, new Rectangle(bar.X, bar.Y, (int)(bar.Width * left), bar.Height), Color.LimeGreen);
-    }
-
     /// <summary>Border posts of grid row <paramref name="y"/>: owned points next to land of another owner.</summary>
     private void DrawBorderRow(int y, RectangleF visible)
     {
@@ -1141,8 +1131,6 @@ public sealed class MapGame : Game
                 if (_fogOn && settler.Player != 0 && !_vision.IsVisible(settler.Position))
                     continue;
                 _settlerRenderer.Draw(_spriteBatch, settler, _terrain, _world.Tick, alpha, PlayerColors.Of(settler.Player));
-                if (settler.SoldierType is { } type && settler.Health < _world.Military.Config.MaxHealth(type, settler.Level))
-                    DrawHealthBar(settler, type, alpha);
             }
         }
 
@@ -1393,10 +1381,52 @@ public sealed class MapGame : Game
         }
     }
 
+    /// <summary>Shading of the selection marker: L light rim, H highlight, B body, D shadow.</summary>
+    private static readonly string[] SelectionMarkerShape = [".LLL.", "LHBBB", "BBBBB", "BBBBD", ".DDD."];
+
+    /// <summary>A small round dot above a selected settler, lit from above, green to red by health left.</summary>
     private void DrawSelectionMarker(Settler settler, float alpha)
     {
         var anchor = SettlerRenderer.Anchor(settler, _terrain, alpha);
-        _spriteBatch.Draw(_pixel, new Rectangle((int)anchor.X - 1, (int)anchor.Y - 32, 3, 3), Color.Yellow);
+        var body = HealthColor(HealthLeft(settler));
+        var light = Color.Lerp(body, Color.White, 0.35f);
+        var highlight = Color.Lerp(body, Color.White, 0.75f);
+        var shadow = Color.Lerp(body, Color.Black, 0.45f);
+        int left = (int)anchor.X - 2, top = (int)anchor.Y - 34;
+        for (int y = 0; y < SelectionMarkerShape.Length; y++)
+        for (int x = 0; x < SelectionMarkerShape[y].Length; x++)
+        {
+            Color? color = SelectionMarkerShape[y][x] switch
+            {
+                'L' => light, 'H' => highlight, 'B' => body, 'D' => shadow, _ => null,
+            };
+            if (color is { } c)
+                _spriteBatch.Draw(_pixel, new Rectangle(left + x, top + y, 1, 1), c);
+        }
+    }
+
+    /// <summary>Health left as a fraction of the maximum; settlers that cannot be hurt count as healthy.</summary>
+    private float HealthLeft(Settler settler)
+    {
+        float max = settler.SoldierType is { } type ? _world.Military.Config.MaxHealth(type, settler.Level)
+            : settler.Profession == Profession.Priest ? _world.Magic.Config.PriestHealth
+            : 0;
+        return max > 0 ? Math.Clamp(settler.Health / max, 0, 1) : 1;
+    }
+
+    /// <summary>Health colors from none to full, evenly spaced; in between they blend.</summary>
+    private static readonly Color[] HealthColors =
+    [
+        new(170, 10, 10), new(225, 35, 20), new(240, 95, 20), new(245, 150, 25), new(240, 205, 30),
+        new(195, 215, 35), new(130, 205, 40), new(60, 195, 45), new(30, 180, 50),
+    ];
+
+    /// <summary>Dark red at no health over orange and yellow to green at full.</summary>
+    private static Color HealthColor(float left)
+    {
+        float at = Math.Clamp(left, 0, 1) * (HealthColors.Length - 1);
+        int i = Math.Min((int)at, HealthColors.Length - 2);
+        return Color.Lerp(HealthColors[i], HealthColors[i + 1], at - i);
     }
 
     /// <summary>Debug overlay: a red marker on every point settlers cannot walk on.</summary>
