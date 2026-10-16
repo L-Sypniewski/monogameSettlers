@@ -41,9 +41,9 @@ public sealed class SidePanel : IDisposable
     private readonly Texture2D _panelRight;
     private readonly BasicEffect _mapEffect;
 
-    /// <summary>Black behind the minimap, a little lower than it: the frame leaves a thin gap below the map.</summary>
+    /// <summary>Black behind the minimap, a little lower and wider than it: the frame leaves thin gaps below and right of the map.</summary>
     private readonly Texture2D _black;
-    private const float BackingBelow = 3;
+    private const float BackingBelow = 3, BackingRight = 3;
 
     public SidePanel(GraphicsDevice device, GfxDirectory gfx)
     {
@@ -154,19 +154,19 @@ public sealed class SidePanel : IDisposable
         _mapEffect.World = Matrix.CreateScale(scale);
         _mapEffect.View = Matrix.Identity;
         _mapEffect.Projection = Matrix.CreateOrthographicOffCenter(0, viewport.Width, viewport.Height, 0, -1, 1);
-        DrawParallelogram(_black, MapBottom + BackingBelow);
-        DrawParallelogram(minimap, MapBottom);
+        DrawParallelogram(_black, MapBottom + BackingBelow, MapWidth + BackingRight);
+        DrawParallelogram(minimap, MapBottom, MapWidth);
     }
 
-    /// <summary>A texture on the minimap's parallelogram, from its top down to <paramref name="bottom"/> (same slant).</summary>
-    private void DrawParallelogram(Texture2D texture, float bottom)
+    /// <summary>A texture on the minimap's parallelogram, from its top down to <paramref name="bottom"/>, <paramref name="width"/> wide (same slant).</summary>
+    private void DrawParallelogram(Texture2D texture, float bottom, float width)
     {
         _mapEffect.Texture = texture;
         float shift = (bottom - MapTop) / 2;
         var topLeft = new Vector3(MapLeftAtTop, MapTop, 0);
-        var topRight = new Vector3(MapLeftAtTop + MapWidth, MapTop, 0);
+        var topRight = new Vector3(MapLeftAtTop + width, MapTop, 0);
         var bottomLeft = new Vector3(MapLeftAtTop - shift, bottom, 0);
-        var bottomRight = new Vector3(MapLeftAtTop - shift + MapWidth, bottom, 0);
+        var bottomRight = new Vector3(MapLeftAtTop - shift + width, bottom, 0);
         VertexPositionTexture[] quad =
         [
             new(topLeft, new Vector2(0, 0)), new(topRight, new Vector2(1, 0)), new(bottomLeft, new Vector2(0, 1)),
