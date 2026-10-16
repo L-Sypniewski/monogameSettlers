@@ -19,6 +19,17 @@ public static class PlayerColors
 
     public static Color Of(int player) => _colors[(player % _colors.Length + _colors.Length) % _colors.Length];
 
+    /// <summary>The colors in use, as text for a saved game (<see cref="Restore"/>).</summary>
+    public static string Saved() => string.Join(',', _colors.Select(c => c.PackedValue.ToString("x8")));
+
+    /// <summary>The colors of a saved game (<see cref="Saved"/>); unreadable text leaves them as they are.</summary>
+    public static void Restore(string? saved)
+    {
+        var colors = saved?.Split(',').Select(c => uint.TryParse(c, System.Globalization.NumberStyles.HexNumber, null, out uint v) ? new Color(v) : (Color?)null).ToArray();
+        if (colors is { Length: > 0 } && colors.All(c => c is not null))
+            _colors = colors.Select(c => c!.Value).ToArray();
+    }
+
     /// <summary>
     /// Player i gets palette entry <paramref name="chosen"/>[i] (<c>null</c>: random, see <see cref="Resolve"/>),
     /// further players the remaining palette colors in order.

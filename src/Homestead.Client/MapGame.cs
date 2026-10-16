@@ -10,6 +10,7 @@ using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Map.Generation;
 using Homestead.Simulation.Pathfinding;
+using Homestead.Simulation.Persistence;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -63,15 +64,17 @@ public sealed class MapGame : Game
         var ai = new AiPlayer(_world, _playerCatalogs[player], player,
             character: player < _characters.Count && _characters[player].Length > 0 ? _characters[player] : null, random: _peopleDraw);
         // What the character's traits do is shown as it happens, to watch them at work.
-        ai.Noted += (a, line) =>
-        {
-            if (a.TraitOfNote(line) is not { } trait)
-                return;
-            string who = $"Spieler {a.Player + 1} ({_aiNames.Character(a.Character.Id)}) · {_aiNames.Trait(trait.Id)}";
-            Console.WriteLine($"{who}: {line}");
-            _message = $"{who}: {line}";
-        };
+        ai.Noted += OnAiNote;
         return ai;
+    }
+
+    private void OnAiNote(AiPlayer a, string line)
+    {
+        if (a.TraitOfNote(line) is not { } trait)
+            return;
+        string who = $"Spieler {a.Player + 1} ({_aiNames.Character(a.Character.Id)}) · {_aiNames.Trait(trait.Id)}";
+        Console.WriteLine($"{who}: {line}");
+        _message = $"{who}: {line}";
     }
     private BuildingCatalog? _romans;
     private BuildingDefinition[] _placeable = [];
@@ -88,6 +91,8 @@ public sealed class MapGame : Game
     private DistributionMenu? _distributionMenu;
     private TransportMenu? _transportMenu;
     private bool _captureManualRecruitment;
+    private readonly int? _loadSlot;
+    private readonly SystemMenu _systemMenu = new();
     private Homestead.Simulation.Economy.Material? _captureGood;
     private SidePanel _sidePanel = null!;
     private Minimap? _minimap;
@@ -199,10 +204,12 @@ public sealed class MapGame : Game
     /// <param name="peoples">Peoples for the players whose people the map leaves open (see <see cref="OriginalScenario.Load"/>).</param>
     /// <param name="characters">AI character per player (entry i for player i); empty or missing: drawn.</param>
     /// <param name="startScreen">Show the start screen (map, peoples, colors) first.</param>
+    /// <param name="loadSlot">Load the saved game of this slot (0-based) instead of starting one.</param>
     public MapGame(GameInstallation installation, GfxDirectory gfx, string? mapName, string? captureDirectory,
-        IReadOnlyList<Civilization>? peoples = null, IReadOnlyList<string>? characters = null, bool startScreen = false)
+        IReadOnlyList<Civilization>? peoples = null, IReadOnlyList<string>? characters = null, bool startScreen = false, int? loadSlot = null)
     {
         _showStartScreen = startScreen;
+        _loadSlot = loadSlot;
         AddCheats();
         _mapDirectory = installation.MapDirectory;
         _gfx = gfx;
@@ -261,7 +268,9 @@ public sealed class MapGame : Game
             && Enum.TryParse<PanelTab>(captureTab[0], ignoreCase: true, out var tab))
         {
             _tabs.Current = tab;
-            if (captureTab.Length > 1)
+            if (captureTab.Length > 1 && tab == PanelTab.System)
+                _systemMenu.Show(captureTab[1]);
+            else if (captureTab.Length > 1)
                 _tabs.ShowMenu(captureTab[1]);
             if (captureTab.Length > 2 && captureTab[2] == "manual")
                 _captureManualRecruitment = true;
@@ -280,6 +289,8 @@ public sealed class MapGame : Game
             if (_captureDirectory is not null && int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START"), out int category))
                 _startScreen.ShowCategory(category);
         }
+        else if (_loadSlot is { } slot)
+            LoadGame(SaveSlots.Load(slot));
         else if (_randomMap is { } random)
             LoadMap(RandomMapGenerator.Generate(random.Settings, random.Seed));
         else
@@ -318,9 +329,9 @@ public sealed class MapGame : Game
     private BuildingCatalog Own => _playerCatalogs.Count > 0 ? _playerCatalogs[0] : _romans ??= BuildingCatalog.Load(Civilization.Roman);
 
     /// <summary>Build menu and placeable buildings of the own people.</summary>
-    private void UsePeople(BuildingCatalog catalog)
+    private void UsePeople(BuildingCatalog catalog, bool force = false)
     {
-        if (_buildMenu is not null && _placeable.FirstOrDefault()?.Civilization == catalog.Civilization)
+        if (!force && _buildMenu is not null && _placeable.FirstOrDefault()?.Civilization == catalog.Civilization)
             return;
         _buildMenu?.Dispose();
         _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog);
@@ -400,6 +411,92 @@ public sealed class MapGame : Game
         _controlGroups = new ControlGroups();
         _selectedBuilding = null;
         _camera = ToWorld(_start);
+    }
+
+    /// <summary>
+    /// A saved game: its world goes on where it was saved. The ground is drawn from its map and brought to
+    /// the world's state point by point (levelled ground, fields, trails, objects).
+    /// </summary>
+    private void LoadGame(SaveGame game)
+    {
+        _terrain?.Dispose();
+        _map = game.Map;
+        _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
+        _world = game.World;
+        _gameMap = _world.Map!;
+        _gameMap.PointChanged += OnPointChanged;
+        _objects = new MapObjectLayer(_sprites, _map.Area, _terrain);
+        for (int y = 0; y < _gameMap.Size; y++)
+        for (int x = 0; x < _gameMap.Size; x++)
+            OnPointChanged(new GridPoint(x, y));
+        _vision = game.Vision ?? new Vision(_gameMap.Size, player: 0);
+        _vision.Update(_world);
+        _fog?.Dispose();
+        _fog = new FogLayer(GraphicsDevice, _terrain);
+        _fog.SetTargets(_vision);
+        _minimap?.Dispose();
+        _minimap = new Minimap(GraphicsDevice, _map.Area);
+        _minimap.Update(_vision, all: !_fogOn);
+        _nextVision = _time + VisionInterval;
+        PlayerColors.Restore(game.Client.GetValueOrDefault("colors"));
+        _playerCatalogs = game.Catalogs;
+        UsePeople(Own, force: true);
+        // The computer players' notes go to the screen again; the own player's AI (I) goes on if it was on.
+        foreach (var ai in _world.AiPlayers)
+            ai.Noted += OnAiNote;
+        _ownAi = _world.AiPlayers.FirstOrDefault(a => a.Player == 0);
+        _wanderers.Clear();
+        _selected = null;
+        _group.Clear();
+        _controlGroups = new ControlGroups();
+        _selectedBuilding = null;
+        _placing = _aiming = false;
+        _tabs.Current = PanelTab.Build;
+        _start = new GridPoint(_gameMap.Size / 2, _gameMap.Size / 2);
+        _camera = game.Client.GetValueOrDefault("camera")?.Split(',') is [var cx, var cy]
+                  && float.TryParse(cx, System.Globalization.CultureInfo.InvariantCulture, out float camX)
+                  && float.TryParse(cy, System.Globalization.CultureInfo.InvariantCulture, out float camY)
+            ? new Vector2(camX, camY)
+            : ToWorld(_start);
+        _message = $"game loaded ({_map.Name})";
+    }
+
+    /// <summary>Saves the game into a slot (overwriting it); the list shows it right away.</summary>
+    private void SaveGameTo(int slot)
+    {
+        var info = new SaveInfo(_map.Name, Own.Civilization.ToString(), DateTime.Now, _world.Tick);
+        var game = new SaveGame
+        {
+            World = _world,
+            Catalogs = _playerCatalogs,
+            Map = _map,
+            Vision = _vision,
+            Client =
+            {
+                ["camera"] = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{_camera.X},{_camera.Y}"),
+                ["colors"] = PlayerColors.Saved(),
+            },
+        };
+        try
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            SaveSlots.Save(slot, info, game);
+            _message = $"saved into slot {slot + 1} ({watch.ElapsedMilliseconds} ms)";
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            _message = $"saving failed: {e.Message}";
+        }
+        _systemMenu.Refresh();
+    }
+
+    /// <summary>Quits the game: back to the start screen.</summary>
+    private void QuitToStartScreen()
+    {
+        _tabs.Current = PanelTab.Build;
+        _ownAi = null;
+        _startScreen = new StartScreen(GraphicsDevice, _mapFiles, _mapDirectory, _mapIndex, _peoples);
     }
 
     /// <summary>
@@ -781,6 +878,16 @@ public sealed class MapGame : Game
         // The main tabs (build, goods, settlers): a click shows that menu instead of the selection.
         if (_placing)
             _tabs.Current = PanelTab.Build;
+        // The computer button at the bottom left: save, quit.
+        if (onMenu && released && SystemMenu.Button.Contains(panelCursor))
+        {
+            _tabs.Current = PanelTab.System;
+            _systemMenu.Open();
+            _group.Clear();
+            _selected = null;
+            _selectedBuilding = null;
+            _placing = _aiming = false;
+        }
         bool onTab = onMenu && _tabs.TabAt(panelCursor) is not null;
         if (onMenu && _tabs.NameAt(panelCursor) is { } tabName)
             _message = tabName;
@@ -844,6 +951,20 @@ public sealed class MapGame : Game
                 _message = $"{_buildingInfo.NameOf(_selectedBuilding!.Definition)} torn down";
                 _world.RemoveBuilding(_selectedBuilding);
                 _selectedBuilding = null;
+            }
+        }
+        else if (_group.Count == 0 && _tabs.Current == PanelTab.System)
+        {
+            if (onMenu && _systemMenu.HoverText(panelCursor) is { } hover)
+                _message = hover;
+            switch (onMenu && released ? _systemMenu.Click(panelCursor) : SystemAction.None)
+            {
+                case SystemAction.Save:
+                    SaveGameTo(_systemMenu.ChosenSlot);
+                    break;
+                case SystemAction.Quit:
+                    QuitToStartScreen();
+                    return;
             }
         }
         else if (_group.Count == 0 && _tabs.Current != PanelTab.Build)
@@ -1600,6 +1721,8 @@ public sealed class MapGame : Game
             _selectionPanel.Draw(_spriteBatch, _font, _settlerRenderer, _portraits!, Own.Civilization, _group,
                 _world.Military.CombatStrength(0), unitsTop);
         }
+        else if (_tabs.Current == PanelTab.System)
+            _systemMenu.Draw(_spriteBatch, _font, panelMouse);
         else if (_tabs.Current == PanelTab.Build)
             _buildMenu!.Draw(_spriteBatch, _pixel, _font, _placing ? _placeable[_placeIndex] : null, panelMouse, OwnBuildingCounts());
         else
@@ -2111,6 +2234,12 @@ public sealed class MapGame : Game
             CaptureMagic(_capturedFrames + 1);
         if (_panning)
             PanCamera();
+        // HOMESTEAD_CAPTURE_SAVE=<slot>: saves the game into that slot (1-8) after 300 frames.
+        if (_capturedFrames == 300 && int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SAVE"), out int saveSlot))
+        {
+            SaveGameTo(saveSlot - 1);
+            Console.WriteLine(_message);
+        }
         switch (++_capturedFrames)
         {
             case 1 when int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MINUTES"), out int minutes) && minutes > 0:
