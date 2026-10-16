@@ -79,6 +79,7 @@ public sealed class MapGame : Game
     private Portraits? _portraits;
     private PanelTabs _tabs = null!;
     private SoldiersMenu? _soldiersMenu;
+    private SettlersOverview? _settlersOverview;
     private bool _captureManualRecruitment;
     private SidePanel _sidePanel = null!;
     private Minimap? _minimap;
@@ -313,6 +314,8 @@ public sealed class MapGame : Game
         _portraits = new Portraits(GraphicsDevice, _gfx, catalog.Civilization);
         _soldiersMenu?.Dispose();
         _soldiersMenu = new SoldiersMenu(GraphicsDevice, _gfx, catalog.Civilization);
+        _settlersOverview?.Dispose();
+        _settlersOverview = new SettlersOverview(GraphicsDevice, _gfx, catalog.Civilization);
         _placeable = catalog.All.Where(b => b.ConstructionPiles.Count > 0)
             .OrderBy(b => b.Name).ToArray();
         _placeIndex = Math.Max(0, Array.FindIndex(_placeable, b => b.Name == "lumberjack"));
@@ -1464,10 +1467,12 @@ public sealed class MapGame : Game
             _buildMenu!.Draw(_spriteBatch, _pixel, _font, _placing ? _placeable[_placeIndex] : null, panelMouse, OwnBuildingCounts());
         else
         {
-            bool soldiers = _tabs.CurrentMenu == "soldiers";
-            _tabs.DrawContent(_spriteBatch, _font, placeholder: !soldiers);
-            if (soldiers)
+            string? menu = _tabs.CurrentMenu;
+            _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview"));
+            if (menu == "soldiers")
                 _soldiersMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
+            else if (menu == "overview")
+                _settlersOverview!.Draw(_spriteBatch, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization);
         }
         _tabs.DrawTabs(_spriteBatch);
         _spriteBatch.End();
@@ -2080,6 +2085,7 @@ public sealed class MapGame : Game
         _buildMenu?.Dispose();
         _portraits?.Dispose();
         _soldiersMenu?.Dispose();
+        _settlersOverview?.Dispose();
         _tabs?.Dispose();
         _font.Dispose();
         _atlas.Dispose();

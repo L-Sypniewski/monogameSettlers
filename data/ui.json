@@ -15,7 +15,7 @@
     {
       "id": "settlers", "name": "Siedler", "tab": [ 59, 68 ],
       "menus": [
-        { "id": "overview", "name": "Siedlerübersicht", "tab": [ 236, 248 ] },
+        { "id": "overview", "name": "Siedlerstatistik", "tab": [ 236, 248 ] },
         { "id": "professions", "name": "Berufe", "tab": [ 239, 251 ] },
         { "id": "soldiers", "name": "Krieger", "tab": [ 242, 254 ] }
       ]
@@ -32,12 +32,22 @@
       "Amazon": { "file": 44, "SWORDSMAN": 122, "BOWMAN": 125, "PIKEMAN": 128 }
     }
   },
-  "_portraitsComment": "Unit portraits in the stone frame (GUI images of the people's file, the large 40x60 one; the medium and small are the two before it). soldiers: the first, then swordsman, pikeman, bowman of level 1, the same of level 2 and 3, three images apart.",
+  "_portraitsComment": "Unit portraits in the stone frame (GUI images of the people's file, the large 40x60 one; the medium and small are the two before it), by animation type; WORKER: the specialists (Fachleute), THIEF: scout. From the carrier on the same distance in every file (digger +3, builder +6, worker +18, thief +51, geologist +54, healer +63, priest +69 – Asians +75, pioneer +72 – missing for Egyptians). soldiers: the first, then swordsman, pikeman, bowman of level 1, the same of level 2 and 3, three images apart. common: the same for every people (file 03, or [file, index]); FRAME: an empty frame, behind the figure of kinds without a portrait.",
   "portraits": {
-    "Roman": { "file": 14, "BEARER": 134, "GEOLOGIST": 185, "MAGE": 203, "soldiers": 209 },
-    "Egyptian": { "file": 24, "BEARER": 128, "GEOLOGIST": 179, "MAGE": 197, "soldiers": 200 },
-    "Asian": { "file": 34, "BEARER": 140, "GEOLOGIST": 191, "MAGE": 215, "soldiers": 218 },
-    "Amazon": { "file": 44, "BEARER": 137, "GEOLOGIST": 188, "MAGE": 206, "soldiers": 209 }
+    "Roman": { "file": 14, "BEARER": 134, "DIGGER": 137, "BRICKLAYER": 140, "WORKER": 152, "THIEF": 185, "GEOLOGIST": 188, "MAGE": 203, "PIONEER": 206, "soldiers": 209 },
+    "Egyptian": { "file": 24, "BEARER": 128, "DIGGER": 131, "BRICKLAYER": 134, "WORKER": 146, "THIEF": 179, "GEOLOGIST": 182, "MAGE": 197, "soldiers": 200 },
+    "Asian": { "file": 34, "BEARER": 140, "DIGGER": 143, "BRICKLAYER": 146, "WORKER": 158, "THIEF": 191, "GEOLOGIST": 194, "PIONEER": 212, "MAGE": 215, "soldiers": 218 },
+    "Amazon": { "file": 44, "BEARER": 137, "DIGGER": 140, "BRICKLAYER": 143, "WORKER": 155, "THIEF": 188, "GEOLOGIST": 191, "MAGE": 206, "PIONEER": 209, "soldiers": 212 },
+    "common": { "file": 3, "DONKEY": 2, "FRAME": [ 44, 200 ] }
+  },
+  "_settlersOverviewComment": "Siedler > Siedlerstatistik: icons of file 03 for room (house), settlers needing room (hammer) and the total (arrow); the soldiers' icon is the people's sword (soldiersMenu.weapons). rows: the portraits below, by animation type.",
+  "settlersOverview": {
+    "icons": { "room": 395, "needing": 128, "total": 5 },
+    "rows": [
+      [ "BEARER", "DIGGER", "BRICKLAYER", "WORKER" ],
+      [ "SWORDSMAN", "BOWMAN", "PIKEMAN", "MAGE" ],
+      [ "GEOLOGIST", "THIEF", "PIONEER", "DONKEY" ]
+    ]
   },
   "buildMenu": [
     {
