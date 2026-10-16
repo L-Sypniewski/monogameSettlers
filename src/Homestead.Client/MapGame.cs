@@ -185,11 +185,18 @@ public sealed class MapGame : Game
     /// <summary>The left button went down on the minimap and is still held: moving the mouse drags the view frame.</summary>
     private bool _minimapDrag;
     private Vector2 _minimapPress;
-    private float _zoom = 2;
+    private float _zoom = 1.25f;
+    /// <summary>The wheel step the zoom is gliding to; null when it rests.</summary>
+    private float? _zoomTarget;
+    /// <summary>Time constant of the glide: about 95 % of the way after three of these.</summary>
+    private const float ZoomGlideSeconds = 0.04f;
 
-    /// <summary>Farthest out: drawing cost grows with the square of the area shown.</summary>
-    private const float MinZoom = 1f;
-    private const float MaxZoom = 4f;
+    /// <summary>
+    /// Wheel steps, roughly evenly spaced by ratio (×1.2–1.33). Quarter values repeat the pixel pattern of the
+    /// upscaled world every few pixels, which keeps the interpolation steady. Farthest out is 1: drawing cost
+    /// grows with the square of the area shown.
+    /// </summary>
+    private static readonly float[] ZoomLevels = [1f, 1.25f, 1.5f, 2f, 2.5f, 3f, 4f];
     private KeyboardState _previousKeys;
     private MouseState _previousMouse;
     private int _capturedFrames;
@@ -1129,10 +1136,29 @@ public sealed class MapGame : Game
 
         int wheel = mouse.ScrollWheelValue - _previousMouse.ScrollWheelValue;
         if (wheel != 0)
-            _zoom = Math.Clamp(_zoom * (wheel > 0 ? 1.25f : 0.8f), MinZoom, MaxZoom);
+            _zoomTarget = NextZoomLevel(_zoomTarget ?? _zoom, wheel > 0);
+        if (_zoomTarget is float zoomTarget)
+        {
+            // Exponential glide in log space, so zooming in and out feel alike at every level.
+            float keep = MathF.Exp(-(float)gameTime.ElapsedGameTime.TotalSeconds / ZoomGlideSeconds);
+            _zoom = zoomTarget * MathF.Pow(_zoom / zoomTarget, keep);
+            if (MathF.Abs(_zoom / zoomTarget - 1) < 0.002f)
+            {
+                _zoom = zoomTarget;
+                _zoomTarget = null;
+            }
+        }
 
         _previousKeys = keys;
         _previousMouse = mouse;
+    }
+
+    /// <summary>The next wheel step in or out from <paramref name="zoom"/>, which may lie between steps (e.g. from an old save).</summary>
+    private static float NextZoomLevel(float zoom, bool zoomIn)
+    {
+        if (zoomIn)
+            return ZoomLevels.FirstOrDefault(level => level > zoom + 0.01f, ZoomLevels[^1]);
+        return ZoomLevels.LastOrDefault(level => level < zoom - 0.01f, ZoomLevels[0]);
     }
 
     /// <summary>
@@ -1693,17 +1719,20 @@ public sealed class MapGame : Game
         var origin = new Vector2(MathF.Floor(visible.X), MathF.Floor(visible.Y));
         var worldView = View;
         var worldProjection = Matrix.CreateOrthographicOffCenter(0, viewport.Width, viewport.Height, 0, -1, 1);
+        var worldSize = Point.Zero;
         if (smooth)
         {
-            int width = (int)MathF.Ceiling(visible.Width) + 2, height = (int)MathF.Ceiling(visible.Height) + 2;
-            if (_worldTarget is null || _worldTarget.Width != width || _worldTarget.Height != height)
+            worldSize = new Point((int)MathF.Ceiling(visible.Width) + 2, (int)MathF.Ceiling(visible.Height) + 2);
+            // Only grows: while the zoom glides the needed size changes every frame; the top left part is used.
+            if (_worldTarget is null || _worldTarget.Width < worldSize.X || _worldTarget.Height < worldSize.Y)
             {
                 _worldTarget?.Dispose();
-                _worldTarget = new RenderTarget2D(GraphicsDevice, width, height);
+                _worldTarget = new RenderTarget2D(GraphicsDevice, Math.Max(worldSize.X, _worldTarget?.Width ?? 0),
+                    Math.Max(worldSize.Y, _worldTarget?.Height ?? 0));
             }
             GraphicsDevice.SetRenderTarget(_worldTarget);
             worldView = Matrix.CreateTranslation(-origin.X, -origin.Y, 0);
-            worldProjection = Matrix.CreateOrthographicOffCenter(0, width, height, 0, -1, 1);
+            worldProjection = Matrix.CreateOrthographicOffCenter(0, _worldTarget.Width, _worldTarget.Height, 0, -1, 1);
         }
         GraphicsDevice.Clear(Color.Black);
 
@@ -1797,7 +1826,7 @@ public sealed class MapGame : Game
             }
             _spriteBatch.Begin(samplerState: filter is null ? SamplerState.LinearClamp : SamplerState.PointClamp,
                 blendState: BlendState.Opaque, effect: filter);
-            _spriteBatch.Draw(_worldTarget, Vector2.Transform(origin, View), null, Color.White, 0, Vector2.Zero, _zoom, SpriteEffects.None, 0);
+            _spriteBatch.Draw(_worldTarget, Vector2.Transform(origin, View), new Rectangle(Point.Zero, worldSize), Color.White, 0, Vector2.Zero, _zoom, SpriteEffects.None, 0);
             _spriteBatch.End();
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: View);
         }
