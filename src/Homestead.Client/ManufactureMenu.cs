@@ -12,18 +12,14 @@ namespace Homestead.Client;
 /// Waren › Herstellung in the blue panel, like the original's: tools, then weapons, each a row with the
 /// product's icon, the units ordered (made first; the spinner orders one more or less) and a bar with the
 /// product's share of what the smith makes otherwise (<see cref="Production.ShareOf"/>; empty: only on
-/// order or need). A click on a bar sets it, dragging moves it; near either end it snaps to 0 or 100 %.
+/// order or need). A click on a bar sets it, dragging moves it (<see cref="ShareBar"/>).
 /// Panel space.
 /// </summary>
 public sealed class ManufactureMenu : IDisposable
 {
     private static readonly Color Text = new(240, 225, 190);
-    private static readonly Color Fill = new(20, 190, 200);
     private static readonly Material[] Tools = [Material.Hammer, Material.Blade, Material.Pick, Material.Axe, Material.Saw, Material.Scythe, Material.FishingRod];
     private static readonly Material[] Weapons = [Material.Sword, Material.Bow, Material.Spear];
-
-    /// <summary>A press this close to (or beyond) a bar's end sets 0 or 100 %.</summary>
-    private const int SnapPixels = 6;
 
     private const int RowHeight = 30;
     private readonly GoodsGrid _grid;
@@ -56,10 +52,7 @@ public sealed class ManufactureMenu : IDisposable
 
     private static Rectangle Icon(int y) => new(Left, y, 28, 28);
     private static Rectangle Spinner(int y) => new(Left + 58, y, 19, 28);
-    private static Rectangle Bar(int y) => new(Left + 84, y + 5, Width - 84, 18);
-
-    /// <summary>The bar's inner part, 0 to 100 %.</summary>
-    private static Rectangle Inner(Rectangle bar) => new(bar.X + 2, bar.Y + 2, bar.Width - 4, bar.Height - 4);
+    private static Rectangle Bar(int y) => new(Left + 84, y + 5, Width - 84, ShareBar.Height);
 
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
     {
@@ -78,13 +71,7 @@ public sealed class ManufactureMenu : IDisposable
             if (spinner.Contains(cursor))
                 batch.Draw(pixel, Half(spinner, cursor.Y < spinner.Center.Y), Color.White * 0.15f);
 
-            var bar = Bar(y);
-            batch.Draw(pixel, bar, Color.Black * 0.45f);
-            Outline(batch, pixel, bar, new Color(170, 185, 195));
-            var inner = Inner(bar);
-            int filled = (int)Math.Round(world.Production.ShareOf(player, product) * inner.Width);
-            if (filled > 0)
-                batch.Draw(pixel, new Rectangle(inner.X, inner.Y, filled, inner.Height), Fill);
+            ShareBar.Draw(batch, pixel, Bar(y), world.Production.ShareOf(player, product));
         }
     }
 
@@ -113,11 +100,7 @@ public sealed class ManufactureMenu : IDisposable
             }
         if (_dragging is not { } dragged)
             return null;
-        var inner = Inner(Bar(Rows().First(r => r.Product == dragged).Y));
-        double share = panel.X <= inner.X + SnapPixels ? 0
-            : panel.X >= inner.Right - SnapPixels ? 1
-            : Math.Round((panel.X - inner.X) / inner.Width * 20) / 20; // 5 % steps
-        world.Production.SetShare(player, dragged, share);
+        world.Production.SetShare(player, dragged, ShareBar.ValueAt(Bar(Rows().First(r => r.Product == dragged).Y), panel.X));
         return $"{NameOf(dragged)}: {world.Production.ShareOf(player, dragged) * 100:0} %";
     }
 
@@ -145,13 +128,5 @@ public sealed class ManufactureMenu : IDisposable
     {
         var size = font.Measure(text, 16);
         SelectionPanel.Shadowed(batch, font, text, new Vector2(Left + (Width - size.X) / 2, y), 16, Text);
-    }
-
-    private static void Outline(SpriteBatch batch, Texture2D pixel, Rectangle rect, Color color)
-    {
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), color);
-        batch.Draw(pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), color);
     }
 }

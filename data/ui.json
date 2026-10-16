@@ -8,8 +8,8 @@
       "menus": [
         { "id": "stock", "name": "Lagerbestand", "tab": [ 260, 272 ] },
         { "id": "tools", "name": "Herstellung", "tab": [ 263, 275 ] },
-        { "id": "production", "name": "Produktion", "tab": [ 266, 278 ] },
-        { "id": "distribution", "name": "Verteilung", "tab": [ 269, 281 ] }
+        { "id": "distribution", "name": "Warenverteilung", "tab": [ 266, 278 ] },
+        { "id": "transport", "name": "Warentransport", "tab": [ 269, 281 ] }
       ]
     },
     {
@@ -39,6 +39,8 @@
     "find": [ 434, 437, 440 ],
     "convert": [ 221, 227 ]
   },
+  "_distributionMenuComment": "Waren > Verteilung: the goods at the left, in this order; only those with at least two kinds of user for the people (construction sites, building types taking it) are shown.",
+  "distributionMenu": { "goods": [ "COAL", "IRON", "PLANK", "RICE", "HONEY", "CROP", "WATER", "BREAD", "MEAT", "FISH" ] },
   "_goodsGridComment": "Siedler > Produktion, Waren > Lagerbestand: the goods, row by row, with their GUI icon ([file, index], the large size – from JSettlers' EMaterialType, MIT, whose base index is the small one; weapon: the people's own from soldiersMenu) and German name. Goods the people cannot make are dark.",
   "goodsGrid": {
     "goods": [

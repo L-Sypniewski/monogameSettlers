@@ -153,11 +153,13 @@ public sealed record ProductionConfig
     public bool IsStored(Material material) => StoredMaterials?.Contains(material) != false;
 
     /// <summary>
-    /// Distribution of a material among building types that use it (weights by building name, like
-    /// the original's 90:10 for food to mines). Materials without an entry go to the nearest user.
+    /// Default distribution of a material among the targets that use it (shares 0–1 by building name,
+    /// <see cref="Logistics.Construction"/> for construction sites; like the original's food for mines).
+    /// A material listed here gives unlisted targets 0; a material not listed gives every target 1.
+    /// The player changes them in Waren › Verteilung (<see cref="Logistics.ShareOf"/>).
     /// </summary>
-    public IReadOnlyDictionary<Material, IReadOnlyDictionary<string, int>> Distribution { get; init; } =
-        new Dictionary<Material, IReadOnlyDictionary<string, int>>();
+    public IReadOnlyDictionary<Material, IReadOnlyDictionary<string, double>> Distribution { get; init; } =
+        new Dictionary<Material, IReadOnlyDictionary<string, double>>();
 
     /// <summary>Carriers a living house releases once it is finished (by building name).</summary>
     public IReadOnlyDictionary<string, int> Residents { get; init; } = new Dictionary<string, int>();
@@ -243,7 +245,7 @@ public sealed record ProductionConfig
             Mines = mines,
             Distribution = root.GetProperty("distribution").EnumerateObject().Where(d => !d.Name.StartsWith('_')).ToDictionary(
                 d => Materials.Parse(d.Name)!.Value,
-                d => (IReadOnlyDictionary<string, int>)d.Value.EnumerateObject().ToDictionary(w => w.Name, w => w.Value.GetInt32())),
+                d => (IReadOnlyDictionary<string, double>)d.Value.EnumerateObject().Where(w => !w.Name.StartsWith('_')).ToDictionary(w => w.Name, w => w.Value.GetDouble())),
             Smiths = smiths,
             Tools = tools,
             StoragePileCapacity = root.GetProperty("storage").GetProperty("pileCapacity").GetInt32(),

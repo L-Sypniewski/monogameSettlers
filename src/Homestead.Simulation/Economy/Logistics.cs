@@ -107,11 +107,29 @@ public sealed class Logistics
         }
     }
 
+    /// <summary>The distribution target standing for all construction sites (Waren › Verteilung: „Baustelle“).</summary>
+    public const string Construction = "construction";
+
+    private readonly Dictionary<(int Player, Material Material, string Target), double> _shares = new();
+
     /// <summary>
-    /// Where a unit of the offer goes. First the kind of target: construction sites, then buildings
-    /// that use it, then the storehouse; among buildings, goods with a distribution rule
-    /// (<see cref="ProductionConfig.Distribution"/>, e.g. food for mines 90:10) draw the building type
-    /// by its weight. Then the nearest target of that kind with room.
+    /// The player's share of a material for a target (a building name or <see cref="Construction"/>; 0–1,
+    /// the bar in Waren › Verteilung). Defaults from <see cref="ProductionConfig.Distribution"/>.
+    /// </summary>
+    public double ShareOf(int player, Material material, string target) =>
+        _shares.TryGetValue((player, material, target), out double share) ? share
+        : _world.Production.Config.Distribution.TryGetValue(material, out var defaults) ? defaults.GetValueOrDefault(target)
+        : 1;
+
+    /// <summary>Sets a share (clamped to 0–1).</summary>
+    public void SetShare(int player, Material material, string target, double share) =>
+        _shares[(player, material, target)] = Math.Clamp(share, 0, 1);
+
+    /// <summary>
+    /// Where a unit of the offer goes. Among the targets that want it now – construction sites (as one,
+    /// <see cref="Construction"/>) and each type of building using it – one is drawn by the player's
+    /// shares (<see cref="ShareOf"/>; those with share 0 only if all have 0), then the nearest target of
+    /// that kind with room; the storehouse only when no one else wants it.
     /// </summary>
     private Pile? ChooseTarget(Pile offer, List<Pile> requests, HashSet<int> players)
     {
@@ -122,27 +140,24 @@ public sealed class Logistics
         if (candidates.Count == 0)
             return null;
 
-        var pathFinder = _world.PathFinder!;
-        foreach (var kind in candidates.GroupBy(Kind).OrderBy(g => g.Key))
+        var users = candidates.Where(c => c.Role != PileRole.Storage).ToList();
+        if (users.Count > 0)
         {
-            var targets = kind.ToList();
-            if (kind.Key == 1 && _world.Production.Config.Distribution.TryGetValue(material, out var weights))
-            {
-                string type = DrawType(targets.Select(t => t.Owner!.Definition.Name).Distinct().ToList(), weights);
-                var ofType = targets.Where(t => t.Owner!.Definition.Name == type).ToList();
-                if (Nearest(ofType) is { } drawn)
-                    return drawn;
-            }
-            if (Nearest(targets) is { } nearest)
+            int player = users[0].Owner!.Player;
+            var types = users.Select(TargetOf).Distinct().ToList();
+            string type = DrawType(types, t => ShareOf(player, material, t));
+            if (Nearest(users.Where(u => TargetOf(u) == type)) is { } drawn)
+                return drawn;
+            if (Nearest(users) is { } nearest)
                 return nearest;
         }
-        return null;
+        return Nearest(candidates.Where(c => c.Role == PileRole.Storage));
 
         Pile? Nearest(IEnumerable<Pile> targets) => targets
             .OrderBy(t => PathFinder.Distance(offer.Position, t.Position))
             .FirstOrDefault(t => _world.Reachable(t.Owner!.Player, offer.Position, t.Position));
 
-        static int Kind(Pile request) => request.Role == PileRole.Storage ? 2 : request.Owner!.State == BuildingState.Finished ? 1 : 0;
+        static string TargetOf(Pile request) => request.Owner!.State == BuildingState.Finished ? request.Owner.Definition.Name : Construction;
     }
 
     private bool Allowed(Pile offer, Pile request, Material material)
@@ -160,16 +175,16 @@ public sealed class Logistics
             o != request && o.Role == PileRole.Storage && o.Material == material && o.Space > 0));
     }
 
-    /// <summary>A building type drawn by weight; types without a weight only when none has one.</summary>
-    private string DrawType(List<string> types, IReadOnlyDictionary<string, int> weights)
+    /// <summary>A target type drawn by share; types with share 0 only when all have 0.</summary>
+    private string DrawType(List<string> types, Func<string, double> share)
     {
-        int total = types.Sum(t => weights.GetValueOrDefault(t));
+        double total = types.Sum(share);
         if (total <= 0)
             return types[_random.Next(types.Count)];
-        int roll = _random.Next(total);
+        double roll = _random.NextDouble() * total;
         foreach (string type in types)
         {
-            roll -= weights.GetValueOrDefault(type);
+            roll -= share(type);
             if (roll < 0)
                 return type;
         }

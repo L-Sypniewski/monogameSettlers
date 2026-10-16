@@ -311,6 +311,29 @@ public class LogisticsTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void The_players_shares_steer_the_distribution()
+    {
+        var world = new World(new GameMap(80), ProductionConfig.Load() with { MineFoodPileCapacity = 8 });
+        TestMaps.Mountain(world.Map!, new GridPoint(25, 30));
+        var coal = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(25, 30))!;
+        TestMaps.Mountain(world.Map!, new GridPoint(55, 30));
+        var iron = world.PlaceBuilding(Romans["ironmine"], 0, new GridPoint(55, 30))!;
+        Assert.Equal(1, world.Logistics.ShareOf(0, Material.Bread, "coalmine")); // defaults from production.json
+        Assert.Equal(0.1, world.Logistics.ShareOf(0, Material.Bread, "ironmine"));
+        Assert.Equal(1, world.Logistics.ShareOf(0, Material.Coal, "ironmelt")); // not listed: 1 for every user
+        world.Logistics.SetShare(0, Material.Bread, "coalmine", 0);
+        world.Logistics.SetShare(1, Material.Bread, "ironmine", 0); // another player's setting changes nothing here
+        world.AddLooseGoods(new GridPoint(40, 50), Material.Bread, 8);
+        for (int i = 0; i < 8; i++)
+            world.Spawn(new GridPoint(36 + i, 55), Profession.Carrier);
+
+        Run(world, 3000);
+
+        Assert.Equal(8, iron.Piles.Where(p => p.Material == Material.Bread).Sum(p => p.Count));
+        Assert.DoesNotContain(coal.Piles, p => p.Material == Material.Bread && p.Count > 0);
+    }
+
+    [Fact]
     public void Goods_go_to_the_nearest_building_of_the_drawn_type()
     {
         var world = new World(new GameMap(90), ProductionConfig.Load() with { MineFoodPileCapacity = 8 });

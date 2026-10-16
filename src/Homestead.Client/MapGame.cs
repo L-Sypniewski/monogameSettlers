@@ -85,7 +85,9 @@ public sealed class MapGame : Game
     private StatisticsMenu? _statisticsMenu;
     private StockMenu? _stockMenu;
     private ManufactureMenu? _manufactureMenu;
+    private DistributionMenu? _distributionMenu;
     private bool _captureManualRecruitment;
+    private Homestead.Simulation.Economy.Material? _captureGood;
     private SidePanel _sidePanel = null!;
     private Minimap? _minimap;
     private readonly ConversionMenu _conversionMenu = new();
@@ -252,7 +254,8 @@ public sealed class MapGame : Game
         _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
         _sidePanel = new SidePanel(GraphicsDevice, _gfx);
         _tabs = new PanelTabs(GraphicsDevice, _gfx);
-        // HOMESTEAD_CAPTURE_TAB=goods|settlers[:<sub-menu id>[:manual]]: a capture run shows that main tab (and sub-menu; manual recruitment).
+        // HOMESTEAD_CAPTURE_TAB=goods|settlers[:<sub-menu id>[:manual|<good>]]: a capture run shows that main tab
+        // (and sub-menu; manual recruitment, or the good chosen in Waren › Verteilung).
         if (_captureDirectory is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB")?.Split(':') is { } captureTab
             && Enum.TryParse<PanelTab>(captureTab[0], ignoreCase: true, out var tab))
         {
@@ -261,6 +264,8 @@ public sealed class MapGame : Game
                 _tabs.ShowMenu(captureTab[1]);
             if (captureTab.Length > 2 && captureTab[2] == "manual")
                 _captureManualRecruitment = true;
+            else if (captureTab.Length > 2)
+                _captureGood = Homestead.Simulation.Economy.Materials.Parse(captureTab[2].ToUpperInvariant());
         }
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
@@ -331,6 +336,9 @@ public sealed class MapGame : Game
         _stockMenu = new StockMenu(_goodsGrid);
         _manufactureMenu?.Dispose();
         _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid);
+        _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf);
+        if (_captureGood is { } good)
+            _distributionMenu.Choose(good);
         _placeable = catalog.All.Where(b => b.ConstructionPiles.Count > 0)
             .OrderBy(b => b.Name).ToArray();
         _placeIndex = Math.Max(0, Array.FindIndex(_placeable, b => b.Name == "lumberjack"));
@@ -845,6 +853,15 @@ public sealed class MapGame : Game
                 bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
                 bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
                 if (_manufactureMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, 0) is { } done)
+                    _message = done;
+            }
+            else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "distribution")
+            {
+                if (onMenu && _distributionMenu!.Hover(panelCursor) is { } hover)
+                    _message = hover;
+                bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
+                bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
+                if (_distributionMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, 0) is { } done)
                     _message = done;
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "stock" && onMenu)
@@ -1570,12 +1587,14 @@ public sealed class MapGame : Game
         else
         {
             string? menu = _tabs.CurrentMenu;
-            _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview" or "professions" or "statistics" or "stock" or "tools"),
+            _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview" or "professions" or "statistics" or "stock" or "tools" or "distribution"),
                 title: menu != "tools");
             if (menu == "soldiers")
                 _soldiersMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
             else if (menu == "overview")
                 _settlersOverview!.Draw(_spriteBatch, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization);
+            else if (menu == "distribution")
+                _distributionMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, panelMouse);
             else if (menu == "tools")
                 _manufactureMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, panelMouse);
             else if (menu == "stock")

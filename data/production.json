@@ -38,13 +38,14 @@
     "sulfurmine": { "prefersFood": "FISH", "resource": "Sulfur", "output": "SULFUR", "seconds": 10, "radius": 3 }
   },
   "distribution": {
-    "_comment": "How a material is shared among the building types that use it (weights by building name; types not listed get nothing while a listed one wants it). The type is drawn first, then the nearest building of that type with room gets it. Materials not listed go to the nearest user. Construction sites always come first, storehouses last.",
-    "BREAD": { "coalmine": 90, "ironmine": 10, "goldmine": 10, "gemsmine": 10, "sulfurmine": 10 },
-    "MEAT": { "ironmine": 90, "coalmine": 10, "goldmine": 10, "gemsmine": 10, "sulfurmine": 10 },
-    "FISH": { "goldmine": 90, "gemsmine": 90, "sulfurmine": 90, "coalmine": 10, "ironmine": 10 },
+    "_comment": "Defaults of Waren > Verteilung: how a material is shared among the targets that use it (shares 0-1 by building name, \"construction\" for construction sites; listed materials give unlisted targets 0, unlisted materials give every target 1). Among the targets that want it now, the target is drawn by share, then the nearest of that kind with room gets it; targets with share 0 only when all have 0. Storehouses last.",
+    "PLANK": { "construction": 1, "dockyard": 0.5, "charcoal_burner": 0.5 },
+    "BREAD": { "coalmine": 1, "ironmine": 0.1, "goldmine": 0.1, "gemsmine": 0.1, "sulfurmine": 0.1 },
+    "MEAT": { "ironmine": 1, "coalmine": 0.1, "goldmine": 0.1, "gemsmine": 0.1, "sulfurmine": 0.1 },
+    "FISH": { "goldmine": 1, "gemsmine": 1, "sulfurmine": 1, "coalmine": 0.1, "ironmine": 0.1 },
     "_cropWaterComment": "Without a rule the nearest user takes it all: a mill next to the farm would leave the brewery dry.",
-    "CROP": { "mill": 40, "pig_farm": 30, "brewery": 30, "donkey_farm": 10 },
-    "WATER": { "baker": 30, "pig_farm": 30, "brewery": 30, "mead_brewery": 30, "donkey_farm": 10 }
+    "CROP": { "mill": 1, "pig_farm": 0.75, "brewery": 0.75, "donkey_farm": 0.25 },
+    "WATER": { "baker": 1, "pig_farm": 1, "brewery": 1, "mead_brewery": 1, "donkey_farm": 0.35 }
   },
   "smiths": {
     "_comment": "One product per cycle: what the player ordered (Waren > Herstellung) first, then tools somebody waits for (and nobody has), otherwise by shares (the player's bars, these are the defaults; 0 = only on order or need) while the product has fewer than keepInStock units around (0 = no limit); otherwise the smith rests. The toolsmith makes only what is needed right now unless the player gives it shares.",
