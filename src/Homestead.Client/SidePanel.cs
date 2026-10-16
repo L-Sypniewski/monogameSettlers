@@ -36,7 +36,14 @@ public sealed class SidePanel : IDisposable
     private readonly Texture2D _frame;
     private readonly Texture2D _frameRight;
     private readonly Texture2D _panel;
+
+    /// <summary>The slim gold edge with a vine right of the blue panel (sequence 3).</summary>
+    private readonly Texture2D _panelRight;
     private readonly BasicEffect _mapEffect;
+
+    /// <summary>Black behind the minimap, a little lower than it: the frame leaves a thin gap below the map.</summary>
+    private readonly Texture2D _black;
+    private const float BackingBelow = 3;
 
     public SidePanel(GraphicsDevice device, GfxDirectory gfx)
     {
@@ -45,7 +52,10 @@ public sealed class SidePanel : IDisposable
         _frame = ToTexture(file.ReadSettler(0, Frame));
         _frameRight = ToTexture(file.ReadSettler(1, Frame));
         _panel = ToTexture(file.ReadSettler(2, Frame));
+        _panelRight = ToTexture(file.ReadSettler(3, Frame));
         _mapEffect = new BasicEffect(device) { TextureEnabled = true, VertexColorEnabled = false, LightingEnabled = false };
+        _black = new Texture2D(device, 1, 1);
+        _black.SetData([Color.Black]);
     }
 
     private Texture2D ToTexture(GfxBitmap bitmap)
@@ -116,6 +126,7 @@ public sealed class SidePanel : IDisposable
         batch.Draw(_frame, Vector2.Zero, Color.White);
         batch.Draw(_frameRight, new Vector2(Width, 0), Color.White);
         batch.Draw(_panel, new Vector2(0, Top), Color.White);
+        batch.Draw(_panelRight, new Vector2(Width, Top), Color.White);
         batch.End();
     }
 
@@ -140,15 +151,22 @@ public sealed class SidePanel : IDisposable
     private void DrawMinimap(Texture2D minimap, float scale)
     {
         var viewport = _device.Viewport;
-        _mapEffect.Texture = minimap;
         _mapEffect.World = Matrix.CreateScale(scale);
         _mapEffect.View = Matrix.Identity;
         _mapEffect.Projection = Matrix.CreateOrthographicOffCenter(0, viewport.Width, viewport.Height, 0, -1, 1);
-        float shift = (MapBottom - MapTop) / 2;
+        DrawParallelogram(_black, MapBottom + BackingBelow);
+        DrawParallelogram(minimap, MapBottom);
+    }
+
+    /// <summary>A texture on the minimap's parallelogram, from its top down to <paramref name="bottom"/> (same slant).</summary>
+    private void DrawParallelogram(Texture2D texture, float bottom)
+    {
+        _mapEffect.Texture = texture;
+        float shift = (bottom - MapTop) / 2;
         var topLeft = new Vector3(MapLeftAtTop, MapTop, 0);
         var topRight = new Vector3(MapLeftAtTop + MapWidth, MapTop, 0);
-        var bottomLeft = new Vector3(MapLeftAtTop - shift, MapBottom, 0);
-        var bottomRight = new Vector3(MapLeftAtTop - shift + MapWidth, MapBottom, 0);
+        var bottomLeft = new Vector3(MapLeftAtTop - shift, bottom, 0);
+        var bottomRight = new Vector3(MapLeftAtTop - shift + MapWidth, bottom, 0);
         VertexPositionTexture[] quad =
         [
             new(topLeft, new Vector2(0, 0)), new(topRight, new Vector2(1, 0)), new(bottomLeft, new Vector2(0, 1)),
@@ -170,6 +188,8 @@ public sealed class SidePanel : IDisposable
         _frame.Dispose();
         _frameRight.Dispose();
         _panel.Dispose();
+        _panelRight.Dispose();
         _mapEffect.Dispose();
+        _black.Dispose();
     }
 }
