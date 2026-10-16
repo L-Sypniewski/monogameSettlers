@@ -211,7 +211,8 @@ public sealed partial class Production
             else if (_config.Smiths.TryGetValue(name, out var smith))
                 _workplaces[building.Id] = new Workplace(building, new WorkshopRecipe(smith.Inputs, [], smith.Ticks), null) { Smith = smith };
             else if (_config.Mines.TryGetValue(name, out var mine))
-                _workplaces[building.Id] = new Workplace(building, new WorkshopRecipe([], [mine.Output], mine.Ticks), null) { Mine = mine };
+                _workplaces[building.Id] = new Workplace(building, new WorkshopRecipe([], [mine.Output], mine.Ticks), null)
+                    { Mine = mine, FoodRuns = _config.MineFreeRuns };
             else if (_config.Gatherers.TryGetValue(name, out var gatherer))
                 _workplaces[building.Id] = new Workplace(building, null, gatherer);
             else if (name == HospitalName)

@@ -25,9 +25,10 @@
     "beekeeping": { "action": "Farm", "crop": "honey", "output": "HONEY", "workSeconds": 4, "restSeconds": 4 }
   },
   "mineFood": {
-    "_comment": "Trips into the mine one unit of food lasts: the mine's prefersFood lasts preferredRuns trips, any other food otherRuns. pileCapacity: units each food pile of a mine holds.",
+    "_comment": "Trips into the mine one unit of food lasts: the mine's prefersFood lasts preferredRuns trips, any other food otherRuns. pileCapacity: units each food pile of a mine holds. freeRuns: trips into a new mine that cost no food (per building, so a rebuilt mine gets them again).",
     "preferredRuns": 8,
     "otherRuns": 2,
+    "freeRuns": 8,
     "pileCapacity": 4
   },
   "mines": {

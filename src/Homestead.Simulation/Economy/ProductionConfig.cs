@@ -126,6 +126,9 @@ public sealed record ProductionConfig
     /// <summary>Units of food one food pile of a mine holds.</summary>
     public int MineFoodPileCapacity { get; init; } = Materials.MaxPileSize;
 
+    /// <summary>Trips into a new mine that cost no food (once per building: a rebuilt mine gets them again).</summary>
+    public int MineFreeRuns { get; init; }
+
     /// <summary>Units one storehouse pile holds (a storehouse has six piles).</summary>
     public int StoragePileCapacity { get; init; } = Materials.MaxPileSize;
 
@@ -258,6 +261,7 @@ public sealed record ProductionConfig
             Smiths = smiths,
             Tools = tools,
             StoragePileCapacity = root.GetProperty("storage").GetProperty("pileCapacity").GetInt32(),
+            MineFreeRuns = mineFood.TryGetProperty("freeRuns", out var freeRuns) ? freeRuns.GetInt32() : 0,
             MineFoodPileCapacity = mineFood.TryGetProperty("pileCapacity", out var foodPile) ? foodPile.GetInt32() : Materials.MaxPileSize,
             KeptCarriers = root.GetProperty("recruitment").GetProperty("keptCarriers").GetDouble(),
             MaxDiggers = root.GetProperty("recruitment").TryGetProperty("maxDiggers", out var maxDiggers) ? maxDiggers.GetDouble() : 1,
