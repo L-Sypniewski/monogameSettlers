@@ -86,6 +86,7 @@ public sealed class MapGame : Game
     private StockMenu? _stockMenu;
     private ManufactureMenu? _manufactureMenu;
     private DistributionMenu? _distributionMenu;
+    private TransportMenu? _transportMenu;
     private bool _captureManualRecruitment;
     private Homestead.Simulation.Economy.Material? _captureGood;
     private SidePanel _sidePanel = null!;
@@ -255,7 +256,7 @@ public sealed class MapGame : Game
         _sidePanel = new SidePanel(GraphicsDevice, _gfx);
         _tabs = new PanelTabs(GraphicsDevice, _gfx);
         // HOMESTEAD_CAPTURE_TAB=goods|settlers[:<sub-menu id>[:manual|<good>]]: a capture run shows that main tab
-        // (and sub-menu; manual recruitment, or the good chosen in Waren › Verteilung).
+        // (and sub-menu; manual recruitment, or the good chosen in Waren › Verteilung or Warentransport).
         if (_captureDirectory is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB")?.Split(':') is { } captureTab
             && Enum.TryParse<PanelTab>(captureTab[0], ignoreCase: true, out var tab))
         {
@@ -337,6 +338,10 @@ public sealed class MapGame : Game
         _manufactureMenu?.Dispose();
         _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid);
         _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf);
+        _transportMenu?.Dispose();
+        _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid);
+        if (_captureGood is { } chosenGood)
+            _transportMenu.Choose(chosenGood);
         if (_captureGood is { } good)
             _distributionMenu.Choose(good);
         _placeable = catalog.All.Where(b => b.ConstructionPiles.Count > 0)
@@ -862,6 +867,13 @@ public sealed class MapGame : Game
                 bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
                 bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
                 if (_distributionMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, 0) is { } done)
+                    _message = done;
+            }
+            else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "transport" && onMenu)
+            {
+                if (_transportMenu!.Hover(panelCursor, _world, 0) is { } hover)
+                    _message = hover;
+                if (released && _transportMenu.Click(panelCursor, _world, 0) is { } done)
                     _message = done;
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "stock" && onMenu)
@@ -1587,12 +1599,14 @@ public sealed class MapGame : Game
         else
         {
             string? menu = _tabs.CurrentMenu;
-            _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview" or "professions" or "statistics" or "stock" or "tools" or "distribution"),
+            _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview" or "professions" or "statistics" or "stock" or "tools" or "distribution" or "transport"),
                 title: menu != "tools");
             if (menu == "soldiers")
                 _soldiersMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
             else if (menu == "overview")
                 _settlersOverview!.Draw(_spriteBatch, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization);
+            else if (menu == "transport")
+                _transportMenu!.Draw(_spriteBatch, _pixel, _world, 0, panelMouse, (float)gameTime.ElapsedGameTime.TotalSeconds);
             else if (menu == "distribution")
                 _distributionMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, panelMouse);
             else if (menu == "tools")
@@ -2219,6 +2233,7 @@ public sealed class MapGame : Game
         _professionsMenu?.Dispose();
         _goodsGrid?.Dispose();
         _manufactureMenu?.Dispose();
+        _transportMenu?.Dispose();
         _tabs?.Dispose();
         _font.Dispose();
         _atlas.Dispose();

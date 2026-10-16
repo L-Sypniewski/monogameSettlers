@@ -73,7 +73,17 @@ public sealed class Logistics
             .ToList();
         if (idleCarriers.Count == 0)
             return;
-        var offers = _world.Piles.Where(p => p.Available > 0 && p.Material is not null).OrderBy(p => p.Id).ToList();
+        // Goods higher in the player's transport order are matched first (Waren › Warentransport).
+        var ranks = new Dictionary<int, Dictionary<Material, int>>();
+        int Rank(Pile pile)
+        {
+            // Loose goods on no one's land (no territory rules): the order of a player with carriers free.
+            int player = pile.Owner?.Player ?? (_world.Map is { } map ? map.OwnerAt(pile.Position) : null) ?? idleCarriers[0].Player;
+            if (!ranks.TryGetValue(player, out var rank))
+                ranks[player] = rank = TransportOrder(player).Select((m, i) => (m, i)).ToDictionary(x => x.m, x => x.i);
+            return rank.GetValueOrDefault(pile.Material!.Value);
+        }
+        var offers = _world.Piles.Where(p => p.Available > 0 && p.Material is not null).OrderBy(Rank).ThenBy(p => p.Id).ToList();
         var requests = _world.Piles.Where(p => p.Space > 0 && p.Owner is { Exists: true }).ToList();
         if (offers.Count == 0 || requests.Count == 0)
             return;
@@ -105,6 +115,49 @@ public sealed class Logistics
             if (idleCarriers.Count == 0)
                 break;
         }
+    }
+
+    private readonly Dictionary<int, List<Material>> _transportOrder = new();
+    private readonly Dictionary<int, HashSet<Material>> _stored = new();
+
+    /// <summary>
+    /// The order in which the player's carriers take goods, highest first (Waren › Warentransport):
+    /// every good, defaults from <see cref="ProductionConfig.TransportOrder"/>.
+    /// </summary>
+    public IReadOnlyList<Material> TransportOrder(int player) => OrderOf(player);
+
+    private List<Material> OrderOf(int player)
+    {
+        if (!_transportOrder.TryGetValue(player, out var order))
+        {
+            var defaults = _world.Production.Config.TransportOrder;
+            _transportOrder[player] = order = defaults.Concat(Enum.GetValues<Material>().Except(defaults)).ToList();
+        }
+        return order;
+    }
+
+    /// <summary>Moves a good up (negative) or down (positive) in the player's transport order, by that many places (clamped).</summary>
+    public void MoveInTransportOrder(int player, Material material, int places)
+    {
+        var order = OrderOf(player);
+        int from = order.IndexOf(material);
+        int to = (int)Math.Clamp((long)from + places, 0, order.Count - 1);
+        order.RemoveAt(from);
+        order.Insert(to, material);
+    }
+
+    /// <summary>Whether the player's carriers bring the good to storehouses (Waren › Warentransport; defaults from <c>storage.materials</c>).</summary>
+    public bool IsStored(int player, Material material) =>
+        _stored.TryGetValue(player, out var stored) ? stored.Contains(material) : _world.Production.Config.IsStored(material);
+
+    public void SetStored(int player, Material material, bool stored)
+    {
+        if (!_stored.TryGetValue(player, out var set))
+            _stored[player] = set = Enum.GetValues<Material>().Where(m => _world.Production.Config.IsStored(m)).ToHashSet();
+        if (stored)
+            set.Add(material);
+        else
+            set.Remove(material);
     }
 
     /// <summary>The distribution target standing for all construction sites (Waren › Verteilung: „Baustelle“).</summary>
@@ -164,7 +217,7 @@ public sealed class Logistics
     {
         if (request.Role != PileRole.Storage)
             return true;
-        if (!_world.Production.Config.IsStored(material))
+        if (!IsStored(request.Owner!.Player, material))
             return false;
         // Storehouse to storehouse would only shuffle goods around.
         if (offer.Role == PileRole.Storage)

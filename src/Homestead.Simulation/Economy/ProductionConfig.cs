@@ -152,6 +152,9 @@ public sealed record ProductionConfig
 
     public bool IsStored(Material material) => StoredMaterials?.Contains(material) != false;
 
+    /// <summary>Default order in which carriers take goods (Waren › Warentransport); goods not listed come last.</summary>
+    public IReadOnlyList<Material> TransportOrder { get; init; } = [];
+
     /// <summary>
     /// Default distribution of a material among the targets that use it (shares 0–1 by building name,
     /// <see cref="Logistics.Construction"/> for construction sites; like the original's food for mines).
@@ -259,6 +262,9 @@ public sealed record ProductionConfig
             LevellingMaxWork = root.GetProperty("levelling").GetProperty("maxWork").GetInt32(),
             StoredMaterials = root.GetProperty("storage").GetProperty("materials").EnumerateArray()
                 .Select(m => Materials.Parse(m.GetString()!)!.Value).ToHashSet(),
+            TransportOrder = root.GetProperty("storage").TryGetProperty("transportOrder", out var order)
+                ? order.EnumerateArray().Select(m => Materials.Parse(m.GetString()!)!.Value).ToList()
+                : [],
             Residents = housing.GetProperty("residents").EnumerateObject().ToDictionary(r => r.Name, r => r.Value.GetInt32()),
             ResidentIntervalTicks = Ticks(housing, "intervalSeconds"),
             TreeGrowTicks = Ticks(root.GetProperty("trees"), "growSeconds"),

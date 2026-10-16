@@ -85,8 +85,9 @@
   "storage": {
     "_comment": "Units per storehouse pile; a storehouse has six piles, each holding one material at a time. A full storehouse takes nothing more: goods then wait at the producers.",
     "pileCapacity": 8,
-    "_materialsComment": "What carriers bring to storehouses. Everything else stays at its producer (output pile of 8; the producer waits when it is full) and is fetched from there when needed.",
-    "materials": [ "GOLD", "GEMS", "AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD", "SWORD", "BOW", "SPEAR" ]
+    "_materialsComment": "Defaults of Waren > Warentransport. materials: what carriers bring to storehouses; everything else stays at its producer (output pile of 8; the producer waits when it is full) and is fetched from there when needed. transportOrder: which goods carriers take first (goods not listed come last).",
+    "materials": [ "GOLD", "GEMS", "AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD", "SWORD", "BOW", "SPEAR" ],
+    "transportOrder": [ "PLANK", "STONE", "TRUNK", "IRON", "COAL", "IRONORE", "PIG", "CROP", "FLOUR", "MEAT", "FISH", "BREAD", "WATER", "SWORD", "BOW", "SPEAR", "BLADE", "HAMMER", "GOLDORE", "SCYTHE", "FISHINGROD", "SAW", "PICK", "AXE", "GOLD", "KEG", "GEMS", "WINE", "MEAD", "HONEY", "RICE", "LIQUOR", "SULFUR", "GUN_POWDER" ]
   },
   "housing": {
     "_comment": "Carriers a finished living house sends out through its door, one every intervalSeconds. Houses that come with a loaded map do not (the map lists its settlers itself).",

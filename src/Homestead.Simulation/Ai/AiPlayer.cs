@@ -279,7 +279,7 @@ public sealed partial class AiPlayer
         var storage = mine.Where(b => b.State == BuildingState.Finished).SelectMany(b => b.Piles).Where(p => p.Role == PileRole.Storage).ToList();
         bool stockComing = mine.Any(b => b.Definition.Name == "stock" && b.State != BuildingState.Finished);
         var config = _world.Production.Config;
-        int waiting = _world.Piles.Where(p => p.Role is PileRole.Loose or PileRole.Offer && p.Material is { } m && config.StoredMaterials?.Contains(m) == true
+        int waiting = _world.Piles.Where(p => p.Role is PileRole.Loose or PileRole.Offer && p.Material is { } m && _world.Logistics.IsStored(Player, m)
                                               && _world.BelongsTo(p, Player)).Sum(p => p.Count);
         bool massProduction = mine.Any(b => b.State == BuildingState.Finished
                                             && (config.Smiths.ContainsKey(b.Definition.Name) || b.Definition.Name is "goldmelt" or "gemsmine"));

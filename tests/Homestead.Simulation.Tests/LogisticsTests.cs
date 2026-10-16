@@ -290,6 +290,53 @@ public class LogisticsTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void The_player_chooses_what_goes_to_the_storehouse()
+    {
+        var world = new World(new GameMap(60), ProductionConfig.Load());
+        var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(30, 30))!;
+        world.AddLooseGoods(new GridPoint(12, 10), Material.Sword, 3);
+        world.AddLooseGoods(new GridPoint(14, 10), Material.Plank, 4);
+        world.Logistics.SetStored(0, Material.Sword, false);
+        world.Logistics.SetStored(0, Material.Plank, true);
+        world.Logistics.SetStored(1, Material.Sword, true); // another player's choice changes nothing here
+        Assert.False(world.Logistics.IsStored(0, Material.Sword));
+        Assert.True(world.Logistics.IsStored(0, Material.Axe)); // the other defaults stay
+        for (int i = 0; i < 4; i++)
+            world.Spawn(new GridPoint(15 + i, 45), Profession.Carrier);
+
+        Run(world, 5000);
+
+        Assert.Equal(4, stock.Piles.Where(p => p.Material == Material.Plank).Sum(p => p.Count));
+        Assert.DoesNotContain(stock.Piles, p => p.Material == Material.Sword);
+        Assert.Equal(3, world.PileAt(new GridPoint(12, 10))!.Count);
+    }
+
+    [Fact]
+    public void Goods_move_in_the_transport_order_and_go_first()
+    {
+        var world = new World(new GameMap(60), ProductionConfig.Load());
+        var order = world.Logistics.TransportOrder(0);
+        Assert.Equal(Material.Plank, order[0]); // defaults from production.json
+        Assert.Equal(Enum.GetValues<Material>().Length, order.Count);
+        world.Logistics.MoveInTransportOrder(0, Material.Gold, int.MinValue);
+        Assert.Equal(Material.Gold, world.Logistics.TransportOrder(0)[0]);
+        world.Logistics.MoveInTransportOrder(0, Material.Gold, 1);
+        Assert.Equal(Material.Gold, world.Logistics.TransportOrder(0)[1]);
+        world.Logistics.MoveInTransportOrder(0, Material.Plank, int.MaxValue);
+        Assert.Equal(Material.Plank, world.Logistics.TransportOrder(0)[^1]);
+        Assert.Equal(Material.Plank, world.Logistics.TransportOrder(1)[0]); // per player
+
+        // One carrier, two goods for the storehouse: the one higher in the order goes first.
+        var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(30, 30))!;
+        world.AddLooseGoods(new GridPoint(12, 10), Material.Sword, 1);
+        world.AddLooseGoods(new GridPoint(40, 10), Material.Axe, 1);
+        world.Logistics.MoveInTransportOrder(0, Material.Axe, int.MinValue);
+        world.Spawn(new GridPoint(15, 45), Profession.Carrier);
+        Run(world, 10);
+        Assert.Equal(Material.Axe, world.Logistics.Jobs.Single().Material);
+    }
+
+    [Fact]
     public void Food_goes_to_mines_by_the_distribution_weights()
     {
         // No ore in the ground: the mines only collect their food (piles big enough for all of it).
