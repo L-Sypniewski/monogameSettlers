@@ -169,11 +169,17 @@ public sealed class MapGame : Game
     private bool _showPerf;
 
     /// <summary>
-    /// F2: the world is drawn 1:1 into <see cref="_worldTarget"/> and scaled up linearly by the zoom, soft like the
-    /// original upscaled to the screen; off, every sprite is scaled with point sampling (sharp pixels).
+    /// F2 cycles: except <see cref="Scaling.Sharp"/> (every sprite scaled with point sampling) the world is drawn 1:1
+    /// into <see cref="_worldTarget"/> and that is scaled up by the zoom, soft like the original upscaled to the screen.
     /// </summary>
-    private bool _smoothScaling = true;
+    private enum Scaling { Sharp, Linear, CatmullRom, Lanczos2 }
+
+    private Scaling _scaling = Scaling.Linear;
     private RenderTarget2D? _worldTarget;
+    private Effect _upscale = null!;
+
+    /// <summary>Real time until which the scaling mode chosen with F2 is shown.</summary>
+    private TimeSpan _scalingShownUntil;
     private bool _showClock;
 
     /// <param name="peoples">Peoples for the players whose people the map leaves open (see <see cref="OriginalScenario.Load"/>).</param>
@@ -216,6 +222,12 @@ public sealed class MapGame : Game
     protected override void LoadContent()
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
+        using (var shader = typeof(MapGame).Assembly.GetManifestResourceStream("Upscale.mgfx")!)
+        using (var bytes = new MemoryStream())
+        {
+            shader.CopyTo(bytes);
+            _upscale = new Effect(GraphicsDevice, bytes.ToArray());
+        }
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData([Color.White]);
         _atlas = TerrainAtlas.Build(GraphicsDevice, _gfx.Open(0));
@@ -582,7 +594,10 @@ public sealed class MapGame : Game
                 Exit();
         }
         if (Pressed(Keys.F2))
-            _smoothScaling = !_smoothScaling;
+        {
+            _scaling = (Scaling)(((int)_scaling + 1) % Enum.GetValues<Scaling>().Length);
+            _scalingShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
+        }
         if (Pressed(Keys.F3))
             _showPerf = !_showPerf;
         if (Pressed(Keys.T))
@@ -1276,7 +1291,7 @@ public sealed class MapGame : Game
             viewport.Width / _zoom, viewport.Height / _zoom);
 
         // Smooth scaling: the world goes 1:1 into a small target whose pixel 0 is the whole world point origin.
-        bool smooth = _smoothScaling && _zoom > 1;
+        bool smooth = _scaling != Scaling.Sharp && _zoom > 1;
         var origin = new Vector2(MathF.Floor(visible.X), MathF.Floor(visible.Y));
         var worldView = View;
         var worldProjection = Matrix.CreateOrthographicOffCenter(0, viewport.Width, viewport.Height, 0, -1, 1);
@@ -1375,7 +1390,15 @@ public sealed class MapGame : Game
             _spriteBatch.End();
             GraphicsDevice.SetRenderTarget(target);
             GraphicsDevice.Clear(Color.Black);
-            _spriteBatch.Begin(samplerState: SamplerState.LinearClamp, blendState: BlendState.Opaque);
+            Effect? filter = null;
+            if (_scaling is Scaling.CatmullRom or Scaling.Lanczos2)
+            {
+                filter = _upscale;
+                filter.CurrentTechnique = filter.Techniques[_scaling.ToString()];
+                filter.Parameters["TextureSize"].SetValue(new Vector2(_worldTarget!.Width, _worldTarget.Height));
+            }
+            _spriteBatch.Begin(samplerState: filter is null ? SamplerState.LinearClamp : SamplerState.PointClamp,
+                blendState: BlendState.Opaque, effect: filter);
             _spriteBatch.Draw(_worldTarget, Vector2.Transform(origin, View), null, Color.White, 0, Vector2.Zero, _zoom, SpriteEffects.None, 0);
             _spriteBatch.End();
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: View);
@@ -1450,7 +1473,9 @@ public sealed class MapGame : Game
         if (_showPerf)
             bottom = DrawCornerText(_perf.Summary, bottom);
         if (_showClock)
-            DrawCornerText(GameTime(), bottom);
+            bottom = DrawCornerText(GameTime(), bottom);
+        if (gameTime.TotalGameTime < _scalingShownUntil)
+            DrawCornerText($"Skalierung: {_scaling}", bottom);
         _spriteBatch.End();
         _perf.EndDraw(GraphicsDevice);
 
@@ -1932,6 +1957,9 @@ public sealed class MapGame : Game
                 // HOMESTEAD_CAPTURE_ZOOM: closer look at details (flags, marks) in a capture run.
                 _zoom = float.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_ZOOM"),
                     System.Globalization.CultureInfo.InvariantCulture, out float zoom) ? zoom : 1;
+                // HOMESTEAD_CAPTURE_SCALING=Sharp|Linear|CatmullRom|Lanczos2: the upscaling filter (F2).
+                if (Enum.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SCALING"), true, out Scaling scaling))
+                    _scaling = scaling;
                 var start = _start;
                 Console.WriteLine(DemoEconomy.Create(_world, Own, start, _random));
                 // HOMESTEAD_CAPTURE_FOCUS=temple: a small temple with mana, swordsmen upgraded once (upgrade buttons).
