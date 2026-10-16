@@ -54,6 +54,11 @@ public class ProductionTests(ITestOutputHelper output)
         Assert.Equal("SAWMILLER", worker.Trade);
         Assert.Equal(5, Count(stock, Material.Plank));
         Assert.Equal(5, world.Production.Produced);
+        // The statistics count the planks (and nothing for another player or good).
+        Assert.Equal(5, world.Statistics.Total(0, Material.Plank));
+        Assert.Equal(5, Enumerable.Range(0, world.Statistics.CurrentPeriod + 1).Sum(p => world.Statistics.Produced(0, Material.Plank, p)));
+        Assert.Equal(0, world.Statistics.Total(1, Material.Plank));
+        Assert.Equal(0, world.Statistics.Total(0, Material.Trunk));
     }
 
     [Fact]

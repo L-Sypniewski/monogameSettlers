@@ -81,6 +81,7 @@ public sealed class MapGame : Game
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
     private ProfessionsMenu? _professionsMenu;
+    private StatisticsMenu? _statisticsMenu;
     private bool _captureManualRecruitment;
     private SidePanel _sidePanel = null!;
     private Minimap? _minimap;
@@ -321,6 +322,8 @@ public sealed class MapGame : Game
         _settlersOverview?.Dispose();
         _settlersOverview = new SettlersOverview(GraphicsDevice, _gfx, catalog.Civilization);
         _professionsMenu ??= new ProfessionsMenu(GraphicsDevice, _gfx);
+        _statisticsMenu?.Dispose();
+        _statisticsMenu = new StatisticsMenu(GraphicsDevice, _gfx, catalog, Homestead.Simulation.Economy.ProductionConfig.Load());
         _placeable = catalog.All.Where(b => b.ConstructionPiles.Count > 0)
             .OrderBy(b => b.Name).ToArray();
         _placeIndex = Math.Max(0, Array.FindIndex(_placeable, b => b.Name == "lumberjack"));
@@ -826,6 +829,13 @@ public sealed class MapGame : Game
                 if (_soldiersMenu!.Hover(panelCursor, _world, 0, _buildingInfo) is { } hover)
                     _message = hover;
                 if (released && _soldiersMenu.Click(panelCursor, _world, 0, _buildingInfo) is { } done)
+                    _message = done;
+            }
+            else if (_tabs.CurrentMenu == "statistics" && onMenu)
+            {
+                if (_statisticsMenu!.Hover(panelCursor, _world, 0) is { } hover)
+                    _message = hover;
+                if (released && _statisticsMenu.Click(panelCursor, _world, 0) is { } done)
                     _message = done;
             }
             else if (_tabs.CurrentMenu == "professions" && onMenu)
@@ -1539,11 +1549,13 @@ public sealed class MapGame : Game
         else
         {
             string? menu = _tabs.CurrentMenu;
-            _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview" or "professions"));
+            _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview" or "professions" or "statistics"));
             if (menu == "soldiers")
                 _soldiersMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
             else if (menu == "overview")
                 _settlersOverview!.Draw(_spriteBatch, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization);
+            else if (menu == "statistics")
+                _statisticsMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, panelMouse);
             else if (menu == "professions")
                 _professionsMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
         }
@@ -2160,6 +2172,7 @@ public sealed class MapGame : Game
         _soldiersMenu?.Dispose();
         _settlersOverview?.Dispose();
         _professionsMenu?.Dispose();
+        _statisticsMenu?.Dispose();
         _tabs?.Dispose();
         _font.Dispose();
         _atlas.Dispose();

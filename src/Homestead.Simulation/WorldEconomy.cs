@@ -29,6 +29,9 @@ public sealed partial class World
 
     public Production Production { get; }
 
+    /// <summary>Units produced per player, good and period (Siedler › Produktion).</summary>
+    public ProductionStatistics Statistics { get; }
+
     public Recruitment Recruitment { get; }
 
     public Idling Idling { get; }

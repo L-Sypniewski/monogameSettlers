@@ -90,6 +90,7 @@ public sealed partial class World
         var config = production ?? (map is null ? ProductionConfig.None : ProductionConfig.Load());
         Recruitment = new Recruitment(this, config);
         Production = new Production(this, config);
+        Statistics = new ProductionStatistics(this);
         Idling = new Idling(this);
         Housing = new Housing(this, config);
         Geology = new Geology(this, config);

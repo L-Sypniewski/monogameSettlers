@@ -6,7 +6,7 @@
     {
       "id": "goods", "name": "Waren", "tab": [ 56, 65 ],
       "menus": [
-        { "id": "stock", "name": "Warenbestand", "tab": [ 245, 257 ] },
+        { "id": "stock", "name": "Warenbestand", "tab": [ 260, 272 ] },
         { "id": "tools", "name": "Werkzeuge und Waffen", "tab": [ 263, 275 ] },
         { "id": "production", "name": "Produktion", "tab": [ 266, 278 ] },
         { "id": "distribution", "name": "Verteilung", "tab": [ 269, 281 ] }
@@ -17,7 +17,8 @@
       "menus": [
         { "id": "overview", "name": "Siedlerstatistik", "tab": [ 236, 248 ] },
         { "id": "professions", "name": "Berufe", "tab": [ 239, 251 ] },
-        { "id": "soldiers", "name": "Krieger", "tab": [ 242, 254 ] }
+        { "id": "soldiers", "name": "Krieger", "tab": [ 242, 254 ] },
+        { "id": "statistics", "name": "Produktion", "tab": [ 245, 257 ] }
       ]
     }
   ],
@@ -37,6 +38,17 @@
     "spinner": 233,
     "find": [ 434, 437, 440 ],
     "convert": [ 221, 227 ]
+  },
+  "_statisticsComment": "Siedler > Produktion: the goods below the chart, row by row, with their GUI icon ([file, index], the large size – from JSettlers' EMaterialType, MIT, whose base index is the small one; weapon: the people's own from soldiersMenu) and German name. Goods the people cannot make are dark.",
+  "statistics": {
+    "goods": [
+      [ { "good": "PLANK", "icon": [ 3, 170 ], "name": "Bretter" }, { "good": "STONE", "icon": [ 3, 176 ], "name": "Steine" }, { "good": "TRUNK", "icon": [ 3, 173 ], "name": "Baumstämme" }, { "good": "COAL", "icon": [ 3, 146 ], "name": "Kohle" }, { "good": "IRONORE", "icon": [ 3, 149 ], "name": "Eisenerz" }, { "good": "GOLDORE", "icon": [ 3, 152 ], "name": "Golderz" } ],
+      [ { "good": "IRON", "icon": [ 3, 134 ], "name": "Eisenbarren" }, { "good": "HAMMER", "icon": [ 3, 128 ], "name": "Hammer" }, { "good": "BLADE", "icon": [ 3, 140 ], "name": "Schaufel" }, { "good": "AXE", "icon": [ 3, 155 ], "name": "Axt" }, { "good": "SAW", "icon": [ 3, 179 ], "name": "Säge" }, { "good": "PICK", "icon": [ 3, 131 ], "name": "Spitzhacke" } ],
+      [ { "good": "FISHINGROD", "icon": [ 3, 143 ], "name": "Angel" }, { "good": "SCYTHE", "icon": [ 3, 167 ], "name": "Sense" }, { "good": "SWORD", "icon": "weapon", "name": "Schwerter" }, { "good": "BOW", "icon": "weapon", "name": "Bögen" }, { "good": "SPEAR", "icon": "weapon", "name": "Speere" }, { "good": "HONEY", "icon": [ 14, 131 ], "name": "Honig" } ],
+      [ { "good": "FISH", "icon": [ 3, 191 ], "name": "Fisch" }, { "good": "PIG", "icon": [ 3, 161 ], "name": "Schweine" }, { "good": "MEAT", "icon": [ 3, 164 ], "name": "Fleisch" }, { "good": "CROP", "icon": [ 3, 182 ], "name": "Getreide" }, { "good": "FLOUR", "icon": [ 3, 185 ], "name": "Mehl" }, { "good": "BREAD", "icon": [ 3, 188 ], "name": "Brot" } ],
+      [ { "good": "WATER", "icon": [ 3, 158 ], "name": "Wasser" }, { "good": "WINE", "icon": [ 14, 125 ], "name": "Wein" }, { "good": "KEG", "icon": [ 24, 125 ], "name": "Bier" }, { "good": "LIQUOR", "icon": [ 34, 134 ], "name": "Reisschnaps" }, { "good": "RICE", "icon": [ 34, 131 ], "name": "Reis" }, { "good": "SULFUR", "icon": [ 34, 128 ], "name": "Schwefel" } ],
+      [ { "good": "GOLD", "icon": [ 3, 137 ], "name": "Goldbarren" }, { "good": "GEMS", "icon": [ 24, 122 ], "name": "Edelsteine" }, { "good": "MEAD", "icon": [ 14, 128 ], "name": "Met" }, { "good": "GUN_POWDER", "icon": [ 34, 137 ], "name": "Schießpulver" } ]
+    ]
   },
   "_portraitsComment":"Unit portraits in the stone frame (GUI images of the people's file, the large 40x60 one; the medium and small are the two before it), by animation type; WORKER: the specialists (Fachleute), THIEF: scout. From the carrier on the same distance in every file (digger +3, builder +6, worker +18, thief +51, geologist +54, healer +63, priest +69 – Asians +75, pioneer +72 – missing for Egyptians). soldiers: the first, then swordsman, pikeman, bowman of level 1, the same of level 2 and 3, three images apart. common: the same for every people (file 03, or [file, index]); FRAME: an empty frame, behind the figure of kinds without a portrait.",
   "portraits": {

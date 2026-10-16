@@ -767,6 +767,8 @@ public sealed partial class Production
 
     private void DeliverOutput(Workplace w)
     {
+        if (w.Worker!.Carrying is { } product)
+            _world.Statistics.Record(w.Building.Player, product);
         var output = w.Building.Piles.FirstOrDefault(p => p.Role == PileRole.Offer && p.Material == w.Worker!.Carrying);
         if (output is null && w.Building.Definition.DropPosition is { } drop)
         {
