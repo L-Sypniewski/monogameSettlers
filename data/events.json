@@ -1,0 +1,20 @@
+{
+  "_comment": "Events: messages to a player, shown as the blinking buttons at the bottom of the side panel (right of the computer button). categories: per kind of event its button – slot: top left on the panel image (unscaled, panel space), icons: GUI images of file 03 [dark, lit]; name: hover text. blinkSeconds: how long a button blinks after an event; arrowSeconds: how long the arrows point at the place after jumping there (click on the button or space: the latest event). events: what triggers them – category, cooldownSeconds (per player: at most one such event in that time), text, enabled.",
+  "blinkSeconds": 12,
+  "arrowSeconds": 4,
+  "categories": {
+    "trade": { "name": "Handel", "slot": [ 45, 491 ], "icons": [ 101, 113 ] },
+    "combat": { "name": "Kampf", "slot": [ 85, 491 ], "icons": [ 104, 116 ] },
+    "resources": { "name": "Ressourcen", "slot": [ 125, 491 ], "icons": [ 107, 119 ] },
+    "staff": { "name": "Personal", "slot": [ 165, 491 ], "icons": [ 110, 122 ] }
+  },
+  "events": {
+    "attacked": {
+      "_comment": "One of the player's settlers (soldier, geologist, priest, …) or a military building's door is struck or shot at.",
+      "category": "combat",
+      "cooldownSeconds": 60,
+      "text": "Deine Leute werden angegriffen!",
+      "enabled": true
+    }
+  }
+}

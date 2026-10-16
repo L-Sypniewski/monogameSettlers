@@ -1,5 +1,6 @@
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
+using Homestead.Simulation.Events;
 using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Military;
@@ -80,10 +81,17 @@ public sealed partial class World
     /// <summary>Computer players; each acts for its own player in every tick.</summary>
     public List<Ai.AiPlayer> AiPlayers { get; } = new();
 
+    private GameEvents? _events;
+
+    /// <summary>Messages to the players (attacks, …); created on first use in games saved before there were any.</summary>
+    public GameEvents Events => _events ??= new GameEvents(this, EventConfig.Load());
+
     /// <param name="seed">Varies everything left to chance (0: the same game as always).</param>
-    public World(GameMap? map = null, ProductionConfig? production = null, MilitaryConfig? military = null, MagicConfig? magic = null, int seed = 0)
+    public World(GameMap? map = null, ProductionConfig? production = null, MilitaryConfig? military = null, MagicConfig? magic = null, int seed = 0,
+        EventConfig? events = null)
     {
         Seed = seed;
+        _events = new GameEvents(this, events ?? (map is null ? EventConfig.None : EventConfig.Load()));
         Map = map;
         Logistics = new Logistics(this);
         Construction = new Construction(this);

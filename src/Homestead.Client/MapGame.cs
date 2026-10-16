@@ -6,6 +6,7 @@ using Homestead.Client.Terrain;
 using Homestead.Simulation;
 using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
+using Homestead.Simulation.Events;
 using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Map.Generation;
@@ -81,6 +82,14 @@ public sealed class MapGame : Game
     private BuildMenu? _buildMenu;
     private Portraits? _portraits;
     private PanelTabs _tabs = null!;
+    private EventButtons _eventButtons = null!;
+
+    /// <summary>The event the arrows point at after a jump there, until <see cref="_pointUntil"/> (real time).</summary>
+    private GameEvent? _pointed;
+    private double _pointUntil;
+
+    /// <summary>HOMESTEAD_CAPTURE_EVENT=1: a capture run jumps to every new event, to show the arrows.</summary>
+    private readonly bool _captureEvent = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVENT") == "1";
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
     private ProfessionsMenu? _professionsMenu;
@@ -262,6 +271,7 @@ public sealed class MapGame : Game
         _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
         _sidePanel = new SidePanel(GraphicsDevice, _gfx);
         _tabs = new PanelTabs(GraphicsDevice, _gfx);
+        _eventButtons = new EventButtons(GraphicsDevice, _gfx);
         // HOMESTEAD_CAPTURE_TAB=goods|settlers[:<sub-menu id>[:manual|<good>]]: a capture run shows that main tab
         // (and sub-menu; manual recruitment, or the good chosen in Waren › Verteilung or Warentransport).
         if (_captureDirectory is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB")?.Split(':') is { } captureTab
@@ -643,6 +653,12 @@ public sealed class MapGame : Game
             _accumulator -= World.TickDuration;
         }
         _perf.EndSimulation();
+        if (_eventButtons.Update(_world, 0, _now) is { } raised)
+        {
+            _message = raised.Definition.Text;
+            if (_captureDirectory is not null && _captureEvent)
+                LookAt(raised);
+        }
 
         // Fog of war: what player 1 sees is checked once a second, the fog then fades to it.
         if (_time >= _nextVision)
@@ -818,6 +834,9 @@ public sealed class MapGame : Game
         }
         if (Pressed(Keys.C))
             _cheats.IsOpen = !_cheats.IsOpen;
+        // Space: to the latest event not looked at yet (else the latest of all).
+        if (Pressed(Keys.Space))
+            LookAt(_eventButtons.Look(_world, 0, null));
         if (Pressed(Keys.K))
         {
             // Test soldiers: two of each kind, for player 0 (with Shift for player 1).
@@ -878,6 +897,13 @@ public sealed class MapGame : Game
         // The main tabs (build, goods, settlers): a click shows that menu instead of the selection.
         if (_placing)
             _tabs.Current = PanelTab.Build;
+        // The event buttons right of it: a click jumps to that kind's latest event.
+        if (onMenu && _eventButtons.At(panelCursor) is { } eventCategory)
+        {
+            _message = _eventButtons.NameAt(panelCursor)!;
+            if (released)
+                LookAt(_eventButtons.Look(_world, 0, eventCategory));
+        }
         // The computer button at the bottom left: save, quit.
         if (onMenu && released && SystemMenu.Button.Contains(panelCursor))
         {
@@ -1262,6 +1288,64 @@ public sealed class MapGame : Game
             _flightTo = SettlerRenderer.Anchor(found[0], _terrain, TickAlpha);
             _flightStart = _now;
         }
+    }
+
+    /// <summary>Flies the camera to the event's place and points arrows at it for a while.</summary>
+    private void LookAt(GameEvent? e)
+    {
+        if (e is null)
+        {
+            _message = "no events";
+            return;
+        }
+        _message = e.Definition.Text;
+        _flightFrom = _camera;
+        _flightTo = ToWorld(e.Where);
+        _flightStart = _now;
+        _pointed = e;
+        _pointUntil = _now + FlightSeconds + _eventButtons.ArrowSeconds;
+    }
+
+    /// <summary>
+    /// Four arrows around the event's place pointing at it (the building, else the settler while alive),
+    /// moving in and out; screen size independent of the zoom.
+    /// </summary>
+    private void DrawEventArrows(float alpha)
+    {
+        if (_pointed is not { } e || _now >= _pointUntil)
+            return;
+        var center = e.Building is { Exists: true } building ? ToWorld(building.Position) - new Vector2(0, 20)
+            : e.Settler is { IsDead: false } settler ? SettlerRenderer.Anchor(settler, _terrain, alpha) - new Vector2(0, HitHeight)
+            : ToWorld(e.Position);
+        float scale = 1 / _zoom;
+        float distance = (44 + 10 * MathF.Sin((float)_now * 8)) * scale;
+        foreach (float angle in new[] { -MathF.PI * 3 / 4, -MathF.PI / 4, MathF.PI / 4, MathF.PI * 3 / 4 })
+        {
+            var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            var tip = center + direction * distance;
+            DrawArrow(tip, -direction, scale, Color.Black, 7);
+            DrawArrow(tip, -direction, scale, new Color(255, 210, 40), 4);
+        }
+    }
+
+    /// <summary>An arrow whose tip is at <paramref name="tip"/>, pointing along <paramref name="direction"/>: a shaft and two barbs.</summary>
+    private void DrawArrow(Vector2 tip, Vector2 direction, float scale, Color color, float thickness)
+    {
+        void Line(Vector2 from, Vector2 to)
+        {
+            var d = to - from;
+            float extra = (thickness - 4) / 2 * scale; // the outline reaches beyond the ends too
+            var unit = Vector2.Normalize(d);
+            from -= unit * extra;
+            _spriteBatch.Draw(_pixel, from, null, color, MathF.Atan2(d.Y, d.X), new Vector2(0, 0.5f),
+                new Vector2(d.Length() + 2 * extra, thickness * scale), SpriteEffects.None, 0);
+        }
+        float rotation = MathF.Atan2(direction.Y, direction.X);
+        Vector2 Back(float turn, float length) =>
+            tip - new Vector2(MathF.Cos(rotation + turn), MathF.Sin(rotation + turn)) * length * scale;
+        Line(Back(0, 30), tip);
+        Line(Back(0.6f, 13), tip);
+        Line(Back(-0.6f, 13), tip);
     }
 
     /// <summary>The settler the "next one" find button chose last (its id).</summary>
@@ -1677,6 +1761,7 @@ public sealed class MapGame : Game
         if (_dragStart is { } boxStart && !_placing)
             DrawSelectionBox(boxStart, Mouse.GetState().Position.ToVector2());
         DrawMagic(alpha);
+        DrawEventArrows(alpha);
         if (_placing)
         {
             UpdateBuildSpots(visible);
@@ -1748,6 +1833,7 @@ public sealed class MapGame : Game
                 _professionsMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
         }
         _tabs.DrawTabs(_spriteBatch);
+        _eventButtons.Draw(_spriteBatch, _now);
         _spriteBatch.End();
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
@@ -2362,6 +2448,7 @@ public sealed class MapGame : Game
         _fogEffect?.Dispose();
         _minimap?.Dispose();
         _sidePanel?.Dispose();
+        _eventButtons?.Dispose();
         _startScreen?.Dispose();
         _sprites.Dispose();
         _buildMenu?.Dispose();
