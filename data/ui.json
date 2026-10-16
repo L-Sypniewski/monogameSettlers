@@ -1,5 +1,26 @@
 {
   "_comment": "Build menu: the categories of the original's build menu with their buildings, in order (lists as in JSettlers' EBuildingsCategory, MIT). Buildings a people does not have are left out. tab: GUI images (file 03, large size) of the category button, normal and selected.",
+  "_panelTabsComment": "The main tabs below the minimap (GUI images of file 03: [normal, pressed], drawn over the blue panel where its own tabs are) and the sub-menus in the dark bar below them (the build tab uses buildMenu). The sub-menus are only placeholders for now.",
+  "panelTabs": [
+    { "id": "build", "name": "Bauen", "tab": [ 53, 62 ] },
+    {
+      "id": "goods", "name": "Waren", "tab": [ 56, 65 ],
+      "menus": [
+        { "id": "stock", "name": "Warenbestand", "tab": [ 245, 257 ] },
+        { "id": "tools", "name": "Werkzeuge und Waffen", "tab": [ 263, 275 ] },
+        { "id": "production", "name": "Produktion", "tab": [ 266, 278 ] },
+        { "id": "distribution", "name": "Verteilung", "tab": [ 269, 281 ] }
+      ]
+    },
+    {
+      "id": "settlers", "name": "Siedler", "tab": [ 59, 68 ],
+      "menus": [
+        { "id": "overview", "name": "Siedlerübersicht", "tab": [ 236, 248 ] },
+        { "id": "professions", "name": "Berufe", "tab": [ 239, 251 ] },
+        { "id": "soldiers", "name": "Soldaten", "tab": [ 242, 254 ] }
+      ]
+    }
+  ],
   "_portraitsComment": "Unit portraits in the stone frame (GUI images of the people's file, the large 40x60 one; the medium and small are the two before it). soldiers: the first, then swordsman, pikeman, bowman of level 1, the same of level 2 and 3, three images apart.",
   "portraits": {
     "Roman": { "file": 14, "BEARER": 134, "GEOLOGIST": 185, "MAGE": 203, "soldiers": 209 },

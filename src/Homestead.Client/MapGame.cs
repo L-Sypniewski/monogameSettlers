@@ -77,6 +77,7 @@ public sealed class MapGame : Game
     private BuildingDefinition[] _placeable = [];
     private BuildMenu? _buildMenu;
     private Portraits? _portraits;
+    private PanelTabs _tabs = null!;
     private SidePanel _sidePanel = null!;
     private Minimap? _minimap;
     private readonly ConversionMenu _conversionMenu = new();
@@ -220,6 +221,10 @@ public sealed class MapGame : Game
         };
         _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
         _sidePanel = new SidePanel(GraphicsDevice, _gfx);
+        _tabs = new PanelTabs(GraphicsDevice, _gfx);
+        // HOMESTEAD_CAPTURE_TAB=goods|settlers: a capture run shows that main tab.
+        if (_captureDirectory is not null && Enum.TryParse<PanelTab>(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB"), ignoreCase: true, out var tab))
+            _tabs.Current = tab;
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
@@ -705,7 +710,21 @@ public sealed class MapGame : Game
         onMenu |= _cheats.Contains(cursorScreen, GraphicsDevice.Viewport.Width);
         if (!PriestsSelected)
             _aiming = false;
-        if (PriestsSelected)
+        // The main tabs (build, goods, settlers): a click shows that menu instead of the selection.
+        if (_placing)
+            _tabs.Current = PanelTab.Build;
+        bool onTab = onMenu && _tabs.TabAt(panelCursor) is not null;
+        if (onMenu && _tabs.NameAt(panelCursor) is { } tabName)
+            _message = tabName;
+        if (onTab && released)
+        {
+            _tabs.Current = _tabs.TabAt(panelCursor)!.Value;
+            _group.Clear();
+            _selected = null;
+            _selectedBuilding = null;
+            _placing = _aiming = false;
+        }
+        else if (PriestsSelected)
         {
             var spells = _world.Magic.SpellsOf(0);
             if (onMenu && released && _spellMenu.SpellAt(panelCursor, spells.Count) is { } index)
@@ -768,6 +787,11 @@ public sealed class MapGame : Game
                 _world.RemoveBuilding(_selectedBuilding);
                 _selectedBuilding = null;
             }
+        }
+        else if (_group.Count == 0 && _tabs.Current != PanelTab.Build)
+        {
+            if (onMenu && released && _tabs.MenuAt(panelCursor) is { } menu)
+                _tabs.ShowMenu(menu);
         }
         else if (_group.Count == 0)
         {
@@ -1373,8 +1397,11 @@ public sealed class MapGame : Game
             _selectionPanel.Draw(_spriteBatch, _font, _settlerRenderer, _portraits!, Own.Civilization, _group,
                 _world.Military.CombatStrength(0), unitsTop);
         }
-        else
+        else if (_tabs.Current == PanelTab.Build)
             _buildMenu!.Draw(_spriteBatch, _pixel, _font, _placing ? _placeable[_placeIndex] : null, panelMouse, OwnBuildingCounts());
+        else
+            _tabs.DrawContent(_spriteBatch, _font);
+        _tabs.DrawTabs(_spriteBatch);
         _spriteBatch.End();
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
@@ -1892,6 +1919,8 @@ public sealed class MapGame : Game
                         _world.SpawnSoldier(placed.Door, i % 2 == 0 ? SoldierType.Bowman : SoldierType.Swordsman);
                 }
                 _selectedBuilding = _world.Buildings.FirstOrDefault(b => b.Definition.Name == (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") ?? "lumberjack"));
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB") is not null)
+                    _selectedBuilding = null; // the tab's menu, not the building
                 // HOMESTEAD_CAPTURE_BATTLE=1: enemy soldiers attack the start tower.
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE") == "1"
                     && _world.Buildings.FirstOrDefault(b => b.Player == 0 && b.Definition.Occupiers.Count > 0) is { } tower)
@@ -1972,6 +2001,7 @@ public sealed class MapGame : Game
         _sprites.Dispose();
         _buildMenu?.Dispose();
         _portraits?.Dispose();
+        _tabs?.Dispose();
         _font.Dispose();
         _atlas.Dispose();
         _effect.Dispose();
