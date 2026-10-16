@@ -19,8 +19,13 @@ namespace Homestead.Client;
 /// </summary>
 public sealed partial class BuildingInfo
 {
-    private const int Margin = 6;
-    private const int Inner = BuildMenu.Width - 2 * Margin;
+    // The content area of the blue panel (like the build menu), no background of its own.
+    private static readonly int Left = BuildMenu.Content.X + 4; // clear of the vines on the panel's frame
+    private static readonly int Top = BuildMenu.Content.Y;
+    private static readonly int Bottom = BuildMenu.Content.Bottom;
+    private static readonly int Inner = BuildMenu.Content.Width - 8;
+    private static readonly Color ButtonColor = Color.Black * 0.3f;
+    private static readonly Color HoverColor = Color.White * 0.15f;
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Color Label = new(190, 165, 120);
 
@@ -47,11 +52,34 @@ public sealed partial class BuildingInfo
         _soldierLevels = root.GetProperty("soldierLevels").EnumerateArray().Select(l => l.GetString()!).ToArray();
     }
 
-    private const int UpgradeRow = 50;
+    private const int UpgradeRow = 46;
+
+    /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>
+    private const int ImageHeight = 92;
+    private const int MinImageHeight = 36;
+
+    /// <summary>Below this the goods are left out to give the image room.</summary>
+    private const int GoodImageHeight = 64;
+
+    /// <summary>Where the buttons and rows at the bottom of an own building's panel begin.</summary>
+    private int BlockTop(World world, Building building)
+    {
+        if (_confirming == building)
+            return Bottom - 50 - 4;
+        if (OffersUpgrades(world, building))
+            return UpgradeButton(0, 0).Y - 16 - 4;
+        if (OffersGarrison(building))
+            return GarrisonRowRect(0, 0).Y - 16 - 4;
+        return OffersPause(world, building) ? PauseButton(0).Y - 6 : DemolishButton(0).Y - 6;
+    }
+
+    /// <summary>Text with a dark shadow, readable on the blue panel.</summary>
+    private static void Write(SpriteBatch batch, UiFont font, string text, Vector2 position, Color color, int size = 14) =>
+        SelectionPanel.Shadowed(batch, font, text, position, size, color);
 
     /// <summary>The upgrade buttons of a small temple, one per soldier type, above the tear-down button.</summary>
     private static Rectangle UpgradeButton(int height, int index) =>
-        new(Margin, height - Margin - 28 - 10 - (Enum.GetValues<SoldierType>().Length - index) * (UpgradeRow + 2), Inner, UpgradeRow);
+        new(Left, Bottom - 28 - 10 - (Enum.GetValues<SoldierType>().Length - index) * (UpgradeRow + 2), Inner, UpgradeRow);
 
     private static bool OffersUpgrades(World world, Building building) =>
         building.Definition.Name == world.Magic.Config.Temple && building.State == BuildingState.Finished && world.Magic.Config.UpgradeThresholds.Count > 0;
@@ -73,7 +101,7 @@ public sealed partial class BuildingInfo
 
     /// <summary>The garrison rows of a military building, one per soldier type, above the tear-down button.</summary>
     private static Rectangle GarrisonRowRect(int height, int index) =>
-        new(Margin, height - Margin - 28 - 10 - (Enum.GetValues<SoldierType>().Length - index) * (GarrisonRow + 2), Inner, GarrisonRow);
+        new(Left, Bottom - 28 - 10 - (Enum.GetValues<SoldierType>().Length - index) * (GarrisonRow + 2), Inner, GarrisonRow);
 
     private static Rectangle GarrisonButton(int height, int index, int delta)
     {
@@ -107,27 +135,28 @@ public sealed partial class BuildingInfo
     {
         var military = world.Military;
         var types = Enum.GetValues<SoldierType>();
-        font.Draw(batch, "Besatzung (da / Soll)", new Vector2(Margin, GarrisonRowRect(height, 0).Y - 16), Label, 12);
+        Write(batch, font, "Besatzung (da / Soll)", new Vector2(Left, GarrisonRowRect(height, 0).Y - 16), Label, 12);
         var occupants = military.Occupants(building);
         for (int i = 0; i < types.Length; i++)
         {
             var type = types[i];
             var row = GarrisonRowRect(height, i);
-            batch.Draw(pixel, row, new Color(60, 47, 30));
             int level = world.Magic.SoldierLevel(building.Player, type);
             settlers.DrawIcon(batch, people, $"{type.ToString().ToUpperInvariant()}_L{level}", new Rectangle(row.X + 2, row.Y + 3, 24, row.Height - 6),
                 1.2f, PlayerColors.Of(building.Player));
-            font.Draw(batch, SoldierName(type), new Vector2(row.X + 28, row.Y + 2), Text, 12);
+            Write(batch, font, SoldierName(type), new Vector2(row.X + 28, row.Y + 2), Text, 12);
             int inside = occupants.Count(s => s?.SoldierType == type);
-            font.Draw(batch, $"{inside} / {military.Wanted(building, type)}", new Vector2(row.X + 28, row.Y + 19), Text, 12);
+            Write(batch, font, $"{inside} / {military.Wanted(building, type)}", new Vector2(row.X + 28, row.Y + 19), Text, 12);
             foreach (int delta in new[] { -1, 1 })
             {
                 var button = GarrisonButton(height, i, delta);
                 bool possible = military.CanChangeWanted(building, type, delta);
-                batch.Draw(pixel, button, !possible ? new Color(55, 45, 32) : button.Contains(cursor) ? new Color(150, 115, 60) : new Color(80, 62, 38));
+                batch.Draw(pixel, button, !possible ? Color.Black * 0.15f : button.Contains(cursor) ? HoverColor : ButtonColor);
+                if (possible)
+                    Outline(batch, pixel, button);
                 string label = delta < 0 ? "−" : "+";
                 var size = font.Measure(label);
-                font.Draw(batch, label, new Vector2(button.X + (button.Width - size.X) / 2, button.Y + (button.Height - size.Y) / 2),
+                Write(batch, font, label, new Vector2(button.X + (button.Width - size.X) / 2, button.Y + (button.Height - size.Y) / 2),
                     possible ? Text : new Color(110, 95, 70));
             }
         }
@@ -147,7 +176,7 @@ public sealed partial class BuildingInfo
         var magic = world.Magic;
         var types = Enum.GetValues<SoldierType>();
         var first = UpgradeButton(height, 0);
-        font.Draw(batch, $"Aufwertung · Mana gesamt {magic.ManaEarned(player)}", new Vector2(Margin, first.Y - 16), Label, 12);
+        Write(batch, font, $"Aufwertung · Mana gesamt {magic.ManaEarned(player)}", new Vector2(Left, first.Y - 16), Label, 12);
         for (int i = 0; i < types.Length; i++)
         {
             var type = types[i];
@@ -155,27 +184,29 @@ public sealed partial class BuildingInfo
             int level = magic.SoldierLevel(player, type);
             var order = magic.UpgradeOrder(player, type);
             bool possible = order == UpgradeResult.Done && magic.CanAffordUpgrade(player);
-            batch.Draw(pixel, rect, possible && rect.Contains(cursor) ? new Color(150, 115, 60) : new Color(80, 62, 38));
+            batch.Draw(pixel, rect, possible && rect.Contains(cursor) ? HoverColor : ButtonColor);
+            if (possible)
+                Outline(batch, pixel, rect);
             settlers.DrawIcon(batch, people, $"{type.ToString().ToUpperInvariant()}_L{level}", new Rectangle(rect.X + 2, rect.Y + 3, 30, rect.Height - 6),
                 1.5f, PlayerColors.Of(player));
-            font.Draw(batch, SoldierName(type), new Vector2(rect.X + 34, rect.Y + 2), Text, 12);
-            font.Draw(batch, LevelName(level), new Vector2(rect.X + 34, rect.Y + 17), Label, 12);
+            Write(batch, font, SoldierName(type), new Vector2(rect.X + 34, rect.Y + 1), Text, 12);
+            Write(batch, font, LevelName(level), new Vector2(rect.X + 34, rect.Y + 15), Label, 12);
             string next = order switch
             {
                 UpgradeResult.Highest => "höchste Stufe",
                 UpgradeResult.OthersFirst => "erst die anderen",
                 _ => $"ab {magic.UpgradeThreshold(player)} Mana",
             };
-            font.Draw(batch, next, new Vector2(rect.X + 34, rect.Y + 32), possible ? Text : new Color(150, 130, 100), 12);
+            Write(batch, font, next, new Vector2(rect.X + 34, rect.Y + 29), possible ? Text : new Color(150, 130, 100), 12);
         }
     }
 
     public string NameOf(BuildingDefinition definition) => _names.GetValueOrDefault(definition.Name, definition.Name);
 
-    private static Rectangle DemolishButton(int height) => new(Margin, height - Margin - 28, Inner, 28);
+    private static Rectangle DemolishButton(int height) => new(Left, Bottom - 28, Inner, 28);
 
     /// <summary>The button stopping or restarting production, above the tear-down button.</summary>
-    private static Rectangle PauseButton(int height) => new(Margin, height - Margin - 28 - 6 - 28, Inner, 28);
+    private static Rectangle PauseButton(int height) => new(Left, Bottom - 28 - 6 - 28, Inner, 28);
 
     private static bool OffersPause(World world, Building building) =>
         world.Production.CanPause(building) && !OffersUpgrades(world, building) && !OffersGarrison(building);
@@ -184,9 +215,9 @@ public sealed partial class BuildingInfo
     public bool PauseAt(Vector2 screen, int height, World world, Building building, int ownPlayer) =>
         building.Player == ownPlayer && _confirming != building && OffersPause(world, building) && PauseButton(height).Contains(screen);
 
-    private static Rectangle YesButton(int height) => new(Margin, height - Margin - 28, Inner / 2 - 2, 28);
+    private static Rectangle YesButton(int height) => new(Left, Bottom - 28, Inner / 2 - 2, 28);
 
-    private static Rectangle NoButton(int height) => new(Margin + Inner / 2 + 2, height - Margin - 28, Inner / 2 - 2, 28);
+    private static Rectangle NoButton(int height) => new(Left + Inner / 2 + 2, Bottom - 28, Inner / 2 - 2, 28);
 
     /// <summary>
     /// A left click on the panel. True if it confirmed tearing down <paramref name="building"/>: first the
@@ -215,19 +246,30 @@ public sealed partial class BuildingInfo
     public void Draw(SpriteBatch batch, Texture2D pixel, int height, UiFont font, EconomyRenderer economy, SettlerRenderer settlers,
         Civilization people, World world, Building building, int ownPlayer, Vector2 cursor)
     {
-        batch.Draw(pixel, new Rectangle(0, 0, BuildMenu.Width, height), new Color(36, 28, 18, 230));
-        int y = Margin;
+        int y = Top;
         foreach (string line in font.Wrap(NameOf(building.Definition), Inner, 16))
         {
-            font.Draw(batch, line, new Vector2(Margin, y), Text, 16);
+            Write(batch, font, line, new Vector2(Left, y), Text, 16);
             y += 19;
         }
         y += 4;
-        var imageBox = new Rectangle(Margin, y, Inner, 96);
-        batch.Draw(pixel, imageBox, new Color(60, 47, 30));
-        economy.DrawBuildingIcon(batch, building.Definition, imageBox, PlayerColors.Of(building.Player));
+        bool own = building.Player == ownPlayer;
+        var state = StateOf(world, building);
+        int? hitRate = world.Production.MineHitRate(building);
+        var goods = own ? Goods(world, building) : [];
+        // The image gives way when the panel is full (cut off at the top).
+        int limit = own ? BlockTop(world, building) : Bottom;
+        int text = 15 + font.Wrap(state, Inner).Count() * 17 + (hitRate is null ? 0 : 21);
+        // When it gets tight the goods go first, then the image shrinks.
+        if (goods.Count > 0 && limit - y - 8 - text - 4 - (24 + 32) < GoodImageHeight)
+            goods = [];
+        if (goods.Count > 0)
+            text += 24 + 32;
+        int imageHeight = own ? Math.Clamp(limit - y - 8 - text - 4, MinImageHeight, ImageHeight) : ImageHeight;
+        var imageBox = new Rectangle(Left, y, Inner, imageHeight);
+        economy.DrawBuildingImage(batch, building.Definition, imageBox, PlayerColors.Of(building.Player));
         y = imageBox.Bottom + 8;
-        if (building.Player != ownPlayer)
+        if (!own)
             return;
         DrawDemolish(batch, pixel, height, font, building, cursor);
         if (OffersPause(world, building) && _confirming != building)
@@ -238,32 +280,33 @@ public sealed partial class BuildingInfo
             DrawGarrison(batch, pixel, height, font, settlers, people, world, building, cursor);
 
         // State.
-        font.Draw(batch, "Status", new Vector2(Margin, y), Label, 12);
+        Write(batch, font, "Status", new Vector2(Left, y), Label, 12);
         y += 15;
-        foreach (string line in font.Wrap(StateOf(world, building), Inner))
+        foreach (string line in font.Wrap(state, Inner))
         {
-            font.Draw(batch, line, new Vector2(Margin, y), Text);
+            Write(batch, font, line, new Vector2(Left, y), Text);
             y += 17;
         }
-        if (world.Production.MineHitRate(building) is { } rate)
+        if (hitRate is { } rate)
         {
             y += 4;
-            font.Draw(batch, $"Trefferquote: {rate} %", new Vector2(Margin, y), Text);
+            Write(batch, font, $"Trefferquote: {rate} %", new Vector2(Left, y), Text);
             y += 17;
         }
 
-        // Goods: on a construction site delivered of needed, otherwise what lies in the piles.
-        var goods = Goods(world, building);
-        if (goods.Count == 0)
+        // Goods: on a construction site delivered of needed, otherwise what lies in the piles (as far as there is room).
+        if (goods.Count == 0 || y + 8 + 16 + 30 > limit)
             return;
         y += 8;
-        font.Draw(batch, building.State == BuildingState.Finished ? "Waren" : "Baumaterial", new Vector2(Margin, y), Label, 12);
+        Write(batch, font, building.State == BuildingState.Finished ? "Waren" : "Baumaterial", new Vector2(Left, y), Label, 12);
         y += 16;
         for (int i = 0; i < goods.Count; i++)
         {
-            var cell = new Rectangle(Margin + i % 2 * (Inner / 2), y + i / 2 * 32, Inner / 2, 30);
+            var cell = new Rectangle(Left + i % 2 * (Inner / 2), y + i / 2 * 32, Inner / 2, 30);
+            if (cell.Bottom > limit)
+                break;
             economy.DrawMaterialIcon(batch, goods[i].Material, new Rectangle(cell.X, cell.Y, 26, 28));
-            font.Draw(batch, goods[i].Text, new Vector2(cell.X + 29, cell.Y + 6), Text);
+            Write(batch, font, goods[i].Text, new Vector2(cell.X + 29, cell.Y + 6), Text);
         }
     }
 
@@ -276,16 +319,27 @@ public sealed partial class BuildingInfo
             return;
         }
         string question = "Wirklich abreißen?";
-        font.Draw(batch, question, new Vector2(Margin + (Inner - font.Measure(question).X) / 2, height - Margin - 50), Text);
+        Write(batch, font, question, new Vector2(Left + (Inner - font.Measure(question).X) / 2, Bottom - 50), Text);
         Button(batch, pixel, font, YesButton(height), "Ja", cursor);
         Button(batch, pixel, font, NoButton(height), "Nein", cursor);
     }
 
     private static void Button(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle rect, string label, Vector2 cursor)
     {
-        batch.Draw(pixel, rect, rect.Contains(cursor) ? new Color(150, 115, 60) : new Color(80, 62, 38));
+        batch.Draw(pixel, rect, rect.Contains(cursor) ? HoverColor : ButtonColor);
+        Outline(batch, pixel, rect);
         var size = font.Measure(label);
-        font.Draw(batch, label, new Vector2(rect.X + (rect.Width - size.X) / 2, rect.Y + (rect.Height - size.Y) / 2), Text);
+        Write(batch, font, label, new Vector2(rect.X + (rect.Width - size.X) / 2, rect.Y + (rect.Height - size.Y) / 2), Text);
+    }
+
+    /// <summary>A thin light frame, so a button stands out on the blue panel.</summary>
+    private static void Outline(SpriteBatch batch, Texture2D pixel, Rectangle rect)
+    {
+        var color = Label * 0.7f;
+        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), color);
+        batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), color);
+        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), color);
+        batch.Draw(pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), color);
     }
 
     /// <summary>The short German state of the building (soldiers for military buildings).</summary>

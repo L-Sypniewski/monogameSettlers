@@ -239,16 +239,20 @@ public sealed class EconomyRenderer
         sprites.Draw(batch, frame, anchor, 1, Color.White);
     }
 
-    /// <summary>A building's final image fitted into a box (info panel).</summary>
-    public void DrawBuildingIcon(SpriteBatch batch, BuildingDefinition definition, Rectangle box, Color playerColor)
+    /// <summary>
+    /// The finished building as in the game (unscaled), standing on the bottom of the box and centered;
+    /// what does not fit is cut off at the sides and the top.
+    /// </summary>
+    public void DrawBuildingImage(SpriteBatch batch, BuildingDefinition definition, Rectangle box, Color playerColor)
     {
         var layers = definition.FinalImages.Select(i => (Sprites: Sprites(i.File, i.Sequence), Frame: i.Image)).ToList();
         var bounds = layers.Select(l => l.Sprites.Bounds(l.Frame)).OfType<Rectangle>().ToList();
         if (bounds.Count == 0)
             return;
-        var (anchor, scale) = SettlerSprites.Fit(bounds.Aggregate(Rectangle.Union), box, 1f);
+        var all = bounds.Aggregate(Rectangle.Union);
+        var anchor = new Vector2(box.Center.X - all.Center.X, box.Bottom - all.Bottom);
         foreach (var (sprites, frame) in layers)
-            sprites.Draw(batch, frame, anchor, scale, playerColor);
+            sprites.DrawClipped(batch, frame, anchor, box, playerColor);
     }
 
     /// <summary>A small pile of one unit of a good fitted into a box (info panel).</summary>

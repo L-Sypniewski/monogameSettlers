@@ -60,6 +60,16 @@ public sealed class SettlerSprites
         _torso[frame]?.Draw(batch, anchor, scale, Multiply(playerColor, white), visibleFromBottom);
     }
 
+    /// <summary>Draws the frame unscaled like <see cref="Draw"/>, but only what lies within <paramref name="clip"/>.</summary>
+    public void DrawClipped(SpriteBatch batch, int frame, Vector2 anchor, Rectangle clip, Color playerColor)
+    {
+        if ((uint)frame >= (uint)FrameCount)
+            return;
+        _shadow[frame]?.DrawClipped(batch, anchor, clip, Color.White);
+        _body[frame]?.DrawClipped(batch, anchor, clip, Color.White);
+        _torso[frame]?.DrawClipped(batch, anchor, clip, playerColor);
+    }
+
     /// <summary>The body of a frame relative to its anchor (unscaled); null if the frame is empty.</summary>
     public Rectangle? Bounds(int frame) =>
         (uint)frame < (uint)FrameCount && _body[frame] is { } body
@@ -99,6 +109,18 @@ public sealed class SettlerSprites
             if (bitmap is not { Width: > 0, Height: > 0 })
                 return null;
             return new Layer(atlas.Add(bitmap), new Vector2(bitmap.OffsetX, bitmap.OffsetY));
+        }
+
+        public void DrawClipped(SpriteBatch batch, Vector2 anchor, Rectangle clip, Color tint)
+        {
+            var source = Image.Source;
+            var at = anchor + Offset;
+            var rect = new Rectangle((int)Math.Round(at.X), (int)Math.Round(at.Y), source.Width, source.Height);
+            var visible = Rectangle.Intersect(rect, clip);
+            if (visible.Width <= 0 || visible.Height <= 0)
+                return;
+            batch.Draw(Image.Texture, new Vector2(visible.X, visible.Y),
+                new Rectangle(source.X + visible.X - rect.X, source.Y + visible.Y - rect.Y, visible.Width, visible.Height), tint);
         }
 
         public void Draw(SpriteBatch batch, Vector2 anchor, float scale, Color tint, float visibleFromBottom)
