@@ -202,7 +202,7 @@ public sealed class MapGame : Game
     /// </summary>
     private enum Scaling { Sharp, Linear, CatmullRom, Lanczos2 }
 
-    private Scaling _scaling = Scaling.Linear;
+    private Scaling _scaling = Scaling.CatmullRom;
     private RenderTarget2D? _worldTarget;
     private Effect _upscale = null!;
 
