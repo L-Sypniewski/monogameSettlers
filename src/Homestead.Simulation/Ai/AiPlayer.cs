@@ -44,6 +44,9 @@ public sealed partial class AiPlayer
     private readonly List<string> _log = new();
     private long _nextSurvey;
     private long _nextForesterCheck;
+
+    /// <summary>The best chance of the spots the last mine placement looked at (for the note when none was good enough).</summary>
+    [NonSerialized] private double _bestMineChance;
     private bool _lacksRoom;
 
     /// <summary>Resource-bound buildings that found no spot near their resource (the expansion goes for more of it).</summary>
@@ -178,7 +181,8 @@ public sealed partial class AiPlayer
                 Note($"builds {name} at {site.Position.X},{site.Position.Y}");
                 return;
             }
-            NoteOnce(name, $"cannot build {name}: no spot near {anchor.X},{anchor.Y}");
+            NoteOnce(name, $"cannot build {name}: no spot near {anchor.X},{anchor.Y}"
+                           + (_world.Production.Config.Mines.ContainsKey(name) ? $" (best chance {_bestMineChance:P0})" : ""));
             if (!IsResourceBound(name))
                 _lacksRoom = true;
             else
@@ -496,9 +500,11 @@ public sealed partial class AiPlayer
         var map = _world.Map!;
         var pathFinder = _world.PathFinder!;
         var homeDoor = _home!.Door;
-        bool isMine = _world.Production.Config.Mines.TryGetValue(definition.Name, out var mineRecipe);
+        bool isMine = _world.Production.Config.Mines.ContainsKey(definition.Name);
         GridPoint? bestMine = null;
-        int bestOre = 0, checkedMines = 0;
+        double bestChance = 0;
+        int checkedMines = 0;
+        _bestMineChance = 0;
         foreach (var offset in Spiral)
         {
             if (PathFinder.Distance(default, offset) > SearchRadius)
@@ -509,11 +515,13 @@ public sealed partial class AiPlayer
                 continue;
             if (isMine)
             {
-                // The richest of the nearest fitting spots.
-                int ore = Around(p, mineRecipe!.Radius, q => map.ResourceAmount(q, mineRecipe.Resource));
-                if (ore > bestOre)
-                    (bestMine, bestOre) = (p, ore);
-                if (++checkedMines >= 25)
+                // The best chance of the nearest fitting spots, if it is good enough.
+                double chance = _world.Production.MineChanceAt(definition.Name, p) ?? 0;
+                _bestMineChance = Math.Max(_bestMineChance, chance);
+                if (chance >= _config.MineMinChance && chance > bestChance)
+                    (bestMine, bestChance) = (p, chance);
+                // Spots without the ore do not count, or a vein just off the anchor is never found.
+                if (chance > 0 && ++checkedMines >= 25)
                     break;
                 continue;
             }
@@ -614,7 +622,8 @@ public sealed partial class AiPlayer
         foreach (var building in mine)
         {
             if (building.State != BuildingState.Finished
-                || _world.StatusOf(building) is not ("no stone in range" or "no fish in range" or "mine is exhausted"))
+                || (_world.StatusOf(building) is not ("no stone in range" or "no fish in range" or "mine is exhausted")
+                    && !(_world.Production.MineChance(building) < _config.MineAbandonChance)))
             {
                 _uselessSince.Remove(building.Id);
                 continue;
@@ -623,7 +632,8 @@ public sealed partial class AiPlayer
             if (_world.Tick - since < UselessTicks)
                 continue;
             _uselessSince.Remove(building.Id);
-            Note($"tears down {building.Definition.Name} at {building.Position.X},{building.Position.Y}: {_world.StatusOf(building)}");
+            string why = _world.Production.MineChance(building) is { } chance ? $"chance {chance:P0}" : _world.StatusOf(building);
+            Note($"tears down {building.Definition.Name} at {building.Position.X},{building.Position.Y}: {why}");
             _world.RemoveBuilding(building);
         }
     }
@@ -690,8 +700,9 @@ public sealed partial class AiPlayer
         // Stones almost gone first, then the ores, then more stones for later.
         if (own.StoneUnits < _config.MinStoneUnits)
             yield return ("stone", c => c.StoneUnits >= 10);
+        // An ore counts as lacking too when its mine finds no spot good enough (a few fields at the border).
         foreach (var ore in _config.Ores)
-            if (own.Ore[(int)ore] == 0)
+            if (own.Ore[(int)ore] == 0 || MineOf(ore) is { } oreMine && _noSpot.Contains(oreMine))
                 yield return (ore.ToString(), c => c.Ore[(int)ore] > 0);
         // Free building land is a resource too: towards the cells with the most of it.
         bool roomy(MapSurvey.Cell c) => c.Buildable >= MapSurvey.CellSize * MapSurvey.CellSize * 2 / 3;
@@ -710,13 +721,15 @@ public sealed partial class AiPlayer
             yield return ("room", roomy);
         // Gold (gems) for the combat strength: late, once the build order up to its mine is done.
         foreach (var ore in _config.LateOres)
-            if (own.Ore[(int)ore] == 0 && _world.Production.Config.Mines.FirstOrDefault(m => m.Value.Resource == ore).Key is { } oreMine
-                && ReachedBefore(oreMine, mine))
+            if (MineOf(ore) is { } oreMine && (own.Ore[(int)ore] == 0 || _noSpot.Contains(oreMine)) && ReachedBefore(oreMine, mine))
                 yield return (ore.ToString(), c => c.Ore[(int)ore] > 0);
         // Nothing lacking: soldiers to spare still take land, as a player would.
         if (spareSoldiers >= _config.SpareSoldiersForLand)
             yield return ("land", roomy);
     }
+
+    /// <summary>The mine that digs the ore, if any.</summary>
+    private string? MineOf(ResourceType ore) => _world.Production.Config.Mines.FirstOrDefault(m => m.Value.Resource == ore).Key;
 
     /// <summary>Center of the nearest cell nobody owns that has what is wanted and can be walked to.</summary>
     private GridPoint? NearestUnclaimed(Func<MapSurvey.Cell, bool> wanted)

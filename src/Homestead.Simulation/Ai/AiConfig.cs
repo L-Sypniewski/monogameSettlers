@@ -71,6 +71,12 @@ public sealed record AiConfig
 
     /// <summary>How often the foresters' work areas are looked at.</summary>
     public int ForesterCheckTicks { get; init; } = 10 * World.TicksPerSecond;
+
+    /// <summary>A mine is built only where its chance per run (<see cref="Production.MineChance"/>) is at least this (0-1); otherwise the AI expands.</summary>
+    public double MineMinChance { get; init; } = 0.3;
+
+    /// <summary>A finished mine whose chance fell below this (0-1) is torn down, so a new one goes where the ground is richer.</summary>
+    public double MineAbandonChance { get; init; } = 0.1;
     public required int StockWhenWaiting { get; init; }
     public required IReadOnlyList<(string Building, int Count)> BuildOrder { get; init; }
     public required string ExpansionBuilding { get; init; }
@@ -177,6 +183,8 @@ public sealed record AiConfig
             ForesterMaxTrees = root.TryGetProperty("forester", out var forester) && forester.TryGetProperty("maxTrees", out var maxTrees) ? maxTrees.GetInt32() : 10,
             ForesterCheckTicks = (int)Math.Round((root.TryGetProperty("forester", out var foresterCheck) && foresterCheck.TryGetProperty("checkSeconds", out var check)
                 ? check.GetDouble() : 10) * World.TicksPerSecond),
+            MineMinChance = root.TryGetProperty("mines", out var mines) && mines.TryGetProperty("minChance", out var minChance) ? minChance.GetDouble() : 0.3,
+            MineAbandonChance = root.TryGetProperty("mines", out var minesAbandon) && minesAbandon.TryGetProperty("abandonChance", out var abandon) ? abandon.GetDouble() : 0.1,
             CarriersPerProductionBuilding = root.TryGetProperty("carriersPerProductionBuilding", out var perBuilding) ? perBuilding.GetDouble() : 2,
             HouseSizes = root.TryGetProperty("houseSizes", out var sizes)
                 ? sizes.EnumerateArray().Select(s => new HouseSize(s.GetProperty("building").GetString()!,

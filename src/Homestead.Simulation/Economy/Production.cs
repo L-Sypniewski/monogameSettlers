@@ -141,6 +141,10 @@ public sealed partial class Production
     public double? MineChance(Building building) =>
         _config.Mines.TryGetValue(building.Definition.Name, out var mine) ? Chance(mine, building.Position) : null;
 
+    /// <summary>The chance (see <see cref="MineChance"/>) a mine of that kind would have at <paramref name="center"/> (null: not a mine).</summary>
+    public double? MineChanceAt(string mineName, GridPoint center) =>
+        _config.Mines.TryGetValue(mineName, out var mine) ? Chance(mine, center) : null;
+
     private double Chance(MineRecipe mine, GridPoint center)
     {
         int left = OreLeft(mine, center);
