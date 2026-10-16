@@ -151,6 +151,7 @@ public sealed partial class Military
             AdvanceBarrack(barrack);
         foreach (var garrison in _garrisons.Values.ToList())
             AdvanceGarrison(garrison);
+        RevealScouts();
         TickCombat();
     }
 

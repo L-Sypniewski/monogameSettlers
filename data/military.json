@@ -43,6 +43,8 @@
   "sightRange": 15,
   "_geologistHealthComment": "Geologists of other players are fought like soldiers (they do not strike back) and have this much health.",
   "geologistHealth": 40,
+  "_scoutsComment": "Scouts look like a carrier of their own to other players. An enemy soldier outside the buildings within revealRadius fields sees through it, a computer player as soon as the scout is on its land; only then is he fought (health as for geologists, he does not strike back). sight: radius he sees in the fog of war (a settler sees 8). Stealing, he takes the nearest good of somebody else within stealRadius fields, one unit, and walks at loadedSpeed times his speed until he stands still on his own land, where he drops it (also where he dies).",
+  "scouts": { "health": 40, "revealRadius": 10, "sight": 20, "stealRadius": 5, "loadedSpeed": 0.5 },
   "_buildingSightComment": "Fog of war: finished own buildings of these names reveal their surroundings up to this radius (other buildings only through land and settlers).",
   "buildingSight": { "lookout_tower": 45 },
   "_combatPathRadiusComment": "Near the enemy, soldiers plan their way within this radius around everyone standing (own soldiers too).",

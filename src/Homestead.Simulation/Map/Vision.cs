@@ -43,7 +43,9 @@ public sealed class Vision
         {
             if (settler.Player != Player || settler.IsDead || settler.IsInside)
                 continue;
-            See(settler.Position, settler.SoldierType is { } type ? world.Military.Config.Sight(type) : SettlerSight);
+            See(settler.Position, settler.SoldierType is { } type ? world.Military.Config.Sight(type)
+                : settler.Profession == Profession.Scout ? (world.Military.Config.Scouts ?? Military.ScoutRules.Default).Sight
+                : SettlerSight);
         }
         var buildingSight = world.Military.Config.BuildingSight;
         foreach (var building in world.Buildings)

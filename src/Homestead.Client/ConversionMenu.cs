@@ -18,6 +18,7 @@ public sealed class ConversionMenu
     private static readonly (Profession Profession, string Type, string Name)[] Entries =
     [
         (Profession.Geologist, "GEOLOGIST", "geologist"),
+        (Profession.Scout, "THIEF", "scout"),
     ];
 
     /// <summary>Where the entries end (for what is drawn under them).</summary>

@@ -178,7 +178,7 @@ public sealed partial class Military
         // fighter is what made long games slow.
         _combatants.Clear();
         foreach (var settler in _world.Settlers)
-            if (settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist && !settler.IsInside && !settler.IsDead)
+            if (settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout && !settler.IsInside && !settler.IsDead)
                 _combatants.Add(settler);
         if (_world.Tick % EngageInterval == 0)
             EngageIdleSoldiers();
@@ -189,15 +189,15 @@ public sealed partial class Military
             Advance(fighter);
     }
 
-    /// <summary>Soldiers, priests and geologists outside the buildings at the start of this tick.</summary>
+    /// <summary>Soldiers, priests, geologists and scouts outside the buildings at the start of this tick.</summary>
     private readonly List<Settler> _combatants = new();
 
     /// <summary>
-    /// Enemy soldiers, priests and geologists outside the buildings: who can be fought. Not door guards: only the
-    /// attackers at the door fight them (see <see cref="Advance"/>).
+    /// Enemy soldiers, priests, geologists and revealed scouts outside the buildings: who can be fought. Not door
+    /// guards: only the attackers at the door fight them (see <see cref="Advance"/>).
     /// </summary>
     private IEnumerable<Settler> EnemiesOf(int player) =>
-        _combatants.Where(s => s.Player != player && !s.IsInside && !s.IsDead && !_guards.ContainsKey(s.Id));
+        _combatants.Where(s => s.Player != player && !s.IsInside && !s.IsDead && !_guards.ContainsKey(s.Id) && s.IsRevealedTo(player));
 
     private Settler? NearestEnemy(GridPoint from, int player, int range) =>
         EnemiesOf(player).Where(e => PathFinder.Distance(from, e.Position) <= range)

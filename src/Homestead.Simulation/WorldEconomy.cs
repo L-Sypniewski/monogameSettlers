@@ -40,6 +40,11 @@ public sealed partial class World
 
     public Geology Geology { get; }
 
+    /// <summary>Created on first use: games saved before scouts could steal have none.</summary>
+    private Theft? _theft;
+
+    public Theft Theft => _theft ??= new Theft(this);
+
     public Military.Military Military { get; }
 
     /// <summary>
@@ -635,6 +640,19 @@ public sealed partial class World
             return;
         }
         // Nowhere to put it: the good is lost. Should not happen on real maps.
+    }
+
+    /// <summary>Takes one unit nobody is coming for out of a pile (a thief). False if there is none.</summary>
+    internal bool StealFromPile(Pile pile)
+    {
+        if (!HasPile(pile) || pile.Count - pile.Reserved <= 0)
+            return false;
+        pile.Count--;
+        if (pile.Role == PileRole.Loose && pile.Count == 0 && pile.Reserved == 0)
+            _pilesByPoint.Remove(RequireMap().Index(pile.Position));
+        else
+            pile.ResetMaterialIfEmpty();
+        return true;
     }
 
     internal void TakeFromPile(Pile pile)

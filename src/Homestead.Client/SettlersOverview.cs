@@ -97,7 +97,7 @@ public sealed class SettlersOverview : IDisposable
     /// <summary>The portrait of a kind: soldiers by their first level.</summary>
     private static string PortraitOf(string kind) => kind is "SWORDSMAN" or "BOWMAN" or "PIKEMAN" ? $"{kind}_L1" : kind;
 
-    /// <summary>Whether the settler counts as the kind (thieves, pioneers and donkeys do not exist yet).</summary>
+    /// <summary>Whether the settler counts as the kind (pioneers and donkeys do not exist yet; thieves are the scouts).</summary>
     private static bool Is(Settler settler, string kind) => kind switch
     {
         "BEARER" => settler.Profession == Profession.Carrier,
@@ -109,6 +109,7 @@ public sealed class SettlersOverview : IDisposable
         "PIKEMAN" => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Pikeman },
         "MAGE" => settler.Profession == Profession.Priest,
         "GEOLOGIST" => settler.Profession == Profession.Geologist,
+        "THIEF" => settler.Profession == Profession.Scout,
         _ => false,
     };
 

@@ -28,6 +28,12 @@ public enum Profession
 
     /// <summary>Comes from the big temple and casts its people's spell (see <see cref="Magic.Magic"/>).</summary>
     Priest,
+
+    /// <summary>
+    /// Explores with a wide sight and steals goods (see <see cref="Economy.Theft"/>); other players take him for one of their own carriers until
+    /// he is revealed to them (see <see cref="Settler.IsRevealedTo"/>, <c>Military.Scouting</c>).
+    /// </summary>
+    Scout,
 }
 
 public enum SoldierType
@@ -97,6 +103,13 @@ public sealed class Settler
     public float Health { get; internal set; }
 
     public bool IsDead { get; internal set; }
+
+    /// <summary>Scouts: the players that see through his disguise right now, one bit each.</summary>
+    internal int RevealedTo { get; set; }
+
+    /// <summary>Whether <paramref name="player"/> knows this settler for what he is: a scout only when revealed, everyone else always.</summary>
+    public bool IsRevealedTo(int player) =>
+        Profession != Profession.Scout || player == Player || (RevealedTo & (1 << player)) != 0;
 
     /// <summary>Soldier rank 1-3.</summary>
     public int Level { get; internal set; } = 1;

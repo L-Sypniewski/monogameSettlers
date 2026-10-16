@@ -134,11 +134,20 @@ public sealed class SettlerRenderer
         sprites.Draw(batch, animation.Start, anchor, scale, playerColor);
     }
 
-    public void Draw(SpriteBatch batch, Settler settler, TerrainMesh terrain, long tick, float tickAlpha, Color playerColor)
+    /// <param name="disguised">A scout seen by another player: drawn as a carrier of the people of <see cref="Viewer"/>.</param>
+    public void Draw(SpriteBatch batch, Settler settler, TerrainMesh terrain, long tick, float tickAlpha, Color playerColor, bool disguised = false)
     {
+        _disguised = disguised ? settler : null;
         var (sprites, frame) = Frame(settler, tick, tickAlpha);
+        _disguised = null;
         sprites.Draw(batch, frame, Anchor(settler, terrain, tickAlpha), 1, playerColor);
     }
+
+    /// <summary>The player looking at the map: disguised scouts look like its carriers.</summary>
+    public int Viewer { get; set; }
+
+    /// <summary>The settler being drawn in disguise, if any.</summary>
+    private Settler? _disguised;
 
     private (SettlerSprites Sprites, int Frame) Frame(Settler settler, long tick, float tickAlpha)
     {
@@ -148,7 +157,7 @@ public sealed class SettlerRenderer
                 ? ShotFrame(settler, animation, tick, tickAlpha)
                 : animation.Cycle(work));
         // Winegrowers, rice farmers and beekeepers plant with ACTION1 and a plant in their hands.
-        if (settler.Activity == Activity.Sowing && TypeOf(settler) is { } planter
+        if (settler.Activity == Activity.Sowing && TypeFor(settler) is { } planter
             && Resolve(PeopleOf(settler), planter, "ACTION1", "PLANT", settler.Facing) is { } planting)
             return (Sprites(planting), planting.Cycle(work));
         if (settler.IsStriking && settler.State != SettlerState.Stepping && Strike(settler, work) is { } strike)
@@ -241,12 +250,16 @@ public sealed class SettlerRenderer
     };
 
     private SettlerAnimation? Find(Settler settler, string action, Direction facing) =>
-        TypeOf(settler) is { } type
+        TypeFor(settler) is { } type
             ? Resolve(PeopleOf(settler), type, action, MaterialOf(settler, type), facing)
             : null;
 
-    /// <summary>The people a settler looks like: its own (priests, won-over soldiers), else its player's.</summary>
-    private Civilization PeopleOf(Settler settler) => settler.People ?? _peopleOf(settler.Player);
+    /// <summary>The type the settler is drawn as: a disguised scout as a carrier.</summary>
+    private string? TypeFor(Settler settler) => settler == _disguised ? "BEARER" : TypeOf(settler);
+
+    /// <summary>The people a settler looks like: the viewer's in disguise, its own (priests, won-over soldiers), else its player's.</summary>
+    private Civilization PeopleOf(Settler settler) =>
+        settler == _disguised ? _peopleOf(Viewer) : settler.People ?? _peopleOf(settler.Player);
 
     /// <summary>
     /// The animation for a people, else the Romans' (like JSettlers: not every people has every sequence).
@@ -270,6 +283,7 @@ public sealed class SettlerRenderer
         Profession.Worker => settler.Trade,
         Profession.Geologist => "GEOLOGIST",
         Profession.Priest => "MAGE",
+        Profession.Scout => "THIEF",
         _ => null,
     };
 

@@ -52,6 +52,9 @@ public sealed record MilitaryConfig
     /// <summary>Health of a geologist: soldiers fight geologists of other players like soldiers (they do not strike back).</summary>
     public float GeologistHealth { get; init; } = 40;
 
+    /// <summary>Scouts (see <see cref="ScoutRules"/>); null in games saved before there were scouts.</summary>
+    public ScoutRules? Scouts { get; init; } = ScoutRules.Default;
+
     /// <summary>Hospital: wounded idle soldiers within this distance of its door are called in.</summary>
     public int HospitalCallRadius { get; init; } = 20;
 
@@ -118,6 +121,10 @@ public sealed record MilitaryConfig
             LevelBonus = root.GetProperty("levelBonus").EnumerateArray().Select(v => v.GetSingle()).ToArray(),
             SightRange = root.GetProperty("sightRange").GetInt32(),
             GeologistHealth = root.TryGetProperty("geologistHealth", out var geologistHealth) ? geologistHealth.GetSingle() : 40,
+            Scouts = root.TryGetProperty("scouts", out var scouts)
+                ? new ScoutRules(scouts.GetProperty("health").GetSingle(), scouts.GetProperty("revealRadius").GetInt32(), scouts.GetProperty("sight").GetInt32(),
+                    scouts.GetProperty("stealRadius").GetInt32(), scouts.GetProperty("loadedSpeed").GetDouble())
+                : ScoutRules.Default,
             HospitalCallRadius = root.TryGetProperty("hospital", out var hospital) ? hospital.GetProperty("callRadius").GetInt32() : 20,
             HealTicks = (int)Math.Round((hospital.ValueKind == JsonValueKind.Object ? hospital.GetProperty("healSeconds").GetDouble() : 2) * World.TicksPerSecond),
             HospitalCallPauseTicks = (int)Math.Round((hospital.ValueKind == JsonValueKind.Object ? hospital.GetProperty("callPauseSeconds").GetDouble() : 10)
@@ -187,4 +194,15 @@ public sealed record CombatStrengthConfig(float StepPercent, IReadOnlyList<float
                 ? civilizations.EnumerateObject().ToDictionary(c => Enum.Parse<Civilization>(c.Name), c => Weights(c.Value))
                 : new Dictionary<Civilization, IReadOnlyDictionary<Material, float>>());
     }
+}
+
+/// <summary>
+/// Scouts: <paramref name="Health"/> when soldiers fight them (they do not strike back); an enemy soldier
+/// within <paramref name="RevealRadius"/> sees through the disguise; <paramref name="Sight"/> for the fog of war.
+/// Stealing, he takes the nearest good within <paramref name="StealRadius"/> and walks at
+/// <paramref name="LoadedSpeed"/> times his speed while he carries it.
+/// </summary>
+public sealed record ScoutRules(float Health, int RevealRadius, int Sight, int StealRadius, double LoadedSpeed)
+{
+    public static readonly ScoutRules Default = new(40, 10, 20, 5, 0.5);
 }

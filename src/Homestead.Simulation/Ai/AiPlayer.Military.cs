@@ -6,7 +6,7 @@ namespace Homestead.Simulation.Ai;
 /// <summary>
 /// The AI's soldiers outside buildings. It knows where every enemy soldier is (for now). Defence comes
 /// first: enemies on the own land are fought at once, and enough soldiers stay back against enemies
-/// close to it. Idle soldiers strike enemy groups (soldiers, also geologists) near the land when they clearly outnumber them
+/// close to it. Idle soldiers strike enemy groups (soldiers, also geologists and scouts revealed to it) near the land when they clearly outnumber them
 /// (guerilla) – also those held back against them, as long as enough stay against the others – and spare ones go on campaigns against enemy military buildings (see AiPlayer.Campaign). Strikes
 /// and campaigns are re-checked every think (follow, reinforce, retreat); afterwards the soldiers go
 /// home. The rest are placed by the character's traits (decision point "guarding"). Soldiers walking on a
@@ -25,16 +25,16 @@ public sealed partial class AiPlayer
         public GridPoint Center { get; set; } = center;
     }
 
-    /// <summary>Enemy soldiers and geologists outside buildings, grouped (seen at the last military think).</summary>
+    /// <summary>Enemy soldiers, geologists and revealed scouts outside buildings, grouped (seen at the last military think).</summary>
     public IReadOnlyList<EnemyGroup> EnemyGroups { get; private set; } = [];
 
     /// <summary>
-    /// Enemy soldiers (and geologists, which do not fight) close together; <see cref="Strength"/> as they would
+    /// Enemy soldiers (and geologists and scouts, which do not fight) close together; <see cref="Strength"/> as they would
     /// fight at <see cref="Center"/>.
     /// </summary>
     public sealed record EnemyGroup(GridPoint Center, IReadOnlyList<Settler> Soldiers, double Strength)
     {
-        /// <summary>Whether there are soldiers among them (not just geologists).</summary>
+        /// <summary>Whether there are soldiers among them (not just geologists or scouts).</summary>
         public bool Armed => Soldiers.Any(s => s.Profession == Profession.Soldier);
     }
 
@@ -171,7 +171,7 @@ public sealed partial class AiPlayer
         double strength = 0;
         foreach (var soldier in candidates)
         {
-            // Geologists alone do not fight back: one soldier will do.
+            // Geologists and scouts alone do not fight back: one soldier will do.
             if (strength >= opposition * config.StrikeRatio && strikers.Count > 0)
                 break;
             strikers.Add(soldier);
@@ -380,7 +380,8 @@ public sealed partial class AiPlayer
     /// <summary>Enemy soldiers outside buildings, joined into groups of neighbours within <paramref name="radius"/>.</summary>
     private List<EnemyGroup> FindEnemyGroups(int radius)
     {
-        var enemies = _world.Settlers.Where(s => s.Profession is Profession.Soldier or Profession.Geologist && s.Player != Player && !s.IsInside && !s.IsDead).ToList();
+        var enemies = _world.Settlers.Where(s => s.Profession is Profession.Soldier or Profession.Geologist or Profession.Scout && s.Player != Player
+                                                 && !s.IsInside && !s.IsDead && s.IsRevealedTo(Player)).ToList();
         var groups = new List<EnemyGroup>();
         var left = new HashSet<Settler>(enemies);
         while (left.Count > 0)
@@ -407,7 +408,7 @@ public sealed partial class AiPlayer
     /// </summary>
     internal double Strength(Settler soldier, GridPoint at) => Power(soldier) * _world.Military.CombatStrengthAt(soldier.Player, at);
 
-    /// <summary>Health times damage per second, without the combat strength (0 for geologists: they do not fight).</summary>
+    /// <summary>Health times damage per second, without the combat strength (0 for geologists and scouts: they do not fight).</summary>
     private double Power(Settler soldier)
     {
         var military = _world.Military.Config;

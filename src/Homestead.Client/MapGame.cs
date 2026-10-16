@@ -954,6 +954,15 @@ public sealed class MapGame : Game
                     : "click where the spell should work";
             }
         }
+        else if (ScoutsSelected && onMenu && SelectionPanel.StealRect.Contains(panelCursor))
+        {
+            _message = "scouts: steal the nearest goods around them";
+            if (released)
+            {
+                int stealing = _world.Theft.Steal(_group);
+                _message = stealing > 0 ? $"{stealing} scouts go stealing" : "no goods to steal nearby";
+            }
+        }
         else if (CarriersSelected)
         {
             if (onMenu && _conversionMenu.EntryAt(panelCursor) is { } entry)
@@ -1214,7 +1223,7 @@ public sealed class MapGame : Game
             .OrderBy(t => t.Distance)
             .Select(t => t.Settler)
             .FirstOrDefault();
-        // Own soldiers, geologists and idle carriers can be selected; other trades not at all.
+        // Own soldiers, priests, geologists, scouts and idle carriers can be selected; other trades not at all.
         // Shift adds to the selection (by priority, if the kinds differ) instead of replacing it.
         bool adding = ShiftDown(Keyboard.GetState());
         if (hit is { Player: 0 } && Selectable(hit))
@@ -1436,11 +1445,11 @@ public sealed class MapGame : Game
         return next;
     }
 
-    /// <summary>Selection by priority: the soldiers among the settlers if there are any, else the geologists, else the carriers.</summary>
+    /// <summary>Selection by priority: the soldiers among the settlers if there are any, else the priests, geologists, scouts, else the carriers.</summary>
     private static List<Settler> ByPriority(IEnumerable<Settler> settlers)
     {
         var list = settlers.Distinct().ToList();
-        foreach (var profession in new[] { Profession.Soldier, Profession.Priest, Profession.Geologist, Profession.Carrier })
+        foreach (var profession in new[] { Profession.Soldier, Profession.Priest, Profession.Geologist, Profession.Scout, Profession.Carrier })
             if (list.Where(s => s.Profession == profession).ToList() is { Count: > 0 } chosen)
                 return chosen;
         return [];
@@ -1450,9 +1459,9 @@ public sealed class MapGame : Game
 
     private static bool ShiftDown(KeyboardState keys) => keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift);
 
-    /// <summary>Own settlers that can be selected: soldiers, priests, geologists and carriers with nothing to do.</summary>
+    /// <summary>Own settlers that can be selected: soldiers, priests, geologists, scouts and carriers with nothing to do.</summary>
     private static bool Selectable(Settler s) =>
-        s.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist || s.IsAvailableCarrier;
+        s.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout || s.IsAvailableCarrier;
 
     private List<Settler> SelectedSoldiers() => _group.Where(s => s.Profession == Profession.Soldier).ToList();
 
@@ -1473,6 +1482,7 @@ public sealed class MapGame : Game
             Units(name, 5, at => _world.SpawnSoldier(at, type, _world.Magic.SoldierLevel(0, type)));
         Units("Priester", 1, at => _world.Magic.SpawnPriest(at, 0));
         Units("Geologen", 2, at => _world.Spawn(at, Profession.Geologist));
+        Units("Späher", 2, at => _world.Spawn(at, Profession.Scout));
         Units("Träger", 5, at => _world.Spawn(at, Profession.Carrier));
         _cheats.Add("+50 Mana", () =>
         {
@@ -1495,6 +1505,8 @@ public sealed class MapGame : Game
         return counts;
     }
 
+    private bool ScoutsSelected => _group.Any(s => s.Profession == Profession.Scout);
+
     private bool PriestsSelected => _group.Count > 0 && _group.All(s => s.Profession == Profession.Priest);
 
     /// <summary>Only carriers are selected: the menu at the left offers what they can become.</summary>
@@ -1504,6 +1516,7 @@ public sealed class MapGame : Game
     {
         Profession.Soldier => $"{_group.Count} soldiers selected (right click: go there / attack, left click: deselect)",
         Profession.Geologist => $"{_group.Count} geologists selected (right click: go there, on a mountain: search there)",
+        Profession.Scout => $"{_group.Count} scouts selected (right click: go there, Alt+right click: steal there; enemies take them for carriers)",
         Profession.Priest => $"{_group.Count} priests selected (menu at the left: cast the spell, right click: go there)",
         _ => $"{_group.Count} carriers selected (menu at the left: convert them)",
     };
@@ -1512,7 +1525,7 @@ public sealed class MapGame : Game
     private void Convert(Profession profession)
     {
         int count = _group.Count;
-        var (now, later) = profession == Profession.Geologist ? _world.Geology.Convert(_group) : (0, 0);
+        var (now, later) = profession is Profession.Geologist or Profession.Scout ? _world.Geology.Convert(_group, profession) : (0, 0);
         _group.RemoveAll(s => s.Profession != profession);
         string name = profession.ToString().ToLowerInvariant() + "s";
         _message = $"{now} {name}" + (later > 0 ? $", {later} more after their delivery" : "")
@@ -1549,13 +1562,22 @@ public sealed class MapGame : Game
             _message = walking > 0 ? $"{walking} priests to {clicked.X},{clicked.Y}" : "no way there";
             return;
         }
-        var geologists = _group.Where(s => s.Profession == Profession.Geologist).ToList();
+        // Alt: scouts go there and steal.
+        var keyboard = Keyboard.GetState();
+        if ((keyboard.IsKeyDown(Keys.LeftAlt) || keyboard.IsKeyDown(Keys.RightAlt)) && ScoutsSelected)
+        {
+            int stealing = _world.Theft.StealAt(_group, clicked);
+            _message = stealing == 0 ? "no way there" : $"{stealing} scouts steal at {clicked.X},{clicked.Y}";
+            return;
+        }
+        var geologists = _group.Where(s => s.Profession is Profession.Geologist or Profession.Scout).ToList();
         if (geologists.Count > 0)
         {
             int sent = _world.Geology.Send(geologists, clicked);
+            string name = geologists.All(s => s.Profession == Profession.Scout) ? "scouts" : "geologists";
             _message = sent == 0 ? "no way there"
-                : _world.Geology.IsSearchable(clicked) ? $"{sent} geologists search around {clicked.X},{clicked.Y}"
-                : $"{sent} geologists to {clicked.X},{clicked.Y}";
+                : name == "geologists" && _world.Geology.IsSearchable(clicked) ? $"{sent} geologists search around {clicked.X},{clicked.Y}"
+                : $"{sent} {name} to {clicked.X},{clicked.Y}";
             return;
         }
         var soldiers = SelectedSoldiers();
@@ -1789,7 +1811,9 @@ public sealed class MapGame : Game
                 // Under the fog, other players' settlers are seen only where player 1 sees now.
                 if (_fogOn && settler.Player != 0 && !_vision.IsVisible(settler.Position))
                     continue;
-                _settlerRenderer.Draw(_spriteBatch, settler, _terrain, _world.Tick, alpha, PlayerColors.Of(settler.Player));
+                // Scouts in disguise look like one of player 1's carriers.
+                _settlerRenderer.Draw(_spriteBatch, settler, _terrain, _world.Tick, alpha,
+                    PlayerColors.Of(settler.IsRevealedTo(0) ? settler.Player : 0), disguised: !settler.IsRevealedTo(0));
             }
             foreach (var ghost in ghostsByRow[y])
                 if (!_fogOn || _vision.IsVisible(ghost.Position))
@@ -1883,7 +1907,7 @@ public sealed class MapGame : Game
                 unitsTop = ConversionMenu.Bottom;
             }
             _selectionPanel.Draw(_spriteBatch, _font, _settlerRenderer, _portraits!, Own.Civilization, _group,
-                _world.Military.CombatStrength(0), unitsTop);
+                _world.Military.CombatStrength(0), unitsTop, panelMouse);
         }
         else if (_tabs.Current == PanelTab.System)
             _systemMenu.Draw(_spriteBatch, _font, panelMouse);

@@ -182,6 +182,7 @@ public sealed partial class World
             Events.Tick();
             Housing.Tick();
             Geology.Tick();
+            Theft.Tick();
             Magic.Tick();
             Measure("housing/geology/magic", ref mark);
             Idling.Tick();
@@ -217,6 +218,11 @@ public sealed partial class World
         if (free is not { } position)
             return null;
         var settler = new Settler(_nextSettlerId++, position) { Profession = profession, Player = player };
+        // Geologists and scouts can be fought: they have health as well.
+        if (profession == Profession.Geologist)
+            settler.Health = Military.Config.GeologistHealth;
+        else if (profession == Profession.Scout)
+            settler.Health = (Military.Config.Scouts ?? ScoutRules.Default).Health;
         _settlers.Add(settler);
         _settlersById[settler.Id] = settler;
         _occupant[map.Index(position)] = settler.Id;
@@ -250,8 +256,9 @@ public sealed partial class World
     /// <summary>Whether the player's people can walk from a to b (on its own land with territory rules).</summary>
     internal bool Reachable(int player, GridPoint a, GridPoint b) => PathFinder!.AreConnected(a, b, TerritoryRules ? player : null);
 
-    /// <summary>Soldiers, priests and geologists may go and stay outside the own land.</summary>
-    internal static bool RoamsFreely(Settler settler) => settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist;
+    /// <summary>Soldiers, priests, geologists and scouts may go and stay outside the own land.</summary>
+    internal static bool RoamsFreely(Settler settler) =>
+        settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout;
 
     /// <summary>Whether the settler can walk to <paramref name="target"/> (see <see cref="LandOf"/>).</summary>
     internal bool Reachable(Settler settler, GridPoint target) => PathFinder!.AreConnected(settler.Position, target, LandOf(settler));
@@ -363,6 +370,9 @@ public sealed partial class World
             _occupant[map.Index(settler.Position)] = NoOccupant;
         var target = settler.Position.Neighbor(direction);
         settler.StepSpeed = Trails.StepSpeed(target);
+        // A scout with stolen goods sneaks.
+        if (settler is { Profession: Profession.Scout, Carrying: not null })
+            settler.StepSpeed = Math.Max(1, (int)Math.Round(settler.StepSpeed * (Military.Config.Scouts ?? ScoutRules.Default).LoadedSpeed));
         if (_occupant[map.Index(target)] == NoOccupant)
             _occupant[map.Index(target)] = settler.Id;
     }
@@ -563,6 +573,12 @@ public sealed partial class World
         foreach (var p in new[] { settler.Position, settler.StepTarget })
             if (map.Contains(p) && _occupant[map.Index(p)] == settler.Id)
                 _occupant[map.Index(p)] = NoOccupant;
+        // A thief drops what he stole where he falls.
+        if (settler is { Profession: Profession.Scout, Carrying: { } stolen })
+        {
+            settler.Carrying = null;
+            DropGoods(settler.Position, stolen);
+        }
         settler.IsDead = true;
         settler.Path.Clear();
         settler.Destination = null;
