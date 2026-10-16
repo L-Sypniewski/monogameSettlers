@@ -78,6 +78,8 @@ public sealed class MapGame : Game
     private BuildMenu? _buildMenu;
     private Portraits? _portraits;
     private PanelTabs _tabs = null!;
+    private SoldiersMenu? _soldiersMenu;
+    private bool _captureManualRecruitment;
     private SidePanel _sidePanel = null!;
     private Minimap? _minimap;
     private readonly ConversionMenu _conversionMenu = new();
@@ -241,9 +243,16 @@ public sealed class MapGame : Game
         _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
         _sidePanel = new SidePanel(GraphicsDevice, _gfx);
         _tabs = new PanelTabs(GraphicsDevice, _gfx);
-        // HOMESTEAD_CAPTURE_TAB=goods|settlers: a capture run shows that main tab.
-        if (_captureDirectory is not null && Enum.TryParse<PanelTab>(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB"), ignoreCase: true, out var tab))
+        // HOMESTEAD_CAPTURE_TAB=goods|settlers[:<sub-menu id>[:manual]]: a capture run shows that main tab (and sub-menu; manual recruitment).
+        if (_captureDirectory is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB")?.Split(':') is { } captureTab
+            && Enum.TryParse<PanelTab>(captureTab[0], ignoreCase: true, out var tab))
+        {
             _tabs.Current = tab;
+            if (captureTab.Length > 1)
+                _tabs.ShowMenu(captureTab[1]);
+            if (captureTab.Length > 2 && captureTab[2] == "manual")
+                _captureManualRecruitment = true;
+        }
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
@@ -302,6 +311,8 @@ public sealed class MapGame : Game
         _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog);
         _portraits?.Dispose();
         _portraits = new Portraits(GraphicsDevice, _gfx, catalog.Civilization);
+        _soldiersMenu?.Dispose();
+        _soldiersMenu = new SoldiersMenu(GraphicsDevice, _gfx, catalog.Civilization);
         _placeable = catalog.All.Where(b => b.ConstructionPiles.Count > 0)
             .OrderBy(b => b.Name).ToArray();
         _placeIndex = Math.Max(0, Array.FindIndex(_placeable, b => b.Name == "lumberjack"));
@@ -772,21 +783,6 @@ public sealed class MapGame : Game
         }
         else if (ShowsBuildingInfo)
         {
-            // A small temple's upgrade buttons: soldiers trained from now on get the next level.
-            if (onMenu && _buildingInfo.UpgradeAt(panelCursor, SidePanel.ContentHeight, _world, _selectedBuilding!, 0) is { } upgrade)
-            {
-                string name = _buildingInfo.SoldierName(upgrade);
-                _message = $"{name}: upgrade at {_world.Magic.UpgradeThreshold(0)} mana earned ({_world.Magic.ManaEarned(0)} so far)";
-                if (released)
-                    _message = _world.Magic.Upgrade(0, upgrade) switch
-                    {
-                        UpgradeResult.Done => $"{name}: new ones become {_buildingInfo.LevelName(_world.Magic.SoldierLevel(0, upgrade))}",
-                        UpgradeResult.OthersFirst => "all soldier types to level 2 first",
-                        UpgradeResult.NoMana => "not enough mana earned yet",
-                        UpgradeResult.Highest => $"{name}: highest level already",
-                        _ => "a finished small temple is needed",
-                    };
-            }
             // A military building's garrison: one soldier of a type more or fewer (never empty, never overfull).
             if (onMenu && _buildingInfo.GarrisonChangeAt(panelCursor, SidePanel.ContentHeight, _selectedBuilding!, 0) is var (type, delta))
             {
@@ -816,6 +812,13 @@ public sealed class MapGame : Game
         {
             if (onMenu && released && _tabs.MenuAt(panelCursor) is { } menu)
                 _tabs.ShowMenu(menu);
+            else if (_tabs.CurrentMenu == "soldiers" && onMenu)
+            {
+                if (_soldiersMenu!.Hover(panelCursor, _world, 0, _buildingInfo) is { } hover)
+                    _message = hover;
+                if (released && _soldiersMenu.Click(panelCursor, _world, 0, _buildingInfo) is { } done)
+                    _message = done;
+            }
         }
         else if (_group.Count == 0)
         {
@@ -1460,7 +1463,12 @@ public sealed class MapGame : Game
         else if (_tabs.Current == PanelTab.Build)
             _buildMenu!.Draw(_spriteBatch, _pixel, _font, _placing ? _placeable[_placeIndex] : null, panelMouse, OwnBuildingCounts());
         else
-            _tabs.DrawContent(_spriteBatch, _font);
+        {
+            bool soldiers = _tabs.CurrentMenu == "soldiers";
+            _tabs.DrawContent(_spriteBatch, _font, placeholder: !soldiers);
+            if (soldiers)
+                _soldiersMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
+        }
         _tabs.DrawTabs(_spriteBatch);
         _spriteBatch.End();
 
@@ -1986,6 +1994,11 @@ public sealed class MapGame : Game
                 _selectedBuilding = _world.Buildings.FirstOrDefault(b => b.Definition.Name == (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") ?? "lumberjack"));
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB") is not null)
                     _selectedBuilding = null; // the tab's menu, not the building
+                if (_captureManualRecruitment)
+                {
+                    _world.Military.SetManualRecruitment(0, true);
+                    _world.Military.ChangePlanned(0, SoldierType.Bowman, 3);
+                }
                 // HOMESTEAD_CAPTURE_BATTLE=1: enemy soldiers attack the start tower.
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE") == "1"
                     && _world.Buildings.FirstOrDefault(b => b.Player == 0 && b.Definition.Occupiers.Count > 0) is { } tower)
@@ -2066,6 +2079,7 @@ public sealed class MapGame : Game
         _sprites.Dispose();
         _buildMenu?.Dispose();
         _portraits?.Dispose();
+        _soldiersMenu?.Dispose();
         _tabs?.Dispose();
         _font.Dispose();
         _atlas.Dispose();

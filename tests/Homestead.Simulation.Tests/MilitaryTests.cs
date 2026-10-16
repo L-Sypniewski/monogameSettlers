@@ -32,6 +32,38 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void With_manual_recruitment_barracks_train_only_the_soldiers_planned()
+    {
+        var world = new World(new GameMap(70), TestConfig.NoTools);
+        world.PlaceBuilding(Romans["barrack"], 0, new GridPoint(30, 30));
+        world.AddLooseGoods(new GridPoint(50, 50), Material.Sword, 3);
+        world.AddLooseGoods(new GridPoint(52, 50), Material.Bow, 2);
+        Spawn(world, 6, new GridPoint(40, 45));
+        world.Military.SetManualRecruitment(0, true);
+        Assert.Equal(3, world.Military.WeaponsInStock(0, SoldierType.Swordsman));
+
+        Run(world, 3_000);
+        Assert.Equal(0, world.Military.SoldiersTrained); // nothing planned
+
+        world.Military.ChangePlanned(0, SoldierType.Bowman, 1);
+        world.Military.ChangePlanned(0, SoldierType.Swordsman, 5);
+        world.Military.ChangePlanned(0, SoldierType.Swordsman, -4);
+        Run(world, 10_000, stopWhen: () => world.Military.SoldiersTrained == 2);
+        Run(world, 2_000);
+
+        var soldiers = world.Settlers.Where(s => s.Profession == Profession.Soldier).ToList();
+        Assert.Equal(1, soldiers.Count(s => s.SoldierType == SoldierType.Swordsman));
+        Assert.Equal(1, soldiers.Count(s => s.SoldierType == SoldierType.Bowman));
+        Assert.Equal(0, world.Military.Planned(0, SoldierType.Swordsman));
+        Assert.Equal(0, world.Military.Planned(0, SoldierType.Bowman));
+
+        // Back to automatic: the rest of the weapons are taken.
+        world.Military.SetManualRecruitment(0, false);
+        Run(world, 10_000, stopWhen: () => world.Military.SoldiersTrained == 5);
+        Assert.Equal(5, world.Military.SoldiersTrained);
+    }
+
+    [Fact]
     public void New_soldiers_gather_in_the_work_area_of_their_barracks()
     {
         var world = new World(new GameMap(70), TestConfig.NoTools);

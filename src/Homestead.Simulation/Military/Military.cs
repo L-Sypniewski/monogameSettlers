@@ -183,8 +183,48 @@ public sealed partial class Military
             ReleaseTrainee(b);
     }
 
-    private bool HasWeapon(Building barrack) =>
-        barrack.Piles.Any(p => p.Role == PileRole.Request && p.Count > 0 && p.Material is { } m && _config.Weapons.ContainsKey(m));
+    private bool HasWeapon(Building barrack) => RecruitablePiles(barrack).Any();
+
+    /// <summary>The barracks' weapon piles it may train from now: any (automatic) or of the types planned (manual).</summary>
+    private IEnumerable<Pile> RecruitablePiles(Building barrack) =>
+        barrack.Piles.Where(p => p.Role == PileRole.Request && p.Count > 0 && p.Material is { } m && _config.Weapons.TryGetValue(m, out var type)
+                                 && (!IsManualRecruitment(barrack.Player) || Planned(barrack.Player, type) > 0));
+
+    // ---- recruitment: automatic (every weapon becomes a soldier) or manual (only as many of a type as planned) ----
+
+    private readonly HashSet<int> _manualRecruitment = new();
+    private readonly Dictionary<(int Player, SoldierType Type), int> _planned = new();
+
+    /// <summary>Whether the player's barracks only train the soldiers planned (<see cref="Planned"/>).</summary>
+    public bool IsManualRecruitment(int player) => _manualRecruitment.Contains(player);
+
+    public void SetManualRecruitment(int player, bool manual)
+    {
+        if (manual)
+            _manualRecruitment.Add(player);
+        else
+            _manualRecruitment.Remove(player);
+    }
+
+    /// <summary>Soldiers of the type the player wants trained as soon as possible (manual recruitment).</summary>
+    public int Planned(int player, SoldierType type) => _planned.GetValueOrDefault((player, type));
+
+    /// <summary>Plans more (or, negative, fewer) soldiers of the type; never below 0.</summary>
+    public void ChangePlanned(int player, SoldierType type, int delta) =>
+        _planned[(player, type)] = Math.Max(0, Planned(player, type) + delta);
+
+    /// <summary>
+    /// The player's weapons of the type for new soldiers: in its piles (storehouses, barracks, workshops) and
+    /// loose on its land (without territory rules: anywhere, carriers fetch them from everywhere then).
+    /// </summary>
+    public int WeaponsInStock(int player, SoldierType type)
+    {
+        var weapon = _config.WeaponOf(type);
+        var map = _world.Map!;
+        return _world.Piles.Where(p => p.Material == weapon && p.Count > 0
+                                       && (p.Owner is { } owner ? owner.Player == player : !_world.TerritoryRules || map.OwnerAt(p.Position) == player))
+            .Sum(p => p.Count);
+    }
 
     private void AdvanceBarrack(Barrack b)
     {
@@ -222,10 +262,8 @@ public sealed partial class Military
                 ReleaseTrainee(b);
             return;
         }
-        // The weapon with the most units in stock.
-        var pile = b.Building.Piles
-            .Where(p => p.Role == PileRole.Request && p.Count > 0 && p.Material is { } m && _config.Weapons.ContainsKey(m))
-            .MaxBy(p => p.Count);
+        // The weapon with the most units in stock (manual recruitment: of a type planned).
+        var pile = RecruitablePiles(b.Building).MaxBy(p => p.Count);
         if (pile is null)
         {
             ReleaseTrainee(b);
@@ -233,6 +271,8 @@ public sealed partial class Military
         }
         pile.Count--;
         b.Becomes = _config.Weapons[pile.Material!.Value];
+        if (IsManualRecruitment(b.Building.Player))
+            ChangePlanned(b.Building.Player, b.Becomes, -1);
         pile.ResetMaterialIfEmpty();
         _world.EnterBuilding(trainee);
         b.Training = true;

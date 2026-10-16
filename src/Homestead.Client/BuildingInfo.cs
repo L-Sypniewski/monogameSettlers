@@ -3,7 +3,6 @@ using System.Text.RegularExpressions;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
-using Homestead.Simulation.Magic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -14,8 +13,8 @@ namespace Homestead.Client;
 /// for own buildings also its state, the goods in its piles (construction sites: material delivered
 /// of needed) and a mine's hit rate, and at the bottom a button to tear it down (asks first), above it for
 /// production buildings one to stop or restart them. A finished
-/// small temple also offers the soldier upgrades for mana, a finished military building its garrison per
-/// soldier type with buttons for more or fewer. Names and states come from <c>data/ui.json</c>.
+/// military building also offers its garrison per soldier type with buttons for more or fewer (the soldier
+/// upgrades are in Siedler › Krieger, <see cref="SoldiersMenu"/>). Names and states come from <c>data/ui.json</c>.
 /// </summary>
 public sealed partial class BuildingInfo
 {
@@ -52,8 +51,6 @@ public sealed partial class BuildingInfo
         _soldierLevels = root.GetProperty("soldierLevels").EnumerateArray().Select(l => l.GetString()!).ToArray();
     }
 
-    private const int UpgradeRow = 46;
-
     /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>
     private const int ImageHeight = 92;
     private const int MinImageHeight = 36;
@@ -66,8 +63,6 @@ public sealed partial class BuildingInfo
     {
         if (_confirming == building)
             return Bottom - 50 - 4;
-        if (OffersUpgrades(world, building))
-            return UpgradeButton(0, 0).Y - 16 - 4;
         if (OffersGarrison(building))
             return GarrisonRowRect(0, 0).Y - 16 - 4;
         return OffersPause(world, building) ? PauseButton(0).Y - 6 : DemolishButton(0).Y - 6;
@@ -76,25 +71,6 @@ public sealed partial class BuildingInfo
     /// <summary>Text with a dark shadow, readable on the blue panel.</summary>
     private static void Write(SpriteBatch batch, UiFont font, string text, Vector2 position, Color color, int size = 14) =>
         SelectionPanel.Shadowed(batch, font, text, position, size, color);
-
-    /// <summary>The upgrade buttons of a small temple, one per soldier type, above the tear-down button.</summary>
-    private static Rectangle UpgradeButton(int height, int index) =>
-        new(Left, Bottom - 28 - 10 - (Enum.GetValues<SoldierType>().Length - index) * (UpgradeRow + 2), Inner, UpgradeRow);
-
-    private static bool OffersUpgrades(World world, Building building) =>
-        building.Definition.Name == world.Magic.Config.Temple && building.State == BuildingState.Finished && world.Magic.Config.UpgradeThresholds.Count > 0;
-
-    /// <summary>The soldier type whose upgrade button of an own small temple is under the screen point.</summary>
-    public SoldierType? UpgradeAt(Vector2 screen, int height, World world, Building building, int ownPlayer)
-    {
-        if (building.Player != ownPlayer || !OffersUpgrades(world, building) || _confirming == building)
-            return null;
-        var types = Enum.GetValues<SoldierType>();
-        for (int i = 0; i < types.Length; i++)
-            if (UpgradeButton(height, i).Contains(screen))
-                return types[i];
-        return null;
-    }
 
     private const int GarrisonRow = 38;
     private const int GarrisonButtonSize = 20;
@@ -166,41 +142,6 @@ public sealed partial class BuildingInfo
 
     public string LevelName(int level) => _soldierLevels[Math.Clamp(level, 1, _soldierLevels.Length) - 1];
 
-    /// <summary>
-    /// Mana earned in all and one button per soldier type: its figure at the level new soldiers get, name
-    /// and rank, and how much earned mana the next upgrade takes (greyed out while it is not possible yet).
-    /// </summary>
-    private void DrawUpgrades(SpriteBatch batch, Texture2D pixel, int height, UiFont font, SettlerRenderer settlers, Civilization people,
-        World world, int player, Vector2 cursor)
-    {
-        var magic = world.Magic;
-        var types = Enum.GetValues<SoldierType>();
-        var first = UpgradeButton(height, 0);
-        Write(batch, font, $"Aufwertung · Mana gesamt {magic.ManaEarned(player)}", new Vector2(Left, first.Y - 16), Label, 12);
-        for (int i = 0; i < types.Length; i++)
-        {
-            var type = types[i];
-            var rect = UpgradeButton(height, i);
-            int level = magic.SoldierLevel(player, type);
-            var order = magic.UpgradeOrder(player, type);
-            bool possible = order == UpgradeResult.Done && magic.CanAffordUpgrade(player);
-            batch.Draw(pixel, rect, possible && rect.Contains(cursor) ? HoverColor : ButtonColor);
-            if (possible)
-                Outline(batch, pixel, rect);
-            settlers.DrawIcon(batch, people, $"{type.ToString().ToUpperInvariant()}_L{level}", new Rectangle(rect.X + 2, rect.Y + 3, 30, rect.Height - 6),
-                1.5f, PlayerColors.Of(player));
-            Write(batch, font, SoldierName(type), new Vector2(rect.X + 34, rect.Y + 1), Text, 12);
-            Write(batch, font, LevelName(level), new Vector2(rect.X + 34, rect.Y + 15), Label, 12);
-            string next = order switch
-            {
-                UpgradeResult.Highest => "höchste Stufe",
-                UpgradeResult.OthersFirst => "erst die anderen",
-                _ => $"ab {magic.UpgradeThreshold(player)} Mana",
-            };
-            Write(batch, font, next, new Vector2(rect.X + 34, rect.Y + 29), possible ? Text : new Color(150, 130, 100), 12);
-        }
-    }
-
     public string NameOf(BuildingDefinition definition) => _names.GetValueOrDefault(definition.Name, definition.Name);
 
     private static Rectangle DemolishButton(int height) => new(Left, Bottom - 28, Inner, 28);
@@ -209,7 +150,7 @@ public sealed partial class BuildingInfo
     private static Rectangle PauseButton(int height) => new(Left, Bottom - 28 - 6 - 28, Inner, 28);
 
     private static bool OffersPause(World world, Building building) =>
-        world.Production.CanPause(building) && !OffersUpgrades(world, building) && !OffersGarrison(building);
+        world.Production.CanPause(building) && !OffersGarrison(building);
 
     /// <summary>Whether the screen point is on the stop/restart button of an own production building.</summary>
     public bool PauseAt(Vector2 screen, int height, World world, Building building, int ownPlayer) =>
@@ -274,8 +215,6 @@ public sealed partial class BuildingInfo
         DrawDemolish(batch, pixel, height, font, building, cursor);
         if (OffersPause(world, building) && _confirming != building)
             Button(batch, pixel, font, PauseButton(height), building.IsPaused ? "Fortsetzen" : "Anhalten", cursor);
-        if (OffersUpgrades(world, building) && _confirming != building)
-            DrawUpgrades(batch, pixel, height, font, settlers, people, world, ownPlayer, cursor);
         if (OffersGarrison(building) && _confirming != building)
             DrawGarrison(batch, pixel, height, font, settlers, people, world, building, cursor);
 

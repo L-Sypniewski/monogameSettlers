@@ -17,10 +17,21 @@
       "menus": [
         { "id": "overview", "name": "Siedlerübersicht", "tab": [ 236, 248 ] },
         { "id": "professions", "name": "Berufe", "tab": [ 239, 251 ] },
-        { "id": "soldiers", "name": "Soldaten", "tab": [ 242, 254 ] }
+        { "id": "soldiers", "name": "Krieger", "tab": [ 242, 254 ] }
       ]
     }
   ],
+  "_soldiersMenuComment": "Siedler > Krieger: GUI images of file 03 for the upgrade buttons per soldier type ([plain, plain dark, upgraded, upgraded dark]) and the arrows ([double up, up, down, double down]); weapon squares of the people's file for the recruitment rows.",
+  "soldiersMenu": {
+    "upgrades": { "SWORDSMAN": [ 398, 401, 404, 407 ], "BOWMAN": [ 410, 413, 416, 419 ], "PIKEMAN": [ 422, 425, 428, 431 ] },
+    "arrows": [ 8, 14, 17, 11 ],
+    "weapons": {
+      "Roman": { "file": 14, "SWORDSMAN": 113, "BOWMAN": 116, "PIKEMAN": 119 },
+      "Egyptian": { "file": 24, "SWORDSMAN": 113, "BOWMAN": 119, "PIKEMAN": 116 },
+      "Asian": { "file": 34, "SWORDSMAN": 119, "BOWMAN": 125, "PIKEMAN": 122 },
+      "Amazon": { "file": 44, "SWORDSMAN": 122, "BOWMAN": 125, "PIKEMAN": 128 }
+    }
+  },
   "_portraitsComment": "Unit portraits in the stone frame (GUI images of the people's file, the large 40x60 one; the medium and small are the two before it). soldiers: the first, then swordsman, pikeman, bowman of level 1, the same of level 2 and 3, three images apart.",
   "portraits": {
     "Roman": { "file": 14, "BEARER": 134, "GEOLOGIST": 185, "MAGE": 203, "soldiers": 209 },

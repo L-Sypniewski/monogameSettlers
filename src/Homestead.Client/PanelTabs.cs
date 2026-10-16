@@ -90,6 +90,14 @@ public sealed class PanelTabs : IDisposable
     /// <summary>Shows the sub-menu of the current tab.</summary>
     public void ShowMenu(int index) => _menu[(int)Current] = index;
 
+    /// <summary>Shows the sub-menu of the current tab with that id, if it has one.</summary>
+    public void ShowMenu(string id)
+    {
+        int index = _tabs[(int)Current].Menus.FindIndex(m => m.Id == id);
+        if (index >= 0)
+            ShowMenu(index);
+    }
+
     /// <summary>Sub-menu button <paramref name="i"/>: the bar split evenly, the button centered in its part.</summary>
     private static Rectangle MenuRect(List<Menu> menus, int i)
     {
@@ -106,8 +114,8 @@ public sealed class PanelTabs : IDisposable
             batch.Draw((PanelTab)i == Current ? _tabs[i].Pressed : _tabs[i].Normal, TabRect(i), Color.White);
     }
 
-    /// <summary>The sub-menus of the current goods or settlers tab and a placeholder for the chosen one.</summary>
-    public void DrawContent(SpriteBatch batch, UiFont font)
+    /// <summary>The sub-menus of the current goods or settlers tab, the chosen one's title and (if it has no content yet) a placeholder.</summary>
+    public void DrawContent(SpriteBatch batch, UiFont font, bool placeholder)
     {
         var tab = _tabs[(int)Current];
         if (tab.Menus.Count == 0)
@@ -122,7 +130,8 @@ public sealed class PanelTabs : IDisposable
             SelectionPanel.Shadowed(batch, font, line, new Vector2(content.X + 4, y), 16);
             y += 19;
         }
-        SelectionPanel.Shadowed(batch, font, "Kommt bald.", new Vector2(content.X + 4, y + 6), 13, new Color(190, 165, 120));
+        if (placeholder)
+            SelectionPanel.Shadowed(batch, font, "Kommt bald.", new Vector2(content.X + 4, y + 6), 13, new Color(190, 165, 120));
     }
 
     public void Dispose()
