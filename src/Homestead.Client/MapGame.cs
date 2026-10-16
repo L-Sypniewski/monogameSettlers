@@ -167,6 +167,13 @@ public sealed class MapGame : Game
     private int _capturedFrames;
     private readonly PerfStats _perf = new();
     private bool _showPerf;
+
+    /// <summary>
+    /// F2: the world is drawn 1:1 into <see cref="_worldTarget"/> and scaled up linearly by the zoom, soft like the
+    /// original upscaled to the screen; off, every sprite is scaled with point sampling (sharp pixels).
+    /// </summary>
+    private bool _smoothScaling = true;
+    private RenderTarget2D? _worldTarget;
     private bool _showClock;
 
     /// <param name="peoples">Peoples for the players whose people the map leaves open (see <see cref="OriginalScenario.Load"/>).</param>
@@ -574,6 +581,8 @@ public sealed class MapGame : Game
             else
                 Exit();
         }
+        if (Pressed(Keys.F2))
+            _smoothScaling = !_smoothScaling;
         if (Pressed(Keys.F3))
             _showPerf = !_showPerf;
         if (Pressed(Keys.T))
@@ -1261,24 +1270,41 @@ public sealed class MapGame : Game
             GraphicsDevice.SetRenderTarget(target);
         }
 
-        GraphicsDevice.Clear(Color.Black);
         var viewport = GraphicsDevice.Viewport;
+        var visible = new RectangleF(
+            _camera.X - viewport.Width / 2f / _zoom, _camera.Y - viewport.Height / 2f / _zoom,
+            viewport.Width / _zoom, viewport.Height / _zoom);
+
+        // Smooth scaling: the world goes 1:1 into a small target whose pixel 0 is the whole world point origin.
+        bool smooth = _smoothScaling && _zoom > 1;
+        var origin = new Vector2(MathF.Floor(visible.X), MathF.Floor(visible.Y));
+        var worldView = View;
+        var worldProjection = Matrix.CreateOrthographicOffCenter(0, viewport.Width, viewport.Height, 0, -1, 1);
+        if (smooth)
+        {
+            int width = (int)MathF.Ceiling(visible.Width) + 2, height = (int)MathF.Ceiling(visible.Height) + 2;
+            if (_worldTarget is null || _worldTarget.Width != width || _worldTarget.Height != height)
+            {
+                _worldTarget?.Dispose();
+                _worldTarget = new RenderTarget2D(GraphicsDevice, width, height);
+            }
+            GraphicsDevice.SetRenderTarget(_worldTarget);
+            worldView = Matrix.CreateTranslation(-origin.X, -origin.Y, 0);
+            worldProjection = Matrix.CreateOrthographicOffCenter(0, width, height, 0, -1, 1);
+        }
+        GraphicsDevice.Clear(Color.Black);
 
         _effect.World = Matrix.Identity;
-        _effect.View = View;
-        _effect.Projection = Matrix.CreateOrthographicOffCenter(0, viewport.Width, viewport.Height, 0, -1, 1);
+        _effect.View = worldView;
+        _effect.Projection = worldProjection;
         GraphicsDevice.RasterizerState = RasterizerState.CullNone;
         // Point sampling: linear filtering would bleed neighboring atlas cells into the texture edges.
         GraphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
         GraphicsDevice.BlendState = BlendState.Opaque;
         GraphicsDevice.DepthStencilState = DepthStencilState.None;
-
-        var visible = new RectangleF(
-            _camera.X - viewport.Width / 2f / _zoom, _camera.Y - viewport.Height / 2f / _zoom,
-            viewport.Width / _zoom, viewport.Height / _zoom);
         _terrain.Draw(_effect, visible);
 
-        _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: View);
+        _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldView);
         if (_selected is not null)
             DrawPath(_selected);
 
@@ -1336,11 +1362,22 @@ public sealed class MapGame : Game
         {
             // Over the world, under markers and previews: black, transparent where seen.
             _spriteBatch.End();
-            _fogEffect.View = View;
-            _fogEffect.Projection = _effect.Projection;
+            _fogEffect.View = worldView;
+            _fogEffect.Projection = worldProjection;
             GraphicsDevice.BlendState = BlendState.AlphaBlend;
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
             _fog!.Draw(_fogEffect, visible);
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldView);
+        }
+        if (smooth)
+        {
+            // Scaled up linearly to the screen; markers and previews below stay sharp at screen resolution.
+            _spriteBatch.End();
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(Color.Black);
+            _spriteBatch.Begin(samplerState: SamplerState.LinearClamp, blendState: BlendState.Opaque);
+            _spriteBatch.Draw(_worldTarget, Vector2.Transform(origin, View), null, Color.White, 0, Vector2.Zero, _zoom, SpriteEffects.None, 0);
+            _spriteBatch.End();
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: View);
         }
 
