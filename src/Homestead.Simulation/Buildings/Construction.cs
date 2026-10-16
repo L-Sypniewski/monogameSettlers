@@ -84,6 +84,9 @@ public sealed class Construction
         int idle = _world.Settlers.Count(s => s.Profession == profession && s.Player == player && !_assignments.ContainsKey(s.Id));
         int coming = _recruits.Count(r => r.Profession == profession && r.Settler.Player == player);
         int missing = wanted - idle - coming;
+        // Never more diggers/builders than the player's share allows (Siedler › Berufe).
+        int existing = _world.Settlers.Count(s => s.Profession == profession && s.Player == player) + coming;
+        missing = Math.Min(missing, _world.Recruitment.MaxOf(player, profession == Profession.Digger ? Share.Diggers : Share.Builders) - existing);
         // Diggers and builders leave the carrier reserve's last conversions to the workers of the
         // buildings under way: otherwise they take them all and the finished buildings stay empty.
         // One of each is always allowed, else those buildings would never be built.

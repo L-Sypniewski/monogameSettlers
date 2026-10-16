@@ -120,6 +120,12 @@ public sealed record ProductionConfig
     /// <summary>Share of a player's carriers and specialists that always stays carriers (0 = none).</summary>
     public double KeptCarriers { get; init; }
 
+    /// <summary>Most diggers a player has, as a share of its carriers and specialists (1 = no limit; at least one is always allowed).</summary>
+    public double MaxDiggers { get; init; } = 1;
+
+    /// <summary>Most builders a player has, as a share like <see cref="MaxDiggers"/>.</summary>
+    public double MaxBuilders { get; init; } = 1;
+
     /// <summary>Fields kept free between a new building and the surroundings of the others.</summary>
     public int BuildingMargin { get; init; }
 
@@ -234,6 +240,8 @@ public sealed record ProductionConfig
             StoragePileCapacity = root.GetProperty("storage").GetProperty("pileCapacity").GetInt32(),
             MineFoodPileCapacity = mineFood.TryGetProperty("pileCapacity", out var foodPile) ? foodPile.GetInt32() : Materials.MaxPileSize,
             KeptCarriers = root.GetProperty("recruitment").GetProperty("keptCarriers").GetDouble(),
+            MaxDiggers = root.GetProperty("recruitment").TryGetProperty("maxDiggers", out var maxDiggers) ? maxDiggers.GetDouble() : 1,
+            MaxBuilders = root.GetProperty("recruitment").TryGetProperty("maxBuilders", out var maxBuilders) ? maxBuilders.GetDouble() : 1,
             BuildingMargin = root.GetProperty("placement").GetProperty("margin").GetInt32(),
             LevellingMaxSlope = root.GetProperty("levelling").GetProperty("maxSlope").GetInt32(),
             LevellingHeightPerDig = root.GetProperty("levelling").GetProperty("heightPerDig").GetInt32(),

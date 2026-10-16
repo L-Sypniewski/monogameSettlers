@@ -52,8 +52,10 @@
     "weaponsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "SWORD", "BOW", "SPEAR" ], "seconds": 10, "keepInStock": 8 }
   },
   "recruitment": {
-    "_comment": "Share of a player's carriers and specialists (soldiers not counted) that always stays carriers: no carrier becomes a specialist or soldier below it. Living houses bring new ones.",
-    "keptCarriers": 0.3
+    "_comment": "Share of a player's carriers and specialists (soldiers not counted) that always stays carriers: no carrier becomes a specialist or soldier below it. Living houses bring new ones. maxDiggers/maxBuilders: most diggers/builders as a share of the same count (at least one each). All three are the defaults of Siedler > Berufe, where the player changes them.",
+    "keptCarriers": 0.3,
+    "maxDiggers": 0.25,
+    "maxBuilders": 0.25
   },
   "tools": {
     "_comment": "Tool a carrier must take to become the trade (game knowledge, as in JSettlers' EMovableType). BLADE is the digger's shovel.",

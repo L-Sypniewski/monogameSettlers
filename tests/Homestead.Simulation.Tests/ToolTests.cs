@@ -85,6 +85,42 @@ public class ToolTests
     }
 
     [Fact]
+    public void Diggers_stay_within_the_players_share()
+    {
+        var map = new GameMap(70);
+        for (int y = 30; y < 50; y++)
+        for (int x = 20; x < 45; x++)
+            map.SetHeight(new GridPoint(x, y), (x * 7 + y * 3) % 5);
+        var world = new World(map);
+        world.PlaceConstructionSite(Romans["sawmill"], 0, new GridPoint(30, 40));
+        world.AddLooseGoods(new GridPoint(10, 20), Material.Blade, 3);
+        Spawn(world, 8, new GridPoint(45, 55));
+        world.Recruitment.SetShare(0, Share.Diggers, 0.15);
+
+        Run(world, 2_000);
+
+        Assert.Equal(1, world.Recruitment.MaxOf(0, Share.Diggers));
+        Assert.Equal(1, world.Settlers.Count(s => s.Profession == Profession.Digger)
+                        + world.Recruitment.Active.Count(r => r.Profession == Profession.Digger));
+    }
+
+    [Fact]
+    public void The_kept_carrier_share_limits_conversions_and_carriers_become_geologists_by_count()
+    {
+        var world = new World(new GameMap(70));
+        Spawn(world, 10, new GridPoint(40, 40));
+        Assert.Equal(7, world.Recruitment.Convertible(0)); // 30 % stay carriers
+
+        world.Recruitment.SetShare(0, Share.Carriers, 0.5);
+        Assert.Equal(0.5, world.Recruitment.ShareOf(0, Share.Carriers));
+        Assert.Equal(5, world.Recruitment.Convertible(0));
+
+        Assert.Equal((1, 0), world.Geology.ConvertCarriers(0, 1));
+        Assert.Equal((4, 0), world.Geology.ConvertCarriers(0, 5)); // the fifth would undercut the half kept
+        Assert.Equal(5, world.Settlers.Count(s => s.Profession == Profession.Geologist));
+    }
+
+    [Fact]
     public void Idle_diggers_of_another_player_do_not_keep_a_site_from_recruiting()
     {
         var map = new GameMap(70);

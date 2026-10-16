@@ -67,6 +67,17 @@ public sealed class Geology
         return (now, later);
     }
 
+    /// <summary>
+    /// Turns up to <paramref name="count"/> carriers of the player into geologists (Siedler › Berufe):
+    /// idle ones first, then busy ones after their delivery, as far as the carrier reserve allows.
+    /// </summary>
+    public (int Now, int Later) ConvertCarriers(int player, int count) =>
+        Convert(_world.Settlers
+            .Where(s => s.Player == player && s.IsCarrier && !s.IsDead && !s.ConversionPending && !_world.Recruitment.Active.Any(r => r.Settler == s))
+            .OrderBy(s => s.IsAvailableCarrier ? 0 : 1)
+            .ThenBy(s => s.Id)
+            .Take(count));
+
     private void MakeGeologist(Settler settler)
     {
         settler.Profession = Profession.Geologist;

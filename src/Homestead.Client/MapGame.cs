@@ -80,6 +80,7 @@ public sealed class MapGame : Game
     private PanelTabs _tabs = null!;
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
+    private ProfessionsMenu? _professionsMenu;
     private bool _captureManualRecruitment;
     private SidePanel _sidePanel = null!;
     private Minimap? _minimap;
@@ -155,6 +156,9 @@ public sealed class MapGame : Game
     /// <summary>Camera flight after a click on the minimap: from, to, start (real seconds); none while <see cref="_flightStart"/> is negative.</summary>
     private Vector2 _flightFrom, _flightTo;
     private double _flightStart = -1;
+
+    /// <summary>Real seconds at the current update (for flights started outside the minimap code).</summary>
+    private double _now;
     private const double FlightSeconds = 0.35;
 
     /// <summary>The left button went down on the minimap and is still held: moving the mouse drags the view frame.</summary>
@@ -316,6 +320,7 @@ public sealed class MapGame : Game
         _soldiersMenu = new SoldiersMenu(GraphicsDevice, _gfx, catalog.Civilization);
         _settlersOverview?.Dispose();
         _settlersOverview = new SettlersOverview(GraphicsDevice, _gfx, catalog.Civilization);
+        _professionsMenu ??= new ProfessionsMenu(GraphicsDevice, _gfx);
         _placeable = catalog.All.Where(b => b.ConstructionPiles.Count > 0)
             .OrderBy(b => b.Name).ToArray();
         _placeIndex = Math.Max(0, Array.FindIndex(_placeable, b => b.Name == "lumberjack"));
@@ -489,6 +494,7 @@ public sealed class MapGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        _now = gameTime.TotalGameTime.TotalSeconds;
         if (_startScreen is not null)
         {
             UpdateStartScreen();
@@ -822,6 +828,19 @@ public sealed class MapGame : Game
                 if (released && _soldiersMenu.Click(panelCursor, _world, 0, _buildingInfo) is { } done)
                     _message = done;
             }
+            else if (_tabs.CurrentMenu == "professions" && onMenu)
+            {
+                if (_professionsMenu!.Hover(panelCursor) is { } hover)
+                    _message = hover;
+                if (released)
+                {
+                    string? done = _professionsMenu.Click(panelCursor, _world, 0, out var find);
+                    if (find is { } f)
+                        Find(f.Profession, f.Mode);
+                    else if (done is not null)
+                        _message = done;
+                }
+            }
         }
         else if (_group.Count == 0)
         {
@@ -1016,6 +1035,58 @@ public sealed class MapGame : Game
         _selected = null;
         _selectedBuilding = null;
         _message = _group.Count > 0 ? SelectionHint() : $"group {index + 1}: nobody to select";
+    }
+
+    /// <summary>Whether the settler stands in the view.</summary>
+    private bool OnScreen(Settler s)
+    {
+        var viewport = GraphicsDevice.Viewport;
+        var p = SettlerRenderer.Anchor(s, _terrain, TickAlpha);
+        return Math.Abs(p.X - _camera.X) <= viewport.Width / 2f / _zoom && Math.Abs(p.Y - _camera.Y) <= viewport.Height / 2f / _zoom;
+    }
+
+    /// <summary>
+    /// The find buttons of Siedler › Berufe: selects all own settlers of the profession, those on the
+    /// screen, or the next one (one after another, those on the screen first; the camera flies to it).
+    /// </summary>
+    private void Find(Profession profession, FindMode mode)
+    {
+        var all = _world.Settlers.Where(s => s.Player == 0 && s.Profession == profession && !s.IsInside && !s.IsDead)
+            .OrderBy(s => s.Id).ToList();
+        var found = mode switch
+        {
+            FindMode.World => all,
+            FindMode.Screen => all.Where(OnScreen).ToList(),
+            _ => NextOf(all) is { } next ? [next] : [],
+        };
+        if (found.Count == 0)
+        {
+            _message = mode == FindMode.Screen ? "none on the screen" : "none there";
+            return;
+        }
+        _group.Clear();
+        _group.AddRange(found);
+        _selected = null;
+        _selectedBuilding = null;
+        _message = SelectionHint();
+        if (mode == FindMode.One && !OnScreen(found[0]))
+        {
+            _flightFrom = _camera;
+            _flightTo = SettlerRenderer.Anchor(found[0], _terrain, TickAlpha);
+            _flightStart = _now;
+        }
+    }
+
+    /// <summary>The settler the "next one" find button chose last (its id).</summary>
+    private int _lastFound = -1;
+
+    /// <summary>The next settler after the one found last: among those on the screen if there are any, else anywhere.</summary>
+    private Settler? NextOf(List<Settler> all)
+    {
+        var pool = all.Where(OnScreen).ToList() is { Count: > 0 } visible ? visible : all;
+        var next = pool.FirstOrDefault(s => s.Id > _lastFound) ?? pool.FirstOrDefault();
+        _lastFound = next?.Id ?? -1;
+        return next;
     }
 
     /// <summary>Selection by priority: the soldiers among the settlers if there are any, else the geologists, else the carriers.</summary>
@@ -1468,11 +1539,13 @@ public sealed class MapGame : Game
         else
         {
             string? menu = _tabs.CurrentMenu;
-            _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview"));
+            _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview" or "professions"));
             if (menu == "soldiers")
                 _soldiersMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
             else if (menu == "overview")
                 _settlersOverview!.Draw(_spriteBatch, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization);
+            else if (menu == "professions")
+                _professionsMenu!.Draw(_spriteBatch, _pixel, _font, _world, 0, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
         }
         _tabs.DrawTabs(_spriteBatch);
         _spriteBatch.End();
@@ -2086,6 +2159,7 @@ public sealed class MapGame : Game
         _portraits?.Dispose();
         _soldiersMenu?.Dispose();
         _settlersOverview?.Dispose();
+        _professionsMenu?.Dispose();
         _tabs?.Dispose();
         _font.Dispose();
         _atlas.Dispose();

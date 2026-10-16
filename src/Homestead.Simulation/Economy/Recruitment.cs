@@ -18,12 +18,34 @@ public sealed class Recruitment
     private readonly World _world;
     private readonly ProductionConfig _config;
     private readonly List<Recruit> _active = new();
+    private readonly Dictionary<(int Player, Share Share), double> _shares = new();
 
     internal Recruitment(World world, ProductionConfig config)
     {
         _world = world;
         _config = config;
     }
+
+    /// <summary>
+    /// A share the player set (Siedler › Berufe): carriers kept at least, diggers/builders at most, of its
+    /// carriers and specialists; the defaults come from <see cref="ProductionConfig"/>.
+    /// </summary>
+    public double ShareOf(int player, Share share) => _shares.TryGetValue((player, share), out double value) ? value : share switch
+    {
+        Share.Carriers => _config.KeptCarriers,
+        Share.Diggers => _config.MaxDiggers,
+        _ => _config.MaxBuilders,
+    };
+
+    /// <summary>Sets a share (clamped to 0–1, rounded to whole percent).</summary>
+    public void SetShare(int player, Share share, double value) => _shares[(player, share)] = Math.Round(Math.Clamp(value, 0, 1), 2);
+
+    /// <summary>The player's carriers and specialists (soldiers and priests not counted), the base of the shares.</summary>
+    public int Civilians(int player) =>
+        _world.Settlers.Count(s => s.Player == player && s.Profession is not (Profession.Soldier or Profession.Priest));
+
+    /// <summary>Most diggers or builders the player may have (<see cref="Share.Diggers"/>, <see cref="Share.Builders"/>), at least one.</summary>
+    public int MaxOf(int player, Share share) => Math.Max(1, (int)(ShareOf(player, share) * Civilians(player) + 1e-9));
 
     /// <summary>Recruitments whose carrier is still on the way to its tool.</summary>
     public IReadOnlyList<Recruit> Active => _active;
@@ -50,7 +72,7 @@ public sealed class Recruitment
                 specialists++;
         }
         // Each conversion moves one settler from carriers to specialists; the total stays the same.
-        return Math.Max(0, carriers - (int)Math.Ceiling(_config.KeptCarriers * (carriers + specialists)));
+        return Math.Max(0, carriers - (int)Math.Ceiling(ShareOf(player, Share.Carriers) * (carriers + specialists) - 1e-9));
     }
 
     public Material? ToolFor(string? trade) => trade is not null && _config.Tools.TryGetValue(trade, out var tool) ? tool : null;
@@ -193,6 +215,14 @@ public sealed class Recruitment
         settler.Activity = Activity.None;
         r.State = RecruitState.Failed;
     }
+}
+
+/// <summary>The shares a player sets in Siedler › Berufe (see <see cref="Recruitment.ShareOf"/>).</summary>
+public enum Share
+{
+    Carriers,
+    Diggers,
+    Builders,
 }
 
 public enum RecruitState
