@@ -186,6 +186,54 @@ public class ToolTests
     }
 
     [Fact]
+    public void Toolsmith_makes_what_the_player_ordered()
+    {
+        var world = new World(new GameMap(70), ProductionConfig.Load());
+        world.PlaceBuilding(Romans["toolsmith"], 0, new GridPoint(30, 30));
+        world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50));
+        world.AddLooseGoods(new GridPoint(40, 20), Material.Hammer, 1);
+        world.AddLooseGoods(new GridPoint(20, 50), Material.Iron, 5);
+        world.AddLooseGoods(new GridPoint(22, 50), Material.Coal, 5);
+        Spawn(world, 4, new GridPoint(40, 40));
+        world.Production.ChangeOrdered(0, Material.Saw, 2);
+        world.Production.ChangeOrdered(0, Material.Saw, -5); // never below 0
+        Assert.Equal(0, world.Production.Ordered(0, Material.Saw));
+        world.Production.ChangeOrdered(0, Material.Saw, 2);
+
+        Run(world, 30_000, stopWhen: () => world.Production.ToolsMade == 2);
+        Run(world, 4_000);
+
+        Assert.Equal(2, world.Production.ToolsMade); // the two saws, then rest again (no shares)
+        Assert.Equal(0, world.Production.Ordered(0, Material.Saw));
+        Assert.Equal(2, world.Piles.Where(p => p.Material == Material.Saw).Sum(p => p.Count)
+                        + world.Settlers.Count(s => s.Carrying == Material.Saw));
+    }
+
+    [Fact]
+    public void Weaponsmith_makes_its_products_by_the_players_shares()
+    {
+        var world = new World(new GameMap(70), ProductionConfig.Load());
+        Assert.Equal(0.7, world.Production.ShareOf(0, Material.Bow)); // default from production.json
+        world.Production.SetShare(0, Material.Bow, 0);
+        world.Production.SetShare(0, Material.Spear, 0);
+        world.Production.SetShare(0, Material.Sword, 2);
+        Assert.Equal(1, world.Production.ShareOf(0, Material.Sword));
+        world.PlaceBuilding(Romans["weaponsmith"], 0, new GridPoint(30, 30));
+        world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50));
+        world.AddLooseGoods(new GridPoint(40, 20), Material.Hammer, 1);
+        world.AddLooseGoods(new GridPoint(20, 50), Material.Iron, 3);
+        world.AddLooseGoods(new GridPoint(22, 50), Material.Coal, 3);
+        Spawn(world, 4, new GridPoint(40, 40));
+
+        Run(world, 30_000, stopWhen: () => world.Production.ToolsMade == 3);
+        Run(world, 2_000);
+
+        Assert.Equal(3, world.Production.ToolsMade);
+        Assert.Equal(3, world.Piles.Where(p => p.Material == Material.Sword).Sum(p => p.Count)
+                        + world.Settlers.Count(s => s.Carrying == Material.Sword));
+    }
+
+    [Fact]
     public void Toolsmith_makes_only_what_is_needed_right_now()
     {
         var map = new GameMap(80);

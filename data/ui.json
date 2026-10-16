@@ -7,7 +7,7 @@
       "id": "goods", "name": "Waren", "tab": [ 56, 65 ],
       "menus": [
         { "id": "stock", "name": "Lagerbestand", "tab": [ 260, 272 ] },
-        { "id": "tools", "name": "Werkzeuge und Waffen", "tab": [ 263, 275 ] },
+        { "id": "tools", "name": "Herstellung", "tab": [ 263, 275 ] },
         { "id": "production", "name": "Produktion", "tab": [ 266, 278 ] },
         { "id": "distribution", "name": "Verteilung", "tab": [ 269, 281 ] }
       ]

@@ -47,9 +47,9 @@
     "WATER": { "baker": 30, "pig_farm": 30, "brewery": 30, "mead_brewery": 30, "donkey_farm": 10 }
   },
   "smiths": {
-    "_comment": "One product per cycle: tools somebody waits for (and nobody has) first, otherwise the product with the fewest units around while below keepInStock; otherwise the smith rests. The toolsmith keeps no stock: it makes only what is needed right now (until the player can choose).",
-    "toolsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD" ], "seconds": 10, "keepInStock": 0 },
-    "weaponsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "SWORD", "BOW", "SPEAR" ], "seconds": 10, "keepInStock": 8 }
+    "_comment": "One product per cycle: what the player ordered (Waren > Herstellung) first, then tools somebody waits for (and nobody has), otherwise by shares (the player's bars, these are the defaults; 0 = only on order or need) while the product has fewer than keepInStock units around (0 = no limit); otherwise the smith rests. The toolsmith makes only what is needed right now unless the player gives it shares.",
+    "toolsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD" ], "seconds": 10, "keepInStock": 0, "shares": {} },
+    "weaponsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "SWORD", "BOW", "SPEAR" ], "seconds": 10, "keepInStock": 8, "shares": { "SWORD": 1, "BOW": 0.7, "SPEAR": 0.45 } }
   },
   "recruitment": {
     "_comment": "Share of a player's carriers and specialists (soldiers not counted) that always stays carriers: no carrier becomes a specialist or soldier below it. Living houses bring new ones. maxDiggers/maxBuilders: most diggers/builders as a share of the same count (at least one each). All three are the defaults of Siedler > Berufe, where the player changes them.",

@@ -52,10 +52,16 @@ public sealed record MineRecipe(ResourceType Resource, Material Output, int Tick
 }
 
 /// <summary>
-/// A smith: like a workshop, but it chooses one of several <see cref="Products"/> per cycle (tools that
-/// are missing first, otherwise whatever has fewer than <see cref="KeepInStock"/> units around).
+/// A smith: like a workshop, but it chooses one of several <see cref="Products"/> per cycle (see
+/// <see cref="Production"/>: products ordered by the player first, then tools that are missing, otherwise
+/// by the player's shares while a product has fewer than <see cref="KeepInStock"/> units around – 0: no limit).
 /// </summary>
-public sealed record SmithRecipe(IReadOnlyList<Material> Inputs, IReadOnlyList<Material> Products, int Ticks, int KeepInStock);
+/// <param name="Shares">Default share per product (0–1, Waren › Herstellung); null: 1 for every product.</param>
+public sealed record SmithRecipe(IReadOnlyList<Material> Inputs, IReadOnlyList<Material> Products, int Ticks, int KeepInStock,
+    IReadOnlyDictionary<Material, double>? Shares = null)
+{
+    public double ShareOf(Material product) => Shares is null ? 1 : Shares.GetValueOrDefault(product);
+}
 
 /// <summary>Production balancing, loaded from <c>data/production.json</c>. Keyed by building name.</summary>
 public sealed record ProductionConfig
@@ -220,7 +226,10 @@ public sealed record ProductionConfig
         var smiths = root.GetProperty("smiths").EnumerateObject().Where(m => !m.Name.StartsWith('_')).ToDictionary(
             m => m.Name,
             m => new SmithRecipe(MaterialList(m.Value.GetProperty("inputs")), MaterialList(m.Value.GetProperty("products")),
-                Ticks(m.Value, "seconds"), m.Value.GetProperty("keepInStock").GetInt32()));
+                Ticks(m.Value, "seconds"), m.Value.GetProperty("keepInStock").GetInt32(),
+                m.Value.TryGetProperty("shares", out var shares)
+                    ? shares.EnumerateObject().ToDictionary(s => Materials.Parse(s.Name)!.Value, s => s.Value.GetDouble())
+                    : null));
         var tools = root.GetProperty("tools").EnumerateObject()
             .Where(t => !t.Name.StartsWith('_'))
             .ToDictionary(t => t.Name, t => Material(t.Value));

@@ -114,8 +114,8 @@ public sealed class PanelTabs : IDisposable
             batch.Draw((PanelTab)i == Current ? _tabs[i].Pressed : _tabs[i].Normal, TabRect(i), Color.White);
     }
 
-    /// <summary>The sub-menus of the current goods or settlers tab, the chosen one's title and (if it has no content yet) a placeholder.</summary>
-    public void DrawContent(SpriteBatch batch, UiFont font, bool placeholder)
+    /// <summary>The sub-menus of the current goods or settlers tab, the chosen one's title (unless the menu has headings of its own) and (if it has no content yet) a placeholder.</summary>
+    public void DrawContent(SpriteBatch batch, UiFont font, bool placeholder, bool title = true)
     {
         var tab = _tabs[(int)Current];
         if (tab.Menus.Count == 0)
@@ -125,6 +125,8 @@ public sealed class PanelTabs : IDisposable
             batch.Draw(i == chosen ? tab.Menus[i].Pressed : tab.Menus[i].Normal, MenuRect(tab.Menus, i), Color.White);
         var content = BuildMenu.Content;
         int y = content.Y;
+        if (!title)
+            return;
         foreach (string line in font.Wrap(tab.Menus[chosen].Name, content.Width - 8, 16))
         {
             SelectionPanel.Shadowed(batch, font, line, new Vector2(content.X + 4, y), 16);
