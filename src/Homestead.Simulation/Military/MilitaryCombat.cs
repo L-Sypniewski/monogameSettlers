@@ -568,7 +568,7 @@ public sealed partial class Military
                         {
                             g.DoorHealth = Math.Max(0, g.DoorHealth - _config.Damage(soldier.SoldierType!.Value, soldier.Level) * CombatStrengthOf(soldier));
                             g.LastThreat = _world.Tick;
-                            _world.Events.Raise("attacked", g.Building.Player, g.Building.Position, building: g.Building);
+                            _world.Events.Raise("buildingAttacked", g.Building.Player, g.Building.Position, building: g.Building);
                         }
                         f.NextHit = _world.Tick + interval;
                         soldier.ShotTicks = interval;
@@ -865,10 +865,14 @@ public sealed partial class Military
                 ArrowTicks(PathFinder.Distance(from, enemy.Position))));
         }
         enemy.Health -= _config.Damage(attacker.SoldierType!.Value, attacker.Level) * CombatStrengthOf(attacker);
-        _world.Events.Raise("attacked", enemy.Player, enemy.Position, settler: enemy);
         var home = DefendedBy(enemy);
         if (home is not null)
+        {
             home.LastThreat = _world.Tick;
+            _world.Events.Raise("buildingAttacked", enemy.Player, home.Building.Position, building: home.Building);
+        }
+        else
+            _world.Events.Raise("attacked", enemy.Player, enemy.Position, settler: enemy);
         if (enemy.Health <= 0)
         {
             Kill(enemy);
@@ -920,7 +924,10 @@ public sealed partial class Military
         foreach (var place in g.Coming.Keys.ToList())
             Release(g, place);
         Unclaim(building);
+        int loser = building.Player;
         building.Player = attacker.Player;
+        _world.Events.Raise("buildingLost", loser, building.Position, building: building);
+        _world.Events.Raise("buildingCaptured", attacker.Player, building.Position, building: building);
         g.DoorHealth = _config.DoorHealth; // the new owner starts behind a whole door
         _fighters.Remove(attacker.Id);
         SetActivity(attacker, Activity.None);

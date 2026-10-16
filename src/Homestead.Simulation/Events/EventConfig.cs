@@ -6,14 +6,19 @@ namespace Homestead.Simulation.Events;
 /// <summary>The kinds of event, one button each at the bottom of the side panel.</summary>
 public enum EventCategory
 {
+    Info,
     Combat,
     Resources,
-    Staff,
     Trade,
 }
 
-/// <summary>One event as configured: its button, how often it may come per player, and its text.</summary>
-public sealed record EventDefinition(string Id, EventCategory Category, int CooldownTicks, string Text, bool Enabled = true);
+/// <summary>
+/// One event as configured: its button, how often it may come per player, and its text (<c>{building}</c>:
+/// the building's name). Events about a building's state come once it has lasted <see cref="AfterTicks"/>;
+/// <see cref="MaxHitRate"/>: a mine counts as exhausted at this hit rate (percent) or below.
+/// </summary>
+public sealed record EventDefinition(string Id, EventCategory Category, int CooldownTicks, string Text, bool Enabled = true,
+    int AfterTicks = 0, int MaxHitRate = 5);
 
 /// <summary>The events, loaded from <c>data/events.json</c> (<c>events</c>; the buttons there are the client's).</summary>
 public sealed record EventConfig(IReadOnlyDictionary<string, EventDefinition> Events)
@@ -33,9 +38,11 @@ public sealed record EventConfig(IReadOnlyDictionary<string, EventDefinition> Ev
             var value = e.Value;
             events[e.Name] = new EventDefinition(e.Name,
                 Enum.Parse<EventCategory>(value.GetProperty("category").GetString()!, ignoreCase: true),
-                (int)Math.Round(value.GetProperty("cooldownSeconds").GetDouble() * World.TicksPerSecond),
+                value.TryGetProperty("cooldownSeconds", out var cooldown) ? (int)Math.Round(cooldown.GetDouble() * World.TicksPerSecond) : 0,
                 value.TryGetProperty("text", out var text) ? text.GetString()! : e.Name,
-                !value.TryGetProperty("enabled", out var enabled) || enabled.GetBoolean());
+                !value.TryGetProperty("enabled", out var enabled) || enabled.GetBoolean(),
+                value.TryGetProperty("afterSeconds", out var after) ? (int)Math.Round(after.GetDouble() * World.TicksPerSecond) : 0,
+                value.TryGetProperty("maxHitRate", out var hitRate) ? hitRate.GetInt32() : 5);
         }
         return new EventConfig(events);
     }

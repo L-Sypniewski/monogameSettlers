@@ -14,6 +14,9 @@ public enum PanelTab
 
     /// <summary>The computer button's menu (save, quit): no tab pressed, no sub-menus.</summary>
     System,
+
+    /// <summary>The text of the event looked at last (event buttons, space): no tab pressed, no sub-menus.</summary>
+    Event,
 }
 
 /// <summary>
@@ -61,7 +64,10 @@ public sealed class PanelTabs : IDisposable
     private readonly int[] _menu = new int[3];
 
     /// <summary>The id of the sub-menu shown in the current tab (null for the build tab).</summary>
-    public string? CurrentMenu => Current != PanelTab.System && _tabs[(int)Current].Menus is { Count: > 0 } menus ? menus[_menu[(int)Current]].Id : null;
+    public string? CurrentMenu => HasTab && _tabs[(int)Current].Menus is { Count: > 0 } menus ? menus[_menu[(int)Current]].Id : null;
+
+    /// <summary>Whether one of the main tabs is shown (not the computer menu or an event).</summary>
+    private bool HasTab => Current is not (PanelTab.System or PanelTab.Event);
 
     private static Rectangle TabRect(int i) => new(TabPositions[i].X, TabPositions[i].Y, 55, 55);
 
@@ -77,7 +83,7 @@ public sealed class PanelTabs : IDisposable
     /// <summary>The sub-menu button of the current tab under the point.</summary>
     public int? MenuAt(Vector2 panel)
     {
-        if (Current == PanelTab.System)
+        if (!HasTab)
             return null;
         var menus = _tabs[(int)Current].Menus;
         for (int i = 0; i < menus.Count; i++)
@@ -95,14 +101,14 @@ public sealed class PanelTabs : IDisposable
     /// <summary>Shows the sub-menu of the current tab.</summary>
     public void ShowMenu(int index)
     {
-        if (Current != PanelTab.System)
+        if (HasTab)
             _menu[(int)Current] = index;
     }
 
     /// <summary>Shows the sub-menu of the current tab with that id, if it has one.</summary>
     public void ShowMenu(string id)
     {
-        if (Current == PanelTab.System)
+        if (!HasTab)
             return;
         int index = _tabs[(int)Current].Menus.FindIndex(m => m.Id == id);
         if (index >= 0)
@@ -128,7 +134,7 @@ public sealed class PanelTabs : IDisposable
     /// <summary>The sub-menus of the current goods or settlers tab, the chosen one's title (unless the menu has headings of its own) and (if it has no content yet) a placeholder.</summary>
     public void DrawContent(SpriteBatch batch, UiFont font, bool placeholder, bool title = true)
     {
-        if (Current == PanelTab.System)
+        if (!HasTab)
             return;
         var tab = _tabs[(int)Current];
         if (tab.Menus.Count == 0)

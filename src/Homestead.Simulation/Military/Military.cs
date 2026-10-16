@@ -62,6 +62,10 @@ public sealed partial class Military
 
     public bool IsOccupied(Building building) => _garrisons.TryGetValue(building.Id, out var g) && g.Places.Any(p => p is not null);
 
+    /// <summary>Whether a finished military building stands empty and no soldier is on the way to it.</summary>
+    public bool AwaitsSoldiers(Building building) =>
+        _garrisons.TryGetValue(building.Id, out var g) && g.Places.All(p => p is null) && g.Coming.Count == 0;
+
     /// <summary>How many soldiers of <paramref name="type"/> the military building wants (0 for other buildings).</summary>
     public int Wanted(Building building, SoldierType type) => GarrisonOf(building)?.Wanted[(int)type] ?? 0;
 

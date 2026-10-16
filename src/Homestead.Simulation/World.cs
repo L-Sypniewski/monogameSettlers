@@ -179,6 +179,7 @@ public sealed partial class World
             Measure("production", ref mark);
             Military.Tick();
             Measure("military", ref mark);
+            Events.Tick();
             Housing.Tick();
             Geology.Tick();
             Magic.Tick();

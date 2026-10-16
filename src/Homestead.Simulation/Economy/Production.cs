@@ -146,6 +146,20 @@ public sealed partial class Production
             w.RecentRuns.Dequeue();
     }
 
+    /// <summary>Whether the production building waits for a worker nobody brings yet.</summary>
+    public bool NeedsWorker(Building building) => _workplaces.GetValueOrDefault(building.Id)?.Phase == Phase.NeedsWorker;
+
+    /// <summary>Whether it waits for a worker because the worker's tool is not in stock.</summary>
+    public bool LacksTool(Building building) =>
+        NeedsWorker(building) && _world.Recruitment.ToolFor(building.Definition.Worker) is { } tool
+                              && !_world.Recruitment.ToolAvailable(tool, building.Player);
+
+    /// <summary>Whether a gatherer found nothing to work on in its range on its last look (no tree, stone, fish, river, …).</summary>
+    public bool FindsNothing(Building building) => _workplaces.GetValueOrDefault(building.Id)?.FindsNothing == true;
+
+    /// <summary>Mining runs the mine's <see cref="MineHitRate"/> looks back on (up to <see cref="HitRateRuns"/>).</summary>
+    public int MineRuns(Building building) => _workplaces.GetValueOrDefault(building.Id) is { Mine: not null } w ? w.RecentRuns.Count : 0;
+
     /// <summary>A mine that found nothing left to dig on its last try.</summary>
     public bool IsExhausted(Building building) => _workplaces.GetValueOrDefault(building.Id)?.Exhausted == true;
 
@@ -695,6 +709,7 @@ public sealed partial class Production
             return;
         }
         var target = FindTarget(w, recipe.Action);
+        w.FindsNothing = target is null;
         if (target is not { } t)
         {
             w.Waiting = recipe.Action switch
@@ -1190,6 +1205,9 @@ public sealed partial class Production
 
         /// <summary>Why the last cycle could not start (shown to the player), null while working.</summary>
         public string? Waiting { get; set; }
+
+        /// <summary>A gatherer whose last look found nothing to work on.</summary>
+        public bool FindsNothing { get; set; }
 
         /// <summary>Mine: outcome of the last runs (true: ore), oldest first.</summary>
         public Queue<bool> RecentRuns { get; } = new();

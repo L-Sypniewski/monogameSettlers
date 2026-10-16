@@ -271,7 +271,7 @@ public sealed class MapGame : Game
         _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
         _sidePanel = new SidePanel(GraphicsDevice, _gfx);
         _tabs = new PanelTabs(GraphicsDevice, _gfx);
-        _eventButtons = new EventButtons(GraphicsDevice, _gfx);
+        _eventButtons = new EventButtons(GraphicsDevice, _gfx, remember: _captureDirectory is null);
         // HOMESTEAD_CAPTURE_TAB=goods|settlers[:<sub-menu id>[:manual|<good>]]: a capture run shows that main tab
         // (and sub-menu; manual recruitment, or the good chosen in Waren › Verteilung or Warentransport).
         if (_captureDirectory is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB")?.Split(':') is { } captureTab
@@ -653,12 +653,8 @@ public sealed class MapGame : Game
             _accumulator -= World.TickDuration;
         }
         _perf.EndSimulation();
-        if (_eventButtons.Update(_world, 0, _now) is { } raised)
-        {
-            _message = raised.Definition.Text;
-            if (_captureDirectory is not null && _captureEvent)
-                LookAt(raised);
-        }
+        if (_eventButtons.Update(_world, 0, _now) is { } raised && _captureDirectory is not null && _captureEvent)
+            LookAt(raised);
 
         // Fog of war: what player 1 sees is checked once a second, the fog then fades to it.
         if (_time >= _nextVision)
@@ -834,9 +830,22 @@ public sealed class MapGame : Game
         }
         if (Pressed(Keys.C))
             _cheats.IsOpen = !_cheats.IsOpen;
-        // Space: to the latest event not looked at yet (else the latest of all).
+        // Space: to the newest event not looked at yet; once all are, nothing. Held, it goes on faster and
+        // faster: from SpaceFirstRepeat between events down to SpaceFastRepeat after SpaceRampSeconds.
         if (Pressed(Keys.Space))
-            LookAt(_eventButtons.Look(_world, 0, null));
+        {
+            _spaceDownAt = _now;
+            _nextSpace = _now + SpaceFirstRepeat;
+            if (_eventButtons.Look(_world, 0, null) is { } unseen)
+                LookAt(unseen);
+        }
+        else if (keys.IsKeyDown(Keys.Space) && _now >= _nextSpace)
+        {
+            float ramp = (float)Math.Min(1, (_now - _spaceDownAt) / SpaceRampSeconds);
+            _nextSpace = _now + MathHelper.Lerp(SpaceFirstRepeat, SpaceFastRepeat, ramp);
+            if (_eventButtons.Look(_world, 0, null) is { } unseen)
+                LookAt(unseen);
+        }
         if (Pressed(Keys.K))
         {
             // Test soldiers: two of each kind, for player 0 (with Shift for player 1).
@@ -1290,7 +1299,22 @@ public sealed class MapGame : Game
         }
     }
 
-    /// <summary>Flies the camera to the event's place and points arrows at it for a while.</summary>
+    /// <summary>Space held: seconds between events at first, after <see cref="SpaceRampSeconds"/> (10 Hz), and when it was pressed / goes on next.</summary>
+    private const float SpaceFirstRepeat = 0.4f, SpaceFastRepeat = 0.1f, SpaceRampSeconds = 1;
+    private double _spaceDownAt, _nextSpace;
+
+    /// <summary>The event looked at last: its page in the panel (<see cref="PanelTab.Event"/>) shows its text.</summary>
+    private GameEvent? _shownEvent;
+
+    /// <summary>The event's text, its building's name filled in.</summary>
+    private string TextOf(GameEvent e) => e.Building is { } building
+        ? e.Definition.Text.Replace("{building}", _buildingInfo.NameOf(building.Definition))
+        : e.Definition.Text;
+
+    /// <summary>
+    /// Shows the event's page in the panel (like the computer button, the selection goes), flies the camera
+    /// to its place (if it has one) and points arrows at it for a while.
+    /// </summary>
     private void LookAt(GameEvent? e)
     {
         if (e is null)
@@ -1298,12 +1322,35 @@ public sealed class MapGame : Game
             _message = "no events";
             return;
         }
-        _message = e.Definition.Text;
+        _shownEvent = e;
+        _tabs.Current = PanelTab.Event;
+        _group.Clear();
+        _selected = null;
+        _selectedBuilding = null;
+        _placing = _aiming = false;
+        if (e.Where is not { } where)
+            return;
         _flightFrom = _camera;
-        _flightTo = ToWorld(e.Where);
+        _flightTo = ToWorld(where);
         _flightStart = _now;
         _pointed = e;
         _pointUntil = _now + FlightSeconds + _eventButtons.ArrowSeconds;
+    }
+
+    /// <summary>The event's page in the panel: the name of its kind, below it its text in white.</summary>
+    private void DrawEventPage()
+    {
+        if (_shownEvent is not { } e)
+            return;
+        var content = BuildMenu.Content;
+        int y = content.Y;
+        SelectionPanel.Shadowed(_spriteBatch, _font, _eventButtons.NameOf(e.Category), new Vector2(content.X + 4, y), 16, new Color(240, 225, 190));
+        y += 28;
+        foreach (string line in _font.Wrap(TextOf(e), content.Width - 8, 16))
+        {
+            SelectionPanel.Shadowed(_spriteBatch, _font, line, new Vector2(content.X + 4, y), 16, Color.White);
+            y += 20;
+        }
     }
 
     /// <summary>
@@ -1316,13 +1363,16 @@ public sealed class MapGame : Game
             return;
         var center = e.Building is { Exists: true } building ? ToWorld(building.Position) - new Vector2(0, 20)
             : e.Settler is { IsDead: false } settler ? SettlerRenderer.Anchor(settler, _terrain, alpha) - new Vector2(0, HitHeight)
-            : ToWorld(e.Position);
+            : e.Position is { } position ? ToWorld(position)
+            : (Vector2?)null;
+        if (center is not { } at)
+            return;
         float scale = 1 / _zoom;
         float distance = (44 + 10 * MathF.Sin((float)_now * 8)) * scale;
         foreach (float angle in new[] { -MathF.PI * 3 / 4, -MathF.PI / 4, MathF.PI / 4, MathF.PI * 3 / 4 })
         {
             var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-            var tip = center + direction * distance;
+            var tip = at + direction * distance;
             DrawArrow(tip, -direction, scale, Color.Black, 7);
             DrawArrow(tip, -direction, scale, new Color(255, 210, 40), 4);
         }
@@ -1808,6 +1858,8 @@ public sealed class MapGame : Game
         }
         else if (_tabs.Current == PanelTab.System)
             _systemMenu.Draw(_spriteBatch, _font, panelMouse);
+        else if (_tabs.Current == PanelTab.Event)
+            DrawEventPage();
         else if (_tabs.Current == PanelTab.Build)
             _buildMenu!.Draw(_spriteBatch, _pixel, _font, _placing ? _placeable[_placeIndex] : null, panelMouse, OwnBuildingCounts());
         else
