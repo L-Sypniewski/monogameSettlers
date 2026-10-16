@@ -95,6 +95,12 @@ public sealed record ProductionConfig
     /// <summary>Ore units a mine gets per amount step of a field (original maps: 0-15 per field).</summary>
     public int OrePerAmount { get; init; } = 1;
 
+    /// <summary>
+    /// Amount at which a field counts as full for a mine's chance (<see cref="Production.MineChance"/>):
+    /// ore left around the mine against this amount on every field there. 0: every run hits while ore is left.
+    /// </summary>
+    public int FullOreAmount { get; init; }
+
     /// <summary>Fish a fisher gets per amount step of a water field.</summary>
     public int FishPerAmount { get; init; } = 1;
 
@@ -272,6 +278,7 @@ public sealed record ProductionConfig
             Crops = crops,
             StonesPerCut = root.GetProperty("stones").GetProperty("stonesPerCut").GetInt32(),
             OrePerAmount = resources.GetProperty("orePerAmount").GetInt32(),
+            FullOreAmount = resources.TryGetProperty("fullAmount", out var fullAmount) ? fullAmount.GetInt32() : 0,
             FishPerAmount = resources.GetProperty("fishPerAmount").GetInt32(),
             RegenerateTicks = Ticks(resources, "regenerateSeconds"),
             Geologists = root.TryGetProperty("geologists", out var geologists)

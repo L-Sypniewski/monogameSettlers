@@ -16,7 +16,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         var map = new GameMap(70);
         map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 2);
         map.SetResource(new GridPoint(29, 31), ResourceType.IronOre, 5); // wrong kind for a coal mine
-        var world = new World(map, TestConfig.NoTools with { OrePerAmount = 2 });
+        var world = new World(map, TestConfig.NoTools with { OrePerAmount = 2, FullOreAmount = 0 });
         TestMaps.Mountain(world.Map!, new GridPoint(30, 30));
         var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
         var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50))!;
@@ -44,7 +44,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
     {
         var map = new GameMap(70);
         map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 2);
-        var world = new World(map, TestConfig.NoTools with { OrePerAmount = 2 });
+        var world = new World(map, TestConfig.NoTools with { OrePerAmount = 2, FullOreAmount = 0 });
         TestMaps.Mountain(world.Map!, new GridPoint(30, 30));
         var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
         Assert.True(mine.Piles.Any(p => p.Material == Material.Fish), "the Roman coal mine takes fish");
@@ -59,11 +59,54 @@ public class FoodAndMiningTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_mines_chance_is_the_ore_left_against_full_fields_and_every_find_lowers_it()
+    {
+        var map = new GameMap(70);
+        var center = new GridPoint(30, 30);
+        var area = PathFinder.Circle(center, 3).ToList();
+        // Half the fields full of coal, one with iron ore (a miss for a coal mine), the rest empty.
+        foreach (var p in area.Take(area.Count / 2))
+            map.SetResource(p, ResourceType.Coal, 8);
+        map.SetResource(area[^1], ResourceType.IronOre, 8);
+        var world = new World(map, TestConfig.NoTools with { OrePerAmount = 4, FullOreAmount = 8 });
+        TestMaps.Mountain(world.Map!, center);
+        var mine = world.PlaceBuilding(Romans["coalmine"], 0, center)!;
+        var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50))!;
+        int full = area.Count * 8 * 4;
+        Assert.Equal((double)(area.Count / 2) * 8 * 4 / full, world.Production.MineChance(mine)!.Value, 6);
+
+        world.AddLooseGoods(new GridPoint(10, 50), Material.Bread, 8);
+        Spawn(world, Profession.Carrier, 4, new GridPoint(20, 20));
+        Run(world, 30_000, stopWhen: () => world.Production.OreMined >= 10 && world.Production.MineMisses >= 5);
+
+        var production = world.Production;
+        output.WriteLine($"hits {production.OreMined}, misses {production.MineMisses}");
+        Assert.True(production.MineMisses >= 5, "about half the runs find nothing");
+        Assert.Equal((double)((area.Count / 2) * 8 * 4 - production.OreMined) / full, production.MineChance(mine)!.Value, 6);
+        // Misses eat too: one bread lasts eight runs, hit or miss.
+        int runs = production.OreMined + production.MineMisses;
+        Assert.True(Total(world, Material.Bread) <= 8 - runs / 8, $"bread {Total(world, Material.Bread)} after {runs} runs");
+    }
+
+    [Fact]
+    public void A_mine_without_its_resource_has_no_chance_and_counts_as_exhausted()
+    {
+        var map = new GameMap(70);
+        map.SetResource(new GridPoint(31, 29), ResourceType.IronOre, 8);
+        var world = new World(map, TestConfig.NoTools with { FullOreAmount = 8 });
+        TestMaps.Mountain(world.Map!, new GridPoint(30, 30));
+        var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
+
+        Assert.Equal(0, world.Production.MineChance(mine));
+        Assert.Null(world.Production.MineChance(world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50))!));
+    }
+
+    [Fact]
     public void Depleted_ground_regenerates_when_configured()
     {
         var map = new GameMap(70);
         map.SetResource(new GridPoint(31, 29), ResourceType.Coal, 1);
-        var config = TestConfig.NoTools with { OrePerAmount = 2, RegenerateTicks = 300 };
+        var config = TestConfig.NoTools with { OrePerAmount = 2, RegenerateTicks = 300, FullOreAmount = 0 };
         var world = new World(map, config);
         TestMaps.Mountain(world.Map!, new GridPoint(30, 30));
         var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;

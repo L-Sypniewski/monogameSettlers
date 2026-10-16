@@ -115,8 +115,8 @@ public sealed class GameEvents(World world, EventConfig config)
             return "noStaff";
         if (production.FindsNothing(building))
             return "noResources";
-        if (production.MineRuns(building) >= Production.HitRateRuns && config.Events.TryGetValue("mineExhausted", out var mine)
-            && production.MineHitRate(building) <= mine.MaxHitRate)
+        if (production.MineChance(building) is { } chance && config.Events.TryGetValue("mineExhausted", out var mine)
+            && chance * 100 <= mine.MaxChance)
             return "mineExhausted";
         return null;
     }

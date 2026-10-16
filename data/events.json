@@ -54,11 +54,11 @@
       "enabled": true
     },
     "mineExhausted": {
-      "_comment": "A mine brought ore in at most maxHitRate percent of its last 10 runs.",
+      "_comment": "A mine's chance per run to find ore is maxChance percent or less.",
       "category": "resources",
       "cooldownSeconds": 60,
       "afterSeconds": 0,
-      "maxHitRate": 5,
+      "maxChance": 5,
       "text": "{building} ist erschöpft.",
       "enabled": true
     },

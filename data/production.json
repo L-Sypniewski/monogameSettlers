@@ -115,8 +115,9 @@
     "trailFadeSeconds": 300
   },
   "resources": {
-    "_comment": "Mountains and waters: a field of the original maps holds an amount of 0-15 (mostly 8). orePerAmount/fishPerAmount = units per amount step, so a mine's stock scales with it. regenerateSeconds: a depleted field regains one step this often (0 = never).",
+    "_comment": "Mountains and waters: a field of the original maps holds an amount of 0-15 (mostly 8). orePerAmount/fishPerAmount = units per amount step, so a mine's stock scales with it. regenerateSeconds: a depleted field regains one step this often (0 = never). fullAmount: a mine's chance per run is the ore left within its radius against fullAmount on every field there (empty fields and other resources are misses; a miss costs the run and its food), so every find lowers it; 0 = every run hits while ore is left.",
     "orePerAmount": 4,
+    "fullAmount": 8,
     "fishPerAmount": 2,
     "regenerateSeconds": 0
   },

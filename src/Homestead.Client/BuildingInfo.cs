@@ -210,11 +210,11 @@ public sealed partial class BuildingInfo
         y += 4;
         bool own = building.Player == ownPlayer;
         var state = StateOf(world, building);
-        int? hitRate = world.Production.MineHitRate(building);
+        double? chance = world.Production.MineChance(building);
         var goods = own && !OffersStorehouse(building) ? Goods(world, building) : [];
         // The image gives way when the panel is full (cut off at the top).
         int limit = own ? BlockTop(world, building) : Bottom;
-        int text = 15 + font.Wrap(state, Inner).Count() * 17 + (hitRate is null ? 0 : 21);
+        int text = 15 + font.Wrap(state, Inner).Count() * 17 + (chance is null ? 0 : 21);
         // When it gets tight the goods go first, then the image shrinks.
         if (goods.Count > 0 && limit - y - 8 - text - 4 - (24 + 32) < GoodImageHeight)
             goods = [];
@@ -242,10 +242,11 @@ public sealed partial class BuildingInfo
             Write(batch, font, line, new Vector2(Left, y), Text);
             y += 17;
         }
-        if (hitRate is { } rate)
+        if (chance is { } c)
         {
             y += 4;
-            Write(batch, font, $"Trefferquote: {rate} %", new Vector2(Left, y), Text);
+            int percent = (int)Math.Round(c * 100);
+            Write(batch, font, percent == 0 && c > 0 ? "Erfolgschance: unter 1 %" : $"Erfolgschance: {percent} %", new Vector2(Left, y), Text);
             y += 17;
         }
 

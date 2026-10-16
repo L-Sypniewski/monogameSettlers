@@ -76,6 +76,9 @@ public sealed partial class Production
     public int TreesPlanted { get; private set; }
     public int TreesGrown { get; private set; }
     public int OreMined { get; private set; }
+
+    /// <summary>Mining runs that found nothing (see <see cref="MineChance"/>).</summary>
+    public int MineMisses { get; private set; }
     public int FishCaught { get; private set; }
     public int WaterDrawn { get; private set; }
     public int FieldsSown { get; private set; }
@@ -130,20 +133,23 @@ public sealed partial class Production
         };
     }
 
-    /// <summary>Mining runs a mine's hit rate looks back on.</summary>
-    public const int HitRateRuns = 10;
+    /// <summary>
+    /// Chance of the mine's next run to bring ore, 0-1 (null: not a mine): the ore left in the ground
+    /// around it against the ore of full fields there (<see cref="ProductionConfig.FullOreAmount"/>
+    /// per field; empty fields and other resources count as misses), so every find lowers it.
+    /// </summary>
+    public double? MineChance(Building building) =>
+        _config.Mines.TryGetValue(building.Definition.Name, out var mine) ? Chance(mine, building.Position) : null;
 
-    /// <summary>Share of the mine's last <see cref="HitRateRuns"/> runs that brought ore, in percent (null: not a mine or no run yet).</summary>
-    public int? MineHitRate(Building building) =>
-        _workplaces.GetValueOrDefault(building.Id) is { Mine: not null, RecentRuns.Count: > 0 } w
-            ? (int)Math.Round(100.0 * w.RecentRuns.Count(hit => hit) / w.RecentRuns.Count)
-            : null;
-
-    private static void RecordRun(Workplace w, bool hit)
+    private double Chance(MineRecipe mine, GridPoint center)
     {
-        w.RecentRuns.Enqueue(hit);
-        while (w.RecentRuns.Count > HitRateRuns)
-            w.RecentRuns.Dequeue();
+        int left = OreLeft(mine, center);
+        if (left <= 0)
+            return 0;
+        if (_config.FullOreAmount <= 0)
+            return 1;
+        int full = Area(center, mine.Radius).Count() * _config.FullOreAmount * _config.OrePerAmount;
+        return Math.Min(1.0, (double)left / full);
     }
 
     /// <summary>Whether the production building waits for a worker nobody brings yet.</summary>
@@ -157,20 +163,18 @@ public sealed partial class Production
     /// <summary>Whether a gatherer found nothing to work on in its range on its last look (no tree, stone, fish, river, …).</summary>
     public bool FindsNothing(Building building) => _workplaces.GetValueOrDefault(building.Id)?.FindsNothing == true;
 
-    /// <summary>Mining runs the mine's <see cref="MineHitRate"/> looks back on (up to <see cref="HitRateRuns"/>).</summary>
-    public int MineRuns(Building building) => _workplaces.GetValueOrDefault(building.Id) is { Mine: not null } w ? w.RecentRuns.Count : 0;
-
     /// <summary>A mine that found nothing left to dig on its last try.</summary>
     public bool IsExhausted(Building building) => _workplaces.GetValueOrDefault(building.Id)?.Exhausted == true;
 
     /// <summary>Ore a mine can still get from the ground around it (null for other buildings).</summary>
-    public int? OreLeft(Building building)
+    public int? OreLeft(Building building) =>
+        _config.Mines.TryGetValue(building.Definition.Name, out var mine) ? OreLeft(mine, building.Position) : null;
+
+    private int OreLeft(MineRecipe mine, GridPoint center)
     {
-        if (!_config.Mines.TryGetValue(building.Definition.Name, out var mine))
-            return null;
         var map = _world.Map!;
         int left = 0;
-        foreach (var p in Area(building.Position, mine.Radius))
+        foreach (var p in Area(center, mine.Radius))
         {
             int amount = map.ResourceAmount(p, mine.Resource);
             if (amount > 0)
@@ -445,16 +449,21 @@ public sealed partial class Production
                     if (FindOre(w) is not { } field)
                     {
                         Report("mine ran out while digging");
-                        RecordRun(w, hit: false);
                         w.Exhausted = true;
                         Rest(w, ExhaustedRetryTicks);
                         break;
                     }
+                    w.FoodRuns--;
+                    if (_random.NextDouble() >= Chance(w.Mine, w.Building.Position))
+                    {
+                        // A miss: the run and its food are spent, he stays inside and tries again.
+                        MineMisses++;
+                        Rest(w, 1);
+                        break;
+                    }
                     if (UsesUp(1, _config.Depletion.Mountain))
                         TakeResource(field, _config.OrePerAmount);
-                    RecordRun(w, hit: true);
                     OreMined++;
-                    w.FoodRuns--;
                 }
                 else if (w.Smith is not null)
                 {
@@ -655,8 +664,6 @@ public sealed partial class Production
             w.Exhausted = FindOre(w) is null;
             if (w.Exhausted)
             {
-                // Each try on an exhausted mine counts as a miss.
-                RecordRun(w, hit: false);
                 w.Waiting = "mine is exhausted";
                 w.TicksLeft = ExhaustedRetryTicks;
                 return;
@@ -1208,9 +1215,6 @@ public sealed partial class Production
 
         /// <summary>A gatherer whose last look found nothing to work on.</summary>
         public bool FindsNothing { get; set; }
-
-        /// <summary>Mine: outcome of the last runs (true: ore), oldest first.</summary>
-        public Queue<bool> RecentRuns { get; } = new();
 
         /// <summary>Smith: what the current cycle makes.</summary>
         public Material? Product { get; set; }
