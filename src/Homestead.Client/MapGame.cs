@@ -340,6 +340,7 @@ public sealed class MapGame : Game
         _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf);
         _transportMenu?.Dispose();
         _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid);
+        _buildingInfo.StorehouseGoods = _goodsGrid;
         if (_captureGood is { } chosenGood)
             _transportMenu.Choose(chosenGood);
         if (_captureGood is { } good)
@@ -832,6 +833,11 @@ public sealed class MapGame : Game
                 _world.SetPaused(_selectedBuilding!, !_selectedBuilding!.IsPaused);
                 _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)} {(_selectedBuilding.IsPaused ? "stopped" : "restarted")}";
             }
+            // A storehouse's goods: specialize it on one, or back to the general rule.
+            if (onMenu && _buildingInfo.StorehouseHover(panelCursor, _world, _selectedBuilding!, 0) is { } storeHover)
+                _message = storeHover;
+            if (onMenu && released && _buildingInfo.StorehouseClick(panelCursor, _world, _selectedBuilding!, 0) is { } stored)
+                _message = stored;
             // The info panel's tear-down button (asks first).
             if (onMenu && released && _buildingInfo.Click(panelCursor, SidePanel.ContentHeight, _selectedBuilding!, 0))
             {
@@ -2143,6 +2149,9 @@ public sealed class MapGame : Game
                 _selectedBuilding = _world.Buildings.FirstOrDefault(b => b.Definition.Name == (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") ?? "lumberjack"));
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB") is not null)
                     _selectedBuilding = null; // the tab's menu, not the building
+                // HOMESTEAD_CAPTURE_STORE=<good>: the focused storehouse takes only that good.
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_STORE") is { } storeOnly && _selectedBuilding is { } store)
+                    _world.Logistics.SetSpecialization(store, Homestead.Simulation.Economy.Materials.Parse(storeOnly.ToUpperInvariant()));
                 if (_captureManualRecruitment)
                 {
                     _world.Military.SetManualRecruitment(0, true);

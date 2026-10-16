@@ -27,6 +27,7 @@ public sealed partial class BuildingInfo
     private static readonly Color HoverColor = Color.White * 0.15f;
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Color Label = new(190, 165, 120);
+    private static readonly Color Selected = new(220, 30, 20);
 
     private readonly Dictionary<string, string> _names = new();
     private readonly List<(string Contains, string State)> _states = new();
@@ -58,11 +59,24 @@ public sealed partial class BuildingInfo
     /// <summary>Below this the goods are left out to give the image room.</summary>
     private const int GoodImageHeight = 64;
 
+    /// <summary>The goods of a storehouse's panel (set once the people is known).</summary>
+    public GoodsGrid? StorehouseGoods { get; set; }
+
+    private const int StorehouseRow = 31;
+
+    /// <summary>A finished own storehouse shows the goods to specialize it on.</summary>
+    private bool OffersStorehouse(Building building) =>
+        StorehouseGoods is not null && building.State == BuildingState.Finished && building.Piles.Any(p => p.Role == PileRole.Storage);
+
+    private int StorehouseTop => DemolishButton(0).Y - 6 - (StorehouseGoods!.Goods.Max(g => g.Row) + 1) * StorehouseRow;
+
     /// <summary>Where the buttons and rows at the bottom of an own building's panel begin.</summary>
     private int BlockTop(World world, Building building)
     {
         if (_confirming == building)
             return Bottom - 50 - 4;
+        if (OffersStorehouse(building))
+            return StorehouseTop - 4;
         if (OffersGarrison(building))
             return GarrisonRowRect(0, 0).Y - 16 - 4;
         return OffersPause(world, building) ? PauseButton(0).Y - 6 : DemolishButton(0).Y - 6;
@@ -197,7 +211,7 @@ public sealed partial class BuildingInfo
         bool own = building.Player == ownPlayer;
         var state = StateOf(world, building);
         int? hitRate = world.Production.MineHitRate(building);
-        var goods = own ? Goods(world, building) : [];
+        var goods = own && !OffersStorehouse(building) ? Goods(world, building) : [];
         // The image gives way when the panel is full (cut off at the top).
         int limit = own ? BlockTop(world, building) : Bottom;
         int text = 15 + font.Wrap(state, Inner).Count() * 17 + (hitRate is null ? 0 : 21);
@@ -217,6 +231,8 @@ public sealed partial class BuildingInfo
             Button(batch, pixel, font, PauseButton(height), building.IsPaused ? "Fortsetzen" : "Anhalten", cursor);
         if (OffersGarrison(building) && _confirming != building)
             DrawGarrison(batch, pixel, height, font, settlers, people, world, building, cursor);
+        if (OffersStorehouse(building) && _confirming != building)
+            DrawStorehouse(batch, pixel, world, building, cursor);
 
         // State.
         Write(batch, font, "Status", new Vector2(Left, y), Label, 12);
@@ -247,6 +263,59 @@ public sealed partial class BuildingInfo
             economy.DrawMaterialIcon(batch, goods[i].Material, new Rectangle(cell.X, cell.Y, 26, 28));
             Write(batch, font, goods[i].Text, new Vector2(cell.X + 29, cell.Y + 6), Text);
         }
+    }
+
+    /// <summary>
+    /// The storehouse's goods: without a specialization a dot on each from the player's rule (green: stored,
+    /// red: not), with one only that good framed red.
+    /// </summary>
+    private void DrawStorehouse(SpriteBatch batch, Texture2D pixel, World world, Building building, Vector2 cursor)
+    {
+        var grid = StorehouseGoods!;
+        int top = StorehouseTop;
+        grid.Draw(batch, top, StorehouseRow);
+        var only = world.Logistics.SpecializationOf(building);
+        foreach (var good in grid.Goods)
+        {
+            var rect = GoodsGrid.IconRect(good, top, StorehouseRow);
+            if (good.Material == only)
+            {
+                batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 2), Selected);
+                batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 2, rect.Width, 2), Selected);
+                batch.Draw(pixel, new Rectangle(rect.X, rect.Y, 2, rect.Height), Selected);
+                batch.Draw(pixel, new Rectangle(rect.Right - 2, rect.Y, 2, rect.Height), Selected);
+            }
+            else if (rect.Contains(cursor))
+                batch.Draw(pixel, rect, Color.White * 0.15f);
+            if (only is null)
+                TransportMenu.Dot(batch, pixel, new Point(rect.X + 3, rect.Y - 3),
+                    world.Logistics.IsStored(building.Player, good.Material) ? TransportMenu.StoredDot : TransportMenu.NotStoredDot);
+        }
+    }
+
+    /// <summary>
+    /// A click on a storehouse's goods (panel space): specializes it on that good, or – on its own good –
+    /// gives it the general rule again. Returns a message, or null if it hit nothing.
+    /// </summary>
+    public string? StorehouseClick(Vector2 panel, World world, Building building, int ownPlayer)
+    {
+        if (building.Player != ownPlayer || !OffersStorehouse(building) || _confirming == building
+            || StorehouseGoods!.GoodAt(panel, StorehouseTop, StorehouseRow) is not { } good)
+            return null;
+        bool clear = world.Logistics.SpecializationOf(building) == good.Material;
+        world.Logistics.SetSpecialization(building, clear ? null : good.Material);
+        return clear ? "storehouse: the general rule again (Waren › Warentransport)" : $"storehouse: only {good.Name}";
+    }
+
+    /// <summary>What the storehouse's good under the point means (hover text), or null.</summary>
+    public string? StorehouseHover(Vector2 panel, World world, Building building, int ownPlayer)
+    {
+        if (building.Player != ownPlayer || !OffersStorehouse(building) || _confirming == building
+            || StorehouseGoods!.GoodAt(panel, StorehouseTop, StorehouseRow) is not { } good)
+            return null;
+        return world.Logistics.SpecializationOf(building) == good.Material
+            ? $"only {good.Name} here (click: the general rule again)"
+            : $"{good.Name}: click to take only this here";
     }
 
     /// <summary>The tear-down button at the bottom, or the question whether to go on.</summary>

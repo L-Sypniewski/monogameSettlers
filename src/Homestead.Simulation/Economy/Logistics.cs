@@ -160,6 +160,28 @@ public sealed class Logistics
             set.Remove(material);
     }
 
+    private readonly Dictionary<int, Material> _specializations = new();
+
+    /// <summary>
+    /// The one good a storehouse takes, if the player specialized it (the storehouse's panel); then the
+    /// general rule (<see cref="IsStored"/>) does not apply to it. Null: the general rule.
+    /// </summary>
+    public Material? SpecializationOf(Building storehouse) =>
+        _specializations.TryGetValue(storehouse.Id, out var material) ? material : null;
+
+    /// <summary>Specializes the storehouse on one good, or (null) gives it the general rule again.</summary>
+    public void SetSpecialization(Building storehouse, Material? material)
+    {
+        if (material is { } m)
+            _specializations[storehouse.Id] = m;
+        else
+            _specializations.Remove(storehouse.Id);
+    }
+
+    /// <summary>Whether carriers bring this good to that storehouse: its specialization, else the player's rule.</summary>
+    public bool StoresHere(Building storehouse, Material material) =>
+        SpecializationOf(storehouse) is { } only ? only == material : IsStored(storehouse.Player, material);
+
     /// <summary>The distribution target standing for all construction sites (Waren › Verteilung: „Baustelle“).</summary>
     public const string Construction = "construction";
 
@@ -217,7 +239,7 @@ public sealed class Logistics
     {
         if (request.Role != PileRole.Storage)
             return true;
-        if (!IsStored(request.Owner!.Player, material))
+        if (!StoresHere(request.Owner!, material))
             return false;
         // Storehouse to storehouse would only shuffle goods around.
         if (offer.Role == PileRole.Storage)

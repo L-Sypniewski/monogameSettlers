@@ -19,8 +19,8 @@ namespace Homestead.Client;
 public sealed class TransportMenu : IDisposable
 {
     private static readonly Color Selected = new(220, 30, 20);
-    private static readonly Color StoredDot = new(60, 210, 60);
-    private static readonly Color NotStoredDot = new(225, 45, 30);
+    internal static readonly Color StoredDot = new(60, 210, 60);
+    internal static readonly Color NotStoredDot = new(225, 45, 30);
     private const int Columns = 6;
     private const int ColumnStep = 31;
     private const int Stair = 4;
@@ -173,8 +173,8 @@ public sealed class TransportMenu : IDisposable
         return new Rectangle((int)MathF.Round(at.X), (int)MathF.Round(at.Y), GoodsGrid.IconSize, GoodsGrid.IconSize);
     }
 
-    /// <summary>A small round dot with a dark rim.</summary>
-    private static void Dot(SpriteBatch batch, Texture2D pixel, Point at, Color color)
+    /// <summary>A small round dot with a dark rim (also the storehouse's panel).</summary>
+    internal static void Dot(SpriteBatch batch, Texture2D pixel, Point at, Color color)
     {
         batch.Draw(pixel, new Rectangle(at.X + 1, at.Y, 5, 7), Color.Black * 0.7f);
         batch.Draw(pixel, new Rectangle(at.X, at.Y + 1, 7, 5), Color.Black * 0.7f);

@@ -312,6 +312,31 @@ public class LogisticsTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_specialized_storehouse_takes_only_its_good()
+    {
+        var world = new World(new GameMap(70), ProductionConfig.Load());
+        var planks = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(25, 30))!;
+        var general = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 30))!;
+        world.Logistics.SetSpecialization(planks, Material.Plank);
+        Assert.Equal(Material.Plank, world.Logistics.SpecializationOf(planks));
+        Assert.Null(world.Logistics.SpecializationOf(general));
+        world.AddLooseGoods(new GridPoint(36, 50), Material.Plank, 4); // not stored by the general rule
+        world.AddLooseGoods(new GridPoint(38, 50), Material.Sword, 3); // stored by the general rule
+        for (int i = 0; i < 4; i++)
+            world.Spawn(new GridPoint(35 + i, 55), Profession.Carrier);
+
+        Run(world, 5000);
+
+        Assert.Equal(4, planks.Piles.Where(p => p.Material == Material.Plank).Sum(p => p.Count));
+        Assert.DoesNotContain(planks.Piles, p => p.Material == Material.Sword);
+        Assert.Equal(3, general.Piles.Where(p => p.Material == Material.Sword).Sum(p => p.Count));
+        Assert.DoesNotContain(general.Piles, p => p.Material == Material.Plank);
+
+        world.Logistics.SetSpecialization(planks, null);
+        Assert.Null(world.Logistics.SpecializationOf(planks));
+    }
+
+    [Fact]
     public void Goods_move_in_the_transport_order_and_go_first()
     {
         var world = new World(new GameMap(60), ProductionConfig.Load());
