@@ -6,7 +6,7 @@
     {
       "id": "goods", "name": "Waren", "tab": [ 56, 65 ],
       "menus": [
-        { "id": "stock", "name": "Warenbestand", "tab": [ 260, 272 ] },
+        { "id": "stock", "name": "Lagerbestand", "tab": [ 260, 272 ] },
         { "id": "tools", "name": "Werkzeuge und Waffen", "tab": [ 263, 275 ] },
         { "id": "production", "name": "Produktion", "tab": [ 266, 278 ] },
         { "id": "distribution", "name": "Verteilung", "tab": [ 269, 281 ] }
@@ -39,8 +39,8 @@
     "find": [ 434, 437, 440 ],
     "convert": [ 221, 227 ]
   },
-  "_statisticsComment": "Siedler > Produktion: the goods below the chart, row by row, with their GUI icon ([file, index], the large size – from JSettlers' EMaterialType, MIT, whose base index is the small one; weapon: the people's own from soldiersMenu) and German name. Goods the people cannot make are dark.",
-  "statistics": {
+  "_goodsGridComment": "Siedler > Produktion, Waren > Lagerbestand: the goods, row by row, with their GUI icon ([file, index], the large size – from JSettlers' EMaterialType, MIT, whose base index is the small one; weapon: the people's own from soldiersMenu) and German name. Goods the people cannot make are dark.",
+  "goodsGrid": {
     "goods": [
       [ { "good": "PLANK", "icon": [ 3, 170 ], "name": "Bretter" }, { "good": "STONE", "icon": [ 3, 176 ], "name": "Steine" }, { "good": "TRUNK", "icon": [ 3, 173 ], "name": "Baumstämme" }, { "good": "COAL", "icon": [ 3, 146 ], "name": "Kohle" }, { "good": "IRONORE", "icon": [ 3, 149 ], "name": "Eisenerz" }, { "good": "GOLDORE", "icon": [ 3, 152 ], "name": "Golderz" } ],
       [ { "good": "IRON", "icon": [ 3, 134 ], "name": "Eisenbarren" }, { "good": "HAMMER", "icon": [ 3, 128 ], "name": "Hammer" }, { "good": "BLADE", "icon": [ 3, 140 ], "name": "Schaufel" }, { "good": "AXE", "icon": [ 3, 155 ], "name": "Axt" }, { "good": "SAW", "icon": [ 3, 179 ], "name": "Säge" }, { "good": "PICK", "icon": [ 3, 131 ], "name": "Spitzhacke" } ],

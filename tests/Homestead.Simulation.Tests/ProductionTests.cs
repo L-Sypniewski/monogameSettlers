@@ -59,6 +59,10 @@ public class ProductionTests(ITestOutputHelper output)
         Assert.Equal(5, Enumerable.Range(0, world.Statistics.CurrentPeriod + 1).Sum(p => world.Statistics.Produced(0, Material.Plank, p)));
         Assert.Equal(0, world.Statistics.Total(1, Material.Plank));
         Assert.Equal(0, world.Statistics.Total(0, Material.Trunk));
+        // In stock: the planks in the storehouse; the trunks are used up.
+        Assert.Equal(5, world.InStock(0, Material.Plank));
+        Assert.Equal(0, world.InStock(0, Material.Trunk));
+        Assert.Equal(0, world.InStock(1, Material.Plank));
     }
 
     [Fact]

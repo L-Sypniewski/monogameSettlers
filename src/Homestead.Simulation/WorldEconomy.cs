@@ -98,6 +98,15 @@ public sealed partial class World
     public bool BelongsTo(Pile pile, int player) =>
         pile.Owner is { } owner ? owner.Player == player : !TerritoryRules || RequireMap().OwnerAt(pile.Position) == player;
 
+    /// <summary>
+    /// Units of a good the player has in stock (Waren › Lagerbestand): in storehouses, at producers'
+    /// output piles and lying loose on its land – not in input piles or at construction sites, where
+    /// they are spoken for.
+    /// </summary>
+    public int InStock(int player, Material material) =>
+        Piles.Where(p => p.Material == material && p.Role is PileRole.Loose or PileRole.Offer or PileRole.Storage && BelongsTo(p, player))
+            .Sum(p => p.Count);
+
     public Pile? PileAt(GridPoint p) => _pilesByPoint.GetValueOrDefault(RequireMap().Index(p));
 
     internal bool HasPile(Pile pile) => _pilesByPoint.TryGetValue(RequireMap().Index(pile.Position), out var at) && at == pile;

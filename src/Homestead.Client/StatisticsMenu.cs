@@ -1,8 +1,5 @@
 using System.Globalization;
-using System.Text.Json;
-using Homestead.Assets.Gfx;
 using Homestead.Simulation;
-using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -13,89 +10,26 @@ namespace Homestead.Client;
 /// Siedler › Produktion in the blue panel, like the original's: a chart of how much of one good the player
 /// produced over the last hour (units per minute averaged over two minutes, one bar per period of
 /// <see cref="ProductionStatistics.PeriodTicks"/>, now at the right), and below it the goods to choose
-/// from – dark the ones the people cannot make. Goods, icons and names in <c>data/ui.json</c>
-/// (<c>statistics</c>). Panel space.
+/// from (<see cref="GoodsGrid"/>). Panel space.
 /// </summary>
-public sealed class StatisticsMenu : IDisposable
+public sealed class StatisticsMenu
 {
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Color Bar = new(230, 20, 10);
     private static readonly Color Selected = new(220, 30, 20);
     private const int Minutes = 60;
     private const int Smoothing = 2;
-    private const int Columns = 6;
-    private const int IconSize = 30;
-    private const int Cell = 31;
+    private const int RowHeight = 31;
 
     /// <summary>Scales of the chart (units per minute at the top line): the first that fits the highest bar.</summary>
     private static readonly double[] Scales = [1, 2, 3, 5, 10, 15, 20, 30, 50, 100, 200, 500, 1000];
 
-    private readonly List<Good> _goods = new();
-    private readonly HashSet<Material> _makeable;
+    private readonly GoodsGrid _grid;
     private Material _chosen = Material.Trunk;
 
-    public StatisticsMenu(GraphicsDevice device, GfxDirectory gfx, BuildingCatalog catalog, ProductionConfig production)
+    public StatisticsMenu(GoodsGrid grid)
     {
-        var files = new Dictionary<int, GfxFile>();
-        Texture2D Load(int file, int index)
-        {
-            if (!files.TryGetValue(file, out var opened))
-                files[file] = opened = gfx.Open(file);
-            var bitmap = opened.ReadGui(index);
-            var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
-            texture.SetData(bitmap.Pixels);
-            return texture;
-        }
-
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var root = document.RootElement;
-        var weapons = root.GetProperty("soldiersMenu").GetProperty("weapons").GetProperty(catalog.Civilization.ToString());
-        int row = 0;
-        foreach (var line in root.GetProperty("statistics").GetProperty("goods").EnumerateArray())
-        {
-            int column = 0;
-            foreach (var entry in line.EnumerateArray())
-            {
-                var material = Materials.Parse(entry.GetProperty("good").GetString()!)!.Value;
-                var icon = entry.GetProperty("icon");
-                var texture = icon.ValueKind == JsonValueKind.Array
-                    ? Load(icon[0].GetInt32(), icon[1].GetInt32())
-                    : Load(weapons.GetProperty("file").GetInt32(), weapons.GetProperty(WeaponKey(material)).GetInt32());
-                _goods.Add(new Good(material, entry.GetProperty("name").GetString()!, texture, row, column++));
-            }
-            row++;
-        }
-        _makeable = Makeable(catalog, production);
-    }
-
-    private static string WeaponKey(Material weapon) => weapon switch
-    {
-        Material.Sword => "SWORDSMAN",
-        Material.Bow => "BOWMAN",
-        _ => "PIKEMAN",
-    };
-
-    /// <summary>What the people's buildings make: workshop, mine and smith products, gathered goods (not the forester's trees).</summary>
-    private static HashSet<Material> Makeable(BuildingCatalog catalog, ProductionConfig production)
-    {
-        var made = new HashSet<Material>();
-        bool Has(string name) => catalog.Find(name) is not null;
-        foreach (var (name, recipe) in production.Workshops.Where(w => Has(w.Key)))
-            made.UnionWith(recipe.Outputs);
-        foreach (var (name, mine) in production.Mines.Where(m => Has(m.Key)))
-            made.Add(mine.Output);
-        foreach (var (name, smith) in production.Smiths.Where(s => Has(s.Key)))
-            made.UnionWith(smith.Products);
-        foreach (var (name, gatherer) in production.Gatherers.Where(g => Has(g.Key) && g.Value.Action != GatherAction.PlantTree))
-            made.Add(gatherer.Action switch
-            {
-                GatherAction.CutTree => Material.Trunk,
-                GatherAction.CutStone => Material.Stone,
-                GatherAction.Fish => Material.Fish,
-                GatherAction.DrawWater => Material.Water,
-                _ => gatherer.Output ?? Material.Crop,
-            });
-        return made;
+        _grid = grid;
     }
 
     // Layout (panel space), top down in the content area.
@@ -104,12 +38,6 @@ public sealed class StatisticsMenu : IDisposable
     private static int Top => BuildMenu.Content.Y + 24; // below the title
     private static Rectangle Chart => new(Left + 2, Top + 4, Width - 4, 106);
     private static int GridTop => Chart.Bottom + 22;
-
-    private static Rectangle IconRect(Good good)
-    {
-        int x = Left + (Width - Columns * Cell) / 2 + good.Column * Cell;
-        return new Rectangle(x, GridTop + good.Row * Cell, IconSize, IconSize);
-    }
 
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
     {
@@ -156,11 +84,10 @@ public sealed class StatisticsMenu : IDisposable
             Write(batch, font, label, new Vector2(Math.Max(Left, x - size.X / 2), chart.Bottom + 4), 13);
         }
 
-        foreach (var good in _goods)
+        _grid.Draw(batch, GridTop, RowHeight);
+        foreach (var good in _grid.Goods)
         {
-            var rect = IconRect(good);
-            bool makeable = _makeable.Contains(good.Material);
-            batch.Draw(good.Icon, rect, makeable ? Color.White : Color.White * 0.35f);
+            var rect = GoodsGrid.IconRect(good, GridTop, RowHeight);
             if (good.Material == _chosen)
                 Frame(batch, pixel, rect, Selected, 2);
             else if (rect.Contains(cursor))
@@ -171,26 +98,25 @@ public sealed class StatisticsMenu : IDisposable
     /// <summary>A click on a good shows its chart; returns a message, or null if it hit nothing.</summary>
     public string? Click(Vector2 panel, World world, int player)
     {
-        if (GoodAt(panel) is not { } good)
+        if (_grid.GoodAt(panel, GridTop, RowHeight) is not { } good)
             return null;
         _chosen = good.Material;
         return Describe(good, world, player);
     }
 
     /// <summary>The good under the point and how much of it was made (hover text), or null.</summary>
-    public string? Hover(Vector2 panel, World world, int player) => GoodAt(panel) is { } good ? Describe(good, world, player) : null;
+    public string? Hover(Vector2 panel, World world, int player) =>
+        _grid.GoodAt(panel, GridTop, RowHeight) is { } good ? Describe(good, world, player) : null;
 
-    private string Describe(Good good, World world, int player)
+    private string Describe(GoodsGrid.Good good, World world, int player)
     {
-        if (!_makeable.Contains(good.Material))
+        if (!_grid.IsMakeable(good.Material))
             return $"{good.Name}: not made by this people";
         int periodsPerHour = Minutes * 60 * World.TicksPerSecond / ProductionStatistics.PeriodTicks;
         int now = world.Statistics.CurrentPeriod;
         int lastHour = Enumerable.Range(now - periodsPerHour + 1, periodsPerHour).Sum(p => world.Statistics.Produced(player, good.Material, p));
         return $"{good.Name}: {lastHour} in the last hour, {world.Statistics.Total(player, good.Material)} in all";
     }
-
-    private Good? GoodAt(Vector2 panel) => _goods.FirstOrDefault(g => IconRect(g).Contains(panel));
 
     private static void Frame(SpriteBatch batch, Texture2D pixel, Rectangle rect, Color color, int width)
     {
@@ -202,12 +128,4 @@ public sealed class StatisticsMenu : IDisposable
 
     private static void Write(SpriteBatch batch, UiFont font, string text, Vector2 position, int size) =>
         SelectionPanel.Shadowed(batch, font, text, position, size, Text);
-
-    public void Dispose()
-    {
-        foreach (var good in _goods)
-            good.Icon.Dispose();
-    }
-
-    private sealed record Good(Material Material, string Name, Texture2D Icon, int Row, int Column);
 }
