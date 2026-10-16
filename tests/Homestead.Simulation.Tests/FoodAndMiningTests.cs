@@ -49,6 +49,7 @@ public class FoodAndMiningTests(ITestOutputHelper output)
         var mine = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(30, 30))!;
         Assert.True(mine.Piles.Any(p => p.Material == Material.Fish), "the Roman coal mine takes fish");
         world.PlaceBuilding(Romans["stock"], 0, new GridPoint(50, 50));
+        world.Logistics.SetShare(0, Material.Fish, "coalmine", 1);
         world.AddLooseGoods(new GridPoint(10, 50), Material.Fish, 8);
         Spawn(world, Profession.Carrier, 4, new GridPoint(20, 20));
 

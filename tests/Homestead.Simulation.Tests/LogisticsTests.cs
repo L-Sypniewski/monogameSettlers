@@ -370,6 +370,7 @@ public class LogisticsTests(ITestOutputHelper output)
         var coal = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(25, 30))!;
         TestMaps.Mountain(world.Map!, new GridPoint(55, 30));
         var iron = world.PlaceBuilding(Romans["ironmine"], 0, new GridPoint(55, 30))!;
+        world.Logistics.SetShare(0, Material.Bread, "ironmine", 0.1);
         world.AddLooseGoods(new GridPoint(40, 50), Material.Bread, 8);
         for (int i = 0; i < 8; i++)
             world.Spawn(new GridPoint(36 + i, 55), Profession.Carrier);
@@ -391,9 +392,10 @@ public class LogisticsTests(ITestOutputHelper output)
         TestMaps.Mountain(world.Map!, new GridPoint(55, 30));
         var iron = world.PlaceBuilding(Romans["ironmine"], 0, new GridPoint(55, 30))!;
         Assert.Equal(1, world.Logistics.ShareOf(0, Material.Bread, "coalmine")); // defaults from production.json
-        Assert.Equal(0.1, world.Logistics.ShareOf(0, Material.Bread, "ironmine"));
+        Assert.Equal(world.Production.Config.Distribution[Material.Bread]["ironmine"], world.Logistics.ShareOf(0, Material.Bread, "ironmine"));
         Assert.Equal(1, world.Logistics.ShareOf(0, Material.Coal, "ironmelt")); // not listed: 1 for every user
         world.Logistics.SetShare(0, Material.Bread, "coalmine", 0);
+        world.Logistics.SetShare(0, Material.Bread, "ironmine", 0.1);
         world.Logistics.SetShare(1, Material.Bread, "ironmine", 0); // another player's setting changes nothing here
         world.AddLooseGoods(new GridPoint(40, 50), Material.Bread, 8);
         for (int i = 0; i < 8; i++)
@@ -403,6 +405,28 @@ public class LogisticsTests(ITestOutputHelper output)
 
         Assert.Equal(8, iron.Piles.Where(p => p.Material == Material.Bread).Sum(p => p.Count));
         Assert.DoesNotContain(coal.Piles, p => p.Material == Material.Bread && p.Count > 0);
+    }
+
+    [Fact]
+    public void A_target_with_share_0_gets_nothing_even_when_no_one_else_wants_it()
+    {
+        var world = new World(new GameMap(80), ProductionConfig.Load() with { MineFoodPileCapacity = 8 });
+        TestMaps.Mountain(world.Map!, new GridPoint(25, 30));
+        var coal = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(25, 30))!;
+        Assert.Contains(coal.Piles, p => p.Material == Material.Fish); // the Roman coal mine takes fish
+        world.Logistics.SetShare(0, Material.Fish, "coalmine", 0); // the gold mine keeps its share, but there is none
+        world.AddLooseGoods(new GridPoint(40, 50), Material.Fish, 4);
+        for (int i = 0; i < 4; i++)
+            world.Spawn(new GridPoint(36 + i, 55), Profession.Carrier);
+
+        Run(world, 2000);
+        Assert.DoesNotContain(coal.Piles, p => p.Material == Material.Fish && p.Count > 0);
+
+        // Every target of fish at 0: then they all get it alike again.
+        foreach (string target in world.Production.Config.Distribution[Material.Fish].Keys)
+            world.Logistics.SetShare(0, Material.Fish, target, 0);
+        Run(world, 2000);
+        Assert.Equal(4, coal.Piles.Where(p => p.Material == Material.Fish).Sum(p => p.Count));
     }
 
     [Fact]

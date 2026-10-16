@@ -203,8 +203,9 @@ public sealed class Logistics
     /// <summary>
     /// Where a unit of the offer goes. Among the targets that want it now – construction sites (as one,
     /// <see cref="Construction"/>) and each type of building using it – one is drawn by the player's
-    /// shares (<see cref="ShareOf"/>; those with share 0 only if all have 0), then the nearest target of
-    /// that kind with room; the storehouse only when no one else wants it.
+    /// shares (<see cref="ShareOf"/>; share 0 gets nothing, unless the player set every target of the
+    /// material to 0), then the nearest target of that kind with room; the storehouse only when no one
+    /// else wants it.
     /// </summary>
     private Pile? ChooseTarget(Pile offer, List<Pile> requests, HashSet<int> players)
     {
@@ -216,6 +217,8 @@ public sealed class Logistics
             return null;
 
         var users = candidates.Where(c => c.Role != PileRole.Storage).ToList();
+        if (users.Count > 0 && !AllZero(users[0].Owner!.Player, material))
+            users = users.Where(u => ShareOf(u.Owner!.Player, material, TargetOf(u)) > 0).ToList();
         if (users.Count > 0)
         {
             int player = users[0].Owner!.Player;
@@ -249,6 +252,12 @@ public sealed class Logistics
         return !(request.Material is null && request.Owner!.Piles.Any(o =>
             o != request && o.Role == PileRole.Storage && o.Material == material && o.Space > 0));
     }
+
+    /// <summary>Whether the player gave every target of the material share 0 (then they all get it alike).</summary>
+    private bool AllZero(int player, Material material) =>
+        _world.Production.Config.Distribution.TryGetValue(material, out var defaults)
+        && defaults.Keys.Concat(_shares.Keys.Where(k => k.Player == player && k.Material == material).Select(k => k.Target))
+            .All(target => ShareOf(player, material, target) <= 0);
 
     /// <summary>A target type drawn by share; types with share 0 only when all have 0.</summary>
     private string DrawType(List<string> types, Func<string, double> share)
