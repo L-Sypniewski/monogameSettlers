@@ -54,6 +54,32 @@ public class AiTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void The_ai_moves_the_work_area_of_an_idle_stonecutter_to_stone_nearby_instead_of_tearing_it_down()
+    {
+        var map = new GameMap(120);
+        var world = new World(map, TestConfig.NoTools);
+        var stonecutter = world.PlaceBuilding(Romans["stonecutter"], 0, new GridPoint(40, 60))!;
+        world.PlaceBuilding(Romans["stock"], 0, new GridPoint(30, 40));
+        for (int i = 0; i < 4; i++)
+            world.Spawn(new GridPoint(36, 66), Profession.Carrier);
+        // Out of the work area's reach, but within reach of a moved work area.
+        var rock = new GridPoint(stonecutter.WorkCenter.X + 30, stonecutter.WorkCenter.Y);
+        map.SetObjectCode(rock, MapObjectCodes.FullStone);
+        var ai = new AiPlayer(world, Romans, 0);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 6 * 60 * World.TicksPerSecond && world.Production.StonesCut == 0; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(ai.Log, l => l.Contains("moves the work area of stonecutter"));
+        Assert.DoesNotContain(ai.Log, l => l.Contains("tears down stonecutter"));
+        Assert.True(stonecutter.Exists);
+        Assert.True(world.Production.StonesCut > 0);
+    }
+
+    [Fact]
     public void The_ai_stops_a_forester_with_enough_trees_and_restarts_it_once_they_are_gone()
     {
         var map = new GameMap(80);
@@ -356,6 +382,51 @@ public class AiTests(ITestOutputHelper output)
             // Nothing stuck: every construction site of the start phase got finished.
             Assert.True(world.Buildings.Count(b => b.Exists && b.Player == ai.Player && b.State != BuildingState.Finished) <= 4);
         }
+    }
+
+    [Fact]
+    public void Retreating_soldiers_take_up_a_strike_on_the_way()
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman); // the garrison
+        world.Step();
+        var retreating = Enumerable.Range(0, 3).Select(i => world.SpawnSoldier(new GridPoint(44 + i, 84), SoldierType.Swordsman)!).ToList();
+        world.Military.Move(retreating, new GridPoint(40, 20), forced: true);
+        for (int i = 0; i < 2; i++)
+            world.SpawnSoldier(new GridPoint(40 + i, 125), SoldierType.Swordsman, player: 1);
+        var ai = new AiPlayer(world, Romans, 0);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 3 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("strikes")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(ai.Log, l => l.Contains("strikes 2 enemies"));
+    }
+
+    [Fact]
+    public void Retreating_soldiers_walk_on_without_a_new_action()
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 30), force: true);
+        world.Step();
+        var retreating = Enumerable.Range(0, 3).Select(i => world.SpawnSoldier(new GridPoint(44 + i, 84), SoldierType.Swordsman)!).ToList();
+        var to = new GridPoint(70, 80);
+        world.Military.Move(retreating, to, forced: true);
+        var ai = new AiPlayer(world, Romans, 0);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 3 * World.TicksPerSecond; t++)
+            world.Step();
+
+        // Nobody to fight: guarding does not send them elsewhere, they still retreat where they were sent.
+        Assert.All(retreating, s => Assert.True(world.Military.ForcedMoveTarget(s) is { } target && PathFinder.Distance(target, to) <= 3));
     }
 
     [Fact]

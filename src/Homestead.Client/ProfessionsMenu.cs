@@ -48,7 +48,7 @@ public sealed class ProfessionsMenu : IDisposable
         new("GEOLOGIST", Profession.Geologist, "geologists", Available: true),
         new("PIONEER", Profession.Pioneer, "pioneers", Available: true),
         new("THIEF", Profession.Scout, "scouts", Available: true),
-        new("PIONEER", Profession.Pioneer, "pioneers", Available: true, ToCarriers: true),
+        new("BEARER", Profession.Pioneer, "pioneers", Available: true, ToCarriers: true),
     ];
 
     private readonly Texture2D _spinner;

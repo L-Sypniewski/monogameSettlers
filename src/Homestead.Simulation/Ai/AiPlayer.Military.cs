@@ -11,6 +11,8 @@ namespace Homestead.Simulation.Ai;
 /// and campaigns are re-checked every think (follow, reinforce, retreat); afterwards the soldiers go
 /// home. The rest are placed by the character's traits (decision point "guarding"). Soldiers walking on a
 /// plain move order of the AI (to a post, home) count as idle: their order is weighed again every think.
+/// Retreating ones (forced move order) are free for defence, strikes and campaigns too, but guarding leaves
+/// them walking on until they are there.
 /// </summary>
 public sealed partial class AiPlayer
 {
@@ -84,7 +86,8 @@ public sealed partial class AiPlayer
             StartCampaign(military, spare);
 
         // Decision point "guarding": the first trait that takes it places the idle soldiers; without one they stay where they are.
-        var rest = guards.Concat(spare).ToList();
+        // Retreating soldiers walk on: only a new action stops their retreat.
+        var rest = guards.Concat(spare).Where(s => _world.Military.ForcedMoveTarget(s) is null).ToList();
         foreach (var trait in Character.Traits)
             if (trait.Guard(this, military, rest))
                 break;
@@ -293,12 +296,12 @@ public sealed partial class AiPlayer
         new((int)soldiers.Average(s => s.Position.X), (int)soldiers.Average(s => s.Position.Y));
 
     /// <summary>
-    /// Own soldiers free for orders: outside, idle or walking on a plain move order (to a post, home), not part
-    /// of a running strike or campaign.
+    /// Own soldiers free for orders: outside, idle or walking on a move order (to a post, home, also retreating
+    /// after a strike or campaign), not part of a running strike or campaign.
     /// </summary>
     private List<Settler> IdleSoldiers() => _world.Settlers
         .Where(s => s.Player == Player && s.Profession == Profession.Soldier && !s.IsInside && !s.IsDead
-                    && (!s.HasTask || _world.Military.MoveTarget(s) is not null)
+                    && (!s.HasTask || _world.Military.MoveTarget(s) is not null || _world.Military.ForcedMoveTarget(s) is not null)
                     && !_strikes.Any(k => k.Soldiers.Contains(s)) && _campaign?.Soldiers.Contains(s) != true)
         .ToList();
 

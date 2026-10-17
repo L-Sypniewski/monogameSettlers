@@ -615,7 +615,8 @@ public sealed partial class AiPlayer
     /// <summary>
     /// Buildings that have run out of work for good (quarry stones cut, fish caught, mine exhausted) go
     /// after a while: the worker keeps its trade and takes the job at the new building that goes where
-    /// there is some left.
+    /// there is some left. A stonecutter or fisher first gets its work area moved (at most
+    /// <see cref="World.MaxWorkCenterDistance"/> fields) to where more is in range than now, if there is such a place.
     /// </summary>
     private void TearDownUseless(List<Building> mine)
     {
@@ -632,10 +633,41 @@ public sealed partial class AiPlayer
             if (_world.Tick - since < UselessTicks)
                 continue;
             _uselessSince.Remove(building.Id);
+            if (BetterWorkCenter(building) is { } better && _world.SetWorkCenter(building, better) is { } moved)
+            {
+                Note($"moves the work area of {building.Definition.Name} at {building.Position.X},{building.Position.Y} to {moved.X},{moved.Y}");
+                continue;
+            }
             string why = _world.Production.MineChance(building) is { } chance ? $"chance {chance:P0}" : _world.StatusOf(building);
             Note($"tears down {building.Definition.Name} at {building.Position.X},{building.Position.Y}: {why}");
             _world.RemoveBuilding(building);
         }
+    }
+
+    /// <summary>
+    /// For a stonecutter or fisher: the work center within <see cref="World.MaxWorkCenterDistance"/> of the
+    /// building that has the most stone (fish) on own land in range – nearest the building among equals –
+    /// if that is more than the current one has; null otherwise.
+    /// </summary>
+    private GridPoint? BetterWorkCenter(Building building)
+    {
+        var map = _world.Map!;
+        Func<GridPoint, int>? amount = building.Definition.Name switch
+        {
+            "stonecutter" => q => MapObjectCodes.StoneLeft(map.ObjectCodeAt(q)),
+            "fisher" => q => map.TerrainAt(q) is TerrainType.Water or TerrainType.River ? map.ResourceAmount(q, ResourceType.Fish) : 0,
+            _ => null,
+        };
+        if (amount is null || !building.HasWorkArea)
+            return null;
+        int radius = building.Definition.WorkRadius ?? Production.DefaultRadius;
+        int InRange(GridPoint center) => Around(center, radius, q => !_world.TerritoryRules || map.OwnerAt(q) == Player ? amount(q) : 0);
+        int now = InRange(building.WorkCenter);
+        var best = PathFinder.Circle(building.Position, World.MaxWorkCenterDistance).Where(map.Contains)
+            .Select(c => (Center: c, Amount: InRange(c)))
+            .OrderByDescending(c => c.Amount).ThenBy(c => PathFinder.Distance(c.Center, building.Position))
+            .FirstOrDefault();
+        return best.Amount > now ? best.Center : null;
     }
 
     // ---- expansion ----

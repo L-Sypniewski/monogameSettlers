@@ -122,6 +122,10 @@ public sealed partial class Military
     public GridPoint? MoveTarget(Settler soldier) =>
         _fighters.TryGetValue(soldier.Id, out var f) && f is { MoveTo: { } to, Forced: false, Target: null, Enemy: null } ? to : null;
 
+    /// <summary>Where the soldier walks on a forced move order (escape, retreat); null otherwise.</summary>
+    public GridPoint? ForcedMoveTarget(Settler soldier) =>
+        _fighters.TryGetValue(soldier.Id, out var f) && f is { MoveTo: { } to, Forced: true, Target: null, Enemy: null } ? to : null;
+
     /// <summary>Orders the given soldiers to attack an enemy military building (enemies on the way first).</summary>
     public int Attack(IEnumerable<Settler> soldiers, Building target)
     {

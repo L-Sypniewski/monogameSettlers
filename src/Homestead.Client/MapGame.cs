@@ -185,6 +185,9 @@ public sealed class MapGame : Game
     /// <summary>The left button went down on the minimap and is still held: moving the mouse drags the view frame.</summary>
     private bool _minimapDrag;
     private Vector2 _minimapPress;
+
+    /// <summary>Where the right button went down on the minimap (a click there sends the selection).</summary>
+    private Vector2? _minimapRightPress;
     private float _zoom = 1.25f;
     /// <summary>The wheel step the zoom is gliding to; null when it rests.</summary>
     private float? _zoomTarget;
@@ -883,7 +886,15 @@ public sealed class MapGame : Game
                 _minimapDrag = true;
                 _minimapPress = cursorScreen;
             }
+            // A right click on the minimap gives the selected settlers their order there, as on the map.
+            if (mouse.RightButton == ButtonState.Pressed && _previousMouse.RightButton == ButtonState.Released && IsActive)
+                _minimapRightPress = cursorScreen;
+            if (mouse.RightButton == ButtonState.Released && _previousMouse.RightButton == ButtonState.Pressed
+                && _minimapRightPress is { } press && Vector2.Distance(press, cursorScreen) < DragThreshold && _group.Count > 0)
+                Command(onMinimap);
         }
+        if (mouse.RightButton == ButtonState.Released)
+            _minimapRightPress = null;
         if (_minimapDrag && mouse.LeftButton == ButtonState.Released)
             _minimapDrag = false;
         if (_minimapDrag)
@@ -1552,7 +1563,9 @@ public sealed class MapGame : Game
     /// Right click: the selected soldiers attack the enemy military building clicked on, otherwise go
     /// there (fighting enemies they meet on the way).
     /// </summary>
-    private void Command(Vector2 screen)
+    private void Command(Vector2 screen) => Command(ScreenToGrid(screen));
+
+    private void Command(GridPoint clicked)
     {
         // Right click while placing (or aiming): no building (spell) chosen any more.
         if (_placing || _aiming)
@@ -1561,7 +1574,6 @@ public sealed class MapGame : Game
             _message = "";
             return;
         }
-        var clicked = ScreenToGrid(screen);
         // A selected own building with a work area: move the work area there (at most 20 steps away, a gathering point anywhere).
         if (_selectedBuilding is { Exists: true, Player: 0, HasWorkArea: true } worksite)
         {
@@ -2406,18 +2418,47 @@ public sealed class MapGame : Game
     /// </summary>
     private void StartBenchmark(int minutes)
     {
-        _zoom = 1;
+        _zoom = float.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_ZOOM"),
+            System.Globalization.CultureInfo.InvariantCulture, out float zoom) ? zoom : 1;
         _ownAi = NewAi(0);
         _world.AiPlayers.Add(_ownAi);
         var clock = System.Diagnostics.Stopwatch.StartNew();
         for (int i = 0; i < minutes * 60 * World.TicksPerSecond; i++)
             _world.Step();
+        // HOMESTEAD_CAPTURE_VIEW=battle: plays on (up to 20 more minutes) until a big fight is going on.
+        if (CaptureView == "battle")
+            for (int i = 0; i < 20 * 60 * World.TicksPerSecond && BiggestFight() is not (_, >= 20); i++)
+                _world.Step();
         _vision.Update(_world);
         _fog!.SetTargets(_vision);
         _minimap!.Update(_vision, all: !_fogOn);
-        Console.WriteLine($"benchmark: {minutes} min played in {clock.Elapsed.TotalSeconds:F0} s, {_world.Settlers.Count} settlers, " +
+        Console.WriteLine($"benchmark: {_world.Tick / World.TicksPerSecond / 60} min played in {clock.Elapsed.TotalSeconds:F0} s, {_world.Settlers.Count} settlers, " +
                           $"{_world.Buildings.Count(b => b.Exists)} buildings");
-        _panning = true;
+        // HOMESTEAD_CAPTURE_VIEW=economy: the camera stays on player 1's home; battle: it follows the biggest fight.
+        if (CaptureView == "economy")
+            _camera = ToWorld(_world.Buildings.FirstOrDefault(b => b.Exists && b.Player == 0)?.Position ?? _start);
+        else if (CaptureView == "battle")
+            FollowFight();
+        else
+            _panning = true;
+    }
+
+    private static string? CaptureView => Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_VIEW");
+
+    /// <summary>The fighting soldier with the most soldiers (of any player, also waiting or coming) within 10 fields, and how many those are.</summary>
+    private (GridPoint Center, int Fighters)? BiggestFight()
+    {
+        var soldiers = _world.Settlers.Where(s => !s.IsDead && !s.IsInside && s.Profession == Profession.Soldier).ToList();
+        var fighters = soldiers.Where(s => s.Activity is Activity.Fighting or Activity.Shooting).Select(s => s.Position).ToList();
+        return fighters.Count == 0 ? null
+            : fighters.Select(p => (p, soldiers.Count(s => PathFinder.Distance(p, s.Position) <= 10))).MaxBy(f => f.Item2);
+    }
+
+    /// <summary>Moves the capture camera smoothly towards the biggest fight, if there is one.</summary>
+    private void FollowFight()
+    {
+        if (BiggestFight() is var (center, _))
+            _camera = Vector2.Lerp(_camera, ToWorld(center), _capturedFrames <= 1 ? 1 : 0.05f);
     }
 
     /// <summary>A Lissajous sweep over the map at up to about 1000 world pixels per second (60 frames per second).</summary>
@@ -2457,7 +2498,8 @@ public sealed class MapGame : Game
                 using var stream = File.Create(Path.Combine(_captureDirectory!, $"{_map.Name}_{_capturedFrames:D4}.png"));
                 target.SaveAsPng(stream, target.Width, target.Height);
             }
-            Console.WriteLine($"frame {_capturedFrames}: {_world.Settlers.Count} settlers · {_world.Military.Arrows.Count} arrows · {_perf.Summary} · {_sprites.PageCount} atlas pages");
+            Console.WriteLine($"frame {_capturedFrames}: {_world.Settlers.Count} settlers · {_world.Military.Arrows.Count} arrows · {_perf.Summary} · {_sprites.PageCount} atlas pages"
+                              + (CaptureView == "battle" ? $" · fight of {BiggestFight()?.Fighters ?? 0}" : ""));
         }
         target.Dispose();
 
@@ -2469,6 +2511,8 @@ public sealed class MapGame : Game
             CaptureMagic(_capturedFrames + 1);
         if (_panning)
             PanCamera();
+        else if (_capturedFrames > 1 && CaptureView == "battle")
+            FollowFight();
         // HOMESTEAD_CAPTURE_SAVE=<slot>: saves the game into that slot (1-8) after 300 frames.
         if (_capturedFrames == 300 && int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SAVE"), out int saveSlot))
         {
@@ -2529,6 +2573,21 @@ public sealed class MapGame : Game
                         for (int i = 0; i < 3; i++)
                             _world.SpawnSoldier(new GridPoint(start.X + 12 + i, start.Y + 6), type, level: 3, player: 1);
                     _world.Military.Attack(1, tower);
+                }
+                // HOMESTEAD_CAPTURE_BATTLE=big: two armies of 30 meet south of the start.
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE") == "big")
+                {
+                    var armies = new[] { new List<Settler>(), new List<Settler>() };
+                    for (int side = 0; side < 2; side++)
+                        for (int i = 0; i < 30; i++)
+                        {
+                            var at = new GridPoint(start.X + side * 22 + i % 6, start.Y + 14 + i / 6);
+                            if (_world.SpawnSoldier(at, (SoldierType)(i % 3), level: 1 + i % 3, player: side) is { } soldier)
+                                armies[side].Add(soldier);
+                        }
+                    var middle = new GridPoint(start.X + 14, start.Y + 16);
+                    _world.Military.Move(armies[0], middle);
+                    _world.Military.Move(armies[1], middle);
                 }
                 // HOMESTEAD_CAPTURE_SELECT=1: own soldiers of every type and level are selected (units panel at the left).
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SELECT") == "1")
