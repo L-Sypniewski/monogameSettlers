@@ -879,7 +879,7 @@ public sealed partial class Military
             _world.Events.Raise("attacked", enemy.Player, enemy.Position, settler: enemy);
         if (enemy.Health <= 0)
         {
-            Kill(enemy);
+            Kill(enemy, attacker);
             if (home is { IsEmpty: true } && home.Building.Exists && !attacker.IsInside && !attacker.IsDead)
                 Capture(home.Building, attacker); // the one striking the last defender down is inside at once
         }
@@ -888,8 +888,9 @@ public sealed partial class Military
     /// <summary>The garrison whose door the soldier guards, if any.</summary>
     private Garrison? DefendedBy(Settler soldier) => _guards.GetValueOrDefault(soldier.Id);
 
-    private void Kill(Settler soldier)
+    private void Kill(Settler soldier, Settler attacker)
     {
+        _world.History.Killed(soldier, attacker);
         Release(soldier);
         _world.AddGhost(soldier);
         _world.Remove(soldier);
@@ -944,6 +945,7 @@ public sealed partial class Military
         Garrison.Initial(building, attacker.SoldierType).CopyTo(g.Wanted, 0);
         Claim(building);
         Captures++;
+        _world.History.Captured(attacker.Player, loser);
 
         // Buildings on land their player no longer owns go down.
         var map = _world.Map!;

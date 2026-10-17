@@ -23,7 +23,6 @@ public sealed partial class BuildingInfo
     private static readonly int Top = BuildMenu.Content.Y;
     private static readonly int Bottom = BuildMenu.Content.Bottom;
     private static readonly int Inner = BuildMenu.Content.Width - 8;
-    private static readonly Color ButtonColor = Color.Black * 0.3f;
     private static readonly Color HoverColor = Color.White * 0.15f;
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Color Label = new(190, 165, 120);
@@ -87,18 +86,23 @@ public sealed partial class BuildingInfo
         SelectionPanel.Shadowed(batch, font, text, position, size, color);
 
     private const int GarrisonRow = 38;
-    private const int GarrisonButtonSize = 20;
 
     /// <summary>The garrison rows of a military building, one per soldier type, above the tear-down button.</summary>
     private static Rectangle GarrisonRowRect(int height, int index) =>
         new(Left, Bottom - 28 - 10 - (Enum.GetValues<SoldierType>().Length - index) * (GarrisonRow + 2), Inner, GarrisonRow);
 
-    private static Rectangle GarrisonButton(int height, int index, int delta)
+    /// <summary>The up/down spinner of a garrison row (as in Waren › Herstellung): upper half one more, lower half one fewer.</summary>
+    private static Rectangle GarrisonSpinner(int height, int index)
     {
         var row = GarrisonRowRect(height, index);
-        int x = delta < 0 ? row.Right - 2 * GarrisonButtonSize - 6 : row.Right - GarrisonButtonSize - 2;
-        return new Rectangle(x, row.Bottom - GarrisonButtonSize - 2, GarrisonButtonSize, GarrisonButtonSize);
+        return new Rectangle(row.Right - 19 - 2, row.Y + (row.Height - 28) / 2, 19, 28);
     }
+
+    private static Rectangle SpinnerHalf(Rectangle spinner, int delta) =>
+        new(spinner.X, delta > 0 ? spinner.Y : spinner.Center.Y, spinner.Width, spinner.Height / 2);
+
+    /// <summary>The spinner image (that of Waren › Herstellung; set once loaded).</summary>
+    public Texture2D? Spinner { get; set; }
 
     private static bool OffersGarrison(Building building) =>
         building.Definition.Occupiers.Count > 0 && building.State == BuildingState.Finished;
@@ -111,14 +115,14 @@ public sealed partial class BuildingInfo
         var types = Enum.GetValues<SoldierType>();
         for (int i = 0; i < types.Length; i++)
             foreach (int delta in new[] { -1, 1 })
-                if (GarrisonButton(height, i, delta).Contains(screen))
+                if (SpinnerHalf(GarrisonSpinner(height, i), delta).Contains(screen))
                     return (types[i], delta);
         return null;
     }
 
     /// <summary>
-    /// Per soldier type its figure, name, how many are inside of how many the building wants, and buttons
-    /// for one fewer or one more (greyed out where the building would be left empty or overfull).
+    /// Per soldier type its figure, name, how many are inside of how many the building wants, and a spinner
+    /// for one more or one fewer (a half greyed out where the building would be left empty or overfull).
     /// </summary>
     private void DrawGarrison(SpriteBatch batch, Texture2D pixel, int height, UiFont font, SettlerRenderer settlers, Civilization people,
         World world, Building building, Vector2 cursor)
@@ -137,17 +141,17 @@ public sealed partial class BuildingInfo
             Write(batch, font, SoldierName(type), new Vector2(row.X + 28, row.Y + 2), Text, 12);
             int inside = occupants.Count(s => s?.SoldierType == type);
             Write(batch, font, $"{inside} / {military.Wanted(building, type)}", new Vector2(row.X + 28, row.Y + 19), Text, 12);
+            var spinner = GarrisonSpinner(height, i);
+            if (Spinner is not null)
+                batch.Draw(Spinner, spinner, Color.White);
             foreach (int delta in new[] { -1, 1 })
             {
-                var button = GarrisonButton(height, i, delta);
-                bool possible = military.CanChangeWanted(building, type, delta);
-                batch.Draw(pixel, button, !possible ? Color.Black * 0.15f : button.Contains(cursor) ? HoverColor : ButtonColor);
-                if (possible)
-                    Outline(batch, pixel, button);
-                string label = delta < 0 ? "−" : "+";
-                var size = font.Measure(label);
-                Write(batch, font, label, new Vector2(button.X + (button.Width - size.X) / 2, button.Y + (button.Height - size.Y) / 2),
-                    possible ? Text : new Color(110, 95, 70));
+                var half = SpinnerHalf(spinner, delta);
+                // Greyed out where the building would be left empty or overfull.
+                if (!military.CanChangeWanted(building, type, delta))
+                    batch.Draw(pixel, half, Color.Black * 0.55f);
+                else if (half.Contains(cursor))
+                    batch.Draw(pixel, half, HoverColor);
             }
         }
     }
@@ -333,23 +337,8 @@ public sealed partial class BuildingInfo
         Button(batch, pixel, font, NoButton(height), "Nein", cursor);
     }
 
-    private static void Button(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle rect, string label, Vector2 cursor)
-    {
-        batch.Draw(pixel, rect, rect.Contains(cursor) ? HoverColor : ButtonColor);
-        Outline(batch, pixel, rect);
-        var size = font.Measure(label);
-        Write(batch, font, label, new Vector2(rect.X + (rect.Width - size.X) / 2, rect.Y + (rect.Height - size.Y) / 2), Text);
-    }
-
-    /// <summary>A thin light frame, so a button stands out on the blue panel.</summary>
-    private static void Outline(SpriteBatch batch, Texture2D pixel, Rectangle rect)
-    {
-        var color = Label * 0.7f;
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), color);
-        batch.Draw(pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), color);
-    }
+    private static void Button(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle rect, string label, Vector2 cursor) =>
+        TextButton.Draw(batch, pixel, font, rect, label, cursor);
 
     /// <summary>The short German state of the building (soldiers for military buildings).</summary>
     private string StateOf(World world, Building building)

@@ -53,6 +53,18 @@ The **Arena** (`tools/Homestead.Arena`) runs AI against AI without a window; a t
 - **Random maps** for 2–6 players with mirrored or repeated symmetry, rivers, swamps, ore veins and treasures – fair for every start position
 - **Hardcore mode** per player, **save games** in 8 slots, **fog of war**
 
+## Statistics
+
+![Statistics: economy](docs/screenshots/statistics-economy.png)
+
+![Statistics: military](docs/screenshots/statistics-military.png)
+
+Press Esc or end the game, and the statistics screen opens on the blue marble of the original menus – with far more
+than the original ever showed. Five pages (overview, economy, military, goods, society) follow every player through
+the whole game: land and its share over time, settlers, buildings, goods produced per minute, stock, soldiers by type,
+combat strength, kills and losses, captured buildings, mana and more. Hover over a chart to read every player's value
+at that minute, pick any good to compare its production, and jump back into the game with one click.
+
 ## Clean room: how this game is made
 
 Imagine you want to build a car that drives exactly like a famous old model, but you are **not** allowed to copy its

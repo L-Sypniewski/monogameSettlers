@@ -282,6 +282,24 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void The_history_samples_every_30_seconds_and_counts_kills_and_losses()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools) { PlayerCount = 2 };
+        var red = world.SpawnSoldier(new GridPoint(20, 30), SoldierType.Swordsman, level: 3)!;
+        var blue = world.SpawnSoldier(new GridPoint(26, 30), SoldierType.Swordsman, level: 1, player: 1)!;
+
+        Run(world, GameHistory.SampleTicks * 2 + 1);
+
+        Assert.True(blue.IsDead);
+        Assert.Equal(3, world.History.Samples(0).Count); // at 0, 30 and 60 seconds
+        var last0 = world.History.Samples(0)[^1];
+        var last1 = world.History.Samples(1)[^1];
+        Assert.Equal((1, 0, 1), (last0.Kills, last0.Losses, last0.Soldiers));
+        Assert.Equal((0, 1, 0), (last1.Kills, last1.Losses, last1.Soldiers));
+        Assert.Equal(1, world.History.Samples(1)[0].Soldiers);
+    }
+
+    [Fact]
     public void A_soldier_attacks_an_enemy_that_steps_next_to_it_instead_of_its_far_target()
     {
         var world = new World(new GameMap(60), TestConfig.NoTools);

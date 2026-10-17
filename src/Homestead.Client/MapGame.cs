@@ -53,6 +53,9 @@ public sealed class MapGame : Game
 
     /// <summary>Shown before the first map is loaded, until the game is started.</summary>
     private StartScreen? _startScreen;
+
+    /// <summary>The statistics screen while it is shown (the game stands still meanwhile).</summary>
+    private StatisticsScreen? _statistics;
     private readonly bool _showStartScreen;
 
     /// <summary>AI character per player from the command line (empty: drawn by the people's weights).</summary>
@@ -280,6 +283,7 @@ public sealed class MapGame : Game
         };
         _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
         _sidePanel = new SidePanel(GraphicsDevice, _gfx);
+        TextButton.Load(GraphicsDevice, _gfx);
         _tabs = new PanelTabs(GraphicsDevice, _gfx);
         _eventButtons = new EventButtons(GraphicsDevice, _gfx, remember: _captureDirectory is null);
         // HOMESTEAD_CAPTURE_TAB=goods|settlers[:<sub-menu id>[:manual|<good>]]: a capture run shows that main tab
@@ -368,6 +372,7 @@ public sealed class MapGame : Game
         _stockMenu = new StockMenu(_goodsGrid);
         _manufactureMenu?.Dispose();
         _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid);
+        _buildingInfo.Spinner = _manufactureMenu.SpinnerImage;
         _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf);
         _transportMenu?.Dispose();
         _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid);
@@ -511,6 +516,45 @@ public sealed class MapGame : Game
         _systemMenu.Refresh();
     }
 
+    /// <summary>
+    /// Shows the statistics screen: after „Spiel beenden“ (then only back to the start screen) or on Esc
+    /// (then also back into the game).
+    /// </summary>
+    private void OpenStatistics(bool canResume)
+    {
+        _placing = _aiming = false;
+        _statistics?.Dispose();
+        _statistics = new StatisticsScreen(GraphicsDevice, _gfx, _world, _map.Name, _goodsGrid, _aiNames, canResume);
+    }
+
+    /// <summary>The statistics screen; a capture run saves every page as <c>stats_N.png</c> and quits.</summary>
+    private void DrawStatistics()
+    {
+        var statistics = _statistics!;
+        if (_captureDirectory is null)
+        {
+            GraphicsDevice.Clear(Color.Black);
+            _spriteBatch.Begin(samplerState: SamplerState.LinearClamp);
+            statistics.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            _spriteBatch.End();
+            return;
+        }
+        for (int page = 0; page < StatisticsScreen.Pages.Length; page++)
+        {
+            statistics.Page = page;
+            using var target = NewCaptureTarget();
+            GraphicsDevice.SetRenderTarget(target);
+            GraphicsDevice.Clear(Color.Black);
+            _spriteBatch.Begin(samplerState: SamplerState.LinearClamp);
+            statistics.Draw(_spriteBatch, _pixel, _font, target.Bounds);
+            _spriteBatch.End();
+            GraphicsDevice.SetRenderTarget(null);
+            using var stream = File.Create(Path.Combine(_captureDirectory, $"stats_{page}.png"));
+            target.SaveAsPng(stream, target.Width, target.Height);
+        }
+        Exit();
+    }
+
     /// <summary>Quits the game: back to the start screen.</summary>
     private void QuitToStartScreen()
     {
@@ -642,6 +686,26 @@ public sealed class MapGame : Game
             base.Update(gameTime);
             return;
         }
+        if (_statistics is not null)
+        {
+            switch (_captureDirectory is null ? _statistics.Update(GraphicsDevice.Viewport.Bounds) : StatisticsAction.None)
+            {
+                case StatisticsAction.Resume:
+                    _statistics.Dispose();
+                    _statistics = null;
+                    // The key or click that closed it must not act in the game too.
+                    _previousKeys = Keyboard.GetState();
+                    _previousMouse = Mouse.GetState();
+                    break;
+                case StatisticsAction.Quit:
+                    _statistics.Dispose();
+                    _statistics = null;
+                    QuitToStartScreen();
+                    break;
+            }
+            base.Update(gameTime);
+            return;
+        }
         var updateClock = System.Diagnostics.Stopwatch.StartNew();
         // Capture runs ignore input: keyboard and mouse state are global and would leak in from other windows.
         if (_captureDirectory is null)
@@ -754,7 +818,7 @@ public sealed class MapGame : Game
             else if (_placing)
                 _placing = false;
             else
-                Exit();
+                OpenStatistics(canResume: true);
         }
         if (Pressed(Keys.F2))
         {
@@ -1037,7 +1101,7 @@ public sealed class MapGame : Game
                     SaveGameTo(_systemMenu.ChosenSlot);
                     break;
                 case SystemAction.Quit:
-                    QuitToStartScreen();
+                    OpenStatistics(canResume: false);
                     return;
             }
         }
@@ -1753,6 +1817,12 @@ public sealed class MapGame : Game
                 startTarget.Dispose();
                 Exit();
             }
+            base.Draw(gameTime);
+            return;
+        }
+        if (_statistics is not null)
+        {
+            DrawStatistics();
             base.Draw(gameTime);
             return;
         }
@@ -2519,6 +2589,9 @@ public sealed class MapGame : Game
             SaveGameTo(saveSlot - 1);
             Console.WriteLine(_message);
         }
+        // HOMESTEAD_CAPTURE_STATS=<frame>: the statistics screen opens at that frame (its pages are saved, then the run ends).
+        if (int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_STATS"), out int statsFrame) && _capturedFrames + 1 == statsFrame)
+            OpenStatistics(canResume: true);
         switch (++_capturedFrames)
         {
             case 1 when int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MINUTES"), out int minutes) && minutes > 0:
@@ -2658,6 +2731,8 @@ public sealed class MapGame : Game
         _sidePanel?.Dispose();
         _eventButtons?.Dispose();
         _startScreen?.Dispose();
+        _statistics?.Dispose();
+        TextButton.Dispose();
         _sprites.Dispose();
         _buildMenu?.Dispose();
         _portraits?.Dispose();

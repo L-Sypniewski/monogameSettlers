@@ -154,6 +154,9 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
   `cooldownSeconds` je Spieler/Event (0 = immer), Text (`{building}`), an/aus. `Raise(id, spieler, ort, settler/building)`.
   Kampf: `attacked`, `buildingAttacked` (Tür/Wächter), `buildingLost`/`buildingCaptured`. Zustände fertiger Gebäude prüft `Tick` sekündlich,
   meldet nach `afterSeconds` einmal bis Ende: `noStaff`, `noTool`, `noResources`, `mineExhausted` (Chance ≤ `maxChance` %). `Announce`: ohne Ort.
+- `GameHistory` (`World.History`): alle 30 s (`SampleTicks`) je Spieler eine `HistorySample` (Land, Siedler nach Art, Soldaten nach Typ,
+  Gebäude, Baustellen, Militärgebäude, Wohnraum, Streikende, Lagerbestand, Produziertes, Kampfkraft, Mana) plus laufende Summen
+  (getötet/gefallen, Gebäude erobert/verloren, fertiggestellt/zerstört); für den Statistik-Bildschirm.
 - `OriginalScenario`: Karte → Welt (Gebäude, Stapel, Siedler). Mehrspieler-Karten ohne Gebäude: `StartSetup` gibt jedem Spieler die Ausstattung aus `data/start.json`.
 - `Map/Generation/RandomMapGenerator`: Zufallskarten als `OriginalMap` (`OriginalMap.Create`), gleiche `RandomMapSettings` + Seed = gleiche Karte,
   Werte `data/randommap.json`, Größe nach Spielerzahl. Insel in der Mitte (in Rastergeometrie ein Kreis). Jeder Start gleich: flache Startfläche,
@@ -182,7 +185,7 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
     vier Pfeile `arrowSeconds` auf Gebäude bzw. lebende Figur. `dates`: Grüße an Kalendertagen (MM-dd), einmal im Jahr
     (`~/.config/homestead/events-shown.json`; `HOMESTEAD_EVENT_DATE=12-25` täuscht vor).
   - Computer-Button unten links (`SystemMenu`, `PanelTab.System`): „Spiel speichern“ (8 Slots mit Karte, Datum, Volk; leere gestrichelt;
-    Klick speichert, auch überschreibend), „Spiel beenden“ mit Rückfrage (Ja unten links → Startscreen, Nein unten rechts).
+    Klick speichert, auch überschreibend), „Spiel beenden“ mit Rückfrage (Ja unten links → Statistik, Nein unten rechts).
   - Hauptreiter Bauen/Waren/Siedler (`PanelTabs`: Original-Buttons Datei 03, aktiver gedrückt; Klick hebt Auswahl auf; Untermenüs `panelTabs` in `ui.json`).
     - Bauen: Baumenü (Kategorien aus `data/ui.json`, Original-Buttons; Klick aufs Icon → Platzieren; eigenes Volk; Zahl fertiger (weiß) und im Bau (orange)).
     - Waren › Lagerbestand (`StockMenu`, `World.InStock`: Lager-, Ausgabe-, lose Stapel; nicht Eingang/Baustellen).
@@ -209,6 +212,12 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
     Minen-Erfolgschance; Arbeitsbereich (Rechtsklick versetzt, `World.SetWorkCenter`, max. `MaxWorkCenterDistance` = 20, sonst nächstes erlaubtes
     Feld; Sammler nehmen das Ziel nächst der Mitte; Kaserne: Sammelpunkt überall, `Building.HasGatheringPoint`, Pfad mit Fahne).
     Deutsche Namen/Zustände in `data/ui.json`; Text per FontStashSharp mit Systemschrift.
+- **Statistik** (`StatisticsScreen`; Esc oder „Spiel beenden“; Spiel steht still): blauer Marmor (`statisticsBackground`, Datei 02 GUI 29),
+  Seiten Übersicht (Tabelle, Landanteil), Wirtschaft, Militär, Waren (jede Ware je Minute), Gesellschaft – Diagramme `Charts` (Linien mit Werten
+  unter der Maus, Anteile, Balken) aus `GameHistory`/`ProductionStatistics`; ←/→/Tab blättern; „Weiterspielen“ (Esc; nicht nach „Spiel beenden“),
+  „Zum Hauptmenü“.
+- **Textbuttons** (`TextButton`): Steinknöpfe aus den Menüs vor dem Spiel (`textButton` in `ui.json`, Datei 02 GUI 0, 9-Slice), z. B. Abreißen,
+  Anhalten, Ja/Nein, Rekrutierung, Statistik. Besatzung ±: Auf/Ab-Spinner wie in der Herstellung.
 - **Auswahl/Befehle**: Rahmen oder Klick wählt eigene Figuren, Vorrang Soldaten > Priester > Geologen > Späher > Pioniere > untätige Träger,
   andere Berufe nie (beim Rahmen geht das der Mitte nächste Gebäude den Trägern vor; Gebäude: weißer Eckrahmen 3 px). Shift fügt hinzu,
   Strg+Klick alle eigenen dieses Typs (Soldaten: Typ, Rang egal). Ausgewählte: runder Punkt grün→gelb→rot nach LP.
@@ -217,7 +226,7 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
   Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungen ohne Kampf. Geologen: Rechtsklick hin, auf Gebirge suchen.
   Priester: Zaubermenü (Name, Kosten, Mana), Zauber wählen, dann Ziel (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
   Träger: Umwandlungsmenü (bis Trägerreserve; beschäftigte nach Lieferung). Linksklick abwählen; rechts ziehen verschiebt die Karte.
-- **Tasten**: N Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), C Cheat-Menü (`CheatMenu`: Soldaten je Typ/Stufe, Priester, Geologen,
+- **Tasten**: Esc bricht Platzieren/Zielen ab, sonst Statistik; N Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), C Cheat-Menü (`CheatMenu`: Soldaten je Typ/Stufe, Priester, Geologen,
   Späher, Pioniere, Träger, +50 Mana), F Angriff aufs feindliche Militärgebäude unter der Maus, V Fog of War (Sicht 1×/s, `FogLayer` blendet weich,
   klingt über `SoftFields` (3) aus; unerkundet schwarz, erkundet dunkel, fremde Figuren nur in Sicht), F11 Vollbild,
   F2 Skalierung scharf/linear/Catmull-Rom (Standard)/Lanczos2 (Welt 1:1 in kleine RenderTarget, um den Zoom vergrößert; Markierungen/Panel scharf;
@@ -243,6 +252,7 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
   `STORE=<ware>` (mit `FOCUS=stock`); `PLACE=<gebäude>`; `START=<tab>` (nur `start.png` des Startscreens, 3: Zufallsgenerator);
   `MAGIC=1` (großer Tempel, Mana-Kette, Priester zaubert in einen Kampf; `=summon`: Waren herbeirufen);
   `MINUTES=<n>` (Benchmark: KI auch für Spieler 1, n min ohne Zeichnen vorgespult, dann Kameraschwenk über die Karte, PNG alle 1200 Frames);
+  `STATS=<frame>` (Statistik öffnet in diesem Frame, alle Seiten als `stats_N.png`, dann Ende);
   `VIEW=economy|battle` (statt Schwenk: Kamera auf Spieler 1 bzw. folgt dem größten Kampf; `battle` spult mit `MINUTES` bis zu 20 min weiter, bis ≥ 20 Soldaten an einem Kampf sind).
 
 ### Werkzeuge

@@ -32,6 +32,11 @@ public sealed partial class World
     /// <summary>Units produced per player, good and period (Siedler › Produktion).</summary>
     public ProductionStatistics Statistics { get; }
 
+    private GameHistory? _history;
+
+    /// <summary>The course of the game for the statistics screen (created on first use, also for games saved before it existed).</summary>
+    public GameHistory History => _history ??= new GameHistory(this);
+
     public Recruitment Recruitment { get; }
 
     public Idling Idling { get; }
@@ -468,6 +473,7 @@ public sealed partial class World
         if (!building.Exists)
             return;
         building.Exists = false;
+        History.Destroyed(building);
         var map = RequireMap();
         DropLevelling(building);
         Production.RemoveFarmland(building);
@@ -543,6 +549,7 @@ public sealed partial class World
             RemovePileDroppingGoods(building, pile);
         building.State = BuildingState.Finished;
         CreateOperatingPiles(building);
+        History.Finished(building);
     }
 
     /// <summary>A builder uses up one unit of construction material. Returns false if none is there.</summary>

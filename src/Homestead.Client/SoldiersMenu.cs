@@ -98,11 +98,7 @@ public sealed class SoldiersMenu : IDisposable
         var switchButton = SwitchButton;
         portraits.Draw(batch, "BEARER", new Rectangle(Left, SwitchY, 40, 60), settlers, people, PlayerColors.Of(player));
         Write(batch, font, world.Recruitment.Convertible(player).ToString(), new Vector2(Left + 44, SwitchY + 20), Text, 15);
-        batch.Draw(pixel, switchButton, switchButton.Contains(cursor) ? Color.White * 0.15f : Color.Black * 0.3f);
-        Outline(batch, pixel, switchButton);
-        string mode = military.IsManualRecruitment(player) ? "Manuell" : "Automatisch";
-        var size = font.Measure(mode);
-        Write(batch, font, mode, new Vector2(switchButton.Center.X - size.X / 2, switchButton.Center.Y - size.Y / 2), Text);
+        TextButton.Draw(batch, pixel, font, switchButton, military.IsManualRecruitment(player) ? "Manuell" : "Automatisch", cursor);
         if (!military.IsManualRecruitment(player))
             return;
 
@@ -196,15 +192,6 @@ public sealed class SoldiersMenu : IDisposable
 
     private static void Write(SpriteBatch batch, UiFont font, string text, Vector2 position, Color color, int size = 14) =>
         SelectionPanel.Shadowed(batch, font, text, position, size, color);
-
-    private static void Outline(SpriteBatch batch, Texture2D pixel, Rectangle rect)
-    {
-        var color = Label * 0.7f;
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), color);
-        batch.Draw(pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), color);
-    }
 
     public void Dispose()
     {

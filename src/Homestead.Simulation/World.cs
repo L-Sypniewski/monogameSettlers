@@ -192,6 +192,7 @@ public sealed partial class World
             foreach (var ai in AiPlayers)
                 ai.Tick();
             Measure("ai", ref mark);
+            History.Tick();
         }
         foreach (var settler in _settlers)
             if (settler.IsWorking || settler.IsStriking)

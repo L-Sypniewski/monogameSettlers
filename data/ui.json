@@ -33,6 +33,9 @@
       "Amazon": { "file": 44, "SWORDSMAN": 122, "BOWMAN": 125, "PIKEMAN": 128 }
     }
   },
+  "_textButtonComment": "Wide text buttons (Abreißen, Ja/Nein, the statistics screen …): the stone buttons of the original's menus before the game, GUI image 0 of file 02 (a sheet) – source rectangles [x, y, width, height] of the button up and pressed; border: the frame kept unstretched. statisticsBackground: the blue marble (GUI image of file 02).",
+  "textButton": { "file": 2, "gui": 0, "normal": [ 180, 416, 83, 40 ], "pressed": [ 282, 416, 86, 40 ], "border": 9 },
+  "statisticsBackground": { "file": 2, "gui": 29 },
   "_professionsMenuComment": "Siedler > Berufe: GUI images of file 03 – the up/down spinner of the shares, the find buttons ([all on the map, all on the screen, the next one]) and the convert buttons ([5, 1]).",
   "professionsMenu": {
     "spinner": 233,

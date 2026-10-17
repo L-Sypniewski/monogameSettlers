@@ -40,6 +40,9 @@ public sealed class ManufactureMenu : IDisposable
 
     public void Dispose() => _spinner.Dispose();
 
+    /// <summary>The up/down spinner image (also used for the garrison in <see cref="BuildingInfo"/>).</summary>
+    public Texture2D SpinnerImage => _spinner;
+
     // Layout (panel space): no title, the two headings instead.
     private static int Left => BuildMenu.Content.X + 4;
     private static int Width => BuildMenu.Content.Width - 8;
