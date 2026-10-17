@@ -166,7 +166,12 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
   damit jedes Dreieck eine Original-Übergangskachel hat – Merkmale halten Abstand). Starts ohne Verbindung → neu würfeln.
 
 ### `src/Homestead.Client` – MonoGame-Spiel
-- **Startscreen** (ohne `--map`/`--capture`, `StartScreen`): Kartenliste mit Vorschau, Tabs Einzelspieler/Mehrspieler/Eigene (Tab-Taste),
+- **Titelbildschirm** (`TitleScreen`, zuerst ohne `--map`/`--capture`): Hauptmenü-Bild der Gold Edition (`titleScreen` in `ui.json`, Datei 61 GUI 1,
+  daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): Einzelspieler (→ Startscreen), Spiel laden
+  (Slots darunter, Klick lädt), Einstellungen, Contribution, Lizenzen (Seiten noch leer; offene Seite = gedrückter Knopf), unten abgesetzt Beenden;
+  Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher. Capture: `HOMESTEAD_CAPTURE_START=title` → `title.png`.
+- **Startscreen** (`StartScreen`): auf dem Kartenwahl-Hintergrund des Originals (`startScreen` in `ui.json`, Datei 02 GUI 8,
+  im 800×600-Raster auf Fenstergröße skaliert, daneben Marmor; ovale Steinknöpfe, Steinleiste unter der Auswahl, Vorschau im schrägen Fenster): Kartenliste mit Vorschau, Tabs Einzelspieler/Mehrspieler/Eigene (Tab-Taste),
   sortiert nach Spielerzahl (`OriginalMap.ReadPlayerCount` liest nur MapInfo). Tab „Zufallsgenerator“: letzte 5 Zufallskarten
   (`RandomMapHistory`, `~/.config/homestead/random-maps.json`) und Einstellungen (Spieler, Symmetrie, Flüsse, Rohstoffe, Steine, Wälder, Deko,
   Schätze) – Änderung erzeugt mit gleichem Seed neu, „Neu würfeln“/R neuer Seed. Je Spieler: Volk (oder Zufall; Kartenvorgaben gelten je Position),

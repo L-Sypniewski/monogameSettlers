@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Homestead.Assets.Gfx;
 using Homestead.Assets.Maps;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Map.Generation;
@@ -9,8 +10,9 @@ using Microsoft.Xna.Framework.Input;
 namespace Homestead.Client;
 
 /// <summary>
-/// Start screen: map list on the left; on the right a preview of the selected map with its start positions,
-/// one row per player (people, color, hardcore) and the start button.
+/// Start screen on the original's map selection background (<c>startScreen</c> in <c>data/ui.json</c>): the map
+/// list in the upper panel with the category buttons right of it, below the preview in the slanted window with the
+/// start positions, one row per player (people, color, hardcore), start and quit.
 /// </summary>
 /// <remarks>
 /// The list shows one category at a time (buttons above it, as in the original), sorted by player count.
@@ -35,16 +37,13 @@ public sealed class StartScreen : IDisposable
     /// <summary>A random map: the generator makes it again from its settings and seed.</summary>
     public sealed record RandomMap(RandomMapSettings Settings, int Seed);
 
-    private const int RowHeight = 22;
-    private const int Margin = 40;
-    private const int Swatch = 28;
-    private const int TabHeight = 30;
-    /// <summary>Vertical distance of the player rows.</summary>
-    private const int PlayerRow = 36;
+    /// <summary>The screen is laid out on the original's 800 × 600 menu background and scaled to the window.</summary>
+    private const int Width = 800, Height = 600;
+    private const int RowHeight = 20;
     /// <summary>Size of a start position mark on the preview.</summary>
-    private const int Mark = 16;
-    private const int MenuItemHeight = 22;
-    private const int MenuWidth = 110;
+    private const int Mark = 14;
+    private const int MenuItemHeight = 18;
+    private const int MenuWidth = 104;
 
     /// <summary>A map in the list: index into the map files, name, player count (0: unreadable), category.</summary>
     private sealed record MapEntry(int Index, string Name, int Players, int Category);
@@ -116,12 +115,16 @@ public sealed class StartScreen : IDisposable
     private string? _mapError;
     private Texture2D? _preview;
 
+    // The original's menu graphics (startScreen in data/ui.json).
+    private readonly Texture2D _background, _marble, _sheet, _rowBar, _scrollTop, _scrollTrack, _scrollBottom;
+    private readonly Rectangle _oval, _ovalPressed, _handle;
+
     private KeyboardState _previousKeys = Keyboard.GetState();
     private MouseState _previousMouse = Mouse.GetState();
 
     /// <param name="mapDirectory">Map directory of the installation; its first level of folders gives the category.</param>
     /// <param name="peoples">Preset peoples (command line): player i gets entry i modulo the count.</param>
-    public StartScreen(GraphicsDevice device, IReadOnlyList<string> mapFiles, string mapDirectory, int selected,
+    public StartScreen(GraphicsDevice device, GfxDirectory gfx, IReadOnlyList<string> mapFiles, string mapDirectory, int selected,
         IReadOnlyList<Civilization>? peoples)
     {
         _device = device;
@@ -146,6 +149,30 @@ public sealed class StartScreen : IDisposable
             foreach (var name in names.EnumerateObject())
                 if (Enum.TryParse<Civilization>(name.Name, out var people))
                     _peopleNames[people] = name.Value.GetString()!;
+        var look = document.RootElement.GetProperty("startScreen");
+        var file = gfx.Open(look.GetProperty("file").GetInt32());
+        Texture2D Image(string name)
+        {
+            var bitmap = file.ReadGui(look.GetProperty(name).GetInt32());
+            var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
+            texture.SetData(bitmap.Pixels);
+            return texture;
+        }
+        Rectangle Source(string name)
+        {
+            var e = look.GetProperty(name);
+            return new Rectangle(e[0].GetInt32(), e[1].GetInt32(), e[2].GetInt32(), e[3].GetInt32());
+        }
+        _background = Image("background");
+        _marble = Image("marble");
+        _sheet = Image("sheet");
+        _rowBar = Image("rowBar");
+        _scrollTop = Image("scrollTop");
+        _scrollTrack = Image("scrollTrack");
+        _scrollBottom = Image("scrollBottom");
+        _oval = Source("oval");
+        _ovalPressed = Source("ovalPressed");
+        _handle = Source("handle");
         var preset = _entries.FirstOrDefault(e => e.Index == selected);
         ShowCategory(preset?.Category ?? 1);
         Select(Math.Max(0, Array.IndexOf(_shown, preset)));
@@ -249,94 +276,116 @@ public sealed class StartScreen : IDisposable
         Select(0);
     }
 
-    // Layout, from the viewport.
-    private static Rectangle ListArea(Rectangle view) =>
-        new(Margin, 90 + TabHeight + 6, Math.Min(420, view.Width * 2 / 5), Math.Max(RowHeight, view.Height - 90 - TabHeight - 6 - Margin));
+    // Layout in the 800 × 600 space of the background (gui image 8 of file 02): the map list in the upper
+    // panel, the category buttons right of it, the preview in the slanted window below, the players in the
+    // lower panel, start and quit right of it.
+    private static readonly Rectangle ListArea = new(92, 62, 590, 222);
 
-    // The random map generator's panel in place of the list: last maps, then one row per setting.
-    private static Rectangle RecentRow(Rectangle view, int entry)
+    private static Rectangle CategoryButton(int category) => new(704, 64 + category * 54, 78, 46);
+
+    private static readonly Rectangle StartButton = new(704, 436, 78, 46);
+    private static readonly Rectangle QuitButton = new(704, 490, 78, 46);
+
+    /// <summary>The preview window: a parallelogram, top edge from (160, 346), bottom edge from (78, 507), 161 wide.</summary>
+    private const int PreviewTop = 346, PreviewHeight = 161, PreviewWidth = 161, PreviewLeft = 160, PreviewSlant = 82;
+
+    /// <summary>Point of the preview at map fraction (<paramref name="u"/>, <paramref name="v"/>): rows shift left as in the game.</summary>
+    private static Vector2 PreviewPoint(float u, float v) =>
+        new(PreviewLeft - PreviewSlant * v + PreviewWidth * u, PreviewTop + PreviewHeight * v);
+
+    // The random map generator's panel in place of the list: last maps on the left, one row per setting on the right.
+    private static Rectangle RecentRow(int entry) => new(92, 84 + entry * RowHeight, 250, RowHeight);
+
+    private const int OptionRow = 27;
+
+    private static int OptionY(int option) => 64 + option * OptionRow;
+
+    private static Rectangle OptionValue(int option, int value)
     {
-        var list = ListArea(view);
-        return new Rectangle(list.X, list.Y + 26 + entry * RowHeight, list.Width, RowHeight);
+        const int left = 440, width = 250;
+        int count = RandomOptions[option].Values.Length;
+        return new Rectangle(left + value * width / count, OptionY(option), width / count - 3, OptionRow - 4);
     }
 
-    private const int OptionRow = 32;
+    private static readonly Rectangle RerollButton = new(96, 196, 136, 28);
 
-    private static int OptionY(Rectangle view, int option) => RecentRow(view, RandomMapHistory.Size).Y + 34 + option * OptionRow;
+    // The players' table in the lower panel: name, people with arrows, color, hardcore.
+    private const int TableTop = 340, TableBottom = 536;
 
-    private static Rectangle OptionValue(Rectangle view, int option, int value)
-    {
-        var list = ListArea(view);
-        int left = list.X + 110;
-        int width = (list.Right - 6 - left) / RandomOptions[option].Values.Length;
-        return new Rectangle(left + value * width, OptionY(view, option), width - 4, OptionRow - 6);
-    }
+    private int PlayerRow => Math.Min(30, (TableBottom - TableTop) / (PlayerCount + 1));
 
-    private static Rectangle RerollButton(Rectangle view) =>
-        new(ListArea(view).X + 8, OptionY(view, RandomOptions.Length) + 8, 200, 36);
+    /// <summary>Top of the row of <paramref name="player"/> (-1: the header).</summary>
+    private int RowY(int player) => TableTop + (player + 1) * PlayerRow;
 
-    private static Rectangle Tab(Rectangle view, int category)
-    {
-        var list = ListArea(view);
-        int width = (list.Width - (Categories.Length - 1) * 6) / Categories.Length;
-        return new Rectangle(list.X + category * (width + 6), 90, width, TabHeight);
-    }
+    private int Control => Math.Min(20, PlayerRow - 4);
 
-    private static int PanelX(Rectangle view) => ListArea(view).Right + Margin;
+    private Rectangle Cell(int x, int player, int width = 0) =>
+        new(x, RowY(player) + (PlayerRow - Control) / 2, width == 0 ? Control : width, Control);
 
-    /// <summary>The preview: as large as the player rows, the start button and the hints below it leave room for.</summary>
-    private Rectangle PreviewArea(Rectangle view)
-    {
-        int below = 24 + (PlayerCount + 1) * PlayerRow + 30 + 44 + Margin;
-        int size = Math.Clamp(Math.Min(view.Width - PanelX(view) - Margin, view.Height - 90 - below), 96, 260);
-        return new Rectangle(PanelX(view), 90, size, size);
-    }
+    private Rectangle LeftArrow(int player) => Cell(450, player);
 
-    /// <summary>The header row above the player rows.</summary>
-    private int HeaderY(Rectangle view) => PreviewArea(view).Bottom + 24;
+    private Rectangle RightArrow(int player) => Cell(570, player);
 
-    /// <summary>The row of <paramref name="player"/>.</summary>
-    private int RowY(Rectangle view, int player) => HeaderY(view) + (player + 1) * PlayerRow;
+    private Rectangle ColorBox(int player) => Cell(608, player, 22);
 
-    private Rectangle LeftArrow(Rectangle view, int player) => new(PanelX(view) + 125, RowY(view, player), 28, 28);
-
-    private Rectangle RightArrow(Rectangle view, int player) => new(PanelX(view) + 125 + 28 + 120, RowY(view, player), 28, 28);
-
-    private Rectangle ColorBox(Rectangle view, int player) => new(PanelX(view) + 321, RowY(view, player), Swatch, Swatch);
-
-    private Rectangle HardcoreBox(Rectangle view, int player) => new(PanelX(view) + 390, RowY(view, player), 28, 28);
+    private Rectangle HardcoreBox(int player) => Cell(660, player);
 
     private const string HardcoreHint = "Hardcore: +10 % Kampfkraft, +30 % Siedler je Wohnhaus, +20 % Lebenspunkte, −25 % Baukosten, 10 % schnellere Produktion, mehr Startausstattung.";
 
-    private Rectangle StartButton(Rectangle view) => new(PanelX(view), RowY(view, PlayerCount) + 30, 220, 44);
-
     /// <summary>The mark of start position <paramref name="position"/> on the preview.</summary>
-    private Rectangle MarkAt(Rectangle view, int position)
+    private Rectangle MarkAt(int position)
     {
-        var preview = PreviewArea(view);
-        float scale = preview.Width / (float)_map!.Area.Size;
-        var home = _map.Players[position];
-        return new Rectangle(preview.X + (int)(home.StartX * scale) - Mark / 2, preview.Y + (int)(home.StartY * scale) - Mark / 2, Mark, Mark);
+        var home = _map!.Players[position];
+        var at = PreviewPoint((home.StartX + 0.5f) / _map.Area.Size, (home.StartY + 0.5f) / _map.Area.Size);
+        return new Rectangle((int)at.X - Mark / 2, (int)at.Y - Mark / 2, Mark, Mark);
     }
 
     /// <summary>Entry <paramref name="item"/> of the open position menu: 0 is "?", entry i + 1 player i.</summary>
-    private Rectangle MenuItem(Rectangle view, int item)
+    private Rectangle MenuItem(int item)
     {
-        var mark = MarkAt(view, _positionMenu!.Value);
+        var mark = MarkAt(_positionMenu!.Value);
         int height = (PlayerCount + 1) * MenuItemHeight;
-        // Right of the mark, kept inside the window.
-        int x = Math.Min(mark.Right + 6, view.Width - MenuWidth - 4);
-        int y = Math.Clamp(mark.Y, 4, Math.Max(4, view.Height - height - 4));
+        // Right of the mark, kept inside the screen.
+        int x = Math.Min(mark.Right + 6, Width - MenuWidth - 4);
+        int y = Math.Clamp(mark.Y, 4, Math.Max(4, Height - height - 4));
         return new Rectangle(x, y + item * MenuItemHeight, MenuWidth, MenuItemHeight);
     }
 
-    private int VisibleRows(Rectangle view) => ListArea(view).Height / RowHeight;
+    private static int VisibleRows => ListArea.Height / RowHeight;
 
     private static string PlayerName(int player) => $"Spieler {player + 1}";
+
+    // From the 800 × 600 space to the window: scaled to fit, centered.
+    private float _scale = 1;
+    private Vector2 _origin;
+    /// <summary>The mouse in window pixels while drawing.</summary>
+    private Vector2 _mouse;
+
+    private void Fit(Rectangle view)
+    {
+        _scale = Math.Min(view.Width / (float)Width, view.Height / (float)Height);
+        _origin = new Vector2(view.X + (view.Width - Width * _scale) / 2, view.Y + (view.Height - Height * _scale) / 2);
+    }
+
+    private Vector2 ToScreen(Vector2 at) => _origin + at * _scale;
+
+    private Rectangle ToScreen(Rectangle r)
+    {
+        var a = ToScreen(new Vector2(r.X, r.Y));
+        var b = ToScreen(new Vector2(r.Right, r.Bottom));
+        return new Rectangle((int)MathF.Round(a.X), (int)MathF.Round(a.Y), (int)MathF.Round(b.X) - (int)MathF.Round(a.X),
+            (int)MathF.Round(b.Y) - (int)MathF.Round(a.Y));
+    }
+
+    private Point ToLayout(Point screen) => ((screen.ToVector2() - _origin) / _scale).ToPoint();
+
+    /// <summary>A font size of the 800 × 600 space in window pixels.</summary>
+    private int Px(int size) => Math.Max(8, (int)MathF.Round(size * _scale));
 
     /// <summary>Handles input; returns the choice once the game is started, <c>null</c> otherwise.</summary>
     public Choice? Update(Rectangle view, out bool quit)
     {
+        Fit(view);
         var keys = Keyboard.GetState();
         var mouse = Mouse.GetState();
         bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
@@ -346,6 +395,7 @@ public sealed class StartScreen : IDisposable
         _previousKeys = keys;
         _previousMouse = mouse;
         quit = false;
+        var at = ToLayout(mouse.Position);
 
         // An open position menu takes the next click (or Esc) for itself.
         if (_positionMenu is { } open)
@@ -355,18 +405,18 @@ public sealed class StartScreen : IDisposable
             else if (clicked || rightClicked)
             {
                 for (int item = 0; item <= PlayerCount; item++)
-                    if (clicked && MenuItem(view, item).Contains(mouse.Position))
+                    if (clicked && MenuItem(item).Contains(at))
                         AssignPosition(open, item == 0 ? null : item - 1);
                 _positionMenu = null;
             }
             return null;
         }
 
-        quit = Pressed(Keys.Escape);
+        quit = Pressed(Keys.Escape) || clicked && QuitButton.Contains(at);
         if (Pressed(Keys.Tab))
             ShowCategory((_category + 1) % Categories.Length);
 
-        int rows = VisibleRows(view);
+        int rows = VisibleRows;
         int move = (Pressed(Keys.Down) ? 1 : 0) - (Pressed(Keys.Up) ? 1 : 0)
                    + (Pressed(Keys.PageDown) ? rows : 0) - (Pressed(Keys.PageUp) ? rows : 0);
         if (_category == RandomCategory)
@@ -385,40 +435,35 @@ public sealed class StartScreen : IDisposable
         _scroll = Math.Clamp(_scroll, 0, Math.Max(0, _shown.Length - rows));
 
         if (clicked || rightClicked)
-        {
-            var at = mouse.Position;
             for (int player = 0; player < PlayerCount; player++)
-                if (ColorBox(view, player).Contains(at))
+                if (ColorBox(player).Contains(at))
                     _colors[player] = NextColor(player, clicked ? 1 : -1);
-        }
         if (clicked)
         {
-            var at = mouse.Position;
-            var list = ListArea(view);
             if (_category == RandomCategory)
-                ClickRandomPanel(view, at);
-            else if (list.Contains(at))
+                ClickRandomPanel(at);
+            else if (ListArea.Contains(at))
             {
-                int index = _scroll + (at.Y - list.Y) / RowHeight;
+                int index = _scroll + (at.Y - ListArea.Y) / RowHeight;
                 if (index < _shown.Length && index != _selected)
                     Select(index);
             }
             for (int category = 0; category < Categories.Length; category++)
-                if (Tab(view, category).Contains(at) && category != _category)
+                if (CategoryButton(category).Contains(at) && category != _category)
                     ShowCategory(category);
             if (_map is not null && RandomPositions)
                 for (int position = 0; position < _map.Players.Count; position++)
-                    if (MarkAt(view, position).Contains(at))
+                    if (MarkAt(position).Contains(at))
                         _positionMenu = position;
             for (int player = 0; player < PlayerCount; player++)
             {
-                int step = LeftArrow(view, player).Contains(at) ? -1 : RightArrow(view, player).Contains(at) ? 1 : 0;
+                int step = LeftArrow(player).Contains(at) ? -1 : RightArrow(player).Contains(at) ? 1 : 0;
                 if (step != 0 && FixedPeople(player) is null)
                     _peoples[player] = Cycle(_peoples[player], step);
-                if (HardcoreBox(view, player).Contains(at))
+                if (HardcoreBox(player).Contains(at))
                     _hardcore[player] = !_hardcore[player];
             }
-            if (StartButton(view).Contains(at) && _map is not null)
+            if (StartButton.Contains(at) && _map is not null)
                 return Start();
         }
         if (Pressed(Keys.Enter) && _map is not null)
@@ -426,17 +471,17 @@ public sealed class StartScreen : IDisposable
         return null;
     }
 
-    private void ClickRandomPanel(Rectangle view, Point at)
+    private void ClickRandomPanel(Point at)
     {
         var entries = _history.Entries;
         for (int entry = 0; entry < entries.Count; entry++)
-            if (RecentRow(view, entry).Contains(at))
+            if (RecentRow(entry).Contains(at))
                 ShowRandom(entries[entry].Settings, entries[entry].Seed);
         for (int option = 0; option < RandomOptions.Length; option++)
             for (int value = 0; value < RandomOptions[option].Values.Length; value++)
-                if (OptionValue(view, option, value).Contains(at) && RandomOptions[option].Get(_randomSettings) != value)
+                if (OptionValue(option, value).Contains(at) && RandomOptions[option].Get(_randomSettings) != value)
                     ShowRandom(RandomOptions[option].Set(_randomSettings, value), _randomSeed);
-        if (RerollButton(view).Contains(at))
+        if (RerollButton.Contains(at))
             ShowRandom(_randomSettings, Random.Shared.Next());
     }
 
@@ -516,244 +561,298 @@ public sealed class StartScreen : IDisposable
     private static Color TextOn(Color background) =>
         background.R * 0.3 + background.G * 0.59 + background.B * 0.11 > 140 ? Color.Black : Color.White;
 
+    private static readonly Color Text = new(240, 225, 190);
+    private static readonly Color HoverText = new(255, 240, 160);
+    private static readonly Color Gold = new(232, 196, 92);
+    private static readonly Color Dim = new(175, 175, 185);
+    private static readonly Color Ink = new(14, 16, 22);
+
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle view)
     {
-        var hover = Mouse.GetState().Position;
-        var dim = new Color(150, 150, 150);
-        font.Draw(batch, "Homestead", new Vector2(Margin, 28), Color.Gold, 34);
+        Fit(view);
+        var mouse = Mouse.GetState().Position;
+        _mouse = mouse.ToVector2();
+        var hover = ToLayout(mouse);
+        string? hint = null;
 
-        // Category buttons and map list.
+        // The background; beside it marble with leaves at the window's edge (a plain strip of the marble image,
+        // inside its gold line and left of its relief; flipped on the right).
+        var page = ToScreen(new Rectangle(0, 0, Width, Height));
+        if (page.X > view.X)
+        {
+            var strip = new Rectangle(14, 0, (int)Math.Min(100, Math.Ceiling(page.X / _scale)), _marble.Height);
+            batch.Draw(_marble, new Rectangle(view.X, view.Y, page.X - view.X, view.Height), strip, Color.White);
+            batch.Draw(_marble, new Rectangle(page.Right, view.Y, view.Right - page.Right, view.Height), strip, Color.White,
+                0, Vector2.Zero, SpriteEffects.FlipHorizontally, 0);
+        }
+        else if (page.Y > view.Y)
+            batch.Draw(_marble, view, new Rectangle(14, 0, _marble.Width - 28, _marble.Height), Color.White);
+        batch.Draw(_background, page, Color.White);
+
+        // Heading and keys on the stone above the list.
+        Write(batch, font, _category == RandomCategory ? "Zufallskarte erstellen" : $"Karten: {Categories[_category]}", 92, 22, Gold, 18);
+        string keys = _category == RandomCategory
+            ? "Enter starten · Esc beenden · R neu würfeln · Tab Kategorie"
+            : "Enter starten · Esc beenden · ↑/↓ Karte · Tab Kategorie";
+        Write(batch, font, keys, 700 - Measure(font, keys, 11), 30, Dim, 11);
+
         for (int category = 0; category < Categories.Length; category++)
-        {
-            var tab = Tab(view, category);
-            bool current = category == _category;
-            batch.Draw(pixel, tab, current ? new Color(70, 60, 30) : tab.Contains(hover) ? new Color(55, 50, 42) : new Color(35, 33, 30));
-            if (current)
-                batch.Draw(pixel, new Rectangle(tab.X, tab.Bottom - 2, tab.Width, 2), Color.Gold);
-            int fontSize = font.Measure(Categories[category], 16).X > tab.Width - 8 ? 13 : 16;
-            var size = font.Measure(Categories[category], fontSize);
-            font.Draw(batch, Categories[category], new Vector2(tab.Center.X - size.X / 2, tab.Center.Y - size.Y / 2 - 1),
-                current ? Color.White : Color.LightGray, fontSize);
-        }
-        var list = ListArea(view);
-        if (_category == RandomCategory)
-            DrawRandomPanel(batch, pixel, font, view, hover);
-        else
-        {
-        batch.Draw(pixel, list, new Color(25, 25, 30));
-        int rows = VisibleRows(view);
-        for (int r = 0; r < rows && _scroll + r < _shown.Length; r++)
-        {
-            int index = _scroll + r;
-            var entry = _shown[index];
-            var row = new Rectangle(list.X, list.Y + r * RowHeight, list.Width, RowHeight);
-            if (index == _selected)
-                batch.Draw(pixel, row, new Color(70, 60, 30));
-            else if (row.Contains(hover))
-                batch.Draw(pixel, row, new Color(45, 45, 50));
-            var color = index == _selected ? Color.White : Color.LightGray;
-            font.Draw(batch, entry.Name, new Vector2(row.X + 8, row.Y + 3), color);
-            string players = entry.Players > 0 ? $"{entry.Players} Spieler" : "?";
-            font.Draw(batch, players, new Vector2(row.Right - 14 - font.Measure(players).X, row.Y + 3), index == _selected ? color : dim);
-        }
-        if (_shown.Length > rows)
-        {
-            // Scroll bar.
-            int height = Math.Max(16, list.Height * rows / _shown.Length);
-            int y = list.Y + (list.Height - height) * _scroll / Math.Max(1, _shown.Length - rows);
-            batch.Draw(pixel, new Rectangle(list.Right - 4, y, 4, height), dim);
-        }
-        }
+            Oval(batch, font, CategoryButton(category), category == RandomCategory ? "Zufall" : Categories[category], hover,
+                category == _category);
+        Oval(batch, font, StartButton, "Starten", hover, enabled: _map is not null);
+        Oval(batch, font, QuitButton, "Beenden", hover);
 
-        // Selected map: preview with its start positions, facts.
-        int x = PanelX(view);
-        var preview = PreviewArea(view);
+        if (_category == RandomCategory)
+            hint = DrawRandomPanel(batch, pixel, font, mouse, hover);
+        else
+            DrawList(batch, font, hover);
+
+        // Selected map: preview in the slanted window with its start positions, name and facts below.
         if (_preview is not null && _map is not null)
         {
-            batch.Draw(_preview, preview, Color.White);
+            // One strip per window row, shifted like the rows of the map.
+            var top = ToScreen(new Vector2(0, PreviewTop));
+            int rows = (int)MathF.Round(PreviewHeight * _scale);
+            int width = (int)MathF.Round(PreviewWidth * _scale);
+            for (int row = 0; row < rows; row++)
+            {
+                float v = (row + 0.5f) / rows;
+                var left = ToScreen(PreviewPoint(0, v));
+                int source = Math.Min(_map.Area.Size - 1, (int)(v * _map.Area.Size));
+                batch.Draw(_preview, new Rectangle((int)MathF.Round(left.X), (int)top.Y + row, width, 1),
+                    new Rectangle(0, source, _map.Area.Size, 1), Color.White);
+            }
             for (int position = 0; position < _map.Players.Count; position++)
             {
                 // A drawn position is a black box with "?"; an assigned one shows its player's color and number.
-                var mark = MarkAt(view, position);
+                var mark = MarkAt(position);
                 int? player = RandomPositions ? _positions[position] : position;
                 bool hot = RandomPositions && (mark.Contains(hover) || _positionMenu == position);
-                batch.Draw(pixel, new Rectangle(mark.X - 1, mark.Y - 1, mark.Width + 2, mark.Height + 2), hot ? Color.Gold : Color.Black);
+                if (RandomPositions && mark.Contains(hover))
+                    hint = "Startposition: „?“ wird beim Start gelost, ein Klick weist sie einem Spieler zu.";
+                batch.Draw(pixel, ToScreen(new Rectangle(mark.X - 1, mark.Y - 1, mark.Width + 2, mark.Height + 2)), hot ? Gold : Color.Black);
                 var fill = player is { } p ? ShownColor(p) : Color.Black;
-                batch.Draw(pixel, new Rectangle(mark.X + 1, mark.Y + 1, mark.Width - 2, mark.Height - 2), fill);
+                batch.Draw(pixel, ToScreen(new Rectangle(mark.X + 1, mark.Y + 1, mark.Width - 2, mark.Height - 2)), fill);
                 string label = player is { } q ? (q + 1).ToString() : "?";
-                var size = font.Measure(label, 13);
-                font.Draw(batch, label, new Vector2(mark.Center.X - size.X / 2, mark.Center.Y - size.Y / 2 - 1),
-                    player is null ? Color.White : TextOn(fill), 13);
+                Centered(batch, font, label, mark, player is null ? Color.White : TextOn(fill), 11, shadow: false);
             }
-            int textX = preview.Right + 20;
-            font.Draw(batch, _map.Name, new Vector2(textX, preview.Y), Color.White, 22);
+            Write(batch, font, _map.Name, 82, 512, Gold, 15);
             string kind = _category == RandomCategory ? "Zufallskarte" : _map.IsSinglePlayer ? "Einzelspieler" : "Mehrspieler";
-            font.Draw(batch, $"{kind} · {_map.Players.Count} Spieler",
-                new Vector2(textX, preview.Y + 34), Color.LightGray);
-            font.Draw(batch, $"{_map.Area.Size} × {_map.Area.Size} Felder", new Vector2(textX, preview.Y + 56), Color.LightGray);
-            if (_map.Buildings.Count > 0)
-                font.Draw(batch, $"{_map.Buildings.Count} Gebäude vorgegeben", new Vector2(textX, preview.Y + 78), Color.LightGray);
-            if (RandomPositions)
-                font.Draw(batch, "Startpositionen: „?“ wird gelost,\nKlick weist einen Spieler zu.", new Vector2(textX, preview.Y + 108), dim, 13);
+            string facts = $"{kind} · {_map.Players.Count} Spieler · {_map.Area.Size} × {_map.Area.Size} Felder"
+                           + (_map.Buildings.Count > 0 ? $" · {_map.Buildings.Count} Gebäude" : "");
+            Write(batch, font, facts, 82, 531, Text, 11);
         }
         else
-            font.Draw(batch, $"Karte nicht lesbar: {_mapError}", new Vector2(x, preview.Y), Color.OrangeRed);
+            Write(batch, font, $"Karte nicht lesbar: {_mapError}", 82, 512, Color.OrangeRed, 12);
 
-        // One row per player: people, color, hardcore.
-        int header = HeaderY(view) + 6;
-        void Header(string text, Rectangle under)
-        {
-            var size = font.Measure(text, 13);
-            font.Draw(batch, text, new Vector2(under.Center.X - size.X / 2, header), dim, 13);
-        }
-        Header("Volk", new Rectangle(LeftArrow(view, 0).X, 0, RightArrow(view, 0).Right - LeftArrow(view, 0).X, 0));
-        Header("Farbe", ColorBox(view, 0));
-        Header("Hardcore", HardcoreBox(view, 0));
-        bool hardcoreHot = false;
-        for (int player = 0; player < PlayerCount; player++)
-        {
-            int y = RowY(view, player);
-            font.Draw(batch, PlayerName(player) + (player == 0 ? " (Du)" : ""), new Vector2(x, y + 5), Color.White, 16);
-
-            var fixedPeople = FixedPeople(player);
-            var people = fixedPeople ?? _peoples[player];
-            var left = LeftArrow(view, player);
-            var right = RightArrow(view, player);
-            if (fixedPeople is null)
-            {
-                DrawButton(batch, pixel, font, left, "<", left.Contains(hover));
-                DrawButton(batch, pixel, font, right, ">", right.Contains(hover));
-            }
-            string name = NameOf(people) + (fixedPeople is null ? "" : " (Karte)");
-            var size = font.Measure(name, 16);
-            font.Draw(batch, name, new Vector2((left.Right + right.X - size.X) / 2, left.Y + 4), fixedPeople is null ? Color.White : dim, 16);
-
-            // Color: grey edge (gold under the mouse), "?" while random.
-            var swatch = ColorBox(view, player);
-            batch.Draw(pixel, new Rectangle(swatch.X - 3, swatch.Y - 3, swatch.Width + 6, swatch.Height + 6),
-                swatch.Contains(hover) ? Color.Gold : new Color(90, 90, 95));
-            batch.Draw(pixel, new Rectangle(swatch.X - 1, swatch.Y - 1, swatch.Width + 2, swatch.Height + 2), new Color(12, 12, 16));
-            if (_colors[player] is { } color)
-                batch.Draw(pixel, swatch, PlayerColors.Palette[color]);
-            else
-            {
-                batch.Draw(pixel, swatch, new Color(60, 60, 66));
-                var mark = font.Measure("?", 18);
-                font.Draw(batch, "?", new Vector2(swatch.Center.X - mark.X / 2, swatch.Center.Y - mark.Y / 2 - 1), Color.White, 18);
-            }
-
-            // Hardcore checkbox: grey edge, a gold square inside when on.
-            var box = HardcoreBox(view, player);
-            bool hot = box.Contains(hover);
-            hardcoreHot |= hot;
-            batch.Draw(pixel, new Rectangle(box.X - 2, box.Y - 2, box.Width + 4, box.Height + 4), hot ? Color.Gold : new Color(90, 90, 95));
-            batch.Draw(pixel, box, new Color(25, 25, 30));
-            if (_hardcore[player])
-                batch.Draw(pixel, new Rectangle(box.X + 6, box.Y + 6, box.Width - 12, box.Height - 12), Color.Gold);
-        }
-
-        var start = StartButton(view);
-        string? hint = hardcoreHot ? HardcoreHint
-            : RandomPositions && Enumerable.Range(0, PlayerCount).Any(p => FixedPeopleAt(p) is not null)
-                ? "Die Karte gibt Völker je Startposition vor: sie gelten für den Spieler, der dort startet."
-                : null;
-        if (hint is not null)
-            font.Draw(batch, hint, new Vector2(x, start.Y - 22), dim, 12);
-        DrawButton(batch, pixel, font, start, "Spiel starten", _map is not null && start.Contains(hover), 18);
-        font.Draw(batch, _category == RandomCategory
-                ? "Enter: starten · Esc: beenden · R: neu würfeln · Tab: Kategorie"
-                : "Enter: starten · Esc: beenden · Pfeiltasten/Mausrad: Karte · Tab: Kategorie",
-            new Vector2(start.Right + 20, start.Y + 14), dim, 13);
+        hint = DrawPlayers(batch, pixel, font, hover) ?? hint;
 
         // The position menu over everything else.
         if (_positionMenu is not null)
         {
-            var top = MenuItem(view, 0);
-            batch.Draw(pixel, new Rectangle(top.X - 2, top.Y - 2, MenuWidth + 4, (PlayerCount + 1) * MenuItemHeight + 4), Color.Gold);
+            var first = MenuItem(0);
+            var box = ToScreen(new Rectangle(first.X, first.Y, MenuWidth, (PlayerCount + 1) * MenuItemHeight));
+            batch.Draw(pixel, new Rectangle(box.X - 2, box.Y - 2, box.Width + 4, box.Height + 4), Gold);
+            batch.Draw(pixel, box, Ink);
             for (int item = 0; item <= PlayerCount; item++)
             {
-                var entry = MenuItem(view, item);
-                batch.Draw(pixel, entry, entry.Contains(hover) ? new Color(70, 60, 30) : new Color(30, 30, 36));
+                var entry = MenuItem(item);
+                if (entry.Contains(hover))
+                    batch.Draw(_rowBar, ToScreen(entry), Color.White);
                 if (item == 0)
-                    font.Draw(batch, "? (Zufall)", new Vector2(entry.X + 8, entry.Y + 3), Color.White, 14);
+                    Write(batch, font, "? (Zufall)", entry.X + 8, entry.Y + 2, Text, 12);
                 else
                 {
-                    var swatch = new Rectangle(entry.X + 6, entry.Y + 5, 12, 12);
-                    batch.Draw(pixel, swatch, ShownColor(item - 1));
-                    font.Draw(batch, PlayerName(item - 1), new Vector2(entry.X + 24, entry.Y + 3), Color.White, 14);
+                    batch.Draw(pixel, ToScreen(new Rectangle(entry.X + 6, entry.Y + 4, 10, 10)), ShownColor(item - 1));
+                    Write(batch, font, PlayerName(item - 1), entry.X + 22, entry.Y + 2, Text, 12);
                 }
             }
         }
+        if (hint is not null)
+            Hint(batch, pixel, font, hint, mouse, view);
     }
 
-    /// <summary>The random map generator in place of the list: last maps, settings, "Neu würfeln" and the hint of the setting under the mouse.</summary>
-    private void DrawRandomPanel(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle view, Point hover)
+    /// <summary>The maps of the category in the upper panel: the selected one on a stone bar, a scroll bar if they don't fit.</summary>
+    private void DrawList(SpriteBatch batch, UiFont font, Point hover)
     {
-        var list = ListArea(view);
-        var dim = new Color(150, 150, 150);
-        batch.Draw(pixel, list, new Color(25, 25, 30));
-        font.Draw(batch, "Vorherige Karten", new Vector2(list.X + 8, list.Y + 4), Color.Gold, 15);
+        int rows = VisibleRows;
+        bool scrolls = _shown.Length > rows;
+        int right = ListArea.Right - (scrolls ? 18 : 0);
+        for (int r = 0; r < rows && _scroll + r < _shown.Length; r++)
+        {
+            int index = _scroll + r;
+            var entry = _shown[index];
+            var row = new Rectangle(ListArea.X, ListArea.Y + r * RowHeight, right - ListArea.X, RowHeight);
+            bool selected = index == _selected;
+            if (selected)
+                batch.Draw(_rowBar, ToScreen(row), Color.White);
+            var color = selected ? Color.White : row.Contains(hover) ? HoverText : Text;
+            Write(batch, font, entry.Name, row.X + 8, row.Y + 2, color, 13);
+            string players = entry.Players > 0 ? $"{entry.Players} Spieler" : "?";
+            Write(batch, font, players, row.Right - 10 - Measure(font, players, 12), row.Y + 3, selected ? color : Dim, 12);
+        }
+        if (_shown.Length == 0)
+            Write(batch, font, "Keine Karten in dieser Kategorie.", ListArea.X + 8, ListArea.Y + 4, Dim, 13);
+        if (!scrolls)
+            return;
+        // Scroll bar: the original's groove with a stone handle.
+        var track = new Rectangle(ListArea.Right - 12, ListArea.Y, 12, ListArea.Height);
+        batch.Draw(_scrollTop, ToScreen(new Rectangle(track.X, track.Y, 12, 8)), Color.White);
+        batch.Draw(_scrollTrack, ToScreen(new Rectangle(track.X, track.Y + 8, 12, track.Height - 16)), Color.White);
+        batch.Draw(_scrollBottom, ToScreen(new Rectangle(track.X, track.Bottom - 8, 12, 8)), Color.White);
+        int height = Math.Max(16, (track.Height - 16) * rows / _shown.Length);
+        int y = track.Y + 8 + (track.Height - 16 - height) * _scroll / Math.Max(1, _shown.Length - rows);
+        batch.Draw(_sheet, ToScreen(new Rectangle(track.X + 2, y, 8, height)), _handle, Color.White);
+    }
+
+    /// <summary>One row per player in the lower panel: people, color, hardcore. Returns the hint under the mouse.</summary>
+    private string? DrawPlayers(SpriteBatch batch, Texture2D pixel, UiFont font, Point hover)
+    {
+        string? hint = null;
+        int size = Math.Min(13, Control - 3);
+        int header = RowY(-1) + (PlayerRow - 11) / 2;
+        Write(batch, font, "Spieler", 346, header, Gold, 11);
+        Centered(batch, font, "Volk", new Rectangle(LeftArrow(0).X, header, RightArrow(0).Right - LeftArrow(0).X, 12), Gold, 11);
+        Centered(batch, font, "Farbe", new Rectangle(ColorBox(0).X - 10, header, ColorBox(0).Width + 20, 12), Gold, 11);
+        Centered(batch, font, "Hardcore", new Rectangle(HardcoreBox(0).X - 20, header, HardcoreBox(0).Width + 40, 12), Gold, 11);
+        var fixedHint = "Die Karte gibt das Volk dieser Startposition vor; es gilt für den Spieler, der dort startet.";
+        for (int player = 0; player < PlayerCount; player++)
+        {
+            var left = LeftArrow(player);
+            var right = RightArrow(player);
+            Write(batch, font, PlayerName(player) + (player == 0 ? " (Du)" : ""), 346, left.Y + (left.Height - size) / 2 - 1,
+                player == 0 ? HoverText : Text, size);
+
+            var fixedPeople = FixedPeople(player);
+            var people = fixedPeople ?? _peoples[player];
+            if (fixedPeople is null)
+            {
+                Small(batch, pixel, font, left, "<");
+                Small(batch, pixel, font, right, ">");
+            }
+            var name = new Rectangle(left.Right, left.Y, right.X - left.Right, left.Height);
+            Centered(batch, font, NameOf(people) + (fixedPeople is null ? "" : " (Karte)"), name, fixedPeople is null ? Text : Dim, size);
+            if (fixedPeople is not null && name.Contains(hover))
+                hint = fixedHint;
+
+            // Color: gold edge under the mouse, "?" while random.
+            var swatch = ColorBox(player);
+            batch.Draw(pixel, ToScreen(new Rectangle(swatch.X - 2, swatch.Y - 2, swatch.Width + 4, swatch.Height + 4)),
+                swatch.Contains(hover) ? Gold : new Color(120, 135, 150));
+            batch.Draw(pixel, ToScreen(swatch), _colors[player] is { } color ? PlayerColors.Palette[color] : Ink);
+            if (_colors[player] is null)
+                Centered(batch, font, "?", swatch, Color.White, size);
+            if (swatch.Contains(hover))
+                hint = "Farbe: Klick die nächste freie, Rechtsklick die vorige; „?“ wird beim Start gelost.";
+
+            // Hardcore: a stone box, pressed and lit while on.
+            var box = HardcoreBox(player);
+            TextButton.Draw(batch, pixel, font, ToScreen(box), "", _mouse, selected: _hardcore[player]);
+            if (_hardcore[player])
+                batch.Draw(pixel, ToScreen(new Rectangle(box.X + 5, box.Y + 5, box.Width - 10, box.Height - 10)), Gold);
+            if (box.Contains(hover))
+                hint = HardcoreHint;
+        }
+        return hint;
+    }
+
+    /// <summary>The random map generator in place of the list: last maps, "Neu würfeln", settings. Returns the hint under the mouse.</summary>
+    private string? DrawRandomPanel(SpriteBatch batch, Texture2D pixel, UiFont font, Point mouse, Point hover)
+    {
+        Write(batch, font, "Vorherige Karten", 96, 64, Gold, 13);
         var entries = _history.Entries;
         if (entries.Count == 0)
-            font.Draw(batch, "noch keine gespielt", new Vector2(list.X + 8, RecentRow(view, 0).Y + 3), dim, 14);
+            Write(batch, font, "noch keine gespielt", 100, RecentRow(0).Y + 2, Dim, 12);
         for (int entry = 0; entry < entries.Count; entry++)
         {
             var e = entries[entry];
-            var row = RecentRow(view, entry);
+            var row = RecentRow(entry);
             bool current = e.Settings == _randomSettings && e.Seed == _randomSeed;
             if (current)
-                batch.Draw(pixel, row, new Color(70, 60, 30));
-            else if (row.Contains(hover))
-                batch.Draw(pixel, row, new Color(45, 45, 50));
-            font.Draw(batch, $"{e.Settings.Players} Spieler · {SymmetryNames[(int)e.Settings.Symmetry]} · #{(uint)e.Seed:X8}",
-                new Vector2(row.X + 8, row.Y + 3), current ? Color.White : Color.LightGray);
+                batch.Draw(_rowBar, ToScreen(row), Color.White);
+            var color = current ? Color.White : row.Contains(hover) ? HoverText : Text;
+            Write(batch, font, $"{e.Settings.Players} Spieler · {SymmetryNames[(int)e.Settings.Symmetry]}", row.X + 6, row.Y + 3, color, 12);
             string date = e.Created.ToString("dd.MM. HH:mm");
-            font.Draw(batch, date, new Vector2(row.Right - 10 - font.Measure(date).X, row.Y + 3), dim);
+            Write(batch, font, date, row.Right - 6 - Measure(font, date, 11), row.Y + 4, current ? color : Dim, 11);
         }
+        TextButton.Draw(batch, pixel, font, ToScreen(RerollButton), "Neu würfeln", mouse.ToVector2(), size: Px(13));
+        Write(batch, font, $"#{(uint)_randomSeed:X8}", RerollButton.Right + 10, RerollButton.Y + 7, Dim, 12);
 
-        font.Draw(batch, "Einstellungen", new Vector2(list.X + 8, OptionY(view, 0) - 26), Color.Gold, 15);
         string? hint = null;
         for (int option = 0; option < RandomOptions.Length; option++)
         {
             var o = RandomOptions[option];
-            font.Draw(batch, o.Label, new Vector2(list.X + 8, OptionY(view, option) + 4), Color.White, 15);
+            int y = OptionY(option);
+            Write(batch, font, o.Label, 360, y + 4, Text, 13);
+            if (new Rectangle(356, y, 340, OptionRow).Contains(hover))
+                hint = o.Hint;
             int chosen = o.Get(_randomSettings);
             for (int value = 0; value < o.Values.Length; value++)
             {
-                var box = OptionValue(view, option, value);
-                bool hot = box.Contains(hover);
-                if (hot || new Rectangle(list.X, OptionY(view, option), list.Width, OptionRow).Contains(hover))
-                    hint = o.Hint;
-                batch.Draw(pixel, box, value == chosen ? new Color(110, 90, 40) : hot ? new Color(70, 65, 55) : new Color(45, 43, 40));
-                if (value == chosen)
-                    batch.Draw(pixel, new Rectangle(box.X, box.Bottom - 2, box.Width, 2), Color.Gold);
-                int fontSize = font.Measure(o.Values[value], 14).X > box.Width - 4 ? 12 : 14;
-                var size = font.Measure(o.Values[value], fontSize);
-                font.Draw(batch, o.Values[value], new Vector2(box.Center.X - size.X / 2, box.Center.Y - size.Y / 2 - 1),
-                    value == chosen ? Color.White : Color.LightGray, fontSize);
+                var box = OptionValue(option, value);
+                int size = Measure(font, o.Values[value], 12) > box.Width - 8 ? 10 : 12;
+                TextButton.Draw(batch, pixel, font, ToScreen(box), o.Values[value], mouse.ToVector2(), size: Px(size), selected: value == chosen);
             }
         }
-        var reroll = RerollButton(view);
-        DrawButton(batch, pixel, font, reroll, "Neu würfeln", reroll.Contains(hover));
-        font.Draw(batch, $"#{(uint)_randomSeed:X8}", new Vector2(reroll.Right + 14, reroll.Y + 10), dim, 14);
-        if (hint is not null)
-        {
-            int y = reroll.Bottom + 10;
-            foreach (string line in font.Wrap(hint, list.Width - 16, 12))
-            {
-                font.Draw(batch, line, new Vector2(list.X + 8, y), dim, 12);
-                y += 16;
-            }
-        }
+        return hint;
     }
 
-    private static void DrawButton(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle box, string text, bool hot, int size = 16)
+    /// <summary>The original's oval stone button: pressed while chosen or held, the text lit under the mouse.</summary>
+    private void Oval(SpriteBatch batch, UiFont font, Rectangle rect, string label, Point hover, bool selected = false, bool enabled = true)
     {
-        batch.Draw(pixel, box, hot ? new Color(110, 90, 40) : new Color(60, 55, 45));
-        batch.Draw(pixel, new Rectangle(box.X, box.Bottom - 2, box.Width, 2), new Color(30, 25, 20));
-        var measured = font.Measure(text, size);
-        font.Draw(batch, text, new Vector2(box.Center.X - measured.X / 2, box.Center.Y - measured.Y / 2 - 1), Color.White, size);
+        bool over = enabled && rect.Contains(hover);
+        bool down = selected || over && Mouse.GetState().LeftButton == ButtonState.Pressed;
+        batch.Draw(_sheet, ToScreen(rect), down ? _ovalPressed : _oval, enabled ? Color.White : new Color(140, 140, 140));
+        int size = Measure(font, label, 13) > rect.Width - 14 ? 11 : 13;
+        Centered(batch, font, label, new Rectangle(rect.X, rect.Y + (down ? 1 : 0), rect.Width, rect.Height),
+            !enabled ? Dim : selected ? Gold : over ? HoverText : Text, size);
     }
 
-    public void Dispose() => _preview?.Dispose();
+    /// <summary>A small square stone button with a sign.</summary>
+    private void Small(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle rect, string sign) =>
+        TextButton.Draw(batch, pixel, font, ToScreen(rect), sign, _mouse, size: Px(Math.Min(13, rect.Height - 4)));
+
+    /// <summary>Text at a point of the 800 × 600 space, with a shadow.</summary>
+    private void Write(SpriteBatch batch, UiFont font, string text, float x, float y, Color color, int size, bool shadow = true)
+    {
+        var at = ToScreen(new Vector2(x, y));
+        at = new Vector2(MathF.Round(at.X), MathF.Round(at.Y));
+        if (shadow)
+            font.Draw(batch, text, at + new Vector2(1, 1), Color.Black * 0.8f, Px(size));
+        font.Draw(batch, text, at, color, Px(size));
+    }
+
+    private void Centered(SpriteBatch batch, UiFont font, string text, Rectangle rect, Color color, int size, bool shadow = true)
+    {
+        var measured = font.Measure(text, Px(size)) / _scale;
+        Write(batch, font, text, rect.Center.X - measured.X / 2, rect.Y + (rect.Height - measured.Y) / 2, color, size, shadow);
+    }
+
+    /// <summary>Width of the text in the 800 × 600 space.</summary>
+    private float Measure(UiFont font, string text, int size) => font.Measure(text, Px(size)).X / _scale;
+
+    /// <summary>A wrapped hint next to the mouse, kept inside the window.</summary>
+    private void Hint(SpriteBatch batch, Texture2D pixel, UiFont font, string text, Point mouse, Rectangle view)
+    {
+        int size = Px(12), line = (int)(size * 1.35f);
+        var lines = font.Wrap(text, Px(260), size).ToList();
+        int width = (int)lines.Max(l => font.Measure(l, size).X) + 16, height = lines.Count * line + 10;
+        int x = mouse.X + 16, y = mouse.Y + 16;
+        if (x + width > view.Right)
+            x = mouse.X - 12 - width;
+        if (y + height > view.Bottom)
+            y = mouse.Y - 12 - height;
+        var box = new Rectangle(x, y, width, height);
+        batch.Draw(pixel, new Rectangle(box.X - 1, box.Y - 1, box.Width + 2, box.Height + 2), Gold * 0.8f);
+        batch.Draw(pixel, box, Ink * 0.95f);
+        for (int i = 0; i < lines.Count; i++)
+            font.Draw(batch, lines[i], new Vector2(x + 8, y + 5 + i * line), Text, size);
+    }
+
+    public void Dispose()
+    {
+        _preview?.Dispose();
+        foreach (var texture in new[] { _background, _marble, _sheet, _rowBar, _scrollTop, _scrollTrack, _scrollBottom })
+            texture.Dispose();
+    }
 }

@@ -52,6 +52,7 @@ public sealed class MapGame : Game
     private readonly string _mapDirectory;
 
     /// <summary>Shown before the first map is loaded, until the game is started.</summary>
+    private TitleScreen? _title;
     private StartScreen? _startScreen;
 
     /// <summary>The statistics screen while it is shown (the game stands still meanwhile).</summary>
@@ -308,10 +309,17 @@ public sealed class MapGame : Game
         _font = new UiFont();
         if (_showStartScreen)
         {
-            _startScreen = new StartScreen(GraphicsDevice, _mapFiles, _mapDirectory, _mapIndex, _peoples);
-            // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps).
-            if (_captureDirectory is not null && int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START"), out int category))
-                _startScreen.ShowCategory(category);
+            // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps);
+            // =title: the title screen's.
+            string? captureStart = _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START");
+            if (captureStart is null || captureStart == "title")
+                _title = new TitleScreen(GraphicsDevice, _gfx);
+            else
+            {
+                _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _peoples);
+                if (int.TryParse(captureStart, out int category))
+                    _startScreen.ShowCategory(category);
+            }
         }
         else if (_loadSlot is { } slot)
             LoadGame(SaveSlots.Load(slot));
@@ -325,7 +333,12 @@ public sealed class MapGame : Game
     {
         var choice = _startScreen!.Update(GraphicsDevice.Viewport.Bounds, out bool quit);
         if (quit)
-            Exit();
+        {
+            _startScreen.Dispose();
+            _startScreen = null;
+            _title = new TitleScreen(GraphicsDevice, _gfx);
+            return;
+        }
         if (Keyboard.GetState().IsKeyDown(Keys.F11) && !_previousKeys.IsKeyDown(Keys.F11))
             ToggleFullScreen();
         _previousKeys = Keyboard.GetState();
@@ -555,12 +568,36 @@ public sealed class MapGame : Game
         Exit();
     }
 
-    /// <summary>Quits the game: back to the start screen.</summary>
-    private void QuitToStartScreen()
+    /// <summary>Quits the game: back to the title screen.</summary>
+    private void QuitToTitle()
     {
         _tabs.Current = PanelTab.Build;
         _ownAi = null;
-        _startScreen = new StartScreen(GraphicsDevice, _mapFiles, _mapDirectory, _mapIndex, _peoples);
+        _title = new TitleScreen(GraphicsDevice, _gfx);
+    }
+
+    private void UpdateTitle()
+    {
+        var action = _title!.Update(GraphicsDevice.Viewport.Bounds);
+        if (Keyboard.GetState().IsKeyDown(Keys.F11) && !_previousKeys.IsKeyDown(Keys.F11))
+            ToggleFullScreen();
+        _previousKeys = Keyboard.GetState();
+        _previousMouse = Mouse.GetState();
+        if (action == TitleAction.Quit)
+            Exit();
+        else if (action == TitleAction.Load)
+        {
+            var game = SaveSlots.Load(_title.ChosenSlot);
+            _title.Dispose();
+            _title = null;
+            LoadGame(game);
+        }
+        else if (action == TitleAction.SinglePlayer)
+        {
+            _title.Dispose();
+            _title = null;
+            _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _peoples);
+        }
     }
 
     /// <summary>
@@ -680,6 +717,12 @@ public sealed class MapGame : Game
     protected override void Update(GameTime gameTime)
     {
         _now = gameTime.TotalGameTime.TotalSeconds;
+        if (_title is not null)
+        {
+            UpdateTitle();
+            base.Update(gameTime);
+            return;
+        }
         if (_startScreen is not null)
         {
             UpdateStartScreen();
@@ -700,7 +743,7 @@ public sealed class MapGame : Game
                 case StatisticsAction.Quit:
                     _statistics.Dispose();
                     _statistics = null;
-                    QuitToStartScreen();
+                    QuitToTitle();
                     break;
             }
             base.Update(gameTime);
@@ -1800,19 +1843,22 @@ public sealed class MapGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
-        if (_startScreen is not null)
+        if (_title is not null || _startScreen is not null)
         {
-            // Capture runs with HOMESTEAD_CAPTURE_START=1 save one picture of the start screen and quit.
+            // Capture runs with HOMESTEAD_CAPTURE_START save one picture of the title or start screen and quit.
             var startTarget = _captureDirectory is null ? null : NewCaptureTarget();
             GraphicsDevice.SetRenderTarget(startTarget);
             GraphicsDevice.Clear(new Color(12, 12, 16));
-            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-            _startScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            _spriteBatch.Begin(samplerState: SamplerState.LinearClamp);
+            if (_title is not null)
+                _title.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            else
+                _startScreen!.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
             _spriteBatch.End();
             if (startTarget is not null)
             {
                 GraphicsDevice.SetRenderTarget(null);
-                using (var stream = File.Create(Path.Combine(_captureDirectory!, "start.png")))
+                using (var stream = File.Create(Path.Combine(_captureDirectory!, _title is not null ? "title.png" : "start.png")))
                     startTarget.SaveAsPng(stream, startTarget.Width, startTarget.Height);
                 startTarget.Dispose();
                 Exit();
@@ -2730,6 +2776,7 @@ public sealed class MapGame : Game
         _minimap?.Dispose();
         _sidePanel?.Dispose();
         _eventButtons?.Dispose();
+        _title?.Dispose();
         _startScreen?.Dispose();
         _statistics?.Dispose();
         TextButton.Dispose();
