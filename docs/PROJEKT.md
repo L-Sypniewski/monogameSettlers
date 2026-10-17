@@ -8,7 +8,7 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
 ## Rahmenbedingungen
 - **Engine:** MonoGame (C#, .NET 9)
 - **Nur Singleplayer**, kein Multiplayer
-- **Closed Source**, rein privat, keine Veröffentlichung geplant
+- **Open Source** (MIT, [LICENSE.md](../LICENSE.md)), nicht-kommerzielles Fanprojekt; Regeln für Mitwirkende: [CONTRIBUTING.md](../CONTRIBUTING.md)
 - **Hauptziele gegenüber dem Original:**
   1. Starke KI
   2. Keine festlaufenden Träger (insbesondere beim KI-Gegner)
@@ -16,14 +16,15 @@ mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
 
 ## Rechtliche Leitplanken (verbindlich)
 - **Keine Original-Assets im Repo, im Build oder in Downloads.** Die Engine liest GFX/SND zur Laufzeit aus
-  der lokalen Installation (Pfad konfigurierbar, siehe README).
+  der lokalen Installation (Pfad konfigurierbar, siehe [README](../README.md)).
 - **Kein Dekompilieren oder Disassemblieren der Original-EXE/-DLLs**, kein Übernehmen von Originalcode.
   Die Spiellogik wird nach Beobachtung und Spielkenntnis neu geschrieben (Clean-Room-Ansatz).
 - **Dateiformate analysieren ist okay** (GFX, SND, Karten): Reverse Engineering an Daten, nicht am Programm.
 - **Keinen Kopierschutz/DRM umgehen.**
 - Code aus JSettlers (MIT-Lizenz) darf als Referenz dienen oder übernommen werden; dann den
   MIT-Lizenzhinweis in `THIRD_PARTY_NOTICES.md` erhalten.
-- Falls das Projekt je geteilt wird: kein „Siedler" im Namen (Marke von Ubisoft).
+- Name „monoSettlers“ (wie JSettlers, Settlers United u. a. Fanprojekte); keine offiziellen Logos, nicht als offizielles Produkt auftreten.
+  Typ- und Namespace-Namen ohne „Siedler“/„Settlers“ (Code: *Homestead*).
 
 ## Referenz: JSettlers
 - Aktiver Fork: https://github.com/paulwedeck/settlers-remake (Java, MIT, Alpha-Status)

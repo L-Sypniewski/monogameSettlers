@@ -9,6 +9,7 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
 - Original-EXE/-DLLs (auch `GFX/Siedler3_18…dat`, eine DLL) nie dekompilieren, disassemblieren, analysieren. Nur Datenformate.
 - Kein Kopierschutz/DRM umgehen.
 - JSettlers-Code (MIT) darf übernommen werden → `THIRD_PARTY_NOTICES.md` pflegen.
+- Open Source (MIT, `LICENSE.md`), Clean Room; Regeln für Mitwirkende: `CONTRIBUTING.md`, README auf Englisch.
 - Kein „Siedler"/„Settlers" in Typnamen (Repo/README: „monoSettlers").
 
 ## Aufbau
