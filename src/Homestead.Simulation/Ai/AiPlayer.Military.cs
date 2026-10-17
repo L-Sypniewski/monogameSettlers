@@ -48,6 +48,7 @@ public sealed partial class AiPlayer
         if (military.Count == 0)
             return;
         var idle = IdleSoldiers();
+        InspectScouts(military, idle);
         Staff(military, idle);
         var map = _world.Map!;
         bool onOwnLand(EnemyGroup g) => map.OwnerAt(g.Center) == Player;
@@ -91,6 +92,10 @@ public sealed partial class AiPlayer
         foreach (var trait in Character.Traits)
             if (trait.Guard(this, military, rest))
                 break;
+
+        // Decision point "errands": every trait may send settlers off on its own.
+        foreach (var trait in Character.Traits)
+            trait.RunErrands(this, military);
     }
 
     /// <summary>
@@ -108,6 +113,8 @@ public sealed partial class AiPlayer
         {
             int places = building.Definition.Occupiers.Count;
             int limit = Math.Max(1, Character.Traits.Select(t => t.GarrisonLimit(this, building)).Min() ?? places);
+            if (_releasing.Contains(building))
+                limit = Math.Max(1, Math.Min(limit, m.Occupants(building).Count(o => o is not null) - 1)); // one out to look at a suspect
             int infantryPlaces = building.Definition.Occupiers.Count(o => !o.ForBowman);
             int infantry = Math.Min(infantryPlaces, limit);
             int swordsmen = m.Assigned(building, SoldierType.Swordsman), pikemen = m.Assigned(building, SoldierType.Pikeman);
@@ -253,9 +260,10 @@ public sealed partial class AiPlayer
         : _world.Buildings.Where(b => b.Exists && b.Player == Player && IsMilitary(b)).Select(b => b.Door).FirstOrDefault();
 
     /// <summary>
-    /// The group's strength plus that of other enemy groups near the way from <paramref name="from"/> to it
-    /// and of the bowmen in enemy military buildings within reach of the way or the group (they shoot from
-    /// safety: a single soldier next to a full castle is not alone).
+    /// The group's strength plus that of other enemy groups near the way from <paramref name="from"/> to it,
+    /// of the other enemy soldiers within <c>military.reinforceRadius</c> of it (they come to help) and of the
+    /// bowmen in enemy military buildings within reach of the way or the group (they shoot from safety: a
+    /// single soldier next to a full castle is not alone).
     /// </summary>
     private double Opposition(EnemyGroup group, GridPoint from)
     {
@@ -263,8 +271,13 @@ public sealed partial class AiPlayer
         int steps = Math.Max(1, PathFinder.Distance(from, group.Center) / 3);
         var way = Enumerable.Range(0, steps + 1).Select(i => new GridPoint(from.X + (group.Center.X - from.X) * i / steps,
             from.Y + (group.Center.Y - from.Y) * i / steps)).ToList();
-        var onTheWay = EnemyGroups.Where(g => !g.Soldiers.Any(group.Soldiers.Contains) && way.Any(p => PathFinder.Distance(g.Center, p) <= clearance));
-        return group.Strength + onTheWay.Sum(g => g.Strength) + TowerFire(way);
+        var onTheWay = EnemyGroups.Where(g => !g.Soldiers.Any(group.Soldiers.Contains) && way.Any(p => PathFinder.Distance(g.Center, p) <= clearance)).ToList();
+        int reinforce = _config.Military.ReinforceRadius;
+        double helpers = EnemyGroups.Except(onTheWay).Where(g => g != group && !g.Soldiers.Any(group.Soldiers.Contains))
+            .SelectMany(g => g.Soldiers)
+            .Where(s => s.Profession == Profession.Soldier && PathFinder.Distance(s.Position, group.Center) <= reinforce)
+            .Sum(s => Strength(s, group.Center));
+        return group.Strength + onTheWay.Sum(g => g.Strength) + helpers + TowerFire(way);
     }
 
     /// <summary>

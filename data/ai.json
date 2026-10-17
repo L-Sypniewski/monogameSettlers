@@ -94,13 +94,14 @@
     "upgradeOrder": [ "Swordsman", "Bowman", "Pikeman" ]
   },
   "military": {
-    "_comment": "Idle soldiers outside buildings, weighed every thinkSeconds; soldiers walking on a plain move order of the AI (to a post, home) count as idle, so their order is weighed again as well. The AI knows where every enemy soldier and geologist is. Enemies within groupRadius of each other form a group (geologists do not fight: one soldier is enough against them). Guerilla comes before holding soldiers back: a group within strikeRange of an own military building is attacked by the nearest idle soldiers once they have strikeRatio times its strength (health x damage per second), also by those that would otherwise stay back against it; only soldiers needed against the other groups within threatRange (strikeRatio times their strength) are kept out. An attack on the land (enemies walking or fighting) is met anywhere; enemies just standing around only if they stand at most hinterlandDepth fields deep in their own land (0: anywhere). The other idle soldiers are placed by the character's traits (guarding): guardByThreat shares them out by how strong and close the enemy groups within threatRange are, without any threat they gather at home; frontTowers, everyOtherTower and rotatingTowers spread them over the towers while there is no threat. A soldier within guardDistance of its post stays. Without such a trait they stay where they are.",
+    "_comment": "Idle soldiers outside buildings, weighed every thinkSeconds; soldiers walking on a plain move order of the AI (to a post, home) count as idle, so their order is weighed again as well. The AI knows where every enemy soldier and geologist is. Enemies within groupRadius of each other form a group (geologists do not fight: one soldier is enough against them). Guerilla comes before holding soldiers back: a group within strikeRange of an own military building is attacked by the nearest idle soldiers once they have strikeRatio times its strength (health x damage per second), also by those that would otherwise stay back against it; only soldiers needed against the other groups within threatRange (strikeRatio times their strength) are kept out. An attack on the land (enemies walking or fighting) is met anywhere; enemies just standing around only if they stand at most hinterlandDepth fields deep in their own land (0: anywhere). The other idle soldiers are placed by the character's traits (guarding): guardByThreat shares them out by how strong and close the enemy groups within threatRange are, without any threat they gather at home; frontTowers, everyOtherTower and rotatingTowers spread them over the towers while there is no threat. A soldier within guardDistance of its post stays. reinforceRadius: enemy soldiers outside within this distance of a strike's target count as its defence too (scattered soldiers come to help; checked at the start and every think while it runs). Without such a trait they stay where they are.",
     "thinkSeconds": 1,
     "groupRadius": 6,
     "strikeRange": 100,
     "strikeRatio": 1.5,
     "threatRange": 70,
-    "guardDistance": 10
+    "guardDistance": 10,
+    "reinforceRadius": 30
   },
   "attack": {
     "_comment": "Campaigns against enemy land. Defence comes first: idle soldiers needed against enemies near the own land stay back, and no campaign starts while enemies stand on the own land. Target: an occupied enemy military building; its defence is its garrison plus enemy soldiers within defenseRadius. Preferred are targets close to the own land, weakly defended, with no enemy group within pathClearance of the way there. A campaign starts when the spare soldiers have ratio times the target's defence and the AI's whole army has armyRatio (default: ratio; 0: any) times that enemy's (at least minSoldiers). commit (0-1, default 0): that share of the spare soldiers left over comes along as well (1: full strength). The soldiers first gather at the own military building nearest the target (at most gatherSeconds); the campaign is given up when they then have less than abortRatio (default: ratio; 0: never) times the defence, otherwise they attack together; they retreat when they fall below military.retreatRatio (0: never), and go home when it is over. maxDistance (default 0: any): targets at most this far from the own military building nearest them.",
@@ -160,6 +161,17 @@
       "_comment": "Idle soldiers gather at the own military building nearest an enemy one, as a base for guerilla strikes. When the enemy groups within military.threatRange of it are stronger than fallBackRatio times them, they fall back (without fighting on the way) to the own military building nearest the base that lies fallBackDistance fields further from those enemies (otherwise home); an enemy moving on is fought by defence and guerilla from behind. Takes the decision point guarding: comes before guardByThreat in a character.",
       "fallBackRatio": 1.0,
       "fallBackDistance": 15
+    },
+    "thief": {
+      "_comment": "Keeps scouts scouts (free carriers become ones) and sends them for goods at the edge of enemy land: piles on another player's land at most edgeDepth fields from where it ends (a storehouse right at the border has its piles some 8 fields in), within maxDistance of the own land, no enemy soldier outside the buildings within soldierRadius (one coming that near the scout or his pile calls him home; that pile is left alone for retrySeconds). Lost scouts are replaced at most every replaceSeconds (carriers are worth something too). ranks: goods best first (gold, gems, weapons, ores; then food; the rest last); the scout takes the best good around the pile. Loaded scouts walk to the nearest field of the own land and drop the goods there. Rechecked every checkSeconds. Errands only: combines with any other trait.",
+      "scouts": 2,
+      "edgeDepth": 12,
+      "maxDistance": 30,
+      "soldierRadius": 12,
+      "checkSeconds": 3,
+      "retrySeconds": 60,
+      "replaceSeconds": 90,
+      "ranks": [["GOLD", "GEMS", "SWORD", "BOW", "SPEAR", "GOLDORE", "IRONORE"], ["BREAD", "FISH", "MEAT"]]
     }
   },
   "characters": {
@@ -167,7 +179,7 @@
     "general": { "traits": ["pincer", "everyOtherTower", "guardByThreat"], "attack": { "ratio": 1.2 }, "military": { "strikeRange": 40 } },
     "_peoplesComment": "One character per people (characterWeights under civilizations), each a recognisable opponent. Egyptians (hothead): hot-tempered, military early, attack at slight superiority with all they have, thin garrisons in the back. Asians (unyielding): hardly ever give up or retreat (only below half the defence; never at all bled them out). Romans (legion): strong economy with early gold, attack bundled in waves, pincers. Amazons (skirmisher): play safe at home (garrisons full, campaigns only at 2:1), but wear the enemy down with guerilla groups far out (at 2:1, so they do not turn round at the first sign of danger); campaigns only near the own land (an outpost far away is lost again). Idle soldiers without a threat: hothead keeps them in one heap at home, unyielding on a changing third of its towers, legion and general on every other tower, skirmisher on the towers facing the enemy; enemies standing around deep in their own land are left alone by the skirmisher (that mostly goes wrong).",
     "hothead": {
-      "traits": ["earlyArmy", "frontGarrison"],
+      "traits": ["earlyArmy", "frontGarrison", "thief"],
       "attack": { "ratio": 1.2, "armyRatio": 1.0, "commit": 1.0, "minSoldiers": 3 },
       "military": { "strikeRatio": 1.2, "strikeRange": 120 }
     },
@@ -184,7 +196,7 @@
       "buildOrderMoves": { "goldmine": -10, "goldmelt": -10 }
     },
     "skirmisher": {
-      "traits": ["frontTowers", "guardByThreat"],
+      "traits": ["frontTowers", "guardByThreat", "thief"],
       "attack": { "ratio": 2.0, "armyRatio": 0, "minSoldiers": 2, "maxDistance": 50 },
       "military": { "strikeRange": 150, "strikeRatio": 2.0, "retreatRatio": 1.0, "hinterlandDepth": 8 }
     }

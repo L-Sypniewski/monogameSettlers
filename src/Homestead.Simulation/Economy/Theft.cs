@@ -50,13 +50,17 @@ public sealed class Theft
         return started;
     }
 
-    /// <summary>Sends the scouts to <paramref name="target"/>; there they steal (see <see cref="Steal"/>). Returns how many set off.</summary>
-    public int StealAt(IEnumerable<Settler> settlers, GridPoint target)
+    /// <summary>
+    /// Sends the scouts to <paramref name="target"/>; there they steal (see <see cref="Steal"/>). With
+    /// <paramref name="ranks"/> they take the best ranked good around them (lowest rank first, goods
+    /// without one last), nearest among equals. Returns how many set off.
+    /// </summary>
+    public int StealAt(IEnumerable<Settler> settlers, GridPoint target, IReadOnlyDictionary<Material, int>? ranks = null)
     {
         var scouts = Scouts(settlers).Where(s => s.Carrying is null).ToList();
         int sent = _world.Geology.Send(scouts, target);
         foreach (var scout in scouts.Where(s => s.HasTask))
-            _jobs[scout.Id] = new Job(scout) { Approaching = true };
+            _jobs[scout.Id] = new Job(scout) { Approaching = true, Ranks = ranks };
         return sent;
     }
 
@@ -128,7 +132,7 @@ public sealed class Theft
             }
     }
 
-    /// <summary>Walks to the nearest pile around the scout with a unit to take. False if there is none.</summary>
+    /// <summary>Walks to the nearest (best ranked) pile around the scout with a unit to take. False if there is none.</summary>
     private bool Next(Job job)
     {
         var scout = job.Scout;
@@ -136,7 +140,8 @@ public sealed class Theft
         foreach (var pile in _world.Piles
                      .Where(p => p.Material is not null && p.Count - p.Reserved > 0 && !job.Skipped.Contains(p.Id)
                                  && PathFinder.Distance(scout.Position, p.Position) <= radius && !IsOwn(p, scout.Player))
-                     .OrderBy(p => PathFinder.Distance(scout.Position, p.Position)).ThenBy(p => p.Id).ToList())
+                     .OrderBy(p => job.Ranks?.GetValueOrDefault(p.Material!.Value, int.MaxValue) ?? 0)
+                     .ThenBy(p => PathFinder.Distance(scout.Position, p.Position)).ThenBy(p => p.Id).ToList())
         {
             if (pile.Position != scout.Position && !_world.WalkTo(scout, pile.Position))
             {
@@ -168,6 +173,9 @@ public sealed class Theft
 
         /// <summary>Still walking to where he was sent; he looks for goods on arrival.</summary>
         public bool Approaching { get; set; }
+
+        /// <summary>Which goods he prefers (lowest rank first), or null for the nearest.</summary>
+        public IReadOnlyDictionary<Material, int>? Ranks { get; init; }
 
         public Pile? Pile { get; set; }
         public Material Material { get; set; }

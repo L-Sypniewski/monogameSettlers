@@ -2,10 +2,11 @@ using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Homestead.Simulation.Map;
+using Xunit.Abstractions;
 
 namespace Homestead.Simulation.Tests;
 
-public class ScoutTests
+public class ScoutTests(ITestOutputHelper output)
 {
     [Fact]
     public void Carriers_become_scouts_and_walk_where_they_are_sent()
@@ -65,25 +66,66 @@ public class ScoutTests
     }
 
     [Fact]
-    public void A_computer_player_sees_through_a_scout_on_its_land()
+    public void A_revealed_scout_stays_revealed_while_in_sight()
     {
-        var map = new GameMap(80);
-        for (int y = 0; y < 80; y++)
-        for (int x = 40; x < 80; x++)
+        var map = new GameMap(120);
+        for (int y = 30; y < 60; y++)
+        for (int x = 50; x < 70; x++)
             map.SetOwner(new GridPoint(x, y), 1);
         var world = new World(map, TestConfig.NoTools);
-        world.AiPlayers.Add(new AiPlayer(world, BuildingCatalog.Load(Civilization.Roman), 1));
-        var scout = world.Spawn(new GridPoint(30, 40), Profession.Scout)!;
-
+        var scout = world.Spawn(new GridPoint(40, 40), Profession.Scout)!;
+        world.SpawnSoldier(new GridPoint(45, 40), SoldierType.Swordsman, player: 1);
         world.Step();
-        Assert.False(scout.IsRevealedTo(1));
+        Assert.True(scout.IsRevealedTo(1));
 
-        world.WalkTo(scout, new GridPoint(45, 40));
-        for (int t = 0; t < 1_000 && scout.Position != new GridPoint(45, 40); t++)
+        // Away from the soldier, but on player 1's land: still revealed.
+        world.Military.Move(world.Settlers.Where(s => s.Player == 1 && s.Profession == Profession.Soldier), new GridPoint(100, 40), forced: true);
+        world.WalkTo(scout, new GridPoint(55, 46));
+        for (int t = 0; t < 600; t++)
+            world.Step();
+        Assert.True(world.Military.Sees(1, scout.Position));
+        Assert.True(scout.IsRevealedTo(1));
+
+        // Out of everybody's sight: disguised again.
+        world.WalkTo(scout, new GridPoint(20, 80));
+        for (int t = 0; t < 3_000 && world.Military.Sees(1, scout.Position); t++)
             world.Step();
         world.Step();
+        Assert.False(scout.IsRevealedTo(1));
+    }
 
-        Assert.True(scout.IsRevealedTo(1));
+    [Fact]
+    public void A_computer_player_sends_a_soldier_to_look_at_a_stranger_on_its_land()
+    {
+        var map = new GameMap(120);
+        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2 };
+        var romans = BuildingCatalog.Load(Civilization.Roman);
+        var tower = world.PlaceBuilding(romans["tower"], 1, new GridPoint(90, 60), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman, player: 1);
+        world.SpawnSoldier(tower.Door, SoldierType.Bowman, player: 1);
+        world.Military.ChangeWanted(tower, SoldierType.Bowman, 1);
+        for (int t = 0; t < 200; t++)
+            world.Step();
+        Assert.Equal(2, world.Military.Occupants(tower).Count(o => o is not null));
+        var ai = new AiPlayer(world, romans, 1);
+        world.AiPlayers.Add(ai);
+        var scout = world.Spawn(new GridPoint(50, 60), Profession.Scout)!;
+        var on = Enumerable.Range(0, 60).Select(x => new GridPoint(50 + x, 60)).First(p => map.OwnerAt(p) == 1);
+
+        // On its land he is not revealed at once (no shot from the tower), but a soldier comes out to look at him.
+        world.WalkTo(scout, on);
+        for (int t = 0; t < 2_000 && scout.Position != on; t++)
+            world.Step();
+        for (int t = 0; t < 2 * World.TicksPerSecond; t++)
+            world.Step();
+        Assert.False(scout.IsRevealedTo(1));
+        for (int t = 0; t < 60 * World.TicksPerSecond && !scout.IsDead; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(ai.Log, l => l.Contains("suspects a carrier"));
+        Assert.True(scout.IsDead);
     }
 
     /// <summary>Player 0 owns the left half, player 1 the right one.</summary>

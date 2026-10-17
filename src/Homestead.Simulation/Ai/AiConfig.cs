@@ -20,8 +20,12 @@ public sealed record AiConfig
     /// Guerilla against enemies just standing around (not attacking the land): none deeper than this in their own
     /// player's land, counted from its edge (0: anywhere).
     /// </param>
+    /// <param name="ReinforceRadius">
+    /// Enemy soldiers outside the buildings within this distance of a strike's target count as its defence too:
+    /// slightly scattered soldiers come to help (0: only the group and those on the way).
+    /// </param>
     public sealed record MilitaryRules(int ThinkTicks, int GroupRadius, int StrikeRange, double StrikeRatio, int ThreatRange, int GuardDistance,
-        double RetreatRatio = 1.0, int HinterlandDepth = 0);
+        double RetreatRatio = 1.0, int HinterlandDepth = 0, int ReinforceRadius = 0);
 
     public required AttackRules Attack { get; init; }
 
@@ -168,7 +172,8 @@ public sealed record AiConfig
                 military.GetProperty("threatRange").GetInt32(),
                 military.GetProperty("guardDistance").GetInt32(),
                 military.TryGetProperty("retreatRatio", out var retreat) ? retreat.GetDouble() : 1.0,
-                military.TryGetProperty("hinterlandDepth", out var hinterland) ? hinterland.GetInt32() : 0),
+                military.TryGetProperty("hinterlandDepth", out var hinterland) ? hinterland.GetInt32() : 0,
+                military.TryGetProperty("reinforceRadius", out var reinforce) ? reinforce.GetInt32() : 0),
             Magic = root.TryGetProperty("magic", out var magic)
                 ? new MagicRules(magic.GetProperty("priestDistance").GetInt32(), magic.GetProperty("minTargets").GetInt32(),
                     magic.TryGetProperty("upgradeOrder", out var order)

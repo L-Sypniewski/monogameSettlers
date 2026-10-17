@@ -4,7 +4,8 @@ namespace Homestead.Simulation.Map;
 /// What one player sees of the map (fog of war): their own land, everything within sight of their
 /// settlers and of finished buildings with a sight (<see cref="Military.MilitaryConfig.BuildingSight"/>,
 /// the lookout tower) is visible; what was visible once stays explored. Recomputed on demand (<see cref="Update"/>),
-/// not every tick. The simulation itself does not use it: computer players know the whole map.
+/// not every tick. The simulation itself does not use it: computer players know the whole map (scouts stay revealed
+/// while in sight, <see cref="Military.Military.Sees"/>).
 /// </summary>
 public sealed class Vision
 {
@@ -43,9 +44,7 @@ public sealed class Vision
         {
             if (settler.Player != Player || settler.IsDead || settler.IsInside)
                 continue;
-            See(settler.Position, settler.SoldierType is { } type ? world.Military.Config.Sight(type)
-                : settler.Profession == Profession.Scout ? (world.Military.Config.Scouts ?? Military.ScoutRules.Default).Sight
-                : SettlerSight);
+            See(settler.Position, world.Military.SightOf(settler));
         }
         var buildingSight = world.Military.Config.BuildingSight;
         foreach (var building in world.Buildings)

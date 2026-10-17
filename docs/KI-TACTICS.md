@@ -57,6 +57,7 @@ Charakterzüge zusammenwirken:
 | **Zeitpunkt** (`AllowCampaign`, umgesetzt) | jede Militär-Runde, vor der Planung eines Feldzugs | jeder Charakterzug kann einen neuen Feldzug zurückhalten |
 | **Zauber** | Priester am Kampf | einer entscheidet Zauber und Moment |
 | **Build-Order** (`ArrangeBuildOrder`, umgesetzt) | einmal beim Start | jeder Charakterzug ordnet die Build-Order, die der vorige hinterließ |
+| **Besorgungen** (`RunErrands`, umgesetzt) | jede Militär-Runde, nach der Bewachung | jeder Charakterzug schickt eigene Leute los (z. B. Späher zum Stehlen) |
 | **Schwellen** | überall, wo ein Verhältnis entscheidet | Modifikator auf Werte wie `attack.ratio` |
 
 ### Soldaten verteilen
@@ -137,7 +138,8 @@ Der `hothead` behält alles auf einem Haufen (kein solcher Charakterzug).
 Die KI wägt Militärbefehle jede Sekunde neu (`military.thinkSeconds` 1): Soldaten auf einem einfachen
 Laufbefehl der KI (zum Posten, heim) zählen als untätig, Feldzüge werden schon auf dem Weg zum
 Sammelpunkt aufgegeben, wenn die Verteidigung zu stark geworden ist. Guerilla trifft auch feindliche
-Geologen (ein Soldat genügt). `military.hinterlandDepth` (`skirmisher`: 8) unterscheidet Angriffe auf
+Geologen (ein Soldat genügt). Zum Ziel einer Guerilla zählen auch feindliche Soldaten in `military.reinforceRadius` (30) – leicht
+verstreute kommen zu Hilfe; ohne das scheiterten frühe Guerillas fast immer. `military.hinterlandDepth` (`skirmisher`: 8) unterscheidet Angriffe auf
 Land (Feinde laufen oder kämpfen – überall angegriffen) von herumstehenden Feinden, die nur angegriffen
 werden, wenn sie höchstens so tief im eigenen Land ihres Besitzers stehen. Zur Stärke eines Ziels
 zählen auch die Bogenschützen feindlicher Militärgebäude, die den Weg oder das Ziel erreichen (ein
@@ -204,6 +206,19 @@ Abriss). Sobald der Turm besetzt ist, fallen die gegnerischen Gebäude darauf.
 **`economicTargets` – Wirtschaft treffen** · S
 Angriffsziele höher bewerten, deren Land Minen, Schmelzen, Waffenschmieden oder Tempel trägt.
 Ein Treffer dort kostet den Gegner mehr als ein beliebiger Turm.
+
+### Späher
+
+**`thief` – Langfinger** · M · **umgesetzt** (`skirmisher`, `hothead`)
+Hält `scouts` (2) Späher – freie Träger werden welche, Verluste frühestens nach `replaceSeconds` (90)
+ersetzt – und schickt sie zu Warenstapeln am Rand feindlichen Lands: auf fremdem Land höchstens
+`edgeDepth` (12; die Stapel eines Lagerhauses direkt an der Grenze liegen gut 8 Felder tief) Felder von dessen Ende, höchstens `maxDistance` (30) vom eigenen Land. Waren nach `ranks`: Gold, Edelsteine, Waffen, Erze zuerst, dann Nahrung (Brot, Fisch,
+Fleisch), dann der Rest; am Stapel nimmt der Späher die beste Ware im Diebesradius. Steht ein
+feindlicher Soldat draußen in `soldierRadius` (12, etwas mehr als `scouts.revealRadius`) des Stapels,
+kein Versuch; kommt einer dem Späher oder seinem Stapel so nahe, ruft die KI ihn heim und lässt den
+Stapel `retrySeconds` (60) in Ruhe. Beladene laufen zum nächsten Feld des eigenen Lands und lassen die
+Ware dort fallen. Entscheidungspunkt „Besorgungen“. Gegen eine KI riskant: Sie schöpft Verdacht, sobald
+ein Späher auf ihrem Land steht, und schickt einen Soldaten, der ihn aus der Nähe erkennt.
 
 ### Gold
 
@@ -294,10 +309,10 @@ Ziel: je Volk ein Charakter, der sich als Gegner eigen anfühlt. Definiert in `a
 
 | Volk | Charakter | Idee | Umsetzung |
 |---|---|---|---|
-| Ägypter | Hitzkopf (`hothead`) | temperamentvoll, greift immer mit voller Stärke an | earlyArmy, frontGarrison; `ratio` 1,2, `commit` 1, Guerilla bei 1,2:1 bis 120 Felder (mit earlyArmy gegen Standard 0,56 statt 0,52, entscheidet mehr Partien) |
+| Ägypter | Hitzkopf (`hothead`) | temperamentvoll, greift immer mit voller Stärke an | earlyArmy, frontGarrison, thief; `ratio` 1,2, `commit` 1, Guerilla bei 1,2:1 bis 120 Felder (mit earlyArmy gegen Standard 0,56 statt 0,52, entscheidet mehr Partien) |
 | Asiaten | Unbeugsamer (`unyielding`) | gibt niemals auf, zieht sich nie zurück | guardByThreat; `abortRatio` 0,5, `retreatRatio` 0,5 (bei 0 lief er sich tot: 0,35 Punkte gegen Standard, mit 0,5: 0,50), `ratio` 1,4 |
 | Römer | Legion (`legion`) | wirtschaftlich stark, greift gebündelt in Wellen an | waves, pincer, guardByThreat; `minSoldiers` 8, `commit` 0,6; Gold 10 Plätze früher; 5 Baustellen |
-| Amazonen | Plänklerin (`skirmisher`) | auf Nummer sicher, schwächt den Gegner mit kleinen Guerillas | guardByThreat; Feldzug erst bei 2:1, aber ohne Armee-Vergleich ab 2 Soldaten und nur bis 50 Felder (`maxDistance`; ohne griff sie in Minute 1 einen Turm quer über die Karte an und verlor danach alles); Guerilla bis 150 Felder bei 2:1 (bei 1,3:1 mit Rückzug unter 1,2 kehrten die kleinen Trupps beim ersten Anzeichen von Gefahr um), Rückzug unter 1:1 |
+| Amazonen | Plänklerin (`skirmisher`) | auf Nummer sicher, schwächt den Gegner mit kleinen Guerillas und Diebstahl an der Grenze | guardByThreat, thief; Feldzug erst bei 2:1, aber ohne Armee-Vergleich ab 2 Soldaten und nur bis 50 Felder (`maxDistance`; ohne griff sie in Minute 1 einen Turm quer über die Karte an und verlor danach alles); Guerilla bis 150 Felder bei 2:1 (bei 1,3:1 mit Rückzug unter 1,2 kehrten die kleinen Trupps beim ersten Anzeichen von Gefahr um), Rückzug unter 1:1 |
 
 Leitlinie: Spielstil, Abwechslung und Spaß vor exakter Balance. Jedes Volk soll sich als Gegner
 erkennbar anders spielen, mit Stärken und ausnutzbaren Schwächen. Beobachtet (Arena, Amazonen gegen

@@ -73,8 +73,10 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
     (nächstes freies Feld, Gleichstand zufällig), setzen Schilder mit Rohstoff und Menge.
   - Späher (`Profession.Scout`, Grafik `THIEF`): umgewandelt/geschickt wie Geologen (`Geology.Convert(…, Profession.Scout)`), suchen nie.
     Für andere Spieler ein eigener Träger (`Settler.IsRevealedTo`), nicht angegriffen, bis ein feindlicher Soldat draußen auf
-    `scouts.revealRadius` (10) herankommt oder – bei KI – er auf deren Land steht (`Military.RevealScouts`, jeden Tick, danach wieder getarnt).
-    Erkannt: wie Geologe bekämpft, KI zählt ihn zu Feindgruppen.
+    `scouts.revealRadius` (10) herankommt (`Military.RevealScouts`, jeden Tick); erkannt bleibt er, solange der Spieler ihn sieht
+    (`Military.Sees`: eigenes Land, Sicht eigener Figuren/Gebäude wie Fog of War), dann wieder getarnt. Erkannt: wie Geologe bekämpft
+    (auch von Turm-Bogenschützen), KI zählt ihn zu Feindgruppen. KI-Verdacht (`AiPlayer.InspectScouts`): Späher auf ihrem Land → nächster
+    untätiger Soldat folgt ihm (sonst ruft sie einen aus dem nächsten Militärgebäude mit mehr als einem Soldaten).
   - `Theft`: Späher stehlen (`Steal`; Alt+Rechtsklick: `StealAt`) die nächste Ware im Umkreis `scouts.stealRadius` (5) – unreservierte Einheit,
     nicht aus eigenen Gebäuden oder losen Waren auf eigenem Land; trägt sie (`Carrying`, geduckt), Tempo `scouts.loadedSpeed` (0,5);
     lässt sie still auf eigenem Land fallen oder wo er stirbt.
@@ -111,7 +113,8 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
   - `AiPlayer.Military`: Soll-Besatzung voll (`Staff`), kennt alle Feindsoldaten, wägt jede Sekunde neu. Untätig zählen auch Soldaten auf
     einfachem Laufbefehl und auf Rückzug (erzwungen) – Rückziehende sind sofort frei für Verteidigung/Guerilla/Feldzug, laufen sonst weiter
     (Bewachung schickt sie nicht um). Verteidigung zuerst; Guerilla gegen kleinere Trupps (auch Geologen, `geologistHealth`) bei deutlicher
-    Überlegenheit; herumstehende Feinde nicht tiefer als `military.hinterlandDepth` in ihrem Land (Plänklerin 8); Guerilla vor Zurückhalten
+    Überlegenheit; herumstehende Feinde nicht tiefer als `military.hinterlandDepth` in ihrem Land (Plänklerin 8);
+    feindliche Soldaten in `military.reinforceRadius` (30) ums Ziel zählen mit (verstreute kommen zu Hilfe); Guerilla vor Zurückhalten
     (Verteidiger dürfen angreifen, solange genug gegen andere Trupps bleiben). Rest: Charakterzug `guardByThreat` bewacht nach Bedrohung
     (ohne: stehen bleiben); ohne Bedrohung Turmverteilung: `frontTowers` (Plänklerin), `everyOtherTower` (Feldherr, Legion),
     `rotatingTowers` (Unbeugsamer: 30 %, minütlich neu), Hitzkopf: ein Haufen.
@@ -124,14 +127,16 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
     Charakter (`AiCharacter`, `characters` in `ai.json`) nennt Züge (`AiTrait`, `Ai/Traits/<Kennung>Trait`; Vorgaben unter `traits`,
     je Charakter überschreibbar) und überschreibt Werte; `characterWeights` (je Volk) losen je Partie.
     Entscheidungspunkte: `LeadCampaign` (Truppenführung), `Guard` (Bewachung), `AllowCampaign` (Zeitpunkt), `GarrisonLimit` (Besatzung),
-    `ArrangeBuildOrder` (Build-Order, einmal beim Start).
+    `ArrangeBuildOrder` (Build-Order, einmal beim Start), `RunErrands` (Besorgungen, nach der Bewachung).
     Züge: `waves` (Ruhe/Wellen im Wechsel), `frontGarrison` (nur frontnahe Gebäude voll, sonst `backline`), `earlyArmy` (Schmelze,
     Waffenschmied, Kaserne direkt nach Holz/Stein; Schmelze auch ohne Mine bei Erz auf eigenem Land), `forwardBase` (Sammeln am frontnächsten
-    Militärgebäude, Rückzug ohne Kampf vor Stärkeren), `pincer` (Feldherr: Finte vom Sammelpunkt, Hauptgruppe im Bogen zur Flanke).
+    Militärgebäude, Rückzug ohne Kampf vor Stärkeren), `pincer` (Feldherr: Finte vom Sammelpunkt, Hauptgruppe im Bogen zur Flanke),
+    `thief` (Plänklerin, Hitzkopf: `scouts` Späher stehlen Stapel am Rand feindlichen Lands, `ranks` Gold/Waffen/Erze > Nahrung > Rest;
+    nicht bei feindlichen Soldaten in `soldierRadius`, sonst heimgerufen, Stapel `retrySeconds` gemieden).
     `buildOrderMoves` verschiebt Gebäude in der Build-Order.
-    Volks-Charaktere (`standard`/`general` nur per `--characters`): `hothead` (Ägypter: `earlyArmy`, alles greift an, Hinterland dünn),
+    Volks-Charaktere (`standard`/`general` nur per `--characters`): `hothead` (Ägypter: `earlyArmy`, alles greift an, Hinterland dünn, stiehlt),
     `unyielding` (Asiaten: gibt erst unter halber Verteidigungsstärke auf), `legion` (Römer: frühes Gold, Wellen, Zange),
-    `skirmisher` (Amazonen: Feldzüge erst bei 2:1, kleine Trupps, nahe Ziele).
+    `skirmisher` (Amazonen: Feldzüge erst bei 2:1, kleine Trupps, nahe Ziele, stiehlt).
     Ausgedacht (Arena, Turnier): Züge mit `+` (`skirmisher+forwardBase`, angehängte vor den eigenen), Werte mit `@pfad=wert`
     (`general@attack.ratio=1.3@buildOrderMoves.barrack=-5`).
     Notizen eines Zugs beginnen mit seiner Kennung, erscheinen live (`AiPlayer.Noted`, `TraitOfNote`).

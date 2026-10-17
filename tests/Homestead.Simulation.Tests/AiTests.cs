@@ -129,6 +129,34 @@ public class AiTests(ITestOutputHelper output)
         Assert.Contains(ai.Log, l => l.Contains("strikes 2 enemies"));
     }
 
+    [Theory]
+    [InlineData("standard", false)]
+    [InlineData("standard@military.reinforceRadius=0", true)]
+    public void Scattered_enemies_nearby_count_as_the_strike_targets_defence(string character, bool strikes)
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman); // the garrison
+        world.Step();
+        for (int i = 0; i < 3; i++)
+            world.SpawnSoldier(new GridPoint(44 + i, 84), SoldierType.Swordsman);
+        // One enemy alone, two more 20 fields behind him (out of military.threatRange, nobody is held back against
+        // them): not one group, not on the way, but they would come to help.
+        world.SpawnSoldier(new GridPoint(40, 135), SoldierType.Swordsman, player: 1);
+        for (int i = 0; i < 2; i++)
+            world.SpawnSoldier(new GridPoint(40 + i, 155), SoldierType.Swordsman, player: 1);
+        var ai = new AiPlayer(world, Romans, 0, character: character);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 10 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("strikes")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Equal(strikes, ai.Log.Any(l => l.Contains("strikes 1 enemies")));
+    }
+
     [Fact]
     public void The_ai_needs_more_soldiers_against_enemies_on_their_own_land()
     {
@@ -577,5 +605,90 @@ public class AiTests(ITestOutputHelper output)
         Assert.True(rounds.Count >= 3, string.Join(" | ", rounds));
         Assert.All(rounds, r => Assert.Equal(3, r.Split(' ').Length)); // 30 % of 10
         Assert.True(rounds.Distinct().Count() > 1);
+    }
+
+    /// <summary>Player 0 owns the land left of x = 80 with a staffed tower, player 1 the rest; carriers to become scouts.</summary>
+    private static (World World, AiPlayer Ai) ThiefSetup(string character = "thief")
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2 };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(60, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        world.Step();
+        for (int y = 0; y < 160; y++)
+        for (int x = 0; x < 160; x++)
+            map.SetOwner(new GridPoint(x, y), x < 80 ? 0 : 1);
+        for (int i = 0; i < 3; i++)
+            world.Spawn(new GridPoint(55 + i, 90), Profession.Carrier);
+        var ai = new AiPlayer(world, Romans, 0, character: character);
+        world.AiPlayers.Add(ai);
+        return (world, ai);
+    }
+
+    [Fact]
+    public void A_thief_sends_scouts_for_gold_at_the_edge_of_enemy_land_before_coal_and_brings_it_home()
+    {
+        var (world, ai) = ThiefSetup();
+        world.AddLooseGoods(new GridPoint(84, 76), Material.Coal, 4);
+        world.AddLooseGoods(new GridPoint(85, 86), Material.Gold, 1);
+        world.AddLooseGoods(new GridPoint(120, 80), Material.Gold, 4); // deep in the enemy land
+
+        for (int t = 0; t < 120 * World.TicksPerSecond && !world.Piles.Any(p => p.Material == Material.Gold && world.Map!.OwnerAt(p.Position) == 0); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Equal(2, world.Settlers.Count(s => s.Profession == Profession.Scout));
+        Assert.Contains(ai.Log, l => l.Contains("thief: sends a scout for Gold at 85,86"));
+        Assert.Contains(world.Piles, p => p.Material == Material.Gold && world.Map!.OwnerAt(p.Position) == 0);
+        Assert.Equal(4, world.Piles.Single(p => p.Position == new GridPoint(120, 80)).Count);
+    }
+
+    [Fact]
+    public void A_thief_leaves_goods_alone_while_enemy_soldiers_are_near()
+    {
+        var (world, ai) = ThiefSetup();
+        world.AddLooseGoods(new GridPoint(85, 80), Material.Gold, 4);
+        world.SpawnSoldier(new GridPoint(90, 82), SoldierType.Swordsman, level: 3, player: 1);
+
+        for (int t = 0; t < 20 * World.TicksPerSecond; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.DoesNotContain(ai.Log, l => l.Contains("thief: sends"));
+        Assert.Equal(4, world.Piles.Single(p => p.Material == Material.Gold).Count);
+    }
+
+    [Fact]
+    public void A_thief_steals_tools_from_a_storehouse_right_at_the_border()
+    {
+        var amazons = BuildingCatalog.Load(Civilization.Amazon);
+        var map = new GameMap(160);
+        var world = new World(map, ProductionConfig.Load()) { PlayerCount = 2, TerritoryRules = true };
+        // The own military building far away: the distance counts from the own land.
+        var tower = world.PlaceBuilding(amazons["tower"], 1, new GridPoint(150, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman, player: 1);
+        world.Step();
+        for (int y = 0; y < 160; y++)
+        for (int x = 0; x < 160; x++)
+            map.SetOwner(new GridPoint(x, y), x < 80 ? 0 : 1);
+        var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(74, 80), force: true)!;
+        world.AddLooseGoods(new GridPoint(60, 70), Material.Axe, 8);
+        for (int i = 0; i < 4; i++)
+            world.Spawn(new GridPoint(60 + i, 85), Profession.Carrier);
+        for (int i = 0; i < 4; i++)
+            world.Spawn(new GridPoint(105 + i, 90), Profession.Carrier, player: 1);
+        for (int t = 0; t < 3000 && stock.Piles.Sum(p => p.Material == Material.Axe ? p.Count : 0) < 8; t++)
+            world.Step();
+        var ai = new AiPlayer(world, amazons, 1, character: "thief");
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 60 * World.TicksPerSecond && !world.Piles.Any(p => p.Material == Material.Axe && map.OwnerAt(p.Position) == 1); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(world.Piles, p => p.Material == Material.Axe && map.OwnerAt(p.Position) == 1);
     }
 }

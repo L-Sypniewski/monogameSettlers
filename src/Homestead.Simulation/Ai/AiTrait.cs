@@ -42,6 +42,12 @@ public abstract class AiTrait
     internal virtual int? GarrisonLimit(AiPlayer ai, Building building) => null;
 
     /// <summary>
+    /// Decision point "errands": every military think, after guarding. Traits sending settlers on errands
+    /// of their own (scouts stealing goods) do it here; every trait gets it.
+    /// </summary>
+    internal virtual void RunErrands(AiPlayer ai, List<Building> military) { }
+
+    /// <summary>
     /// Decision point "build order": once, when the AI starts; each trait gets the order the previous
     /// ones left (the people's order with the character's <c>buildOrderMoves</c> first).
     /// </summary>
@@ -58,6 +64,7 @@ public abstract class AiTrait
         [FrontTowersTrait.TraitId] = settings => new FrontTowersTrait(settings),
         [EveryOtherTowerTrait.TraitId] = settings => new EveryOtherTowerTrait(settings),
         [RotatingTowersTrait.TraitId] = settings => new RotatingTowersTrait(settings),
+        [ThiefTrait.TraitId] = settings => new ThiefTrait(settings),
     };
 
     public static IEnumerable<string> Known => Factories.Keys;
