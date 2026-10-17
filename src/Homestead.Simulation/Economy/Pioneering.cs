@@ -10,13 +10,17 @@ namespace Homestead.Simulation.Economy;
 /// border post there (<see cref="PioneerRules.ClaimTicks"/>) and the field, with the unwalkable ones
 /// around it, becomes his player's; then on to the next, so the land grows piece by piece around where he
 /// was sent (ties go to the field nearest to it). Standing in enemy land he heads for free land nearby;
-/// with none within reach he stops. Sent off with the order (<see cref="ClaimAt"/>), he walks there first.
+/// with none within reach he stops. Free land his player's land encloses completely – rocks, lakes,
+/// swamps he cannot stand on – becomes theirs at once (not other players' land). Sent off with the order (<see cref="ClaimAt"/>), he walks there first.
 /// The land is unprotected: an enemy military building claiming it takes it back.
 /// </summary>
 public sealed class Pioneering
 {
     /// <summary>A walk that makes no progress for this long gives up the field.</summary>
     private const int StallTicks = 200;
+
+    /// <summary>Free land enclosed by the own land is taken at once up to this many fields (more is open country).</summary>
+    private const int MaxEnclosed = 4096;
 
     private readonly World _world;
     private readonly Dictionary<int, Job> _jobs = new();
@@ -146,12 +150,59 @@ public sealed class Pioneering
         if (!IsClaimable(field, player))
             return;
         _world.Military.TakeLand(field, player);
+        var taken = new List<GridPoint> { field };
         for (int d = 0; d < DirectionExtensions.Count; d++)
         {
             var n = field.Neighbor((Direction)d);
             if (map.Contains(n) && !map.IsWalkable(n) && IsClaimable(n, player))
+            {
                 _world.Military.TakeLand(n, player);
+                taken.Add(n);
+            }
         }
+        var seen = new HashSet<GridPoint>();
+        foreach (var p in taken)
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+                TakeEnclosed(p.Neighbor((Direction)d), player, seen);
+    }
+
+    /// <summary>
+    /// Free land the player's land now encloses completely (rocks, lakes, swamps he cannot walk to)
+    /// becomes his at once: the free fields connected to <paramref name="start"/>, if they touch nothing
+    /// but his land – not the map edge, not other players' land – and are at most <see cref="MaxEnclosed"/>.
+    /// </summary>
+    /// <param name="seen">Fields already looked at from this field (one flood per region).</param>
+    private void TakeEnclosed(GridPoint start, int player, HashSet<GridPoint> seen)
+    {
+        var map = _world.Map!;
+        if (!map.Contains(start) || map.OwnerAt(start) is not null || !seen.Add(start))
+            return;
+        var region = new HashSet<GridPoint> { start };
+        var queue = new Queue<GridPoint>();
+        queue.Enqueue(start);
+        while (queue.TryDequeue(out var p))
+        {
+            if (p.X == 0 || p.Y == 0 || p.X == map.Size - 1 || p.Y == map.Size - 1)
+                return;
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+            {
+                var n = p.Neighbor((Direction)d);
+                if (map.OwnerAt(n) is { } owner)
+                {
+                    if (owner != player)
+                        return;
+                }
+                else if (region.Add(n))
+                {
+                    seen.Add(n);
+                    if (region.Count > MaxEnclosed)
+                        return;
+                    queue.Enqueue(n);
+                }
+            }
+        }
+        foreach (var p in region)
+            _world.Military.TakeLand(p, player);
     }
 
     /// <summary>

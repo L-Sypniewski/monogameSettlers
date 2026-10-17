@@ -135,3 +135,54 @@ public class PioneerTests
         Assert.False(pioneer.HasTask);
     }
 }
+
+public class PioneerEnclosureTests
+{
+    /// <summary>Own land left of x = 30 but for a hole around (12, 30) with a free corridor along y = 30 to the open land.</summary>
+    private static (World World, GameMap Map) Holed(int? holeOwner)
+    {
+        var map = new GameMap(60);
+        var hole = new GridPoint(12, 30);
+        for (int y = 0; y < 60; y++)
+        for (int x = 0; x < 30; x++)
+        {
+            var p = new GridPoint(x, y);
+            if (Pathfinding.PathFinder.Distance(p, hole) <= 3)
+                map.SetOwner(p, holeOwner);
+            else if (y != 30 || x < 16)
+                map.SetOwner(p, 0);
+        }
+        return (new World(map, TestConfig.NoTools), map);
+    }
+
+    [Fact]
+    public void Closing_the_ring_takes_the_enclosed_free_land_at_once()
+    {
+        var (world, map) = Holed(holeOwner: null);
+        var pioneer = world.Spawn(new GridPoint(25, 31), Profession.Pioneer)!;
+
+        world.Pioneering.Claim([pioneer]);
+        for (int t = 0; t < 400 && map.OwnerAt(new GridPoint(25, 30)) != 0; t++)
+            world.Step();
+
+        Assert.Equal(0, map.OwnerAt(new GridPoint(25, 30)));
+        Assert.Equal(0, map.OwnerAt(new GridPoint(12, 30))); // the hole
+        Assert.Equal(0, map.OwnerAt(new GridPoint(20, 30))); // the corridor behind him
+        Assert.Null(map.OwnerAt(new GridPoint(28, 30)));     // still open towards the free land
+    }
+
+    [Fact]
+    public void Enclosed_land_of_another_player_is_not_taken_at_once()
+    {
+        var (world, map) = Holed(holeOwner: 1);
+        var pioneer = world.Spawn(new GridPoint(25, 31), Profession.Pioneer)!;
+
+        world.Pioneering.Claim([pioneer]);
+        for (int t = 0; t < 400 && map.OwnerAt(new GridPoint(25, 30)) != 0; t++)
+            world.Step();
+
+        Assert.Equal(0, map.OwnerAt(new GridPoint(25, 30)));
+        Assert.Equal(1, map.OwnerAt(new GridPoint(12, 30)));
+        Assert.Null(map.OwnerAt(new GridPoint(20, 30)));
+    }
+}
