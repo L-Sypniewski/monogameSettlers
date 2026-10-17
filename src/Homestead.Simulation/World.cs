@@ -183,6 +183,7 @@ public sealed partial class World
             Housing.Tick();
             Geology.Tick();
             Theft.Tick();
+            Pioneering.Tick();
             Magic.Tick();
             Measure("housing/geology/magic", ref mark);
             Idling.Tick();
@@ -218,11 +219,9 @@ public sealed partial class World
         if (free is not { } position)
             return null;
         var settler = new Settler(_nextSettlerId++, position) { Profession = profession, Player = player };
-        // Geologists and scouts can be fought: they have health as well.
-        if (profession == Profession.Geologist)
-            settler.Health = Military.Config.GeologistHealth;
-        else if (profession == Profession.Scout)
-            settler.Health = (Military.Config.Scouts ?? ScoutRules.Default).Health;
+        // Geologists, scouts and pioneers can be fought: they have health as well.
+        if (profession is Profession.Geologist or Profession.Scout or Profession.Pioneer)
+            settler.Health = Geology.HealthOf(Military.Config, profession);
         _settlers.Add(settler);
         _settlersById[settler.Id] = settler;
         _occupant[map.Index(position)] = settler.Id;
@@ -256,9 +255,9 @@ public sealed partial class World
     /// <summary>Whether the player's people can walk from a to b (on its own land with territory rules).</summary>
     internal bool Reachable(int player, GridPoint a, GridPoint b) => PathFinder!.AreConnected(a, b, TerritoryRules ? player : null);
 
-    /// <summary>Soldiers, priests, geologists and scouts may go and stay outside the own land.</summary>
+    /// <summary>Soldiers, priests, geologists, scouts and pioneers may go and stay outside the own land.</summary>
     internal static bool RoamsFreely(Settler settler) =>
-        settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout;
+        settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer;
 
     /// <summary>Whether the settler can walk to <paramref name="target"/> (see <see cref="LandOf"/>).</summary>
     internal bool Reachable(Settler settler, GridPoint target) => PathFinder!.AreConnected(settler.Position, target, LandOf(settler));

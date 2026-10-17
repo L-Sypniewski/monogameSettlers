@@ -380,7 +380,7 @@ public sealed partial class AiPlayer
     /// <summary>Enemy soldiers outside buildings, joined into groups of neighbours within <paramref name="radius"/>.</summary>
     private List<EnemyGroup> FindEnemyGroups(int radius)
     {
-        var enemies = _world.Settlers.Where(s => s.Profession is Profession.Soldier or Profession.Geologist or Profession.Scout && s.Player != Player
+        var enemies = _world.Settlers.Where(s => s.Profession is Profession.Soldier or Profession.Geologist or Profession.Scout or Profession.Pioneer && s.Player != Player
                                                  && !s.IsInside && !s.IsDead && s.IsRevealedTo(Player)).ToList();
         var groups = new List<EnemyGroup>();
         var left = new HashSet<Settler>(enemies);

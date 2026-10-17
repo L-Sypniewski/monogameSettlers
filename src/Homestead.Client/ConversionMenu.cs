@@ -19,6 +19,7 @@ public sealed class ConversionMenu
     [
         (Profession.Geologist, "GEOLOGIST", "geologist"),
         (Profession.Scout, "THIEF", "scout"),
+        (Profession.Pioneer, "PIONEER", "pioneer"),
     ];
 
     /// <summary>Where the entries end (for what is drawn under them).</summary>

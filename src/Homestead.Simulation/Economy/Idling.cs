@@ -96,7 +96,7 @@ public sealed class Idling
     }
 
     private static bool IsIdle(Settler s) =>
-        (s.IsCarrier || s.Profession is Profession.Soldier or Profession.Priest or Profession.Digger or Profession.Builder or Profession.Geologist or Profession.Scout
+        (s.IsCarrier || s.Profession is Profession.Soldier or Profession.Priest or Profession.Digger or Profession.Builder or Profession.Geologist or Profession.Scout or Profession.Pioneer
          || s.Workplace is null && s.Trade is not null)
         && !s.HasTask && !s.IsInside && s.Carrying is null && s.Destination is null && s.State != SettlerState.Stepping;
 

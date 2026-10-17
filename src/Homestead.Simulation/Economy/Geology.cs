@@ -46,7 +46,7 @@ public sealed class Geology
     public bool IsSearching(Settler geologist) => _jobs.TryGetValue(geologist.Id, out var job) && job.Phase != Phase.Moving;
 
     /// <summary>
-    /// Turns the carriers among <paramref name="settlers"/> into geologists (or scouts), one after another
+    /// Turns the carriers among <paramref name="settlers"/> into geologists (or scouts, pioneers), one after another
     /// while the carrier reserve allows: free ones at once, busy ones after their delivery. Returns how many
     /// converted now and how many will follow.
     /// </summary>
@@ -87,8 +87,34 @@ public sealed class Geology
     {
         settler.Profession = profession;
         settler.Trade = null;
-        var military = _world.Military.Config;
-        settler.Health = profession == Profession.Scout ? (military.Scouts ?? ScoutRules.Default).Health : military.GeologistHealth;
+        settler.Health = HealthOf(_world.Military.Config, profession);
+    }
+
+    /// <summary>Health of the professions soldiers can fight without them striking back.</summary>
+    internal static float HealthOf(MilitaryConfig config, Profession profession) => profession switch
+    {
+        Profession.Scout => (config.Scouts ?? ScoutRules.Default).Health,
+        Profession.Pioneer => (config.Pioneers ?? PioneerRules.Default).Health,
+        _ => config.GeologistHealth,
+    };
+
+    /// <summary>
+    /// Turns up to <paramref name="count"/> pioneers of the player back into carriers (Siedler › Berufe), idle
+    /// ones first. Returns how many.
+    /// </summary>
+    public int PioneersToCarriers(int player, int count)
+    {
+        var pioneers = _world.Settlers
+            .Where(s => s.Player == player && s.Profession == Profession.Pioneer && !s.IsDead && !s.IsInside)
+            .OrderBy(s => s.HasTask ? 1 : 0).ThenBy(s => s.Id).Take(count).ToList();
+        foreach (var pioneer in pioneers)
+        {
+            Stop(pioneer);
+            _world.Pioneering.Stop(pioneer);
+            pioneer.Profession = Profession.Carrier;
+            pioneer.Health = 0;
+        }
+        return pioneers.Count;
     }
 
     /// <summary>Fields geologists examine: mountain ground.</summary>
@@ -96,21 +122,22 @@ public sealed class Geology
         _world.Map!.Contains(p) && _world.Map.TerrainAt(p) is TerrainType.Mountain or TerrainType.MountainBorder;
 
     /// <summary>
-    /// Sends geologists and scouts to <paramref name="target"/>: on a mountain geologists search around it,
-    /// elsewhere (and scouts always) they walk there and spread over the free fields around it. Returns how
+    /// Sends geologists, scouts and pioneers to <paramref name="target"/>: on a mountain geologists search around it,
+    /// elsewhere (and scouts and pioneers always) they walk there and spread over the free fields around it. Returns how
     /// many set off.
     /// </summary>
     public int Send(IEnumerable<Settler> geologists, GridPoint target)
     {
-        var list = geologists.Where(g => g.Profession is Profession.Geologist or Profession.Scout && !g.IsDead && !g.IsInside).Distinct().ToList();
+        var list = geologists.Where(g => g.Profession is Profession.Geologist or Profession.Scout or Profession.Pioneer && !g.IsDead && !g.IsInside).Distinct().ToList();
         foreach (var geologist in list)
         {
             Stop(geologist);
             _world.Theft.Stop(geologist);
+            _world.Pioneering.Stop(geologist);
         }
         if (!IsSearchable(target))
             return Move(list, target);
-        int sent = Move(list.Where(s => s.Profession == Profession.Scout).ToList(), target);
+        int sent = Move(list.Where(s => s.Profession != Profession.Geologist).ToList(), target);
         foreach (var geologist in list.Where(s => s.Profession == Profession.Geologist))
         {
             var job = new Job(geologist, target);
@@ -185,7 +212,7 @@ public sealed class Geology
         foreach (var job in _jobs.Values.ToList())
         {
             var geologist = job.Geologist;
-            if (geologist.IsDead || geologist.Profession is not (Profession.Geologist or Profession.Scout))
+            if (geologist.IsDead || geologist.Profession is not (Profession.Geologist or Profession.Scout or Profession.Pioneer))
             {
                 _jobs.Remove(geologist.Id);
                 continue;

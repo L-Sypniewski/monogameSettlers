@@ -245,7 +245,7 @@ public sealed class SettlerRenderer
         Activity.Sowing or Activity.Signing => "ACTION2",
         Activity.Digging or Activity.Building or Activity.Chopping or Activity.Mining or Activity.Planting
             or Activity.Harvesting or Activity.Fishing or Activity.DrawingWater or Activity.Fighting
-            or Activity.Shooting or Activity.Surveying or Activity.Casting or Activity.Healing => "ACTION1",
+            or Activity.Shooting or Activity.Surveying or Activity.Casting or Activity.Healing or Activity.Claiming => "ACTION1",
         _ => null,
     };
 
@@ -284,6 +284,7 @@ public sealed class SettlerRenderer
         Profession.Geologist => "GEOLOGIST",
         Profession.Priest => "MAGE",
         Profession.Scout => "THIEF",
+        Profession.Pioneer => "PIONEER",
         _ => null,
     };
 

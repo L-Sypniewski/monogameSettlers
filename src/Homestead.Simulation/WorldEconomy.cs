@@ -45,6 +45,11 @@ public sealed partial class World
 
     public Theft Theft => _theft ??= new Theft(this);
 
+    private Pioneering? _pioneering;
+
+    /// <summary>Pioneers taking land (created on first use: games saved before there were pioneers have none).</summary>
+    public Pioneering Pioneering => _pioneering ??= new Pioneering(this);
+
     public Military.Military Military { get; }
 
     /// <summary>

@@ -34,6 +34,9 @@ public enum Profession
     /// he is revealed to them (see <see cref="Settler.IsRevealedTo"/>, <c>Military.Scouting</c>).
     /// </summary>
     Scout,
+
+    /// <summary>Takes free and unprotected land, field by field (see <see cref="Economy.Pioneering"/>).</summary>
+    Pioneer,
 }
 
 public enum SoldierType
@@ -64,6 +67,9 @@ public enum Activity
     Signing,
     Casting,
     Healing,
+
+    /// <summary>A pioneer setting a border post.</summary>
+    Claiming,
 }
 
 public enum SettlerState

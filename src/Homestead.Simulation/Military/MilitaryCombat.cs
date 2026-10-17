@@ -178,7 +178,7 @@ public sealed partial class Military
         // fighter is what made long games slow.
         _combatants.Clear();
         foreach (var settler in _world.Settlers)
-            if (settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout && !settler.IsInside && !settler.IsDead)
+            if (settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer && !settler.IsInside && !settler.IsDead)
                 _combatants.Add(settler);
         if (_world.Tick % EngageInterval == 0)
             EngageIdleSoldiers();

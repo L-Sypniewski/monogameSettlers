@@ -26,7 +26,7 @@ public enum FindMode
 /// least, diggers and builders at most – a spinner each, 5 % a click) and the special professions:
 /// geologists, pioneers, scouts and pioneers back to carriers, each with three find buttons (all on the
 /// map, all on the screen, the next one) and two buttons turning 5 or 1 carriers into them (or pioneers
-/// into carriers). Pioneers do not exist yet: their entries are dark. Graphics in
+/// into carriers). Graphics in
 /// <c>data/ui.json</c> (<c>professionsMenu</c>). Panel space.
 /// </summary>
 public sealed class ProfessionsMenu : IDisposable
@@ -46,9 +46,9 @@ public sealed class ProfessionsMenu : IDisposable
     private static readonly Entry[] Entries =
     [
         new("GEOLOGIST", Profession.Geologist, "geologists", Available: true),
-        new("PIONEER", null, "pioneers", Available: false),
+        new("PIONEER", Profession.Pioneer, "pioneers", Available: true),
         new("THIEF", Profession.Scout, "scouts", Available: true),
-        new("PIONEER", null, "pioneers to carriers", Available: false, ToCarriers: true),
+        new("PIONEER", Profession.Pioneer, "pioneers", Available: true, ToCarriers: true),
     ];
 
     private readonly Texture2D _spinner;
@@ -163,8 +163,13 @@ public sealed class ProfessionsMenu : IDisposable
             for (int i = 0; i < Amounts.Length; i++)
                 if (ConvertButton(e, i).Contains(panel))
                 {
-                    if (entry.Profession is not { } converted || entry.ToCarriers)
+                    if (entry.Profession is not { } converted)
                         return $"no {entry.Name} yet";
+                    if (entry.ToCarriers)
+                    {
+                        int back = world.Geology.PioneersToCarriers(player, Amounts[i]);
+                        return back == 0 ? "no pioneers to turn into carriers" : $"{back} pioneers became carriers";
+                    }
                     var (now, later) = world.Geology.ConvertCarriers(player, Amounts[i], converted);
                     return now + later == 0 ? $"no carrier may become one of the {entry.Name} (carrier share)"
                         : later == 0 ? $"{now} carriers became {entry.Name}"

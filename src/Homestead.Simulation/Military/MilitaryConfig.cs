@@ -55,6 +55,9 @@ public sealed record MilitaryConfig
     /// <summary>Scouts (see <see cref="ScoutRules"/>); null in games saved before there were scouts.</summary>
     public ScoutRules? Scouts { get; init; } = ScoutRules.Default;
 
+    /// <summary>Pioneers (see <see cref="PioneerRules"/>); null in games saved before there were pioneers.</summary>
+    public PioneerRules? Pioneers { get; init; } = PioneerRules.Default;
+
     /// <summary>Hospital: wounded idle soldiers within this distance of its door are called in.</summary>
     public int HospitalCallRadius { get; init; } = 20;
 
@@ -125,6 +128,10 @@ public sealed record MilitaryConfig
                 ? new ScoutRules(scouts.GetProperty("health").GetSingle(), scouts.GetProperty("revealRadius").GetInt32(), scouts.GetProperty("sight").GetInt32(),
                     scouts.GetProperty("stealRadius").GetInt32(), scouts.GetProperty("loadedSpeed").GetDouble())
                 : ScoutRules.Default,
+            Pioneers = root.TryGetProperty("pioneers", out var pioneers)
+                ? new PioneerRules(pioneers.GetProperty("health").GetSingle(), pioneers.GetProperty("searchRadius").GetInt32(),
+                    (int)Math.Round(pioneers.GetProperty("claimSeconds").GetDouble() * World.TicksPerSecond))
+                : PioneerRules.Default,
             HospitalCallRadius = root.TryGetProperty("hospital", out var hospital) ? hospital.GetProperty("callRadius").GetInt32() : 20,
             HealTicks = (int)Math.Round((hospital.ValueKind == JsonValueKind.Object ? hospital.GetProperty("healSeconds").GetDouble() : 2) * World.TicksPerSecond),
             HospitalCallPauseTicks = (int)Math.Round((hospital.ValueKind == JsonValueKind.Object ? hospital.GetProperty("callPauseSeconds").GetDouble() : 10)
@@ -205,4 +212,13 @@ public sealed record CombatStrengthConfig(float StepPercent, IReadOnlyList<float
 public sealed record ScoutRules(float Health, int RevealRadius, int Sight, int StealRadius, double LoadedSpeed)
 {
     public static readonly ScoutRules Default = new(40, 10, 20, 5, 0.5);
+}
+
+/// <summary>
+/// Pioneers: <paramref name="Health"/> when soldiers fight them (they do not strike back); taking land, the
+/// next field is the nearest one within <paramref name="SearchRadius"/>; each takes <paramref name="ClaimTicks"/>.
+/// </summary>
+public sealed record PioneerRules(float Health, int SearchRadius, int ClaimTicks)
+{
+    public static readonly PioneerRules Default = new(40, 10, 2 * World.TicksPerSecond);
 }

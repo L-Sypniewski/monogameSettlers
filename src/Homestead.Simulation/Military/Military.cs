@@ -485,6 +485,29 @@ public sealed partial class Military
             _world.RemoveBuilding(other);
     }
 
+    /// <summary>Whether the point is land an occupied military building of its owner covers (pioneers cannot take it).</summary>
+    internal bool IsProtected(GridPoint p) => _world.Map!.OwnerAt(p) is { } owner && Covers(owner, p);
+
+    /// <summary>
+    /// A pioneer takes the point for the player (free or unprotected land, see <see cref="IsProtected"/>);
+    /// another player's building standing there – or reaching onto it, unless its own ground is protected –
+    /// goes down with its ground, as when a military building claims it.
+    /// </summary>
+    internal void TakeLand(GridPoint p, int player)
+    {
+        var map = _world.Map!;
+        if (map.OwnerAt(p) == player)
+            return;
+        bool foreign = map.OwnerAt(p) is not null;
+        map.SetOwner(p, player);
+        if (!foreign)
+            return;
+        if (_world.BuildingAt(p) is { } reaching && reaching.Player != player && reaching.Position != p && !IsProtected(reaching.Position))
+            TakeLand(reaching.Position, player);
+        foreach (var other in _world.Buildings.Where(b => b.Exists && b.Player != player && b.Position == p).ToList())
+            _world.RemoveBuilding(other);
+    }
+
     private void Unclaim(Building building)
     {
         var map = _world.Map!;
