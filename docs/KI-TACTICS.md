@@ -354,7 +354,7 @@ Zwei unabhängige Achsen:
 - **Schwierigkeit** = *wie gut* sie es tut (Wahrnehmung, Reaktion, Entscheidungsqualität).
 
 Ein Stürmer kann leicht oder schwer sein. Gebaut wird die beste KI (Schwer); leichtere Stufen
-bekommen gezielte Abstriche. Die Stufen im Einzelnen stehen in `TODO.md` (Schwierigkeitsgrad).
+bekommen gezielte Abstriche.
 
 ### Stellschrauben je Stufe
 

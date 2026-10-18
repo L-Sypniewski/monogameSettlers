@@ -137,6 +137,16 @@ Tests: `dotnet test`.
 
 Internal project name and namespaces: *Homestead*.
 
+## Roadmap to 1.0
+
+- Sound & music
+- Single-player maps
+- All the original spells
+- More AI variation
+- Improved performance
+- Improved random maps
+- A lot of small improvements
+
 ## The original
 
 monoSettlers exists because of a great game. If you don't own it yet, please buy it – it's cheap and still runs today:
@@ -165,11 +175,3 @@ assets, never touch the original program.
 - This repository contains **no original assets** (graphics, sound, maps). The game needs your own, legally acquired copy.
   The screenshots above show original graphics from such a copy.
 - "The Settlers" is a trademark of Ubisoft; the original game was made by Blue Byte. monoSettlers is a non-commercial fan project and not affiliated with or endorsed by them.
-
-## Roadmap to 1.0
-
-- Sound & music
-- More spells
-- More AI variation
-- Improved performance
-- A lot of small improvements
