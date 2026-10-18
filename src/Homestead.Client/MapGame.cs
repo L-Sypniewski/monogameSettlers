@@ -2781,6 +2781,24 @@ public sealed class MapGame : Game
                     _world.Military.Move(armies[1], middle);
                     battleMiddle = middle;
                 }
+                // HOMESTEAD_CAPTURE_BATTLE=town[:n]: Asians and Amazons of n each (default 90) clash in the middle of the village.
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE")?.Split(':') is ["town", ..] townBattle)
+                {
+                    int count = townBattle.Length > 1 && int.TryParse(townBattle[1], out int townCount) ? townCount : 90;
+                    var armies = new[] { new List<Settler>(), new List<Settler>() };
+                    for (int side = 0; side < 2; side++)
+                        for (int i = 0; i < count; i++)
+                        {
+                            var at = new GridPoint(start.X + (side == 0 ? -34 : 24) + i % 10, start.Y + 2 + i / 10);
+                            if (_world.SpawnSoldier(at, (SoldierType)(i % 3), level: 1 + i % 3, player: side) is { } soldier)
+                                armies[side].Add(soldier);
+                        }
+                    var middle = new GridPoint(start.X + 4, start.Y + 6);
+                    _world.Military.Move(armies[0], middle);
+                    _world.Military.Move(armies[1], middle);
+                    battleMiddle = middle;
+                    _selectedBuilding = null; // no selection marks in the picture
+                }
                 // HOMESTEAD_CAPTURE_BATTLE=open: Asians and Amazons of 40 each meet on the nearest open ground outside the village.
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE") == "open"
                     && PathFinder.Circle(start, 70).Where(p => PathFinder.Distance(start, p) >= 24).OrderBy(p => PathFinder.Distance(start, p))
