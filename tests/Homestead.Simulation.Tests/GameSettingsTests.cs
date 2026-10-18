@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Homestead.Simulation.Economy;
 
 namespace Homestead.Simulation.Tests;
@@ -36,6 +37,18 @@ public class GameSettingsTests : IDisposable
         using var document = JsonDocument.Parse(File.ReadAllText(SettingsFile));
         Assert.Equal("/somewhere/Settlers", document.RootElement.GetProperty("gameDirectory").GetString());
         Assert.Equal(new Depletion(50, 0, 25), settings.Apply(production).Depletion);
+    }
+
+    [Fact]
+    public void Sections_of_the_file_leave_each_other_alone()
+    {
+        var production = ProductionConfig.Load();
+        Homestead.Assets.SettingsFile.WriteSection("display", new JsonObject { ["fullScreen"] = true }, SettingsFile);
+        (GameSettings.Defaults(production) with { Depletion = new Depletion(10, 10, 10) }).Save(SettingsFile);
+        Homestead.Assets.SettingsFile.WriteSection("display", new JsonObject { ["fullScreen"] = false }, SettingsFile);
+
+        Assert.Equal(new Depletion(10, 10, 10), GameSettings.Load(production, SettingsFile).Depletion);
+        Assert.False(Homestead.Assets.SettingsFile.ReadSection("display", SettingsFile)!.Value.GetProperty("fullScreen").GetBoolean());
     }
 
     [Fact]

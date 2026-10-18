@@ -182,11 +182,15 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
   Original-Meldungsbox Datei 02 GUI 16, `popup` in `titleScreen`: „Im Browser öffnen“ → `README.md`/`CONTRIBUTING.md`/`LICENSE.md` auf GitHub, Enter/Esc),
   unten abgesetzt Beenden; Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher.
   Capture: `HOMESTEAD_CAPTURE_START=title` → `title.png` (`title:readme`/`title:contribution`/`title:licenses` mit Popup, `title:load` mit Slots).
-- **Einstellungen** (`SettingsScreen`): Hintergrund Datei 02 GUI 14 (`settingsScreen` in `ui.json`, Marmor daneben), je Thema ein Abschnitt,
-  je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch 100/75/50/25/10 %/∞); Ok/Enter speichert `GameSettings`
-  (Abschnitt `game` in `~/.config/homestead/settings.json`, Rest der Datei bleibt), Abbrechen/Esc verwirft, Standard = `production.json`.
+- **Einstellungen** (`SettingsScreen`): Hintergrund Datei 02 GUI 14 (`settingsScreen` in `ui.json`, Marmor daneben); oben in den vier
+  Kästchen Reiter mit Icons der Original-Statistikmenüs (Datei 03, hell gewählt/unter der Maus, sonst dunkel; Tab/Shift+Tab): Rohstoffe,
+  Wirtschaft, Militär (beide noch leer), Darstellung; je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch
+  100/75/50/25/10 %/∞; Darstellung: Hardware-Cursor, Vollbild, Sprache Deutsch/English – nur gespeichert, Texte noch deutsch).
+  Ok/Enter speichert `GameSettings` (Abschnitt `game`) und `DisplaySettings` (Client, Abschnitt `display`, sofort angewandt) in
+  `~/.config/homestead/settings.json` (`SettingsFile`: je Abschnitt, Rest der Datei bleibt); Abbrechen/Esc verwirft, Standard setzt den offenen
+  Reiter zurück (Spielwerte: `production.json`). Hardware-Cursor aus: eigener goldener Pfeil (`SoftwareCursor`, in `EndDraw`, nicht in Captures).
   Neue Partien: `GameSettings.Load(…).Apply(…)` → `OriginalScenario.Load(production:)`; Spielstände behalten ihre Werte (Arena/Tests: nur `production.json`).
-  Capture: `HOMESTEAD_CAPTURE_START=settings` → `settings.png`.
+  Capture: `HOMESTEAD_CAPTURE_START=settings[:resources|economy|military|display]` → `settings.png`.
 - **Startscreen** (`StartScreen`): auf dem Kartenwahl-Hintergrund des Originals (`startScreen` in `ui.json`, Datei 02 GUI 8,
   im 800×600-Raster auf Fenstergröße skaliert, daneben Marmor; ovale Steinknöpfe, Steinleiste unter der Auswahl, Vorschau im schrägen Fenster): Kartenliste mit Vorschau, Tabs Einzelspieler/Mehrspieler/Eigene (Tab-Taste),
   sortiert nach Spielerzahl (`OriginalMap.ReadPlayerCount` liest nur MapInfo). Tab „Zufallsgenerator“: letzte 5 Zufallskarten
@@ -250,7 +254,7 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
   Träger: Umwandlungsmenü (bis Trägerreserve; beschäftigte nach Lieferung). Linksklick abwählen; rechts ziehen verschiebt die Karte.
 - **Tasten**: Esc bricht Platzieren/Zielen ab, sonst Statistik; N Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), C Cheat-Menü (`CheatMenu`: Soldaten je Typ/Stufe, Priester, Geologen,
   Späher, Pioniere, Träger, +50 Mana), F Angriff aufs feindliche Militärgebäude unter der Maus, V Fog of War (Sicht 1×/s, `FogLayer` blendet weich,
-  klingt über `SoftFields` (3) aus; unerkundet schwarz, erkundet dunkel, fremde Figuren nur in Sicht), F11 Vollbild,
+  klingt über `SoftFields` (3) aus; unerkundet schwarz, erkundet dunkel, fremde Figuren nur in Sicht), F11 Vollbild (nur für die Sitzung; Vorgabe in den Einstellungen),
   F2 Skalierung scharf/linear/Catmull-Rom (Standard)/Lanczos2 (Welt 1:1 in kleine RenderTarget, um den Zoom vergrößert; Markierungen/Panel scharf;
   `Shaders/Upscale.fx` → eingebettetes `.mgfx`, nach Änderung `tools/compile-shaders.sh`, braucht Wine),
   F3 Leistungsanzeige (FPS, ms Simulation/Update/Zeichnen, längster Frame, Draw-Calls), F12 gehalten 10× Tempo, T Spielzeit, I KI spielt für dich

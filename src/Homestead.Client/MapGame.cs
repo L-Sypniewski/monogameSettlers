@@ -55,6 +55,10 @@ public sealed class MapGame : Game
     private TitleScreen? _title;
     /// <summary>The settings screen, over the title screen while open.</summary>
     private SettingsScreen? _settingsScreen;
+    /// <summary>Hardware cursor, full screen, language (<c>display</c> in settings.json).</summary>
+    private DisplaySettings _display = DisplaySettings.Load();
+    /// <summary>The game's own pointer while the hardware cursor is off.</summary>
+    private SoftwareCursor? _cursor;
     private StartScreen? _startScreen;
 
     /// <summary>The statistics screen while it is shown (the game stands still meanwhile).</summary>
@@ -254,7 +258,7 @@ public sealed class MapGame : Game
             PreferredBackBufferWidth = 1280,
             PreferredBackBufferHeight = 800,
         };
-        IsMouseVisible = true;
+        IsMouseVisible = _display.HardwareCursor;
         Window.AllowUserResizing = true;
         if (captureDirectory is not null)
         {
@@ -276,6 +280,9 @@ public sealed class MapGame : Game
         }
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData([Color.White]);
+        _cursor = new SoftwareCursor(GraphicsDevice);
+        if (_display.FullScreen && _captureDirectory is null)
+            SetFullScreen(true);
         _atlas = TerrainAtlas.Build(GraphicsDevice, _gfx.Open(0));
         _effect = new BasicEffect(GraphicsDevice)
         {
@@ -313,13 +320,17 @@ public sealed class MapGame : Game
         {
             // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps);
             // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the save slots);
-            // =settings: the settings screen's..
+            // =settings[:<tab>]: the settings screen's (tab: resources, economy, military, display)..
             string? captureStart = _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START");
-            if (captureStart is null || captureStart.StartsWith("title") || captureStart == "settings")
+            if (captureStart is null || captureStart.StartsWith("title") || captureStart.StartsWith("settings"))
             {
                 _title = new TitleScreen(GraphicsDevice, _gfx);
-                if (captureStart == "settings")
+                if (captureStart?.StartsWith("settings") == true)
+                {
                     _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
+                    if (captureStart.StartsWith("settings:"))
+                        _settingsScreen.Show(captureStart["settings:".Length..]);
+                }
                 if (captureStart?.StartsWith("title:") == true)
                     _title.Show(captureStart["title:".Length..]);
             }
@@ -593,6 +604,8 @@ public sealed class MapGame : Game
         {
             if (_settingsScreen.Update(GraphicsDevice.Viewport.Bounds))
             {
+                if (_settingsScreen.Saved is { } display)
+                    ApplyDisplay(display);
                 _settingsScreen.Dispose();
                 _settingsScreen = null;
                 _title!.Resume();
@@ -834,9 +847,22 @@ public sealed class MapGame : Game
     }
 
     /// <summary>Switches between the window and borderless fullscreen at desktop resolution; the window keeps its size.</summary>
-    private void ToggleFullScreen()
+    private void ToggleFullScreen() => SetFullScreen(!_graphics.IsFullScreen);
+
+    /// <summary>The settings of the settings screen: pointer and full screen at once (the language is only stored so far).</summary>
+    private void ApplyDisplay(DisplaySettings display)
     {
-        if (_graphics.IsFullScreen)
+        _display = display;
+        IsMouseVisible = display.HardwareCursor;
+        if (_captureDirectory is null && display.FullScreen != _graphics.IsFullScreen)
+            SetFullScreen(display.FullScreen);
+    }
+
+    private void SetFullScreen(bool on)
+    {
+        if (on == _graphics.IsFullScreen)
+            return;
+        if (!on)
         {
             _graphics.IsFullScreen = false;
             _graphics.PreferredBackBufferWidth = _windowedSize.X;
@@ -2795,6 +2821,19 @@ public sealed class MapGame : Game
         }
     }
 
+    /// <summary>The game's own pointer over everything, on every screen, while the hardware cursor is off.</summary>
+    protected override void EndDraw()
+    {
+        if (!IsMouseVisible && _cursor is not null && _captureDirectory is null && IsActive)
+        {
+            GraphicsDevice.SetRenderTarget(null);
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _cursor.Draw(_spriteBatch, Mouse.GetState().Position, GraphicsDevice.Viewport.Height);
+            _spriteBatch.End();
+        }
+        base.EndDraw();
+    }
+
     protected override void UnloadContent()
     {
         _terrain?.Dispose();
@@ -2805,6 +2844,7 @@ public sealed class MapGame : Game
         _eventButtons?.Dispose();
         _title?.Dispose();
         _settingsScreen?.Dispose();
+        _cursor?.Dispose();
         _startScreen?.Dispose();
         _statistics?.Dispose();
         TextButton.Dispose();

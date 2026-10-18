@@ -11,9 +11,12 @@ namespace Homestead.Client;
 
 /// <summary>
 /// The settings screen from the title screen, on a background of the original's menus (<c>settingsScreen</c> in
-/// <c>data/ui.json</c>, scaled from 800 × 600, marble beside it): one section per topic in the large dark area, one
-/// row of choices per setting (room for more below). "Ok" (Enter) writes the <see cref="GameSettings"/> into
-/// <c>settings.json</c>, "Abbrechen" (Esc) drops the changes, "Standard" goes back to <c>production.json</c>.
+/// <c>data/ui.json</c>, scaled from 800 × 600, marble beside it). The square boxes at the top hold one tab per topic
+/// with an icon of the original's statistics menus (bright while chosen or under the mouse, dark otherwise; Tab and
+/// Shift+Tab switch); the chosen topic's settings fill the large dark area, one row of choices each. "Ok" (Enter)
+/// writes the <see cref="GameSettings"/> and <see cref="DisplaySettings"/> into <c>settings.json</c> (the game applies
+/// the latter, <see cref="Saved"/>), "Abbrechen" (Esc) drops the changes, "Standard" resets the open tab (game
+/// settings: <c>production.json</c>).
 /// </summary>
 public sealed class SettingsScreen : IDisposable
 {
@@ -24,22 +27,53 @@ public sealed class SettingsScreen : IDisposable
     private static readonly Color Dim = new(175, 175, 185);
     private static readonly Color Error = new(240, 120, 100);
 
-    /// <summary>One setting: a row of percentages to choose from.</summary>
-    private sealed record Choice(string Label, string Hint, Func<GameSettings, int> Get, Func<GameSettings, int, GameSettings> Set);
+    /// <summary>Everything the screen edits.</summary>
+    private sealed record State(GameSettings Game, DisplaySettings Display);
 
-    private static readonly int[] DepletionValues = [100, 75, 50, 25, 10, 0];
+    /// <summary>One setting: a row of values to choose from, each with its label.</summary>
+    private sealed record Choice(string Label, string Hint, (string Label, int Value)[] Values, Func<State, int> Get, Func<State, int, State> Set);
 
-    private static readonly Choice[] Depletion =
+    /// <summary>A tab: its key in <c>tabs</c> of <c>settingsScreen</c> (also for capture runs), heading, line below it, settings, when they apply.</summary>
+    private sealed record Tab(string Id, string Name, string Subtitle, Choice[] Choices, string Note = "Gilt für neue Partien, nicht für Spielstände.");
+
+    private static readonly (string, int)[] DepletionValues = [("100 %", 100), ("75 %", 75), ("50 %", 50), ("25 %", 25), ("10 %", 10), ("∞", 0)];
+
+    private static readonly (string, int)[] OnOff = [("An", 1), ("Aus", 0)];
+
+    private static Choice Depletion(string label, string hint, Func<Depletion, int> get, Func<Depletion, int, Depletion> set) =>
+        new(label, hint, DepletionValues, s => get(s.Game.Depletion), (s, v) => s with { Game = s.Game with { Depletion = set(s.Game.Depletion, v) } });
+
+    private static Choice Display(string label, string hint, (string, int)[] values, Func<DisplaySettings, int> get,
+        Func<DisplaySettings, int, DisplaySettings> set) =>
+        new(label, hint, values, s => get(s.Display), (s, v) => s with { Display = set(s.Display, v) });
+
+    private static readonly Tab[] Tabs =
     [
-        new("Steinbrüche", "Steinmetze: Anteil der gehauenen Steine, der den Felsen kleiner macht. 100 % wie im Original, ∞: Felsen bleiben.",
-            s => s.Depletion.Stone, (s, v) => s with { Depletion = s.Depletion with { Stone = v } }),
-        new("Bergwerke", "Minen (Kohle, Erze, Gold, Edelsteine, Schwefel): Anteil der Funde, der das Vorkommen senkt. ∞: Berge erschöpfen nie.",
-            s => s.Depletion.Mountain, (s, v) => s with { Depletion = s.Depletion with { Mountain = v } }),
-        new("Fischgründe", "Fischer: Anteil der Fänge, der den Fischbestand senkt. ∞: Fische gehen nie aus.",
-            s => s.Depletion.Fish, (s, v) => s with { Depletion = s.Depletion with { Fish = v } }),
+        new("resources", "Rohstoffe", "Wie viel jeder Abbau vom Vorkommen verbraucht",
+        [
+            Depletion("Steinbrüche", "Steinmetze: Anteil der gehauenen Steine, der den Felsen kleiner macht. 100 % wie im Original, ∞: Felsen bleiben.",
+                d => d.Stone, (d, v) => d with { Stone = v }),
+            Depletion("Bergwerke", "Minen (Kohle, Erze, Gold, Edelsteine, Schwefel): Anteil der Funde, der das Vorkommen senkt. ∞: Berge erschöpfen nie.",
+                d => d.Mountain, (d, v) => d with { Mountain = v }),
+            Depletion("Fischgründe", "Fischer: Anteil der Fänge, der den Fischbestand senkt. ∞: Fische gehen nie aus.",
+                d => d.Fish, (d, v) => d with { Fish = v }),
+        ]),
+        new("economy", "Wirtschaft", "Produktion, Transport und Bevölkerung", []),
+        new("military", "Militär", "Soldaten, Kampf und Gebiete", []),
+        new("display", "Darstellung", "Grafik und Bedienung",
+        [
+            Display("Hardware-Cursor", "An: der Mauszeiger des Systems. Aus: das Spiel zeichnet einen eigenen.", OnOff,
+                d => d.HardwareCursor ? 1 : 0, (d, v) => d with { HardwareCursor = v == 1 }),
+            Display("Vollbild", "Beim Start im Vollbild. F11 wechselt jederzeit, nur bis zum Beenden.", OnOff,
+                d => d.FullScreen ? 1 : 0, (d, v) => d with { FullScreen = v == 1 }),
+            Display("Sprache", "Sprache der Texte. Bisher wird nur die Wahl gespeichert – die Texte sind noch deutsch.",
+                [("Deutsch", (int)Language.German), ("English", (int)Language.English)],
+                d => (int)d.Language, (d, v) => d with { Language = (Language)v }),
+        ], "Gilt sofort nach „Ok“."),
     ];
 
     // Layout in the 800 × 600 space of the background, measured on it.
+    private static Rectangle TabBox(int tab) => new(19 + tab * 60, 19, 51, 50);
     private static readonly Rectangle TitleField = new(500, 20, 280, 44);
     private static readonly Rectangle Content = new(20, 88, 760, 452);
     private static readonly Rectangle NoteField = new(22, 556, 338, 22);
@@ -51,16 +85,19 @@ public sealed class SettingsScreen : IDisposable
 
     private static Rectangle Row(int row) => new(Content.X + 16, RowTop + row * RowHeight, Content.Width - 32, RowHeight - 6);
 
-    private static Rectangle ValueBox(int row, int value)
+    /// <summary>The value's button: six fill the row, fewer keep that size up to a limit and start at the left.</summary>
+    private static Rectangle ValueBox(Choice choice, int row, int value)
     {
         const int left = 300, width = 460;
-        int count = DepletionValues.Length;
-        return new Rectangle(left + value * width / count, Row(row).Y, width / count - 4, 28);
+        int slot = Math.Min(width / choice.Values.Length, 116);
+        return new Rectangle(left + value * slot, Row(row).Y, slot - 4, 28);
     }
 
     private readonly Texture2D _background, _marble;
-    private readonly ProductionConfig _production;
-    private GameSettings _settings;
+    private readonly (Texture2D Bright, Texture2D Dark)[] _icons;
+    private readonly State _defaults;
+    private State _state;
+    private int _tab;
     private string? _error;
 
     private float _scale = 1;
@@ -72,19 +109,33 @@ public sealed class SettingsScreen : IDisposable
     {
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
         var look = document.RootElement.GetProperty("settingsScreen");
-        var file = gfx.Open(look.GetProperty("file").GetInt32());
-        Texture2D Image(string name)
+        Texture2D Image(int file, int index)
         {
-            var bitmap = file.ReadGui(look.GetProperty(name).GetInt32());
+            var bitmap = gfx.Open(file).ReadGui(index);
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
         }
-        _background = Image("background");
-        _marble = Image("marble");
-        _production = ProductionConfig.Load();
-        _settings = GameSettings.Load(_production);
+        int file = look.GetProperty("file").GetInt32();
+        _background = Image(file, look.GetProperty("background").GetInt32());
+        _marble = Image(file, look.GetProperty("marble").GetInt32());
+        var tabs = look.GetProperty("tabs");
+        int tabFile = tabs.GetProperty("file").GetInt32();
+        _icons = Tabs.Select(tab =>
+        {
+            var icon = tabs.GetProperty(tab.Id);
+            return (Image(tabFile, icon[0].GetInt32()), Image(tabFile, icon[1].GetInt32()));
+        }).ToArray();
+        var production = ProductionConfig.Load();
+        _defaults = new State(GameSettings.Defaults(production), new DisplaySettings());
+        _state = new State(GameSettings.Load(production), DisplaySettings.Load());
     }
+
+    /// <summary>The display settings once "Ok" saved them, for the game to apply.</summary>
+    public DisplaySettings? Saved { get; private set; }
+
+    /// <summary>For capture runs: shows the tab with this key (<c>resources</c>, <c>economy</c>, <c>military</c>, <c>display</c>).</summary>
+    public void Show(string tab) => _tab = Math.Max(0, Array.FindIndex(Tabs, t => t.Id == tab));
 
     private void Fit(Rectangle view)
     {
@@ -110,8 +161,8 @@ public sealed class SettingsScreen : IDisposable
         Fit(view);
         var keys = Keyboard.GetState();
         var mouse = Mouse.GetState();
-        bool escape = keys.IsKeyDown(Keys.Escape) && !_previousKeys.IsKeyDown(Keys.Escape);
-        bool enter = keys.IsKeyDown(Keys.Enter) && !_previousKeys.IsKeyDown(Keys.Enter);
+        bool Pressed(Keys key) => keys.IsKeyDown(key) && !_previousKeys.IsKeyDown(key);
+        bool escape = Pressed(Keys.Escape), enter = Pressed(Keys.Enter), tab = Pressed(Keys.Tab);
         bool clicked = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
         _previousKeys = keys;
         _previousMouse = mouse;
@@ -121,14 +172,20 @@ public sealed class SettingsScreen : IDisposable
             return true;
         if (enter || clicked && OkButton.Contains(at))
             return Save();
+        if (tab)
+            _tab = (_tab + (keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift) ? Tabs.Length - 1 : 1)) % Tabs.Length;
         if (!clicked)
             return false;
         if (DefaultButton.Contains(at))
-            _settings = GameSettings.Defaults(_production);
-        for (int row = 0; row < Depletion.Length; row++)
-            for (int value = 0; value < DepletionValues.Length; value++)
-                if (ValueBox(row, value).Contains(at))
-                    _settings = Depletion[row].Set(_settings, DepletionValues[value]);
+            foreach (var choice in Tabs[_tab].Choices)
+                _state = choice.Set(_state, choice.Get(_defaults));
+        if (TabAt(at) is { } clickedTab)
+            _tab = clickedTab;
+        var choices = Tabs[_tab].Choices;
+        for (int row = 0; row < choices.Length; row++)
+            for (int value = 0; value < choices[row].Values.Length; value++)
+                if (ValueBox(choices[row], row, value).Contains(at))
+                    _state = choices[row].Set(_state, choices[row].Values[value].Value);
         return false;
     }
 
@@ -137,7 +194,9 @@ public sealed class SettingsScreen : IDisposable
     {
         try
         {
-            _settings.Save();
+            _state.Game.Save();
+            _state.Display.Save();
+            Saved = _state.Display;
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
@@ -157,25 +216,39 @@ public sealed class SettingsScreen : IDisposable
             batch.Draw(_marble, view, new Rectangle(14, 0, _marble.Width - 28, _marble.Height), Color.White);
         batch.Draw(_background, page, Color.White);
 
+        for (int t = 0; t < Tabs.Length; t++)
+        {
+            var box = TabBox(t);
+            var (bright, dark) = _icons[t];
+            var icon = t == _tab || box.Contains(hover) ? bright : dark;
+            var at = new Rectangle(box.Center.X - icon.Width / 2, box.Center.Y - icon.Height / 2, icon.Width, icon.Height);
+            batch.Draw(icon, ToScreen(at), Color.White);
+            if (t == _tab)
+                Outline(batch, pixel, ToScreen(new Rectangle(at.X - 2, at.Y - 2, at.Width + 4, at.Height + 4)), Gold);
+        }
+
         var title = font.Measure("Einstellungen", Px(18)) / _scale;
         Write(batch, font, "Einstellungen", TitleField.Center.X - title.X / 2, TitleField.Center.Y - title.Y / 2, Gold, 18);
 
-        Write(batch, font, "Rohstoffe", Content.X + 20, 104, Gold, 15);
-        Write(batch, font, "Wie viel jeder Abbau vom Vorkommen verbraucht", Content.X + 20, 124, Dim, 11);
-        string? hint = null;
-        for (int row = 0; row < Depletion.Length; row++)
+        var current = Tabs[_tab];
+        Write(batch, font, current.Name, Content.X + 20, 104, Gold, 15);
+        Write(batch, font, current.Subtitle, Content.X + 20, 124, Dim, 11);
+        if (current.Choices.Length == 0)
+            Write(batch, font, "Hier gibt es noch nichts einzustellen.", Content.X + 20, RowTop + 6, Text, 13);
+        string? hint = TabAt(hover) is { } hovered && hovered != _tab ? Tabs[hovered].Name : null;
+        for (int row = 0; row < current.Choices.Length; row++)
         {
-            var choice = Depletion[row];
+            var choice = current.Choices[row];
             var rect = Row(row);
             Write(batch, font, choice.Label, rect.X + 4, rect.Y + 6, Text, 13);
             if (rect.Contains(hover))
                 hint = choice.Hint;
-            int chosen = choice.Get(_settings);
-            for (int value = 0; value < DepletionValues.Length; value++)
+            int chosen = choice.Get(_state);
+            for (int value = 0; value < choice.Values.Length; value++)
             {
-                int percent = DepletionValues[value];
-                TextButton.Draw(batch, pixel, font, ToScreen(ValueBox(row, value)), percent == 0 ? "∞" : $"{percent} %",
-                    mouse.ToVector2(), size: Px(percent == 0 ? 18 : 12), selected: percent == chosen);
+                var (label, number) = choice.Values[value];
+                TextButton.Draw(batch, pixel, font, ToScreen(ValueBox(choice, row, value)), label,
+                    mouse.ToVector2(), size: Px(label == "∞" ? 18 : 12), selected: number == chosen);
             }
         }
         if (hint is not null)
@@ -188,11 +261,28 @@ public sealed class SettingsScreen : IDisposable
             }
         }
 
-        Write(batch, font, _error ?? "Gilt für neue Partien, nicht für Spielstände.", NoteField.X + 6, NoteField.Y + 4,
+        Write(batch, font, _error ?? current.Note, NoteField.X + 6, NoteField.Y + 4,
             _error is null ? Dim : Error, 11);
         TextButton.Draw(batch, pixel, font, ToScreen(DefaultButton), "Standard", mouse.ToVector2(), size: Px(13));
         TextButton.Draw(batch, pixel, font, ToScreen(OkButton), "Ok", mouse.ToVector2(), size: Px(13));
         TextButton.Draw(batch, pixel, font, ToScreen(CancelButton), "Abbrechen", mouse.ToVector2(), size: Px(13));
+    }
+
+    private void Outline(SpriteBatch batch, Texture2D pixel, Rectangle r, Color color)
+    {
+        int line = Math.Max(1, (int)MathF.Round(_scale * 1.5f));
+        batch.Draw(pixel, new Rectangle(r.X, r.Y, r.Width, line), color);
+        batch.Draw(pixel, new Rectangle(r.X, r.Bottom - line, r.Width, line), color);
+        batch.Draw(pixel, new Rectangle(r.X, r.Y, line, r.Height), color);
+        batch.Draw(pixel, new Rectangle(r.Right - line, r.Y, line, r.Height), color);
+    }
+
+    private static int? TabAt(Point at)
+    {
+        for (int t = 0; t < Tabs.Length; t++)
+            if (TabBox(t).Contains(at))
+                return t;
+        return null;
     }
 
     /// <summary>Text at a point of the 800 × 600 space, with a shadow.</summary>
@@ -208,5 +298,10 @@ public sealed class SettingsScreen : IDisposable
     {
         _background.Dispose();
         _marble.Dispose();
+        foreach (var (bright, dark) in _icons)
+        {
+            bright.Dispose();
+            dark.Dispose();
+        }
     }
 }
