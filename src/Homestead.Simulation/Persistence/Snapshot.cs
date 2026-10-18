@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Homestead.Simulation.Persistence;
 
@@ -23,7 +24,7 @@ namespace Homestead.Simulation.Persistence;
 /// the client are left out; it subscribes again after loading). Fields marked <see cref="NonSerializedAttribute"/>
 /// are left out. Types outside the allowed assemblies fail with the path to them.</para>
 /// </remarks>
-public static class Snapshot
+public static partial class Snapshot
 {
     private const BindingFlags DeclaredFields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
@@ -359,9 +360,9 @@ public static class Snapshot
 
     public static T Read<T>(Stream stream) => (T)Read(stream);
 
-    private sealed record SavedType(Type? Type, (string Name, int TypeId)[]? Fields);
+    private sealed record SavedType(string Name, Type? Type, (string Name, int TypeId)[]? Fields);
 
-    private sealed class GraphReader
+    private sealed partial class GraphReader
     {
         private readonly BinaryReader _input;
         private SavedType[] _types = [];
@@ -379,7 +380,8 @@ public static class Snapshot
             for (int i = 0; i < typeCount; i++)
             {
                 string name = _input.ReadString();
-                var type = Type.GetType(name, throwOnError: false);
+                // Versions are left out: a newer build may carry a different assembly version.
+                var type = Type.GetType(AssemblyVersion().Replace(name, ""), throwOnError: false);
                 (string, int)[]? fields = null;
                 if (_input.ReadBoolean())
                 {
@@ -387,7 +389,7 @@ public static class Snapshot
                     for (int f = 0; f < fields.Length; f++)
                         fields[f] = (_input.ReadString(), _input.ReadInt32());
                 }
-                _types[i] = new SavedType(type, fields);
+                _types[i] = new SavedType(name, type, fields);
             }
 
             // Every object, empty; delegates once their targets exist.
@@ -416,7 +418,7 @@ public static class Snapshot
                             bool isStatic = _input.ReadBoolean();
                             var flags = (isStatic ? BindingFlags.Static : BindingFlags.Instance) | BindingFlags.Public | BindingFlags.NonPublic;
                             methods.Add(declaring.GetMethod(name, flags, parameters)
-                                        ?? throw new InvalidDataException($"Method {declaring}.{name} is gone."));
+                                        ?? throw new SaveIncompatibleException($"Method {declaring}.{name} is gone."));
                         }
                         delegates.Add((id, type, methods));
                         break;
@@ -451,8 +453,11 @@ public static class Snapshot
             return root!;
         }
 
+        [GeneratedRegex(@", (Version|Culture|PublicKeyToken)=[^,\]]*")]
+        private static partial Regex AssemblyVersion();
+
         private Type Resolve(int typeId) =>
-            _types[typeId].Type ?? throw new InvalidDataException("A type of the saved game no longer exists.");
+            _types[typeId].Type ?? throw new SaveIncompatibleException($"A type of the saved game no longer exists: {_types[typeId].Name}");
 
         private readonly List<(object Owner, FieldInfo? Field, int Index, int DelegateId)> _delegateUses = new();
 

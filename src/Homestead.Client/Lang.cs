@@ -43,6 +43,15 @@ public static class Lang
     /// <summary>The text of the key with its placeholders filled in.</summary>
     public static string T(string key, params object?[] args) => string.Format(Culture, T(key), args);
 
+    /// <summary>
+    /// A map's name for the player: random maps are named in German by the simulation
+    /// (<see cref="Homestead.Simulation.Map.Generation.RandomMapGenerator.NameOf"/>, also in saved games).
+    /// </summary>
+    public static string MapName(string name) =>
+        System.Text.RegularExpressions.Regex.Match(name, @"^Zufallskarte (\d+)-([0-9A-F]{8})$") is { Success: true } random
+            ? T("start.randomMapName", random.Groups[1].Value, random.Groups[2].Value)
+            : name;
+
     /// <summary>The text of the key, or null where neither the language nor German has it.</summary>
     public static string? Find(string key) =>
         Table(Current).GetValueOrDefault(key) ?? (Current == Language.German ? null : Table(Language.German).GetValueOrDefault(key));

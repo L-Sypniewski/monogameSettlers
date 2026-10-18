@@ -641,7 +641,7 @@ public sealed class StartScreen : IDisposable
                 string label = player is { } q ? (q + 1).ToString() : "?";
                 Centered(batch, font, label, mark, player is null ? Color.White : TextOn(fill), 11, shadow: false);
             }
-            Write(batch, font, _map.Name, 82, 512, Gold, 15);
+            Write(batch, font, Lang.MapName(_map.Name), 82, 512, Gold, 15);
             string kind = Lang.T(_category == RandomCategory ? "start.kind.random" : _map.IsSinglePlayer ? "start.kind.singlePlayer" : "start.kind.multiplayer");
             string facts = Lang.T("start.facts", kind, _map.Players.Count, _map.Area.Size)
                            + (_map.Buildings.Count > 0 ? Lang.T("start.factsBuildings", _map.Buildings.Count) : "");

@@ -91,7 +91,45 @@ public static class SaveSlots
         if (reader.ReadString() != Magic)
             throw new InvalidDataException("Not a saved game.");
         if (reader.ReadInt32() != Version)
-            throw new InvalidDataException("Saved by another version.");
+            throw new SaveIncompatibleException("Saved by another version.");
         return JsonSerializer.Deserialize<SaveInfo>(reader.ReadString()) ?? throw new InvalidDataException("No header.");
+    }
+}
+
+/// <summary>The saved game was made by a build whose types or format this one no longer has.</summary>
+public sealed class SaveIncompatibleException(string message) : IOException(message);
+
+/// <summary>Why a saved game did not load.</summary>
+public enum SaveProblem
+{
+    /// <summary>Made by another version of the game (<see cref="SaveIncompatibleException"/>).</summary>
+    Incompatible = 1,
+    /// <summary>The file is there but its contents make no sense (cut off, spoiled, not a saved game).</summary>
+    Damaged = 2,
+    /// <summary>The file could not be read at all (gone, no permission).</summary>
+    Unreadable = 3,
+}
+
+/// <summary>
+/// What the player is told about a saved game that did not load: the kind of problem and an error code
+/// <c>HS-&lt;kind&gt;-&lt;4 hex digits&gt;</c>, the digits a stable hash of the exception, so the same fault gives the same code
+/// (and a report names it).
+/// </summary>
+public sealed record SaveLoadFailure(SaveProblem Problem, string Code)
+{
+    public static SaveLoadFailure Of(Exception exception)
+    {
+        var problem = exception switch
+        {
+            SaveIncompatibleException => SaveProblem.Incompatible,
+            EndOfStreamException or InvalidDataException or JsonException => SaveProblem.Damaged,
+            IOException or UnauthorizedAccessException => SaveProblem.Unreadable,
+            _ => SaveProblem.Damaged,
+        };
+        // FNV-1a: string.GetHashCode differs from run to run.
+        uint hash = 2166136261;
+        foreach (char c in exception.GetType().Name + exception.Message)
+            hash = (hash ^ c) * 16777619;
+        return new SaveLoadFailure(problem, $"HS-{(int)problem}-{(hash ^ hash >> 16) & 0xFFFF:X4}");
     }
 }

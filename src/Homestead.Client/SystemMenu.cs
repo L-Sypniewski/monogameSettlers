@@ -82,7 +82,7 @@ public sealed class SystemMenu
                         Write(batch, font, "------------", new Vector2(rect.X, rect.Y + 8), over);
                         continue;
                     }
-                    Write(batch, font, Fit(font, info.Map, rect.Width), new Vector2(rect.X, rect.Y), over);
+                    Write(batch, font, Fit(font, Lang.MapName(info.Map), rect.Width), new Vector2(rect.X, rect.Y), over);
                     string when = info.SavedAt.ToString(Lang.T("formats.savedAt"), Lang.Culture);
                     Write(batch, font, Fit(font, $"{when}  {Lang.T("peoples." + info.People)}", rect.Width), new Vector2(rect.X, rect.Y + 16), over);
                 }

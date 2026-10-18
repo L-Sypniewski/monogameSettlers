@@ -311,6 +311,9 @@ public sealed class MapGame : Game
             else if (captureTab.Length > 2)
                 _captureGood = Homestead.Simulation.Economy.Materials.Parse(captureTab[2].ToUpperInvariant());
         }
+        // HOMESTEAD_CAPTURE_COLORS=2,4: palette entries of the players (here green and purple).
+        if (_captureDirectory is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_COLORS") is { } captureColors)
+            PlayerColors.Assign(captureColors.Split(',').Select(c => int.TryParse(c, out int color) ? color : (int?)null).ToArray(), _random);
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
@@ -319,7 +322,7 @@ public sealed class MapGame : Game
         if (_showStartScreen)
         {
             // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps);
-            // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the save slots);
+            // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the save slots, =title:loadError: with a message about one that did not load);
             // =settings[:<tab>]: the settings screen's (tab: resources, economy, military, display)..
             string? captureStart = _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START");
             if (captureStart is null || captureStart.StartsWith("title") || captureStart.StartsWith("settings"))
@@ -623,7 +626,18 @@ public sealed class MapGame : Game
             Exit();
         else if (action == TitleAction.Load)
         {
-            var game = SaveSlots.Load(_title.ChosenSlot);
+            SaveGame game;
+            try
+            {
+                game = SaveSlots.Load(_title.ChosenSlot);
+            }
+            catch (Exception exception)
+            {
+                var failure = SaveLoadFailure.Of(exception);
+                Console.Error.WriteLine($"Loading slot {_title.ChosenSlot + 1} failed ({failure.Code}): {exception}");
+                _title.ShowLoadFailure(failure);
+                return;
+            }
             _title.Dispose();
             _title = null;
             LoadGame(game);
@@ -2750,7 +2764,8 @@ public sealed class MapGame : Game
                             _world.SpawnSoldier(new GridPoint(start.X + 12 + i, start.Y + 6), type, level: 3, player: 1);
                     _world.Military.Attack(1, tower);
                 }
-                // HOMESTEAD_CAPTURE_BATTLE=big: two armies of 30 meet south of the start.
+                // HOMESTEAD_CAPTURE_BATTLE=big: two armies of 30 meet south of the start (zoomed in: the camera on them).
+                GridPoint? battleMiddle = null;
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE") == "big")
                 {
                     var armies = new[] { new List<Settler>(), new List<Settler>() };
@@ -2764,6 +2779,25 @@ public sealed class MapGame : Game
                     var middle = new GridPoint(start.X + 14, start.Y + 16);
                     _world.Military.Move(armies[0], middle);
                     _world.Military.Move(armies[1], middle);
+                    battleMiddle = middle;
+                }
+                // HOMESTEAD_CAPTURE_BATTLE=open: Asians and Amazons of 40 each meet on the nearest open ground outside the village.
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE") == "open"
+                    && PathFinder.Circle(start, 70).Where(p => PathFinder.Distance(start, p) >= 24).OrderBy(p => PathFinder.Distance(start, p))
+                        .FirstOrDefault(m => Enumerable.Range(-20, 41).All(dx => Enumerable.Range(-7, 15)
+                            .All(dy => m + new GridPoint(dx, dy) is var f && _world.IsFreeGround(f) && _world.Map!.IsWalkable(f)))) is { X: > 0 } open)
+                {
+                    var armies = new[] { new List<Settler>(), new List<Settler>() };
+                    for (int side = 0; side < 2; side++)
+                        for (int i = 0; i < 40; i++)
+                        {
+                            var at = new GridPoint(open.X + (side == 0 ? -19 : 12) + i % 8, open.Y - 2 + i / 8);
+                            if (_world.SpawnSoldier(at, (SoldierType)(i % 3), level: 1 + i % 3, player: side) is { } soldier)
+                                armies[side].Add(soldier);
+                        }
+                    _world.Military.Move(armies[0], open);
+                    _world.Military.Move(armies[1], open);
+                    battleMiddle = open;
                 }
                 // HOMESTEAD_CAPTURE_SELECT=1: own soldiers of every type and level are selected (units panel at the left).
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SELECT") == "1")
@@ -2775,7 +2809,9 @@ public sealed class MapGame : Game
                                 if (_world.SpawnSoldier(new GridPoint(start.X - 10 + (int)type * 4 + i, start.Y + 6 + level), type, level) is { } soldier)
                                     _group.Add(soldier);
                 }
-                if (_zoom > 1 && _selectedBuilding is not null)
+                if (_zoom > 1 && battleMiddle is { } battle)
+                    _camera = ToWorld(battle);
+                else if (_zoom > 1 && _selectedBuilding is not null)
                     _camera = ToWorld(_selectedBuilding.Position);
                 DemoEconomy.PlaceNear(_world, Own["medium_livinghouse"], new GridPoint(start.X + 10, start.Y - 4), _random);
                 foreach (var (name, dx, dy) in new[] { ("lumberjack", -14, 10), ("forester", 8, 16), ("stonecutter", -4, 22) })

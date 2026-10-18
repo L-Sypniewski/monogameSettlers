@@ -45,6 +45,19 @@ Computer opponents use the same commands as a human player and each has its own 
 On top of that: guerilla strikes, defence by threat, gathered campaigns, retreats when outnumbered, targeted expansion towards missing resources.
 The **Arena** (`tools/Homestead.Arena`) runs AI against AI without a window; a tournament script compares characters across many maps.
 
+## Statistics
+
+| Economy | Military |
+|---|---|
+| ![Statistics: economy](docs/screenshots/statistics-economy.png) | ![Statistics: military](docs/screenshots/statistics-military.png) |
+| Land, settlers, buildings and goods of every player over the whole game. | Soldiers by type, combat strength, kills and losses, captured buildings. |
+
+Press Esc or end the game, and the statistics screen opens on the blue marble of the original menus – with far more
+than the original ever showed. Five pages (overview, economy, military, goods, society) follow every player through
+the whole game: land and its share over time, settlers, buildings, goods produced per minute, stock, soldiers by type,
+combat strength, kills and losses, captured buildings, mana and more. Hover over a chart to read every player's value
+at that minute, pick any good to compare its production, and jump back into the game with one click.
+
 ## Maps
 
 ![Random map generator on the start screen](docs/screenshots/random-map.png)
@@ -52,18 +65,6 @@ The **Arena** (`tools/Homestead.Arena`) runs AI against AI without a window; a t
 - All single-player and multiplayer maps of the original
 - **Random maps** for 2–6 players with mirrored or repeated symmetry, rivers, swamps, ore veins and treasures – fair for every start position
 - **Hardcore mode** per player, **save games** in 8 slots, **fog of war**
-
-## Statistics
-
-![Statistics: economy](docs/screenshots/statistics-economy.png)
-
-![Statistics: military](docs/screenshots/statistics-military.png)
-
-Press Esc or end the game, and the statistics screen opens on the blue marble of the original menus – with far more
-than the original ever showed. Five pages (overview, economy, military, goods, society) follow every player through
-the whole game: land and its share over time, settlers, buildings, goods produced per minute, stock, soldiers by type,
-combat strength, kills and losses, captured buildings, mana and more. Hover over a chart to read every player's value
-at that minute, pick any good to compare its production, and jump back into the game with one click.
 
 ## Clean room: how this game is made
 
@@ -164,3 +165,11 @@ assets, never touch the original program.
 - This repository contains **no original assets** (graphics, sound, maps). The game needs your own, legally acquired copy.
   The screenshots above show original graphics from such a copy.
 - "The Settlers" is a trademark of Ubisoft; the original game was made by Blue Byte. monoSettlers is a non-commercial fan project and not affiliated with or endorsed by them.
+
+## Roadmap to 1.0
+
+- Sound & music
+- More spells
+- More AI variation
+- Improved performance
+- A lot of small improvements

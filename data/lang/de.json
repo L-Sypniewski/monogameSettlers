@@ -27,6 +27,12 @@
       "contribution": "Mitwirken ist willkommen! Wie Beiträge ablaufen und welche Regeln gelten (Clean Room, keine Original-Dateien), steht im Repository auf GitHub.",
       "licenses": "monoSettlers ist Open Source unter der MIT-Lizenz. Lizenztext und Hinweise zu übernommenem Code stehen im Repository auf GitHub."
     },
+    "loadFailed": {
+      "incompatible": "Dieser Spielstand stammt von einer anderen Version des Spiels und lässt sich nicht mehr laden.",
+      "damaged": "Dieser Spielstand ist beschädigt und lässt sich nicht laden.",
+      "unreadable": "Dieser Spielstand lässt sich nicht lesen.",
+      "code": "Fehlercode: {0}"
+    },
     "popup": {
       "willOpen": "Dafür wird diese Seite im Browser geöffnet:",
       "browserFailed": "Der Browser ließ sich nicht öffnen. Die Seite liegt hier:",
@@ -294,6 +300,7 @@
     "player": "Spieler {0}",
     "playerCount": "{0} Spieler",
     "randomHeading": "Zufallskarte erstellen",
+    "randomMapName": "Zufallskarte {0}-{1}",
     "mapsHeading": "Karten: {0}",
     "keysRandom": "Enter starten · Esc beenden · R neu würfeln · Tab Kategorie",
     "keys": "Enter starten · Esc beenden · ↑/↓ Karte · Tab Kategorie",

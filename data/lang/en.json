@@ -27,6 +27,12 @@
       "contribution": "Contributions are welcome! How they work and which rules apply (clean room, no original files) is in the repository on GitHub.",
       "licenses": "monoSettlers is open source under the MIT license. The license text and notices on code taken from others are in the repository on GitHub."
     },
+    "loadFailed": {
+      "incompatible": "This saved game was made by another version of the game and can no longer be loaded.",
+      "damaged": "This saved game is damaged and cannot be loaded.",
+      "unreadable": "This saved game cannot be read.",
+      "code": "Error code: {0}"
+    },
     "popup": {
       "willOpen": "This page will open in your browser:",
       "browserFailed": "The browser could not be opened. The page is here:",
@@ -294,6 +300,7 @@
     "player": "Player {0}",
     "playerCount": "{0} players",
     "randomHeading": "Create a random map",
+    "randomMapName": "Random map {0}-{1}",
     "mapsHeading": "Maps: {0}",
     "keysRandom": "Enter start · Esc quit · R reroll · Tab category",
     "keys": "Enter start · Esc quit · ↑/↓ map · Tab category",

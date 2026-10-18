@@ -80,6 +80,8 @@ public sealed class TitleScreen : IDisposable
     private SaveInfo?[] _slots = [];
     private Link? _popup;
     private bool _browserFailed;
+    /// <summary>A saved game that did not load: told in the same message box, with an Ok.</summary>
+    private SaveLoadFailure? _failure;
 
     private float _scale = 1;
     private Vector2 _origin;
@@ -136,6 +138,7 @@ public sealed class TitleScreen : IDisposable
     private static readonly Rectangle PopupText = new(Popup.X + 28, Popup.Y + 24, Popup.Width - 56, 112);
     private static readonly Rectangle OpenButton = new(Popup.X + 24, Popup.Y + 149, 170, 30);
     private static readonly Rectangle CancelButton = new(Popup.Right - 24 - 170, Popup.Y + 149, 170, 30);
+    private static readonly Rectangle OkButton = new(Popup.Center.X - 85, Popup.Y + 149, 170, 30);
 
     private static Rectangle Slot(int slot) => new(PagePanel.X + 8, PagePanel.Y + 26 + slot * 29, PagePanel.Width - 16, 28);
 
@@ -168,6 +171,12 @@ public sealed class TitleScreen : IDisposable
         _previousMouse = mouse;
         var at = ToLayout(mouse.Position);
 
+        if (_failure is not null)
+        {
+            if (escape || enter || clicked && OkButton.Contains(at))
+                _failure = null;
+            return TitleAction.None;
+        }
         if (_popup is not null)
         {
             if (escape || clicked && CancelButton.Contains(at))
@@ -220,17 +229,25 @@ public sealed class TitleScreen : IDisposable
         _previousMouse = Mouse.GetState();
     }
 
-    /// <summary>For capture runs: opens the popup of <c>readme</c>, <c>contribution</c> or <c>licenses</c>, or the <c>load</c> page.</summary>
+    /// <summary>
+    /// For capture runs: opens the popup of <c>readme</c>, <c>contribution</c> or <c>licenses</c>, the <c>load</c> page,
+    /// or that page with the message about a saved game that did not load (<c>loadError</c>).
+    /// </summary>
     public void Show(string name)
     {
-        if (name == "load")
+        if (name is "load" or "loadError")
         {
             _page = Page.Load;
             _slots = Enumerable.Range(0, SaveSlots.Count).Select(SaveSlots.Info).ToArray();
+            if (name == "loadError")
+                ShowLoadFailure(SaveLoadFailure.Of(new SaveIncompatibleException("A type of the saved game no longer exists: capture")));
             return;
         }
         ShowLink(name);
     }
+
+    /// <summary>The chosen saved game did not load; the load page stays open behind the message.</summary>
+    public void ShowLoadFailure(SaveLoadFailure failure) => _failure = failure;
 
     private void ShowLink(string name)
     {
@@ -279,6 +296,23 @@ public sealed class TitleScreen : IDisposable
         Write(batch, font, GameVersion, 773 - width, 577, Version, 10);
         if (_popup is not null)
             DrawPopup(batch, pixel, font, _popup);
+        if (_failure is not null)
+            DrawFailure(batch, pixel, font, _failure);
+    }
+
+    /// <summary>The message box over a dimmed screen with what went wrong, the error code and an Ok.</summary>
+    private void DrawFailure(SpriteBatch batch, Texture2D pixel, UiFont font, SaveLoadFailure failure)
+    {
+        batch.Draw(pixel, ToScreen(new Rectangle(0, 0, Width, Height)), Color.Black * 0.45f);
+        batch.Draw(_popupImage, ToScreen(Popup), Color.White);
+        float y = PopupText.Y;
+        foreach (string line in font.Wrap(Lang.T("title.loadFailed." + failure.Problem.ToString().ToLowerInvariant()), Px(PopupText.Width), Px(12)))
+        {
+            Write(batch, font, line, PopupText.X, y, Text, 12);
+            y += 16;
+        }
+        Write(batch, font, Lang.T("title.loadFailed.code", failure.Code), PopupText.X, y + 8, HoverText, 12);
+        TextButton.Draw(batch, pixel, font, ToScreen(OkButton), Lang.T("common.ok"), Mouse.GetState().Position.ToVector2(), size: Px(12));
     }
 
     /// <summary>The popup over a dimmed screen: the text, the address and what happens, then the two buttons.</summary>
@@ -319,7 +353,7 @@ public sealed class TitleScreen : IDisposable
                 continue;
             }
             var color = rect.Contains(hover) ? HoverText : Text;
-            Write(batch, font, $"{slot + 1}.  {Shorten(font, info.Map, rect.Width - 24, 12)}", rect.X + 4, rect.Y + 1, color, 12);
+            Write(batch, font, $"{slot + 1}.  {Shorten(font, Lang.MapName(info.Map), rect.Width - 24, 12)}", rect.X + 4, rect.Y + 1, color, 12);
             string when = info.SavedAt.ToString(Lang.T("formats.savedAt"), Lang.Culture);
             Write(batch, font, $"{when} · {Lang.T("peoples." + info.People)}", rect.X + 22, rect.Y + 15, color * 0.85f, 10);
         }
