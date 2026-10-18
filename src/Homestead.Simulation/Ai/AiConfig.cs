@@ -48,7 +48,7 @@ public sealed record AiConfig
     /// <param name="ArmyRatio">A campaign needs this times the target owner's whole army (0: any army).</param>
     /// <param name="Commit">Share of the spare soldiers left after the force is chosen that come along as well (1: all of them).</param>
     /// <param name="AbortRatio">After gathering the campaign is given up below this times the defence (0: never).</param>
-    /// <param name="MaxDistance">Targets at most this far from the own military building nearest them (0: any distance).</param>
+    /// <param name="MaxDistance">Targets at most this far from the own land (0: any distance).</param>
     /// <param name="GarrisonWeight">Per building name: its garrison counts this many times in the defence (missing: 1).</param>
     public sealed record AttackRules(double Ratio, int DefenseRadius, int PathClearance, int GatherTicks, int MinSoldiers,
         double ArmyRatio, double Commit = 0, double AbortRatio = 0, int MaxDistance = 0,

@@ -19,6 +19,12 @@ public sealed partial class AiPlayer
     private long _nextMilitary;
     private readonly List<Strike> _strikes = new();
 
+    /// <summary>After a guerilla strike is called off, its enemies are left alone this long (no strike, retreat, strike again …).</summary>
+    private const long CalledOffTicks = 30 * World.TicksPerSecond;
+
+    /// <summary>Enemy soldiers a strike against was called off, with the tick guerilla may go for them again.</summary>
+    private readonly Dictionary<Settler, long> _leftAlone = new();
+
     /// <summary>A running guerilla attack: who strikes, whom, and where the enemies were last.</summary>
     private sealed class Strike(List<Settler> soldiers, HashSet<Settler> targets, GridPoint center, bool guerilla)
     {
@@ -69,7 +75,11 @@ public sealed partial class AiPlayer
         // those needed against the other groups close to the land stay out of it. An attack on the land
         // (enemies under way or fighting) is met anywhere; enemies just standing around not deep in
         // their own land (military.hinterlandDepth).
-        foreach (var group in EnemyGroups.Where(g => !onOwnLand(g) && near(g, config.StrikeRange) && untargeted(g)).OrderBy(g => g.Strength))
+        foreach (var (enemy, until) in _leftAlone.ToList())
+            if (_world.Tick >= until || enemy.IsDead)
+                _leftAlone.Remove(enemy);
+        foreach (var group in EnemyGroups.Where(g => !onOwnLand(g) && near(g, config.StrikeRange) && untargeted(g)
+                                                     && !g.Soldiers.Any(_leftAlone.ContainsKey)).OrderBy(g => g.Strength))
         {
             bool standing = IsStanding(group);
             if (standing && InHinterland(group))
@@ -148,9 +158,16 @@ public sealed partial class AiPlayer
         }
     }
 
-    /// <summary>Enemies just standing around: none of them walks or fights (otherwise they attack the land).</summary>
-    private static bool IsStanding(EnemyGroup group) =>
-        group.Soldiers.All(s => s.Destination is null && s.State != SettlerState.Stepping && s.Activity is not (Activity.Fighting or Activity.Shooting));
+    /// <summary>
+    /// Enemies not attacking the land: none of them fights, and those walking stay on their own player's land
+    /// (a recruit on his way to the gathering point, soldiers moving to a post).
+    /// </summary>
+    private bool IsStanding(EnemyGroup group)
+    {
+        var map = _world.Map!;
+        return group.Soldiers.All(s => s.Activity is not (Activity.Fighting or Activity.Shooting)
+                                       && (s.Destination is not { } to || map.OwnerAt(to) == s.Player));
+    }
 
     /// <summary>
     /// Whether the group stands deeper than <see cref="AiConfig.MilitaryRules.HinterlandDepth"/> in the land of
@@ -180,21 +197,34 @@ public sealed partial class AiPlayer
             .OrderBy(s => PathFinder.Distance(s.Position, group.Center)).ToList();
         if (candidates.Count == 0)
             return false;
-        if (guerilla && UnderTowerFire(group, candidates[0].Position))
-            return false;
-        double opposition = Opposition(group, candidates[0].Position);
+        // What they meet depends on where they come from: first from the nearest, then from the middle of
+        // those chosen (most of them may walk past enemy towers the nearest one does not), until it holds.
+        var from = candidates[0].Position;
         var strikers = new List<Settler>();
-        double strength = 0;
-        foreach (var soldier in candidates)
+        for (int round = 0; round < 3; round++)
         {
-            // Geologists and scouts alone do not fight back: one soldier will do.
-            if (strength >= opposition * config.StrikeRatio && strikers.Count > 0)
+            if (guerilla && UnderTowerFire(group, from))
+                return false;
+            double opposition = Opposition(group, from);
+            strikers.Clear();
+            double strength = 0;
+            foreach (var soldier in candidates)
+            {
+                // Geologists and scouts alone do not fight back: one soldier will do.
+                if (strength >= opposition * config.StrikeRatio && strikers.Count > 0)
+                    break;
+                strikers.Add(soldier);
+                strength += Strength(soldier, group.Center);
+            }
+            if (strength < opposition * config.StrikeRatio)
+                return false;
+            var middle = CenterOf(strikers);
+            if (PathFinder.Distance(middle, from) <= 3)
                 break;
-            strikers.Add(soldier);
-            strength += Strength(soldier, group.Center);
+            from = middle;
+            if (round == 2 && (guerilla && UnderTowerFire(group, from) || strength < Opposition(group, from) * config.StrikeRatio))
+                return false;
         }
-        if (strength < opposition * config.StrikeRatio)
-            return false;
         _world.Military.Move(strikers, group.Center);
         _strikes.Add(new Strike(strikers, group.Soldiers.ToHashSet(), group.Center, guerilla));
         Note($"{verb} {group.Soldiers.Count} enemies at {group.Center.X},{group.Center.Y} with {strikers.Count} soldiers{(remark is null ? "" : $" ({remark})")}");
@@ -282,6 +312,12 @@ public sealed partial class AiPlayer
             .Where(s => s.Profession == Profession.Soldier && PathFinder.Distance(s.Position, group.Center) <= reinforce)
             .Sum(s => Strength(s, group.Center));
         return group.Strength + onTheWay.Sum(g => g.Strength) + helpers + TowerFire(way);
+    }
+
+    private void LeaveAlone(EnemyGroup group)
+    {
+        foreach (var enemy in group.Soldiers)
+            _leftAlone[enemy] = _world.Tick + CalledOffTicks;
     }
 
     /// <summary>Points every 3 fields on the straight line from <paramref name="from"/> to <paramref name="to"/>, both ends included.</summary>
@@ -381,6 +417,7 @@ public sealed partial class AiPlayer
             {
                 _world.Military.Move(strike.Soldiers, RetreatDoor(from, group.Center), forced: true);
                 Note($"calls off the strike at {group.Center.X},{group.Center.Y}: the enemies stand under tower fire");
+                LeaveAlone(group);
                 _strikes.Remove(strike);
                 continue;
             }
@@ -408,6 +445,8 @@ public sealed partial class AiPlayer
                 {
                     _world.Military.Move(strike.Soldiers, RetreatDoor(from, group.Center), forced: true);
                     Note($"calls off the strike at {group.Center.X},{group.Center.Y}: {group.Soldiers.Count} enemies are too strong");
+                    if (strike.Guerilla)
+                        LeaveAlone(group);
                     _strikes.Remove(strike);
                     continue;
                 }

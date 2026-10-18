@@ -45,10 +45,11 @@ public sealed partial class AiPlayer
             // Clearly stronger than that enemy as a whole.
             if (ownArmy < Army(target.Player) * rules.ArmyRatio)
                 continue;
-            var rally = military.MinBy(b => PathFinder.Distance(b.Position, target.Position))!;
-            // An outpost far away could not be held.
-            if (rules.MaxDistance > 0 && PathFinder.Distance(rally.Position, target.Position) > rules.MaxDistance)
+            // An outpost far away could not be held. Measured from the own land: the own military buildings stand
+            // some 30 fields behind its edge, as the enemy's do behind theirs.
+            if (rules.MaxDistance > 0 && !OwnLandWithin(target.Position, rules.MaxDistance))
                 continue;
+            var rally = military.MinBy(b => PathFinder.Distance(b.Position, target.Position))!;
             if (!pathFinder.AreConnected(rally.Door, target.Door) || !WayIsClear(rally.Door, target))
                 continue;
             double defense = Defense(target);
@@ -150,6 +151,20 @@ public sealed partial class AiPlayer
         + _world.Settlers.Where(s => s.Profession == Profession.Soldier && s.Player != Player && !s.IsInside && !s.IsDead
                                      && PathFinder.Distance(s.Position, target.Position) <= _config.Attack.DefenseRadius)
             .Sum(s => Strength(s, target.Position));
+
+    /// <summary>Whether the player's land comes within <paramref name="range"/> steps of <paramref name="at"/>.</summary>
+    private bool OwnLandWithin(GridPoint at, int range)
+    {
+        var map = _world.Map!;
+        for (int dy = -range; dy <= range; dy++)
+        for (int dx = Math.Max(-range, dy - range); dx <= Math.Min(range, dy + range); dx++)
+        {
+            var p = new GridPoint(at.X + dx, at.Y + dy);
+            if (map.Contains(p) && map.OwnerAt(p) == Player)
+                return true;
+        }
+        return false;
+    }
 
     /// <summary>All soldiers of a player, in buildings and outside, without the combat strength.</summary>
     private double Army(int player) =>

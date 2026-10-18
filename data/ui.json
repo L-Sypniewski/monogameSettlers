@@ -215,7 +215,7 @@
     "goldRaid": "Goldraub", "earlyRush": "Früher Ansturm", "powerSpike": "Kraftprobe", "waves": "Angriffswellen", "earlyArmy": "Frühe Armee", "forwardBase": "Vorposten",
     "multiFront": "Mehrere Fronten", "jitter": "Unberechenbar",
     "frontTowers": "Türme zur Front", "everyOtherTower": "Jeder zweite Turm", "rotatingTowers": "Wechselnde Türme",
-    "thief": "Langfinger"
+    "thief": "Langfinger", "summoner": "Warenzauber"
   },
   "_statusComment": "Building info panel: the simulation's status text mapped to a short German state. The first entry whose text is contained in the status wins; anything else counts as active. Military buildings show their soldiers instead.",
   "status": [

@@ -163,7 +163,7 @@ public sealed record MilitaryConfig
 
 /// <summary>
 /// Combat strength (Kampfkraft): away from own land it starts at 1 / number of players; goods on own
-/// land (weighted per people) raise it, at most to 1. Each <see cref="StepPercent"/> points of bonus
+/// land (weighted per people) raise it without limit (2 = soldiers hit twice as hard). Each <see cref="StepPercent"/> points of bonus
 /// cost <see cref="UnitsPerPercent"/>[i] units per point, the last value going on.
 /// </summary>
 public sealed record CombatStrengthConfig(float StepPercent, IReadOnlyList<float> UnitsPerPercent, IReadOnlyDictionary<Material, float> Goods,
@@ -174,20 +174,20 @@ public sealed record CombatStrengthConfig(float StepPercent, IReadOnlyList<float
     /// <summary>What each unit of the goods counts for a player of the people.</summary>
     public IReadOnlyDictionary<Material, float> GoodsOf(Civilization people) => Civilizations.GetValueOrDefault(people) ?? Goods;
 
-    /// <summary>The bonus (1 = 100 percentage points) the units buy, up to <paramref name="max"/>.</summary>
-    public float Bonus(float units, float max)
+    /// <summary>The bonus (1 = 100 percentage points) the units buy.</summary>
+    public float Bonus(float units)
     {
-        if (UnitsPerPercent.Count == 0)
+        if (UnitsPerPercent.Count == 0 || units <= 0)
             return 0;
-        float percent = 0, maxPercent = max * 100;
-        for (int step = 0; units > 0 && percent < maxPercent; step++)
+        float percent = 0;
+        for (int step = 0; ; step++)
         {
             float cost = UnitsPerPercent[Math.Min(step, UnitsPerPercent.Count - 1)];
-            float bought = Math.Min(units / cost, StepPercent);
-            percent += bought;
-            units -= bought * cost;
+            if (step >= UnitsPerPercent.Count - 1 || units <= cost * StepPercent)
+                return (percent + units / cost) / 100;
+            percent += StepPercent;
+            units -= cost * StepPercent;
         }
-        return Math.Min(percent, maxPercent) / 100;
     }
 
     internal static CombatStrengthConfig Parse(JsonElement element)

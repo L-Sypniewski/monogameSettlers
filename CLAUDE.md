@@ -96,7 +96,7 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
     Burg 1; Pikeniere wie Reichweite 1, Rest wartet, Bogenschützen mit Abstand). Wer den letzten Verteidiger tötet, ist drin.
     Bogenschützen treffen beim Schuss, Pfeil (`Military.Arrows`, `ArrowTicks`) nur Darstellung. Nahe am Feind lokale Wegsuche (`combatPathRadius`).
   - Kampfkraft (`CombatStrength`): eigenes Land 100 %, sonst 100 % / Spielerzahl; plus Gold im eigenen Land (nach Landbesitz; Ägypter: Gold
-    halb, Edelsteine doppelt), progressiv (`unitsPerPercent` je `stepPercent`), max. 100 %. KI kennt alle Werte und bewertet den Kampfort.
+    halb, Edelsteine doppelt), progressiv (`unitsPerPercent` je `stepPercent`), ohne Obergrenze (200 % = doppelter Schaden außerhalb; zwingt Reiche zum Angriff). KI kennt alle Werte und bewertet den Kampfort.
   - Werte: `data/military.json`; Gebietsradien aus Originalkarten gemessen.
 - `Ai/` – `AiPlayer`: gleiche Befehle wie ein Mensch, kennt die ganze Karte. `World.AiPlayers` jeden Tick angestoßen. `MapSurvey`: Kartenüberblick in Zellen.
   - Bauen nach `data/ai.json` und Bedarf: Wohnhaus, solange Träger ≤ 3 × Produktionsgebäude (Größe nach fertigen Sägewerken/Steinmetzen
@@ -115,7 +115,8 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
     (Bewachung schickt sie nicht um). Verteidigung zuerst; Guerilla gegen kleinere Trupps (auch Geologen, `geologistHealth`) bei deutlicher
     Überlegenheit; herumstehende Feinde nicht tiefer als `military.hinterlandDepth` in ihrem Land (Plänklerin 8);
     feindliche Soldaten in `military.reinforceRadius` (30) ums Ziel zählen mit (verstreute kommen zu Hilfe); Guerilla nicht, wo Turm-Bogenschützen
-    mehr als `military.towerFireRatio` (0,5) × Zielstärke ausmachen (laufende wird abgebrochen, lockt der Feind sie unter die Türme); Guerilla vor Zurückhalten
+    mehr als `military.towerFireRatio` (0,5) × Zielstärke ausmachen – geprüft vom Mittelpunkt der Angreifer (laufende wird abgebrochen, lockt der Feind
+    sie unter die Türme); Angriff aufs Land = kämpfen oder Laufziel außerhalb des eigenen Lands; nach Abbruch Ziel 30 s in Ruhe; Guerilla vor Zurückhalten
     (Verteidiger dürfen angreifen, solange genug gegen andere Trupps bleiben). Rest: Charakterzug `guardByThreat` bewacht nach Bedrohung
     (ohne: stehen bleiben); ohne Bedrohung Turmverteilung: `frontTowers` (Plänklerin), `everyOtherTower` (Feldherr, Legion),
     `rotatingTowers` (Unbeugsamer: 30 %, minütlich neu), Hitzkopf: ein Haufen.
@@ -134,9 +135,11 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
     Militärgebäude, Rückzug ohne Kampf vor Stärkeren), `pincer` (Feldherr: Finte vom Sammelpunkt, Hauptgruppe im Bogen zur Flanke),
     `thief` (Plänklerin, Hitzkopf: `scouts` Späher stehlen Stapel am Rand feindlichen Lands, `ranks` Gold/Waffen/Erze > Werkzeuge > Nahrung > Rest;
     nicht bei feindlichen Soldaten in `soldierRadius`, sonst heimgerufen, Stapel `retrySeconds` gemieden).
+    `summoner` (Legion: Mana über `reserveSpells` × Volkszauber → „Waren herbeirufen“ durch einen freien Priester auf eigenem Land
+    nahe ihm, `edgeDistance` vom Rand, ohne Feindsoldaten, mit `minFreeFields` freien Feldern).
     `buildOrderMoves` verschiebt Gebäude in der Build-Order.
     Volks-Charaktere (`standard`/`general` nur per `--characters`): `hothead` (Ägypter: `earlyArmy`, alles greift an, Hinterland dünn, stiehlt),
-    `unyielding` (Asiaten: gibt erst unter halber Verteidigungsstärke auf), `legion` (Römer: frühes Gold, Wellen, Zange),
+    `unyielding` (Asiaten: gibt erst unter halber Verteidigungsstärke auf), `legion` (Römer: frühes Gold, Wellen, Zange, Warenzauber),
     `skirmisher` (Amazonen: Feldzüge erst bei 2:1, kleine Trupps, nahe Ziele, stiehlt).
     Ausgedacht (Arena, Turnier): Züge mit `+` (`skirmisher+forwardBase`, angehängte vor den eigenen), Werte mit `@pfad=wert`
     (`general@attack.ratio=1.3@buildOrderMoves.barrack=-5`).
@@ -151,7 +154,7 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
   (`upgrades.manaEarned` je n-ter Aufwertung). `Upgrade`: braucht fertigen kleinen Tempel; erst alle drei Typen Stufe 2, dann 3;
   gilt nur für danach Ausgebildete. Werte: `data/magic.json`.
 - `Persistence/`: `Snapshot` schreibt den ganzen Objektgraphen per Reflection (alle Felder, auch private, Objektidentität; Typtabelle mit
-  Feldnamen – fehlende übersprungen, neue behalten Standard; Dictionary/HashSet mit innerem Aufbau, Hashes beim Laden neu → Partie läuft
+  Feldnamen – fehlende übersprungen, neue: Sammlungen/Klassen mit parameterlosem Konstruktor leer, sonst Standardwert (nicht der Initialisierer!); Dictionary/HashSet mit innerem Aufbau, Hashes beim Laden neu → Partie läuft
   tickgenau weiter, `SaveTests`). Delegates nur mit Zielen in eigenen Assemblies (Client-Abos werden nach dem Laden neu gesetzt);
   `[NonSerialized]` lässt weg; fremde Typen brechen mit Pfad ab, `JsonElement` als Text. Neue Felder brauchen keinen Speichercode.
   `SaveGame`: Welt, Kataloge, Karte, Sicht, Client-Werte. `SaveSlots`: 8 Slots `slot N.hsav` in `~/.config/homestead/saves`

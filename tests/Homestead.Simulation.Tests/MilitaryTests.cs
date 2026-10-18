@@ -406,7 +406,7 @@ public class MilitaryTests(ITestOutputHelper output)
         world.Military.ChangeWanted(tower, SoldierType.Bowman, 2);
         world.Military.ChangeWanted(tower, SoldierType.Swordsman, -1);
         Run(world, 3_000, stopWhen: () => world.Military.Occupants(tower).Count(s => s is not null) == 2);
-        var enemy = world.SpawnSoldier(new GridPoint(46, 40), SoldierType.Pikeman, player: 1)!; // 6 fields away
+        var enemy = world.SpawnSoldier(new GridPoint(46, 40), SoldierType.Bowman, player: 1)!; // 6 fields away; cannot break the door
 
         Run(world, 3_000, stopWhen: () => enemy.IsDead);
 
@@ -758,11 +758,14 @@ public class MilitaryTests(ITestOutputHelper output)
         world.Step();
         Assert.Equal(0.58f, world.Military.CombatStrength(1), 4); // 4 × 0.5 + 3 × 2
 
-        // At most 100 %.
-        for (int x = 0; x < 20; x++)
-            world.AddLooseGoods(new GridPoint(30 + x, 8), Material.Gold, 8);
+        // No upper limit: 115 bars buy 100 %, 305 bars 130 %, then 10 bars per point.
+        for (int x = 0; x < 50; x++)
+        {
+            world.AddLooseGoods(new GridPoint(5 + x, 8), Material.Gold, 8);
+            world.AddLooseGoods(new GridPoint(5 + x, 10), Material.Gold, 8);
+        }
         world.Step();
-        Assert.Equal(1f, world.Military.CombatStrength(0));
+        Assert.Equal(1.803f, world.Military.CombatStrength(0), 4); // 808 bars: 130 % + 503 / 10
     }
 
     [Fact]
@@ -770,11 +773,12 @@ public class MilitaryTests(ITestOutputHelper output)
     {
         var strength = new CombatStrengthConfig(10, [1, 2, 4], new Dictionary<Material, float>(), new Dictionary<Civilization, IReadOnlyDictionary<Material, float>>());
 
-        Assert.Equal(0.05f, strength.Bonus(5, 1), 4);
-        Assert.Equal(0.10f, strength.Bonus(10, 1), 4);
-        Assert.Equal(0.15f, strength.Bonus(20, 1), 4);  // 10 + 5 × 2
-        Assert.Equal(0.25f, strength.Bonus(50, 1), 4);  // 10 + 20 + 5 × 4 (the last step goes on)
-        Assert.Equal(0.20f, strength.Bonus(500, 0.2f), 4);
+        Assert.Equal(0.05f, strength.Bonus(5), 4);
+        Assert.Equal(0.10f, strength.Bonus(10), 4);
+        Assert.Equal(0.15f, strength.Bonus(20), 4);  // 10 + 5 × 2
+        Assert.Equal(0.25f, strength.Bonus(50), 4);  // 10 + 20 + 5 × 4 (the last step goes on)
+        Assert.Equal(1.375f, strength.Bonus(500), 4);   // no upper limit: 20 + 470 / 4
+        Assert.Equal(0f, strength.Bonus(0), 4);
     }
 
     [Fact]

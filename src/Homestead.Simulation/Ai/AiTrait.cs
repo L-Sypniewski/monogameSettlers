@@ -65,6 +65,7 @@ public abstract class AiTrait
         [EveryOtherTowerTrait.TraitId] = settings => new EveryOtherTowerTrait(settings),
         [RotatingTowersTrait.TraitId] = settings => new RotatingTowersTrait(settings),
         [ThiefTrait.TraitId] = settings => new ThiefTrait(settings),
+        [SummonerTrait.TraitId] = settings => new SummonerTrait(settings),
     };
 
     public static IEnumerable<string> Known => Factories.Keys;

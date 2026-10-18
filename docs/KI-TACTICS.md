@@ -143,7 +143,10 @@ verstreute kommen zu Hilfe; ohne das scheiterten frühe Guerillas fast immer. Tu
 keine Gegner, die man besiegt, sondern Kosten: Guerilla (nicht Verteidigung) unterbleibt, wo sie mehr als
 `military.towerFireRatio` (0,5) × die Stärke der Feinde dort ausmachen (ein einzelner Soldat neben einer
 vollen Burg kostete sonst drei Mann für einen); weicht der Feind während einer Guerilla unter die Türme
-aus, bricht die KI ab. `military.hinterlandDepth` (`skirmisher`: 8) unterscheidet Angriffe auf
+aus, bricht die KI ab. Geprüft wird vom Mittelpunkt der gewählten Angreifer aus, nicht vom nächsten
+(der stand schon hinter der Burg, die übrigen liefen an ihr vorbei). Nach einem Abbruch bleiben dieselben
+Feinde 30 s unbehelligt (sonst: Angriff, Abbruch, Angriff … alle paar Sekunden). Ein Soldat, der nur in
+seinem eigenen Land läuft (Rekrut zum Sammelpunkt), greift das Land nicht an – für ihn gilt `hinterlandDepth`. `military.hinterlandDepth` (`skirmisher`: 8) unterscheidet Angriffe auf
 Land (Feinde laufen oder kämpfen – überall angegriffen) von herumstehenden Feinden, die nur angegriffen
 werden, wenn sie höchstens so tief im eigenen Land ihres Besitzers stehen. Zur Stärke eines Ziels
 zählen auch die Bogenschützen feindlicher Militärgebäude, die den Weg oder das Ziel erreichen (ein
@@ -196,6 +199,14 @@ Wird der Trupp entdeckt (Feinde kommen in Sicht), greift er sofort an oder zieht
 **`spellTiming` – Zauber im richtigen Moment** · M
 Einfrieren unmittelbar vor dem Zusammenstoß, Zerstreuen auf Klumpen vor einem Turm, Bekehren auf
 die stärksten Gegner in Reichweite. Heute zaubert die KI, sobald genug Ziele im Radius stehen.
+
+**`summoner` – Warenzauber** · S · **umgesetzt** (`legion`)
+Mana über `reserveSpells` (2) Volkszauber hinaus geht in „Waren herbeirufen“. Ein freier Priester zaubert
+auf den besten Platz im Umkreis `priestRadius` (12) um sich: eigenes Land, mindestens `edgeDistance` (10)
+Felder von dessen Ende (Langfinger, Feinde; Kartenrand zählt nicht), kein feindlicher Soldat draußen in
+`soldierRadius` (20), mindestens `minFreeFields` (30) freie Felder im Zauberradius; die meisten freien
+Felder gewinnen, dann der nächste zum Priester. Nur, solange kein Priester des Spielers zaubert; alle
+`checkSeconds` (5) geprüft. Aufwertungen kosten kein Mana und bleiben unberührt. Entscheidungspunkt „Besorgungen“.
 
 ### Schwachstellen ausnutzen
 
@@ -295,7 +306,7 @@ Viele Unterschiede brauchen keinen eigenen Charakterzug, nur andere Werte im Cha
 | `attack.armyRatio` | Überlegenheit der ganzen Armee (Vorgabe: `ratio`; 0 = egal → kleine Feldzüge gegen schwache Türme) |
 | `attack.commit` | Anteil der übrigen freien Soldaten, der zusätzlich mitzieht (1 = volle Stärke) |
 | `attack.abortRatio` | nach dem Sammeln: Abbruch unter diesem Verhältnis (Vorgabe: `ratio`; 0 = nie) |
-| `attack.maxDistance` | Ziel höchstens so weit vom nächsten eigenen Militärgebäude (0 = egal) |
+| `attack.maxDistance` | Ziel höchstens so weit vom eigenen Land (0 = egal; ein Grenzturm steht gut 30 Felder hinter seiner Landgrenze) |
 | `attack.minSoldiers`, `attack.defenseRadius` | kleinster Trupp; wie weit Feinde um das Ziel zur Verteidigung zählen |
 | `military.strikeRange`, `military.strikeRatio` | Guerilla: wie weit draußen, ab welcher Überlegenheit |
 | `military.retreatRatio` | Rückzug darunter (0 = nie) |
@@ -315,8 +326,8 @@ Ziel: je Volk ein Charakter, der sich als Gegner eigen anfühlt. Definiert in `a
 |---|---|---|---|
 | Ägypter | Hitzkopf (`hothead`) | temperamentvoll, greift immer mit voller Stärke an | earlyArmy, frontGarrison, thief; `ratio` 1,2, `commit` 1, Guerilla bei 1,2:1 bis 120 Felder (mit earlyArmy gegen Standard 0,56 statt 0,52, entscheidet mehr Partien) |
 | Asiaten | Unbeugsamer (`unyielding`) | gibt niemals auf, zieht sich nie zurück | guardByThreat; `abortRatio` 0,5, `retreatRatio` 0,5 (bei 0 lief er sich tot: 0,35 Punkte gegen Standard, mit 0,5: 0,50), `ratio` 1,4 |
-| Römer | Legion (`legion`) | wirtschaftlich stark, greift gebündelt in Wellen an | waves, pincer, guardByThreat; `minSoldiers` 8, `commit` 0,6; Gold 10 Plätze früher; 5 Baustellen |
-| Amazonen | Plänklerin (`skirmisher`) | auf Nummer sicher, schwächt den Gegner mit kleinen Guerillas und Diebstahl an der Grenze | guardByThreat, thief; Feldzug erst bei 2:1, aber ohne Armee-Vergleich ab 2 Soldaten und nur bis 50 Felder (`maxDistance`; ohne griff sie in Minute 1 einen Turm quer über die Karte an und verlor danach alles); Guerilla bis 150 Felder bei 2:1 (bei 1,3:1 mit Rückzug unter 1,2 kehrten die kleinen Trupps beim ersten Anzeichen von Gefahr um), Rückzug unter 1:1 |
+| Römer | Legion (`legion`) | wirtschaftlich stark, greift gebündelt in Wellen an | waves, pincer, guardByThreat, summoner; `minSoldiers` 8, `commit` 0,6; Gold 10 Plätze früher; 5 Baustellen |
+| Amazonen | Plänklerin (`skirmisher`) | auf Nummer sicher, schwächt den Gegner mit kleinen Guerillas und Diebstahl an der Grenze | guardByThreat, thief; Feldzug erst bei 2:1, aber ohne Armee-Vergleich ab 2 Soldaten und nur bis 50 Felder vom eigenen Land (`maxDistance`; vom nächsten Turm gemessen griff sie nie an, weil zwei Türme an einer gemeinsamen Grenze schon gut 60 Felder auseinanderstehen; ohne griff sie in Minute 1 einen Turm quer über die Karte an und verlor danach alles); Guerilla bis 150 Felder bei 2:1 (bei 1,3:1 mit Rückzug unter 1,2 kehrten die kleinen Trupps beim ersten Anzeichen von Gefahr um), Rückzug unter 1:1 |
 
 Leitlinie: Spielstil, Abwechslung und Spaß vor exakter Balance. Jedes Volk soll sich als Gegner
 erkennbar anders spielen, mit Stärken und ausnutzbaren Schwächen. Beobachtet (Arena, Amazonen gegen
@@ -381,8 +392,10 @@ einen Weg zum Sieg:
 Gold ist im Spiel genau dafür da, den Verteidigervorteil zu brechen und in die Offensive zu zwingen.
 
 - **Regel:** Im Feindland kämpft ein Soldat mit 100 % / Spielerzahl. Goldbarren auf dem eigenen Land
-  heben das bis 100 %, immer teurer je Schritt. Bei zwei Spielern: 115 Barren für 100 %
-  (Ägypter: 230 Barren oder 57,5 Edelsteine; `combatStrength` in `military.json`).
+  heben das ohne Obergrenze, immer teurer je Schritt. Bei zwei Spielern: 115 Barren für 100 %,
+  305 für 130 %, danach 10 je Punkt, 1005 für 200 % (Ägypter: doppelt so viele Barren oder halb so
+  viele Edelsteine; `combatStrength` in `military.json`). Über 100 % schlägt ein Soldat auswärts härter
+  zu als daheim – wer reich ist, wird in den Angriff gedrängt.
 - **Verteidigen braucht kein Gold, Angreifen schon.** Wer mehr Gold hat, kann angreifen; wer keines hat,
   kann nur halten.
 - **Gold gehört dem Land:** Gezählt werden die Stapel auf dem Land eines Spielers, gleich, wer sie
@@ -412,7 +425,7 @@ Gold ist im Spiel genau dafür da, den Verteidigervorteil zu brechen und in die 
 ### Was eine Partie wenden kann (gewollt)
 
 - **Gold-Wettlauf:** Gold hebt die Kampfkraft im Feindland – der eingebaute Ausweg aus dem Patt.
-  Wer zuerst nahe 100 % kommt, kann angreifen. Goldberge werden umkämpftes Ziel.
+  Wer zuerst nahe 100 % kommt, kann angreifen; darüber muss er es. Goldberge werden umkämpftes Ziel.
 - **Rohstoffe gehen aus** (`depletion`): Wer nicht zu neuen Rohstoffen kommt, verliert langsam. Liegen
   sie zwischen den Spielern, wird Kampf nötig.
 - **Eroberung mit Folgen:** Fällt ein Turm, fallen die Gebäude auf seinem Land. Ein Treffer an

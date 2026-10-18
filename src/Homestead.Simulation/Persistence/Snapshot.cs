@@ -555,7 +555,12 @@ public static class Snapshot
         /// <summary>The saved fields of a class or struct, by name into the current ones.</summary>
         private void ReadFields(object target, Type type)
         {
-            var (saved, fields) = FieldsOf(type);
+            var (saved, fields, added) = FieldsOf(type);
+            // Fields newer than the save: collections (anything with a parameterless constructor) start empty
+            // instead of null; other values keep their default (0, false, null), not their initializer.
+            foreach (var field in added)
+                if (field.GetValue(target) is null)
+                    field.SetValue(target, Activator.CreateInstance(field.FieldType));
             for (int i = 0; i < saved.Length; i++)
             {
                 _pendingDelegateId = -1;
@@ -576,16 +581,24 @@ public static class Snapshot
         }
 
         private Dictionary<Type, int>? _typeIndex;
-        private readonly Dictionary<Type, (Type[] Saved, FieldInfo?[] Fields)> _fieldMaps = new();
+        private readonly Dictionary<Type, (Type[] Saved, FieldInfo?[] Fields, FieldInfo[] Added)> _fieldMaps = new();
 
-        /// <summary>Per saved field of a type: its saved type and the current field of that name (null: gone).</summary>
-        private (Type[] Saved, FieldInfo?[] Fields) FieldsOf(Type type)
+        /// <summary>
+        /// Per saved field of a type: its saved type and the current field of that name (null: gone); and the
+        /// current fields the save does not know that can be made empty (class with a parameterless constructor).
+        /// </summary>
+        private (Type[] Saved, FieldInfo?[] Fields, FieldInfo[] Added) FieldsOf(Type type)
         {
             if (_fieldMaps.TryGetValue(type, out var map))
                 return map;
             var saved = _types[TypeIndex(type)].Fields!;
             var current = LayoutOf(type).ToDictionary(NameOf);
-            map = (saved.Select(f => Resolve(f.TypeId)).ToArray(), saved.Select(f => current.GetValueOrDefault(f.Name)).ToArray());
+            var savedNames = saved.Select(f => f.Name).ToHashSet();
+            var added = current.Where(c => !savedNames.Contains(c.Key)).Select(c => c.Value)
+                .Where(f => f.FieldType is { IsClass: true, IsAbstract: false } && f.FieldType != typeof(string)
+                            && f.FieldType.GetConstructor(Type.EmptyTypes) is not null)
+                .ToArray();
+            map = (saved.Select(f => Resolve(f.TypeId)).ToArray(), saved.Select(f => current.GetValueOrDefault(f.Name)).ToArray(), added);
             _fieldMaps[type] = map;
             return map;
         }

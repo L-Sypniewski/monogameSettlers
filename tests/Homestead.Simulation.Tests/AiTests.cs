@@ -189,6 +189,69 @@ public class AiTests(ITestOutputHelper output)
         Assert.Equal(strikes, ai.Log.Any(l => l.Contains("strikes 1 enemies")));
     }
 
+    [Theory]
+    [InlineData("standard", false)]
+    [InlineData("standard@military.towerFireRatio=0", true)]
+    public void Guerilla_weighs_the_tower_fire_on_the_way_of_most_strikers_not_just_the_nearest(string character, bool strikes)
+    {
+        var map = new GameMap(200);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(100, 40), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman); // the garrison
+        var castle = world.PlaceBuilding(Romans["castle"], 1, new GridPoint(100, 90), force: true)!;
+        int bowmen = castle.Definition.Occupiers.Count(o => o.ForBowman);
+        world.SpawnSoldier(castle.Door, SoldierType.Swordsman, player: 1);
+        world.Military.ChangeWanted(castle, SoldierType.Bowman, bowmen);
+        for (int i = 0; i < bowmen; i++)
+            world.SpawnSoldier(castle.Door, SoldierType.Bowman, player: 1);
+        for (int t = 0; t < 600; t++)
+            world.Step();
+        // A lone enemy beyond the castle, out of its bowmen's reach; the strikers come from the north, past
+        // the castle – only one of them waits south of the enemy.
+        var lone = new GridPoint(100, 125);
+        Assert.True(Pathfinding.PathFinder.Distance(lone, castle.Position) > world.Military.Config.Soldiers[SoldierType.Bowman].Range);
+        world.SpawnSoldier(lone, SoldierType.Swordsman, player: 1);
+        world.SpawnSoldier(new GridPoint(100, 145), SoldierType.Swordsman); // out of sight of the lone one
+        for (int i = 0; i < 12; i++)
+            world.SpawnSoldier(new GridPoint(94 + i, 48), SoldierType.Swordsman);
+        var ai = new AiPlayer(world, Romans, 0, character: character);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 10 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("strikes")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Equal(strikes, ai.Log.Any(l => l.Contains("strikes 1 enemies")));
+    }
+
+    [Fact]
+    public void A_recruit_walking_deep_in_its_own_land_is_no_attack_on_the_land()
+    {
+        var map = new GameMap(200);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(100, 40), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman); // the garrison
+        world.Step();
+        for (int y = 90; y < 200; y++)
+        for (int x = 0; x < 200; x++)
+            map.SetOwner(new GridPoint(x, y), 1);
+        for (int i = 0; i < 6; i++)
+            world.SpawnSoldier(new GridPoint(97 + i, 48), SoldierType.Swordsman);
+        // 20 fields deep in its land, on his way to a point there (like a recruit to the gathering point).
+        var recruit = world.SpawnSoldier(new GridPoint(100, 110), SoldierType.Swordsman, player: 1)!;
+        world.Military.Move([recruit], new GridPoint(130, 112));
+        var ai = new AiPlayer(world, Romans, 0, character: "standard@military.hinterlandDepth=8");
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 5 * World.TicksPerSecond; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.DoesNotContain(ai.Log, l => l.Contains("strikes"));
+    }
+
     [Fact]
     public void The_ai_needs_more_soldiers_against_enemies_on_their_own_land()
     {
@@ -348,6 +411,31 @@ public class AiTests(ITestOutputHelper output)
             output.WriteLine(line);
         Assert.Equal(all, ai.Log.Any(l => l.Contains("gathers 10 soldiers")));
         Assert.Contains(ai.Log, l => l.Contains("gathers"));
+    }
+
+    [Theory]
+    [InlineData(50, true)]
+    [InlineData(25, false)]
+    public void The_campaign_distance_limit_counts_from_the_own_land(int maxDistance, bool campaign)
+    {
+        // Towers at a common border stand 60 fields apart, the enemy's 30 from the own land.
+        var world = new World(new GameMap(160), TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var own = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        var enemy = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(100, 80), force: true)!;
+        world.SpawnSoldier(own.Door, SoldierType.Swordsman);
+        world.SpawnSoldier(enemy.Door, SoldierType.Swordsman, player: 1);
+        world.Step();
+        for (int i = 0; i < 10; i++)
+            world.SpawnSoldier(new GridPoint(44 + i, 88), SoldierType.Swordsman);
+        var ai = new AiPlayer(world, Romans, 0, character: $"standard@attack.maxDistance={maxDistance}");
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 20 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("gathers")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Equal(campaign, ai.Log.Any(l => l.Contains("gathers")));
     }
 
     [Fact]
@@ -722,5 +810,53 @@ public class AiTests(ITestOutputHelper output)
         foreach (string line in ai.Log)
             output.WriteLine(line);
         Assert.Contains(world.Piles, p => p.Material == Material.Axe && map.OwnerAt(p.Position) == 1);
+    }
+
+    /// <summary>Player 0 (Romans: Convert costs 40) owns the land left of x = 80 with a staffed tower; a priest near the border.</summary>
+    private static (World World, AiPlayer Ai, Settler Priest) SummonerSetup(int mana)
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2 };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        world.Step();
+        for (int y = 0; y < 160; y++)
+        for (int x = 0; x < 160; x++)
+            map.SetOwner(new GridPoint(x, y), x < 80 ? 0 : 1);
+        var priest = world.Magic.SpawnPriest(new GridPoint(74, 80), 0)!;
+        world.Magic.AddMana(0, mana);
+        var ai = new AiPlayer(world, Romans, 0, character: "summoner");
+        world.AiPlayers.Add(ai);
+        return (world, ai, priest);
+    }
+
+    [Fact]
+    public void A_summoner_spends_spare_mana_on_goods_away_from_the_border_near_its_priest()
+    {
+        var (world, ai, priest) = SummonerSetup(120); // 2 × 40 kept for converting, 30 for the summoning
+        int piles = world.Piles.Count();
+
+        for (int t = 0; t < 30 * World.TicksPerSecond && world.Piles.Count() == piles; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        var summoned = world.Piles.Skip(piles).ToList();
+        Assert.NotEmpty(summoned);
+        Assert.Equal(90, world.Magic.Mana(0));
+        Assert.All(summoned, p => Assert.True(p.Position.X <= 80 - 10, $"{p.Position} too near the border"));
+        Assert.All(summoned, p => Assert.True(PathFinder.Distance(p.Position, new GridPoint(74, 80)) <= 12 + 5 + 1, $"{p.Position} too far from the priest"));
+    }
+
+    [Fact]
+    public void A_summoner_keeps_the_mana_for_its_own_spell()
+    {
+        var (world, ai, _) = SummonerSetup(100); // 100 − 30 < 2 × 40
+
+        for (int t = 0; t < 30 * World.TicksPerSecond; t++)
+            world.Step();
+
+        Assert.DoesNotContain(ai.Log, l => l.Contains("summoner:"));
+        Assert.Equal(100, world.Magic.Mana(0));
     }
 }
