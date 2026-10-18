@@ -16,7 +16,8 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
 - `src/Homestead.Assets` – Parser für Originaldateien (GFX, Karten), ohne MonoGame. Formatdoku: `docs/formate/`.
 - `src/Homestead.AssetViewer` – MonoGame-Viewer (DesktopGL), ohne Content-Pipeline.
 - `data/` – Spieldaten (keine Original-Assets), neben jedes Programm kopiert. `production.json`: eigenes Balancing
-  (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration, `depletion`: Verbrauch von Steinen/Bergen/Fisch in %, 0 = unendlich).
+  (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration, `depletion`: Verbrauch von Steinen/Bergen/Fisch in %, 0 = unendlich;
+  im Spiel über die Einstellungen überschreibbar).
   Gebäudedaten aus JSettlers generiert (`tools/data-import/`) – nie von Hand ändern, sondern `data/buildings/overrides.json`
   (je Volk/Gebäude, `all` für alle; z. B. römische Burg 4 Bogenschützen, Minen nur auf Gebirge).
 - `tests/Homestead.Simulation.Tests` – xUnit (`dotnet test`); Tests mit Originalkarten bestehen ohne lokale Installation ungeprüft.
@@ -177,10 +178,15 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
 ### `src/Homestead.Client` – MonoGame-Spiel
 - **Titelbildschirm** (`TitleScreen`, zuerst ohne `--map`/`--capture`): Hauptmenü-Bild der Gold Edition (`titleScreen` in `ui.json`, Datei 61 GUI 1,
   daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): Einzelspieler (→ Startscreen), Spiel laden
-  (Slots darunter, Klick lädt), Einstellungen (Seite noch leer; offene Seite = gedrückter Knopf), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
+  (Slots darunter, Klick lädt; offen = gedrückter Knopf), Einstellungen (→ Einstellungen), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
   Original-Meldungsbox Datei 02 GUI 16, `popup` in `titleScreen`: „Im Browser öffnen“ → `README.md`/`CONTRIBUTING.md`/`LICENSE.md` auf GitHub, Enter/Esc),
   unten abgesetzt Beenden; Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher.
   Capture: `HOMESTEAD_CAPTURE_START=title` → `title.png` (`title:readme`/`title:contribution`/`title:licenses` mit Popup, `title:load` mit Slots).
+- **Einstellungen** (`SettingsScreen`): Hintergrund Datei 02 GUI 14 (`settingsScreen` in `ui.json`, Marmor daneben), je Thema ein Abschnitt,
+  je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch 100/75/50/25/10 %/∞); Ok/Enter speichert `GameSettings`
+  (Abschnitt `game` in `~/.config/homestead/settings.json`, Rest der Datei bleibt), Abbrechen/Esc verwirft, Standard = `production.json`.
+  Neue Partien: `GameSettings.Load(…).Apply(…)` → `OriginalScenario.Load(production:)`; Spielstände behalten ihre Werte (Arena/Tests: nur `production.json`).
+  Capture: `HOMESTEAD_CAPTURE_START=settings` → `settings.png`.
 - **Startscreen** (`StartScreen`): auf dem Kartenwahl-Hintergrund des Originals (`startScreen` in `ui.json`, Datei 02 GUI 8,
   im 800×600-Raster auf Fenstergröße skaliert, daneben Marmor; ovale Steinknöpfe, Steinleiste unter der Auswahl, Vorschau im schrägen Fenster): Kartenliste mit Vorschau, Tabs Einzelspieler/Mehrspieler/Eigene (Tab-Taste),
   sortiert nach Spielerzahl (`OriginalMap.ReadPlayerCount` liest nur MapInfo). Tab „Zufallsgenerator“: letzte 5 Zufallskarten

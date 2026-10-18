@@ -38,6 +38,8 @@
   "statisticsBackground": { "file": 2, "gui": 29 },
   "_titleScreenComment": "Title screen: the Gold Edition's main menu picture (file 61, GUI 1 German, 2 English; 800 × 600), beside it a plain gold strip [x, y, width, height] of GUI image 0; popup: the message box of the menus before the game ([file, GUI image], 401 × 201: text area, marble for the buttons below).",
   "titleScreen": { "file": 61, "background": 1, "plain": 0, "plainStrip": [ 10, 0, 120, 768 ], "popup": [ 2, 16 ] },
+  "_settingsScreenComment": "Settings screen: a background of the original's menus (file 02, GUI 14, 800 × 600: four small boxes and a title field at the top, a large dark area, a note field at the bottom), marble beside it (GUI 29).",
+  "settingsScreen": { "file": 2, "background": 14, "marble": 29 },
   "_startScreenComment": "Start screen on the original's map selection background: GUI images of file 02 – background (800 × 600, list, slanted preview window, panel), marble around it, rowBar (stone bar under the selected row), scroll bar groove (top, track, bottom); from the sheet (GUI image 0) the oval button up and pressed and the scroll handle – [x, y, width, height].",
   "startScreen": { "file": 2, "background": 8, "marble": 29, "sheet": 0, "rowBar": 1, "scrollTop": 2, "scrollTrack": 3, "scrollBottom": 4,
     "oval": [ 182, 0, 83, 46 ], "ovalPressed": [ 285, 0, 83, 46 ], "handle": [ 0, 0, 20, 480 ] },

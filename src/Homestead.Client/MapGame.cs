@@ -53,6 +53,8 @@ public sealed class MapGame : Game
 
     /// <summary>Shown before the first map is loaded, until the game is started.</summary>
     private TitleScreen? _title;
+    /// <summary>The settings screen, over the title screen while open.</summary>
+    private SettingsScreen? _settingsScreen;
     private StartScreen? _startScreen;
 
     /// <summary>The statistics screen while it is shown (the game stands still meanwhile).</summary>
@@ -310,11 +312,14 @@ public sealed class MapGame : Game
         if (_showStartScreen)
         {
             // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps);
-            // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the save slots).
+            // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the save slots);
+            // =settings: the settings screen's..
             string? captureStart = _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START");
-            if (captureStart is null || captureStart.StartsWith("title"))
+            if (captureStart is null || captureStart.StartsWith("title") || captureStart == "settings")
             {
                 _title = new TitleScreen(GraphicsDevice, _gfx);
+                if (captureStart == "settings")
+                    _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
                 if (captureStart?.StartsWith("title:") == true)
                     _title.Show(captureStart["title:".Length..]);
             }
@@ -415,9 +420,11 @@ public sealed class MapGame : Game
         _terrain?.Dispose();
         _map = map;
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
+        var production = Homestead.Simulation.Economy.ProductionConfig.Load();
         (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples, random: _peopleDraw,
             hardcore: _hardcore.Where(p => p < _map.Players.Count),
-            positions: _positions?.Length == _map.Players.Count ? _positions : null);
+            positions: _positions?.Length == _map.Players.Count ? _positions : null,
+            production: GameSettings.Load(production).Apply(production));
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
         _objects = new MapObjectLayer(_sprites, _map.Area, _terrain);
@@ -582,6 +589,18 @@ public sealed class MapGame : Game
 
     private void UpdateTitle()
     {
+        if (_settingsScreen is not null)
+        {
+            if (_settingsScreen.Update(GraphicsDevice.Viewport.Bounds))
+            {
+                _settingsScreen.Dispose();
+                _settingsScreen = null;
+                _title!.Resume();
+            }
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = Mouse.GetState();
+            return;
+        }
         var action = _title!.Update(GraphicsDevice.Viewport.Bounds);
         if (Keyboard.GetState().IsKeyDown(Keys.F11) && !_previousKeys.IsKeyDown(Keys.F11))
             ToggleFullScreen();
@@ -596,6 +615,8 @@ public sealed class MapGame : Game
             _title = null;
             LoadGame(game);
         }
+        else if (action == TitleAction.Settings)
+            _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
         else if (action == TitleAction.SinglePlayer)
         {
             _title.Dispose();
@@ -1854,7 +1875,9 @@ public sealed class MapGame : Game
             GraphicsDevice.SetRenderTarget(startTarget);
             GraphicsDevice.Clear(new Color(12, 12, 16));
             _spriteBatch.Begin(samplerState: SamplerState.LinearClamp);
-            if (_title is not null)
+            if (_settingsScreen is not null)
+                _settingsScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            else if (_title is not null)
                 _title.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
             else
                 _startScreen!.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
@@ -1862,7 +1885,7 @@ public sealed class MapGame : Game
             if (startTarget is not null)
             {
                 GraphicsDevice.SetRenderTarget(null);
-                using (var stream = File.Create(Path.Combine(_captureDirectory!, _title is not null ? "title.png" : "start.png")))
+                using (var stream = File.Create(Path.Combine(_captureDirectory!, _settingsScreen is not null ? "settings.png" : _title is not null ? "title.png" : "start.png")))
                     startTarget.SaveAsPng(stream, startTarget.Width, startTarget.Height);
                 startTarget.Dispose();
                 Exit();
@@ -2781,6 +2804,7 @@ public sealed class MapGame : Game
         _sidePanel?.Dispose();
         _eventButtons?.Dispose();
         _title?.Dispose();
+        _settingsScreen?.Dispose();
         _startScreen?.Dispose();
         _statistics?.Dispose();
         TextButton.Dispose();

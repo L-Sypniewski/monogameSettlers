@@ -53,9 +53,10 @@ public static class OriginalScenario
     /// The map player whose start position (with its people preset, buildings, settlers) each player takes:
     /// entry i for player i, a permutation of the map's players. Without it player i takes map player i.
     /// </param>
+    /// <param name="production">The production rules (e.g. with the player's <see cref="GameSettings"/>); default <c>production.json</c>.</param>
     public static (World World, LoadReport Report) Load(OriginalMap original, string? dataDirectory = null,
         IReadOnlyList<Civilization>? freeChoice = null, Random? random = null, int seed = 0, IEnumerable<int>? hardcore = null,
-        IReadOnlyList<int>? positions = null)
+        IReadOnlyList<int>? positions = null, ProductionConfig? production = null)
     {
         int count = original.Players.Count;
         if (positions is not null && (positions.Count != count || positions.Distinct().Count() != count || positions.Any(p => p < 0 || p >= count)))
@@ -70,7 +71,7 @@ public static class OriginalScenario
         var peoples = Enum.GetValues<Civilization>();
         var drawn = new Dictionary<int, Civilization>();
         var map = GameMap.FromOriginal(original.Area);
-        var world = new World(map, seed: seed) { TerritoryRules = true };
+        var world = new World(map, production, seed: seed) { TerritoryRules = true };
         world.HardcorePlayers.UnionWith(hardcore ?? []);
         var catalogs = new Dictionary<Civilization, BuildingCatalog>();
         var skipped = new List<string>();

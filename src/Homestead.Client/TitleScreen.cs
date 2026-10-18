@@ -18,15 +18,16 @@ public enum TitleAction
     SinglePlayer,
     /// <summary>Load the save game in <see cref="TitleScreen.ChosenSlot"/>.</summary>
     Load,
+    /// <summary>Open the settings (<see cref="SettingsScreen"/>).</summary>
+    Settings,
     Quit,
 }
 
 /// <summary>
 /// The title screen: the Gold Edition's main menu picture (<c>titleScreen</c> in <c>data/ui.json</c>, scaled from
 /// 800 × 600 to the window, plain gold beside it) with a column of engraved buttons on its left side as in the
-/// original, "Beenden" set apart at the bottom. "Spiel laden" lists the save slots below the buttons; settings
-/// opens a page there too (content still to come). The open page's button stays pressed; clicking it again or Esc
-/// closes the page, Esc on the main page quits. Set apart below, readme, contribution and licenses open a popup (the
+/// original, "Beenden" set apart at the bottom. "Spiel laden" lists the save slots below the buttons (its button stays
+/// pressed; clicking it again or Esc closes them, Esc on the main page quits); "Einstellungen" opens the settings screen. Set apart below, readme, contribution and licenses open a popup (the
 /// original's message box) offering to show <c>README.md</c>, <c>CONTRIBUTING.md</c> or <c>LICENSE.md</c> of the
 /// repository in the browser.
 /// </summary>
@@ -34,7 +35,7 @@ public sealed class TitleScreen : IDisposable
 {
     private const int Width = 800, Height = 600;
 
-    private enum Page { Main, Load, Settings }
+    private enum Page { Main, Load }
 
     private const string Repository = "https://github.com/meue/monogameSettlers";
 
@@ -53,15 +54,15 @@ public sealed class TitleScreen : IDisposable
         "monoSettlers ist Open Source unter der MIT-Lizenz. Lizenztext und Hinweise zu übernommenem Code stehen " +
         "im Repository auf GitHub.", Repository + "/blob/main/LICENSE.md");
 
-    /// <summary>The buttons: the page they open, or the popup (<c>Link</c>); single player has neither.</summary>
-    private static readonly (string Label, Page Opens, Link? Link)[] Buttons =
+    /// <summary>The buttons: what they ask the game to do, the page they open, or the popup (<c>Link</c>).</summary>
+    private static readonly (string Label, TitleAction Action, Page Opens, Link? Link)[] Buttons =
     [
-        ("Einzelspieler", Page.Main, null),
-        ("Spiel laden", Page.Load, null),
-        ("Einstellungen", Page.Settings, null),
-        ("Readme", Page.Main, Readme),
-        ("Contribution", Page.Main, Contributing),
-        ("Lizenzen", Page.Main, Licenses),
+        ("Einzelspieler", TitleAction.SinglePlayer, Page.Main, null),
+        ("Spiel laden", TitleAction.None, Page.Load, null),
+        ("Einstellungen", TitleAction.Settings, Page.Main, null),
+        ("Readme", TitleAction.None, Page.Main, Readme),
+        ("Contribution", TitleAction.None, Page.Main, Contributing),
+        ("Lizenzen", TitleAction.None, Page.Main, Licenses),
     ];
 
     // The original's engraved buttons: a fill a little darker than the gold, a dark line around it and a light
@@ -186,14 +187,14 @@ public sealed class TitleScreen : IDisposable
         for (int index = 0; index < Buttons.Length; index++)
             if (Button(index).Contains(at))
             {
-                var (_, opens, link) = Buttons[index];
+                var (_, action, opens, link) = Buttons[index];
                 if (link is not null)
                 {
                     ShowLink(link.Name);
                     return TitleAction.None;
                 }
-                if (opens == Page.Main)
-                    return TitleAction.SinglePlayer;
+                if (action != TitleAction.None)
+                    return action;
                 _page = _page == opens ? Page.Main : opens;
                 if (_page == Page.Load)
                     _slots = Enumerable.Range(0, SaveSlots.Count).Select(SaveSlots.Info).ToArray();
@@ -206,6 +207,13 @@ public sealed class TitleScreen : IDisposable
                     return TitleAction.Load;
                 }
         return TitleAction.None;
+    }
+
+    /// <summary>Back from another screen: keys and buttons still held there (Esc, Enter, a click) do not count here.</summary>
+    public void Resume()
+    {
+        _previousKeys = Keyboard.GetState();
+        _previousMouse = Mouse.GetState();
     }
 
     /// <summary>For capture runs: opens the popup of <c>readme</c>, <c>contribution</c> or <c>licenses</c>, or the <c>load</c> page.</summary>
@@ -260,10 +268,7 @@ public sealed class TitleScreen : IDisposable
             batch.Draw(pixel, panel, PressedFill * 0.92f);
             Frame(batch, pixel, PagePanel, Dark, Light);
             Write(batch, font, Buttons.First(b => b.Link is null && b.Opens == _page).Label, PagePanel.X + 10, PagePanel.Y + 7, Text, 14);
-            if (_page == Page.Load)
-                DrawSlots(batch, font, hover);
-            else
-                Write(batch, font, "Inhalt folgt.", PagePanel.X + 10, PagePanel.Y + 36, Text, 12);
+            DrawSlots(batch, font, hover);
         }
         Write(batch, font, "monoSettlers · Fan-Projekt, nicht verbunden mit Ubisoft oder Blue Byte", 27, 577, Version, 10);
         if (_popup is not null)
