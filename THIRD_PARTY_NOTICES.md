@@ -60,7 +60,121 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## FontStashSharp
+## Libraries in the release packages
 
-https://github.com/FontStashSharp/FontStashSharp — NuGet package `FontStashSharp.MonoGame`, MIT License.
+The release packages (`tar.gz`/`zip`) are self-contained and include these libraries, pulled in as NuGet packages.
+None of them is part of this repository's source code.
+
+### MonoGame
+
+https://github.com/MonoGame/MonoGame — `MonoGame.Framework.DesktopGL` 3.8.6, Microsoft Public License (MS-PL),
+Copyright (c) the MonoGame Team. License text: https://github.com/MonoGame/MonoGame/blob/develop/LICENSE.txt
+
+### SDL2
+
+https://www.libsdl.org — native library `SDL2` from `MonoGame.Library.SDL` 2.32.10, zlib License.
+
+```
+Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+
+This software is provided 'as-is', without any express or implied
+warranty.  In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+```
+
+### OpenAL Soft
+
+https://github.com/kcat/openal-soft — native library `libopenal.so` / `openal.dll` from `MonoGame.Library.OpenAL` 1.24.3
+(built by https://github.com/MonoGame/MonoGame.Library.OpenAL), GNU Library General Public License, version 2 or later
+(LGPL-2.0-or-later). The library is unmodified and loaded dynamically; you may replace it with your own build.
+Its complete source code is available at https://github.com/kcat/openal-soft/tree/1.24.3, the license text at
+https://github.com/kcat/openal-soft/blob/1.24.3/COPYING.
+
+Portions of OpenAL Soft are licensed under the BSD 3-Clause License:
+
+```
+Copyright (c) 2015, Archontis Politis
+Copyright (c) 2019, Anis A. Hireche
+Copyright (c) 2019, Christopher Robinson
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of Spherical-Harmonic-Transform nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+### FontStashSharp
+
+https://github.com/FontStashSharp/FontStashSharp — `FontStashSharp.MonoGame` 1.6.1 with `FontStashSharp.Base` and
+`FontStashSharp.Rasterizers.StbTrueTypeSharp` 1.2.9, zlib License, Copyright (c) the FontStashSharp Team.
 Renders the menu text at runtime from a TrueType font installed on the system (no font is shipped).
+
+### StbImageSharp, StbTrueTypeSharp
+
+https://github.com/StbSharp — `StbImageSharp` 2.30.16, `StbTrueTypeSharp` 1.26.13 (dependencies of MonoGame and
+FontStashSharp), public domain (Unlicense), alternatively MIT.
+
+### NVorbis
+
+https://github.com/NVorbis/NVorbis — `NVorbis` 0.10.4 (dependency of MonoGame), MIT License,
+Copyright (c) 2020 Andrew Ward.
+
+### Cyotek.Drawing.BitmapFont
+
+https://github.com/cyotek/Cyotek.Drawing.BitmapFont — 2.0.4 (dependency of FontStashSharp), MIT License,
+Copyright (c) 2012-2022 Cyotek Ltd.
+
+NVorbis and Cyotek.Drawing.BitmapFont are licensed under the MIT License:
+
+```
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

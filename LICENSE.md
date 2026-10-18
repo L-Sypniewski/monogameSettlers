@@ -54,7 +54,7 @@ SOFTWARE.
 ```
 
 Exactly which files and tables come from JSettlers is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md),
-together with the other third-party components (e.g. FontStashSharp, MIT).
+together with the libraries included in the release packages (MonoGame, SDL2, OpenAL Soft, FontStashSharp and others).
 
 ## Not covered by this license
 
