@@ -29,15 +29,25 @@ public static class SettingsFile
     }
 
     /// <summary>
-    /// Replaces the section, keeping everything else in the file (written through a temporary file). A file that is
-    /// no JSON object is left alone (<see cref="JsonException"/>) – it may hold the game directory.
+    /// Replaces the section, keeping everything else in the file (written through a temporary file). An empty file
+    /// counts as none; one that is no JSON object is kept as <c>settings.json.broken</c> (it may hold something the
+    /// player wants back) and a new one started.
     /// </summary>
     public static void WriteSection(string name, JsonNode section, string? path = null)
     {
         path ??= GameInstallation.SettingsPath;
-        var root = File.Exists(path)
-            ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? throw new JsonException($"{path} is no JSON object.")
-            : new JsonObject();
+        var root = new JsonObject();
+        if (File.Exists(path) && File.ReadAllText(path) is var text && !string.IsNullOrWhiteSpace(text))
+        {
+            try
+            {
+                root = JsonNode.Parse(text) as JsonObject ?? throw new JsonException($"{path} is no JSON object.");
+            }
+            catch (JsonException)
+            {
+                File.Copy(path, path + ".broken", overwrite: true);
+            }
+        }
         root[name] = section;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         string temporary = path + ".tmp";

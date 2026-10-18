@@ -13,15 +13,45 @@ using Homestead.Simulation.Buildings;
 //   --load <slot>      load the saved game of this slot (1-8) instead of a new game
 //   --characters <list> AI characters per player (ai.json characters), e.g. ,general,standard: entry i for
 //                      player i+1, empty or missing: drawn by the people's weights
+//   --setup            only the dialog asking for the original installation (stores it in the settings)
 string? Option(string name)
 {
     int i = Array.IndexOf(args, name);
     return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
 }
 
-var installation = GameInstallation.Locate();
-var gfx = new GfxDirectory(installation.GfxDirectory);
 string? capture = Option("--capture");
+// The installation is checked on every start; without a valid one the dialog asks for it (capture runs just fail,
+// unless HOMESTEAD_CAPTURE_DIALOG captures the dialog too). It runs as a process of its own: a second game window
+// in the same process breaks SDL/GL on quitting.
+var installation = GameInstallation.TryLocate(out string? configured);
+if (args.Contains("--setup"))
+{
+    using var dialog = new InstallationDialog(configured);
+    dialog.Run();
+    if (dialog.Chosen is not null)
+        GameInstallation.Remember(dialog.Chosen);
+    return;
+}
+if (installation is null)
+{
+    if (capture is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_DIALOG") is null)
+        installation = GameInstallation.Locate();
+    else
+    {
+        // The same program again (dotnet <dll> or the apphost), with only --setup.
+        string self = Environment.ProcessPath!;
+        var setup = new System.Diagnostics.ProcessStartInfo(self);
+        if (Path.GetFileNameWithoutExtension(self).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
+            setup.ArgumentList.Add(typeof(InstallationDialog).Assembly.Location);
+        setup.ArgumentList.Add("--setup");
+        System.Diagnostics.Process.Start(setup)!.WaitForExit();
+        installation = GameInstallation.TryLocate(out _);
+        if (installation is null)
+            return;
+    }
+}
+var gfx = new GfxDirectory(installation.GfxDirectory);
 if (capture is not null)
     Directory.CreateDirectory(capture);
 

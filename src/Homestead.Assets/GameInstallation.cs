@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Homestead.Assets;
 
@@ -54,12 +55,31 @@ public sealed class GameInstallation
         return new GameInstallation(root);
     }
 
+    /// <summary>
+    /// The configured installation (<c>HOMESTEAD_GAME_DIR</c>, then <c>gameDirectory</c> in the settings) if it passes
+    /// <see cref="InstallationCheck"/> – checked on every start. Otherwise null, and <paramref name="configured"/> is
+    /// the first configured folder (to start the search from).
+    /// </summary>
+    public static GameInstallation? TryLocate(out string? configured)
+    {
+        string?[] candidates = [Environment.GetEnvironmentVariable(EnvironmentVariable), ReadSettings()];
+        configured = candidates.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
+        foreach (string? candidate in candidates)
+            if (!string.IsNullOrWhiteSpace(candidate) && InstallationCheck.Check(candidate).IsValid)
+                return new GameInstallation(candidate);
+        return null;
+    }
+
+    /// <summary>Stores the folder as <c>gameDirectory</c> in the settings (keeping the rest) and opens it.</summary>
+    public static GameInstallation Remember(string root)
+    {
+        SettingsFile.WriteSection("gameDirectory", JsonValue.Create(root));
+        return new GameInstallation(root);
+    }
+
     private static string? ReadSettings()
     {
-        if (!File.Exists(SettingsPath))
-            return null;
-        using var doc = JsonDocument.Parse(File.ReadAllText(SettingsPath));
-        return doc.RootElement.TryGetProperty("gameDirectory", out var dir) ? dir.GetString() : null;
+        return SettingsFile.ReadSection("gameDirectory") is { ValueKind: JsonValueKind.String } directory ? directory.GetString() : null;
     }
 
     // Installations differ in upper/lower case of folder names; Linux file systems care.

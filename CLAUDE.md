@@ -305,7 +305,11 @@ Eigene Anbau-Codes: Getreide 200–207 (207 reif), Wein 208–210, Reis 211–21
 - Lauf-Sequenzen: 72 Frames = 6 Richtungen à 12 (SW, W, NW, NE, O, SO); Frame 0 stehen, 1–11 Zyklus je Rasterschritt.
 
 ## Installation des Originals
-`HOMESTEAD_GAME_DIR` oder `~/.config/homestead/settings.json` (`{"gameDirectory": "..."}`).
+`HOMESTEAD_GAME_DIR` oder `gameDirectory` in `~/.config/homestead/settings.json`; der erste gültige gilt (`GameInstallation.TryLocate`).
+Bei jedem Start geprüft (`InstallationCheck`: `GFX` mit `RequiredGfx`, `SND` mit `siedler3_00/01.dat`, `Map` mit Karten); sonst
+`InstallationDialog` (eigener Prozess `--setup` – zweites Spielfenster im selben Prozess bricht SDL/GL beim Beenden; ohne Originalgrafik):
+Pfadfeld (Tippen, Strg+V über SDL), Ordnerbrowser, Suche an üblichen Orten (`Detect`), Prüfung live, Installation auch über/unter dem
+gewählten Ordner (`FindRoot`); „Spiel starten“ → `GameInstallation.Remember`. Capture: `HOMESTEAD_CAPTURE_DIALOG=<png>` (übernimmt die gültige).
 Lokal: `~/Games/gog/the-settlers-iii-ultimate-collection/drive_c/GOG Games/Settlers 3 Ultimate`.
 
 ## Bauen/Starten

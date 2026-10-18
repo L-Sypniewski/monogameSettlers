@@ -52,7 +52,7 @@ public class GameSettingsTests : IDisposable
     }
 
     [Fact]
-    public void Missing_values_keep_the_default_and_a_broken_file_is_not_overwritten()
+    public void Missing_values_keep_the_default_and_a_broken_or_empty_file_is_replaced()
     {
         Directory.CreateDirectory(_directory);
         var production = ProductionConfig.Load() with { Depletion = new Depletion(100, 100, 100) };
@@ -61,7 +61,12 @@ public class GameSettingsTests : IDisposable
 
         File.WriteAllText(SettingsFile, "{ broken");
         Assert.Equal(production.Depletion, GameSettings.Load(production, SettingsFile).Depletion);
-        Assert.ThrowsAny<JsonException>(() => GameSettings.Defaults(production).Save(SettingsFile));
-        Assert.Equal("{ broken", File.ReadAllText(SettingsFile));
+        GameSettings.Defaults(production).Save(SettingsFile);
+        Assert.Equal("{ broken", File.ReadAllText(SettingsFile + ".broken"));
+        Assert.Equal(production.Depletion, GameSettings.Load(production, SettingsFile).Depletion);
+
+        File.WriteAllText(SettingsFile, "");
+        (GameSettings.Defaults(production) with { Depletion = new Depletion(25, 25, 25) }).Save(SettingsFile);
+        Assert.Equal(new Depletion(25, 25, 25), GameSettings.Load(production, SettingsFile).Depletion);
     }
 }

@@ -107,12 +107,14 @@ On Linux the Windows installer works with Wine or Lutris; monoSettlers only need
 ### Build and run
 
 ```sh
-# Path to the installation (or ~/.config/homestead/settings.json: {"gameDirectory": "..."})
-export HOMESTEAD_GAME_DIR="/path/to/Settlers 3 Ultimate"
-
 dotnet build Homestead.sln -c Release
 dotnet src/Homestead.Client/bin/Release/net9.0/Homestead.Client.dll
 ```
+
+On the first start a dialog asks for the installation folder (the one with `GFX`, `SND` and `Map` in it) and offers
+the installations it finds in the usual places (GOG, Steam, Wine prefixes, Lutris). The folder is stored as
+`gameDirectory` in `~/.config/homestead/settings.json` (Windows: `%APPDATA%\homestead`) and checked on every start;
+if it fails, the dialog comes back. `HOMESTEAD_GAME_DIR` overrides it.
 
 Tests: `dotnet test`.
 
