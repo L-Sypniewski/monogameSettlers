@@ -4,4 +4,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
+  <!--
+    Version from the git tags (MinVer, MIT, build time only): a commit tagged v0.2.0 builds as 0.2.0; later commits as
+    0.2.1-alpha.0.<commits since the tag>; without any tag 0.1.0-alpha.0.<n>. Rules for the numbers: docs/VERSIONING.md.
+  -->
+  <PropertyGroup>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerMinimumMajorMinor>0.1</MinVerMinimumMajorMinor>
+    <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MinVer" Version="6.0.0" PrivateAssets="all" />
+  </ItemGroup>
 </Project>

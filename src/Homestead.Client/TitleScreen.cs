@@ -117,6 +117,13 @@ public sealed class TitleScreen : IDisposable
     // The links to the repository (from the first one on) sit a little apart from the game's buttons.
     private const int FirstLink = 3, LinkGap = 16;
 
+    /// <summary>The version of this build (from the git tags, docs/VERSIONING.md), with the commit shortened.</summary>
+    private static readonly string GameVersion = "v" + (typeof(TitleScreen).Assembly
+        .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+        .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion is { } version
+        ? version.Split('+') is [var number, var commit] ? $"{number}+{commit[..Math.Min(7, commit.Length)]}" : version
+        : "?");
+
     private static Rectangle Button(int index) => new(74, 19 + index * 40 + (index >= FirstLink ? LinkGap : 0), 175, 31);
 
     private static readonly Rectangle QuitButton = new(74, 540, 175, 31);
@@ -268,6 +275,8 @@ public sealed class TitleScreen : IDisposable
             DrawSlots(batch, font, hover);
         }
         Write(batch, font, Lang.T("title.disclaimer"), 27, 577, Version, 10);
+        float width = font.Measure(GameVersion, Px(10)).X / _scale;
+        Write(batch, font, GameVersion, 773 - width, 577, Version, 10);
         if (_popup is not null)
             DrawPopup(batch, pixel, font, _popup);
     }

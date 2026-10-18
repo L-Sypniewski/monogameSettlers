@@ -1,0 +1,103 @@
+# Build, test and package monoSettlers for Linux and Windows (no macOS).
+#
+# - Every push to main and every pull request: build and tests; the packages are kept as workflow artifacts.
+# - A tag vX.Y.Z (docs/VERSIONING.md): the same, plus a GitHub release with both packages
+#   (a pre-release when the version has a suffix, e.g. v0.3.0-beta.1).
+#
+# The version comes from the git tags (MinVer, see Directory.Build.props), so the checkout needs the full history.
+# The packages hold no original assets: the game asks for an installation of The Settlers III on the first start.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Build
+        run: dotnet build Homestead.sln -c Release
+      # Tests with the original maps pass unchecked without an installation.
+      - name: Test
+        run: dotnet test Homestead.sln -c Release --no-build
+
+  package:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - rid: linux-x64
+            archive: tar.gz
+          - rid: win-x64
+            archive: zip
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Version
+        id: version
+        run: echo "version=$(dotnet msbuild src/Homestead.Client/Homestead.Client.csproj -restore -t:MinVer -getProperty:MinVerVersion -p:Configuration=Release)" >> "$GITHUB_OUTPUT"
+      - name: Publish
+        run: >
+          dotnet publish src/Homestead.Client/Homestead.Client.csproj -c Release -r ${{ matrix.rid }} --self-contained
+          -o "publish/monoSettlers-${{ steps.version.outputs.version }}-${{ matrix.rid }}"
+      - name: Package
+        id: package
+        working-directory: publish
+        run: |
+          name="monoSettlers-${{ steps.version.outputs.version }}-${{ matrix.rid }}"
+          cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            zip -qr "$name.zip" "$name"
+          else
+            tar -czf "$name.tar.gz" "$name"
+          fi
+          echo "file=publish/$name.${{ matrix.archive }}" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: ${{ steps.package.outputs.file }}
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          prerelease=""
+          case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$TAG" packages/* --repo "$GITHUB_REPOSITORY" --title "monoSettlers $TAG" --generate-notes $prerelease

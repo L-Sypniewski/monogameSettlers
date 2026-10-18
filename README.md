@@ -93,7 +93,12 @@ In short: the *program* is 100 % our own, the *content* is 100 % yours – from 
 
 ## Getting started
 
-You need .NET 9 and your own copy of "The Settlers III".
+You need your own copy of "The Settlers III" – and .NET 9 only to build it yourself.
+
+### Download
+
+Linux and Windows builds are on the [releases page](../../releases) (no installation: unpack and start
+`Homestead.Client` or `Homestead.Client.exe`). Versions follow [docs/VERSIONING.md](docs/VERSIONING.md).
 
 ### Getting the original game
 
