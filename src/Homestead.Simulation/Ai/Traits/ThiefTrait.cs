@@ -9,7 +9,7 @@ namespace Homestead.Simulation.Ai.Traits;
 /// Thief (<c>thief</c> in docs/KI-TACTICS.md): keeps <c>scouts</c> scouts (free carriers become ones) and
 /// sends them for goods lying at the edge of enemy land – piles on another player's land at most
 /// <c>edgeDepth</c> fields from where it ends, within <c>maxDistance</c> of the own land. The
-/// goods are ranked by <c>ranks</c> (gold, gems, weapons and ores first, then food, then the rest); the
+/// goods are ranked by <c>ranks</c> (gold, gems, weapons and ores first, then tools, then food, then the rest); the
 /// best pile goes to the nearest idle scout, who takes the best good around it. No enemy soldier outside
 /// the buildings may stand within <c>soldierRadius</c> of the pile; one coming that near the scout or his
 /// pile calls him home (on a computer player's land a soldier will come to look at him), and that pile is left alone for <c>retrySeconds</c>. Loaded scouts walk to the
@@ -23,6 +23,7 @@ internal sealed class ThiefTrait : AiTrait
     private static readonly string[][] DefaultRanks =
     [
         ["GOLD", "GEMS", "SWORD", "BOW", "SPEAR", "GOLDORE", "IRONORE"],
+        ["AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD"],
         ["BREAD", "FISH", "MEAT"],
     ];
 

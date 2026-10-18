@@ -139,7 +139,11 @@ Die KI wägt Militärbefehle jede Sekunde neu (`military.thinkSeconds` 1): Solda
 Laufbefehl der KI (zum Posten, heim) zählen als untätig, Feldzüge werden schon auf dem Weg zum
 Sammelpunkt aufgegeben, wenn die Verteidigung zu stark geworden ist. Guerilla trifft auch feindliche
 Geologen (ein Soldat genügt). Zum Ziel einer Guerilla zählen auch feindliche Soldaten in `military.reinforceRadius` (30) – leicht
-verstreute kommen zu Hilfe; ohne das scheiterten frühe Guerillas fast immer. `military.hinterlandDepth` (`skirmisher`: 8) unterscheidet Angriffe auf
+verstreute kommen zu Hilfe; ohne das scheiterten frühe Guerillas fast immer. Turm-Bogenschützen sind
+keine Gegner, die man besiegt, sondern Kosten: Guerilla (nicht Verteidigung) unterbleibt, wo sie mehr als
+`military.towerFireRatio` (0,5) × die Stärke der Feinde dort ausmachen (ein einzelner Soldat neben einer
+vollen Burg kostete sonst drei Mann für einen); weicht der Feind während einer Guerilla unter die Türme
+aus, bricht die KI ab. `military.hinterlandDepth` (`skirmisher`: 8) unterscheidet Angriffe auf
 Land (Feinde laufen oder kämpfen – überall angegriffen) von herumstehenden Feinden, die nur angegriffen
 werden, wenn sie höchstens so tief im eigenen Land ihres Besitzers stehen. Zur Stärke eines Ziels
 zählen auch die Bogenschützen feindlicher Militärgebäude, die den Weg oder das Ziel erreichen (ein
@@ -212,7 +216,7 @@ Ein Treffer dort kostet den Gegner mehr als ein beliebiger Turm.
 **`thief` – Langfinger** · M · **umgesetzt** (`skirmisher`, `hothead`)
 Hält `scouts` (2) Späher – freie Träger werden welche, Verluste frühestens nach `replaceSeconds` (90)
 ersetzt – und schickt sie zu Warenstapeln am Rand feindlichen Lands: auf fremdem Land höchstens
-`edgeDepth` (12; die Stapel eines Lagerhauses direkt an der Grenze liegen gut 8 Felder tief) Felder von dessen Ende, höchstens `maxDistance` (30) vom eigenen Land. Waren nach `ranks`: Gold, Edelsteine, Waffen, Erze zuerst, dann Nahrung (Brot, Fisch,
+`edgeDepth` (12; die Stapel eines Lagerhauses direkt an der Grenze liegen gut 8 Felder tief) Felder von dessen Ende, höchstens `maxDistance` (30) vom eigenen Land. Waren nach `ranks`: Gold, Edelsteine, Waffen, Erze zuerst, dann Werkzeuge, dann Nahrung (Brot, Fisch,
 Fleisch), dann der Rest; am Stapel nimmt der Späher die beste Ware im Diebesradius. Steht ein
 feindlicher Soldat draußen in `soldierRadius` (12, etwas mehr als `scouts.revealRadius`) des Stapels,
 kein Versuch; kommt einer dem Späher oder seinem Stapel so nahe, ruft die KI ihn heim und lässt den

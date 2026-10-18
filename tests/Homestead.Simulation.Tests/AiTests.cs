@@ -157,6 +157,38 @@ public class AiTests(ITestOutputHelper output)
         Assert.Equal(strikes, ai.Log.Any(l => l.Contains("strikes 1 enemies")));
     }
 
+    [Theory]
+    [InlineData("standard", false)]
+    [InlineData("standard@military.towerFireRatio=0", true)]
+    public void Guerilla_leaves_a_lone_soldier_next_to_a_full_castle_alone(string character, bool strikes)
+    {
+        var map = new GameMap(200);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 100), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman); // the garrison
+        var castle = world.PlaceBuilding(Romans["castle"], 1, new GridPoint(130, 100), force: true)!;
+        int bowmen = castle.Definition.Occupiers.Count(o => o.ForBowman);
+        world.SpawnSoldier(castle.Door, SoldierType.Swordsman, player: 1);
+        world.Military.ChangeWanted(castle, SoldierType.Bowman, bowmen);
+        for (int i = 0; i < bowmen; i++)
+            world.SpawnSoldier(castle.Door, SoldierType.Bowman, player: 1);
+        for (int t = 0; t < 600; t++)
+            world.Step();
+        Assert.Equal(bowmen, world.Military.Assigned(castle, SoldierType.Bowman));
+        for (int i = 0; i < 10; i++)
+            world.SpawnSoldier(new GridPoint(44 + i, 106), SoldierType.Swordsman);
+        world.SpawnSoldier(castle.Door + new GridPoint(-6, 4), SoldierType.Swordsman, player: 1); // the lone one
+        var ai = new AiPlayer(world, Romans, 0, character: character);
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 10 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("strikes")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Equal(strikes, ai.Log.Any(l => l.Contains("strikes 1 enemies")));
+    }
+
     [Fact]
     public void The_ai_needs_more_soldiers_against_enemies_on_their_own_land()
     {

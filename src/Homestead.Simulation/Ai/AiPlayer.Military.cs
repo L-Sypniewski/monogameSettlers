@@ -20,8 +20,11 @@ public sealed partial class AiPlayer
     private readonly List<Strike> _strikes = new();
 
     /// <summary>A running guerilla attack: who strikes, whom, and where the enemies were last.</summary>
-    private sealed class Strike(List<Settler> soldiers, HashSet<Settler> targets, GridPoint center)
+    private sealed class Strike(List<Settler> soldiers, HashSet<Settler> targets, GridPoint center, bool guerilla)
     {
+        /// <summary>Outside the own land by choice (not defence): given up under tower fire.</summary>
+        public bool Guerilla { get; } = guerilla;
+
         public List<Settler> Soldiers { get; } = soldiers;
         public HashSet<Settler> Targets { get; set; } = targets;
         public GridPoint Center { get; set; } = center;
@@ -57,7 +60,7 @@ public sealed partial class AiPlayer
 
         // Defence first: enemies on the own land are fought with any idle soldier.
         foreach (var group in EnemyGroups.Where(g => onOwnLand(g) && untargeted(g)).OrderByDescending(g => g.Strength))
-            TryStrike(group, idle, "defends against");
+            TryStrike(group, idle, "defends against", guerilla: false);
 
         bool threatening(EnemyGroup g) => !onOwnLand(g) && near(g, config.ThreatRange) && untargeted(g);
 
@@ -72,7 +75,7 @@ public sealed partial class AiPlayer
             if (standing && InHinterland(group))
                 continue;
             var pool = idle.Except(Reserve(idle, EnemyGroups.Where(g => g != group && threatening(g)))).ToList();
-            if (!TryStrike(group, pool, "strikes", standing ? "standing around" : "attacking the land"))
+            if (!TryStrike(group, pool, "strikes", guerilla: true, standing ? "standing around" : "attacking the land"))
                 continue;
             idle.RemoveAll(_strikes[^1].Soldiers.Contains);
             break;
@@ -167,14 +170,17 @@ public sealed partial class AiPlayer
 
     /// <summary>
     /// Sends the nearest soldiers of <paramref name="pool"/> against the group if they get strikeRatio
-    /// times the strength they will meet: the group plus enemy groups waiting on the way there.
+    /// times the strength they will meet: the group plus enemy groups waiting on the way there. Guerilla
+    /// leaves enemies alone that stand under too much tower fire (<see cref="UnderTowerFire"/>).
     /// </summary>
-    private bool TryStrike(EnemyGroup group, List<Settler> pool, string verb, string? remark = null)
+    private bool TryStrike(EnemyGroup group, List<Settler> pool, string verb, bool guerilla, string? remark = null)
     {
         var config = _config.Military;
         var candidates = pool.Where(s => PathFinder.Distance(s.Position, group.Center) <= config.StrikeRange * 2)
             .OrderBy(s => PathFinder.Distance(s.Position, group.Center)).ToList();
         if (candidates.Count == 0)
+            return false;
+        if (guerilla && UnderTowerFire(group, candidates[0].Position))
             return false;
         double opposition = Opposition(group, candidates[0].Position);
         var strikers = new List<Settler>();
@@ -190,7 +196,7 @@ public sealed partial class AiPlayer
         if (strength < opposition * config.StrikeRatio)
             return false;
         _world.Military.Move(strikers, group.Center);
-        _strikes.Add(new Strike(strikers, group.Soldiers.ToHashSet(), group.Center));
+        _strikes.Add(new Strike(strikers, group.Soldiers.ToHashSet(), group.Center, guerilla));
         Note($"{verb} {group.Soldiers.Count} enemies at {group.Center.X},{group.Center.Y} with {strikers.Count} soldiers{(remark is null ? "" : $" ({remark})")}");
         pool.RemoveAll(strikers.Contains);
         return true;
@@ -268,9 +274,7 @@ public sealed partial class AiPlayer
     private double Opposition(EnemyGroup group, GridPoint from)
     {
         int clearance = _config.Attack.PathClearance;
-        int steps = Math.Max(1, PathFinder.Distance(from, group.Center) / 3);
-        var way = Enumerable.Range(0, steps + 1).Select(i => new GridPoint(from.X + (group.Center.X - from.X) * i / steps,
-            from.Y + (group.Center.Y - from.Y) * i / steps)).ToList();
+        var way = Way(from, group.Center);
         var onTheWay = EnemyGroups.Where(g => !g.Soldiers.Any(group.Soldiers.Contains) && way.Any(p => PathFinder.Distance(g.Center, p) <= clearance)).ToList();
         int reinforce = _config.Military.ReinforceRadius;
         double helpers = EnemyGroups.Except(onTheWay).Where(g => g != group && !g.Soldiers.Any(group.Soldiers.Contains))
@@ -278,6 +282,25 @@ public sealed partial class AiPlayer
             .Where(s => s.Profession == Profession.Soldier && PathFinder.Distance(s.Position, group.Center) <= reinforce)
             .Sum(s => Strength(s, group.Center));
         return group.Strength + onTheWay.Sum(g => g.Strength) + helpers + TowerFire(way);
+    }
+
+    /// <summary>Points every 3 fields on the straight line from <paramref name="from"/> to <paramref name="to"/>, both ends included.</summary>
+    private static List<GridPoint> Way(GridPoint from, GridPoint to)
+    {
+        int steps = Math.Max(1, PathFinder.Distance(from, to) / 3);
+        return Enumerable.Range(0, steps + 1).Select(i => new GridPoint(from.X + (to.X - from.X) * i / steps,
+            from.Y + (to.Y - from.Y) * i / steps)).ToList();
+    }
+
+    /// <summary>
+    /// Whether the bowmen of enemy military buildings reaching the way from <paramref name="from"/> or the group
+    /// are more than <c>military.towerFireRatio</c> times the group's strength: they cannot be struck back, a
+    /// strike there costs more than it wins (a lone soldier next to a full castle).
+    /// </summary>
+    private bool UnderTowerFire(EnemyGroup group, GridPoint from)
+    {
+        double ratio = _config.Military.TowerFireRatio;
+        return ratio > 0 && TowerFire(Way(from, group.Center)) > group.Strength * ratio;
     }
 
     /// <summary>
@@ -353,6 +376,14 @@ public sealed partial class AiPlayer
             double strength = strike.Soldiers.Sum(s => Strength(s, group.Center));
             // What they will meet: the group and whoever waits on the way to it.
             var from = CenterOf(strike.Soldiers);
+            // Lured under the towers: nothing to win there.
+            if (strike.Guerilla && UnderTowerFire(group, from))
+            {
+                _world.Military.Move(strike.Soldiers, RetreatDoor(from, group.Center), forced: true);
+                Note($"calls off the strike at {group.Center.X},{group.Center.Y}: the enemies stand under tower fire");
+                _strikes.Remove(strike);
+                continue;
+            }
             double opposition = Opposition(group, from);
             if (strength < opposition * config.RetreatRatio)
             {

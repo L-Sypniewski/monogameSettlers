@@ -24,8 +24,13 @@ public sealed record AiConfig
     /// Enemy soldiers outside the buildings within this distance of a strike's target count as its defence too:
     /// slightly scattered soldiers come to help (0: only the group and those on the way).
     /// </param>
+    /// <param name="TowerFireRatio">
+    /// Guerilla (not defence) only where the bowmen of enemy military buildings reaching the target or the way
+    /// are at most this times the enemies' strength there: they cannot be struck back, every loss to them is
+    /// for nothing (0: no limit). A running guerilla strike whose enemies retreat under such fire is called off.
+    /// </param>
     public sealed record MilitaryRules(int ThinkTicks, int GroupRadius, int StrikeRange, double StrikeRatio, int ThreatRange, int GuardDistance,
-        double RetreatRatio = 1.0, int HinterlandDepth = 0, int ReinforceRadius = 0);
+        double RetreatRatio = 1.0, int HinterlandDepth = 0, int ReinforceRadius = 0, double TowerFireRatio = 0);
 
     public required AttackRules Attack { get; init; }
 
@@ -173,7 +178,8 @@ public sealed record AiConfig
                 military.GetProperty("guardDistance").GetInt32(),
                 military.TryGetProperty("retreatRatio", out var retreat) ? retreat.GetDouble() : 1.0,
                 military.TryGetProperty("hinterlandDepth", out var hinterland) ? hinterland.GetInt32() : 0,
-                military.TryGetProperty("reinforceRadius", out var reinforce) ? reinforce.GetInt32() : 0),
+                military.TryGetProperty("reinforceRadius", out var reinforce) ? reinforce.GetInt32() : 0,
+                military.TryGetProperty("towerFireRatio", out var towerFire) ? towerFire.GetDouble() : 0),
             Magic = root.TryGetProperty("magic", out var magic)
                 ? new MagicRules(magic.GetProperty("priestDistance").GetInt32(), magic.GetProperty("minTargets").GetInt32(),
                     magic.TryGetProperty("upgradeOrder", out var order)
