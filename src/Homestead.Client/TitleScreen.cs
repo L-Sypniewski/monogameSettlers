@@ -28,7 +28,7 @@ public enum TitleAction
 /// 800 × 600 to the window, plain gold beside it) with a column of engraved buttons on its left side as in the
 /// original, "Beenden" set apart at the bottom. "Spiel laden" lists the save slots below the buttons (its button stays
 /// pressed; clicking it again or Esc closes them, Esc on the main page quits); "Einstellungen" opens the settings screen. Set apart below, readme, contribution and licenses open a popup (the
-/// original's message box) offering to show <c>README.md</c>, <c>CONTRIBUTING.md</c> or <c>LICENSE.md</c> of the
+/// original's message box) offering to show <c>README.md</c>, <c>CONTRIBUTING.md</c> or <c>THIRD_PARTY_NOTICES.md</c> of the
 /// repository in the browser.
 /// </summary>
 public sealed class TitleScreen : IDisposable
@@ -47,7 +47,7 @@ public sealed class TitleScreen : IDisposable
 
     private static readonly Link Readme = new("readme", Repository + "/blob/main/README.md");
     private static readonly Link Contributing = new("contribution", Repository + "/blob/main/CONTRIBUTING.md");
-    private static readonly Link Licenses = new("licenses", Repository + "/blob/main/LICENSE.md");
+    private static readonly Link Licenses = new("licenses", Repository + "/blob/main/THIRD_PARTY_NOTICES.md");
 
     /// <summary>The buttons (label <c>title.buttons.&lt;key&gt;</c>): what they ask the game to do, the page they open, or the popup (<c>Link</c>).</summary>
     private static readonly (string Key, TitleAction Action, Page Opens, Link? Link)[] Buttons =

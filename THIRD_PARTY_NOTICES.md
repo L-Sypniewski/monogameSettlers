@@ -1,5 +1,8 @@
 # Third-Party Notices
 
+monoSettlers itself is licensed under the [MIT License](LICENSE.md). This file lists the code and data taken from
+other projects and the libraries included in the release packages, with their licenses.
+
 ## JSettlers / settlers-remake
 
 https://github.com/paulwedeck/settlers-remake

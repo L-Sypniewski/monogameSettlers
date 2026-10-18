@@ -25,7 +25,7 @@
     "links": {
       "readme": "What monoSettlers is, what already works and how to build and run it is in the README of the repository on GitHub.",
       "contribution": "Contributions are welcome! How they work and which rules apply (clean room, no original files) is in the repository on GitHub.",
-      "licenses": "monoSettlers is open source under the MIT license. The license text and notices on code taken from others are in the repository on GitHub."
+      "licenses": "monoSettlers is open source under the MIT license. The notices on code taken from others and on the included libraries are in the repository on GitHub."
     },
     "loadFailed": {
       "incompatible": "This saved game was made by another version of the game and can no longer be loaded.",

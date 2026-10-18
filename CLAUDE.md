@@ -185,7 +185,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
 - **Titelbildschirm** (`TitleScreen`, zuerst ohne `--map`/`--capture`): Hauptmenü-Bild der Gold Edition (`titleScreen` in `ui.json`, Datei 61 GUI 1,
   daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): Einzelspieler (→ Startscreen), Spiel laden
   (Slots darunter, Klick lädt; offen = gedrückter Knopf), Einstellungen (→ Einstellungen), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
-  Original-Meldungsbox Datei 02 GUI 16, `popup` in `titleScreen`: „Im Browser öffnen“ → `README.md`/`CONTRIBUTING.md`/`LICENSE.md` auf GitHub, Enter/Esc),
+  Original-Meldungsbox Datei 02 GUI 16, `popup` in `titleScreen`: „Im Browser öffnen“ → `README.md`/`CONTRIBUTING.md`/`THIRD_PARTY_NOTICES.md` auf GitHub, Enter/Esc),
   unten abgesetzt Beenden; Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher.
   Capture: `HOMESTEAD_CAPTURE_START=title` → `title.png` (`title:readme`/`title:contribution`/`title:licenses` mit Popup, `title:load` mit Slots, `title:loadError` mit Ladefehler).
 - **Einstellungen** (`SettingsScreen`): Hintergrund Datei 02 GUI 14 (`settingsScreen` in `ui.json`, Marmor daneben); oben in den vier
