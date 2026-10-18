@@ -171,7 +171,10 @@ assets, never touch the original program.
 
 ## License and legal
 
-- monoSettlers is open source under the [MIT License](LICENSE.md). This includes code and data taken from JSettlers (MIT).
+- monoSettlers is open source under the [MIT License](LICENSE.md). This includes code and data taken from JSettlers (MIT);
+  which parts, and the libraries included in the release packages, are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- The license covers the code and data **in this repository** only, not "The Settlers III" or any of its content – graphics,
+  sounds, music, maps, texts, the game program itself. Those belong to Ubisoft / Blue Byte.
 - This repository contains **no original assets** (graphics, sound, maps). The game needs your own, legally acquired copy.
-  The screenshots above show original graphics from such a copy.
+  The screenshots above show original graphics from such a copy; they only illustrate the project and are not licensed under the MIT License.
 - "The Settlers" is a trademark of Ubisoft; the original game was made by Blue Byte. monoSettlers is a non-commercial fan project and not affiliated with or endorsed by them.
