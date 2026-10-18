@@ -177,8 +177,10 @@ Kommunikation Deutsch; Code und Kommentare Englisch.
 ### `src/Homestead.Client` – MonoGame-Spiel
 - **Titelbildschirm** (`TitleScreen`, zuerst ohne `--map`/`--capture`): Hauptmenü-Bild der Gold Edition (`titleScreen` in `ui.json`, Datei 61 GUI 1,
   daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): Einzelspieler (→ Startscreen), Spiel laden
-  (Slots darunter, Klick lädt), Einstellungen, Contribution, Lizenzen (Seiten noch leer; offene Seite = gedrückter Knopf), unten abgesetzt Beenden;
-  Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher. Capture: `HOMESTEAD_CAPTURE_START=title` → `title.png`.
+  (Slots darunter, Klick lädt), Einstellungen (Seite noch leer; offene Seite = gedrückter Knopf), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
+  Original-Meldungsbox Datei 02 GUI 16, `popup` in `titleScreen`: „Im Browser öffnen“ → `README.md`/`CONTRIBUTING.md`/`LICENSE.md` auf GitHub, Enter/Esc),
+  unten abgesetzt Beenden; Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher.
+  Capture: `HOMESTEAD_CAPTURE_START=title` → `title.png` (`title:readme`/`title:contribution`/`title:licenses` mit Popup, `title:load` mit Slots).
 - **Startscreen** (`StartScreen`): auf dem Kartenwahl-Hintergrund des Originals (`startScreen` in `ui.json`, Datei 02 GUI 8,
   im 800×600-Raster auf Fenstergröße skaliert, daneben Marmor; ovale Steinknöpfe, Steinleiste unter der Auswahl, Vorschau im schrägen Fenster): Kartenliste mit Vorschau, Tabs Einzelspieler/Mehrspieler/Eigene (Tab-Taste),
   sortiert nach Spielerzahl (`OriginalMap.ReadPlayerCount` liest nur MapInfo). Tab „Zufallsgenerator“: letzte 5 Zufallskarten

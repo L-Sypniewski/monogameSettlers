@@ -310,10 +310,14 @@ public sealed class MapGame : Game
         if (_showStartScreen)
         {
             // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps);
-            // =title: the title screen's.
+            // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the save slots).
             string? captureStart = _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START");
-            if (captureStart is null || captureStart == "title")
+            if (captureStart is null || captureStart.StartsWith("title"))
+            {
                 _title = new TitleScreen(GraphicsDevice, _gfx);
+                if (captureStart?.StartsWith("title:") == true)
+                    _title.Show(captureStart["title:".Length..]);
+            }
             else
             {
                 _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _peoples);
