@@ -59,8 +59,8 @@ public sealed class ManufactureMenu : IDisposable
 
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
     {
-        Heading(batch, font, "Werkzeug", ToolsY - 22);
-        Heading(batch, font, "Waffen", WeaponsHeadingY);
+        Heading(batch, font, Lang.T("manufacture.tools"), ToolsY - 22);
+        Heading(batch, font, Lang.T("manufacture.weapons"), WeaponsHeadingY);
         foreach (var (product, y) in Rows())
         {
             if (_grid.Goods.FirstOrDefault(g => g.Material == product) is { } good)

@@ -83,7 +83,7 @@ public static class Charts
         var points = series.SelectMany(s => s.Points).ToList();
         if (points.Count == 0)
         {
-            Write(batch, font, "noch keine Daten", new Vector2(plot.X + 8, plot.Center.Y - 8), Label);
+            Write(batch, font, Lang.T("statistics.noData"), new Vector2(plot.X + 8, plot.Center.Y - 8), Label);
             return;
         }
         float maxX = Math.Max(1, points.Max(p => p.X));

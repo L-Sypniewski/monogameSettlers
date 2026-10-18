@@ -1,0 +1,83 @@
+using System.Globalization;
+using System.Text.Json;
+using Homestead.Simulation.Buildings;
+
+namespace Homestead.Client;
+
+/// <summary>
+/// The texts of the game in the chosen language (<see cref="DisplaySettings.Language"/>): <c>data/lang/de.json</c> and
+/// <c>en.json</c>, nested objects whose keys join with dots (<c>title.singlePlayer</c>); placeholders <c>{0}</c>, …
+/// as in <see cref="string.Format(IFormatProvider, string, object[])"/>, numbers in the language's culture. A text
+/// missing in the language comes from German, else the key itself shows (and is reported once on the console).
+/// Data names have keys from their ids: <c>buildings.&lt;name&gt;</c>, <c>goods.&lt;GOOD&gt;</c>, <c>peoples.&lt;People&gt;</c>, …
+/// </summary>
+public static class Lang
+{
+    private static readonly Dictionary<Language, Dictionary<string, string>> Tables = new();
+    private static readonly HashSet<string> Reported = new();
+
+    public static Language Current { get; private set; } = Language.German;
+
+    public static CultureInfo Culture => Current == Language.English ? CultureInfo.GetCultureInfo("en-US") : CultureInfo.GetCultureInfo("de-DE");
+
+    /// <summary>The language for all texts from now on; numbers and dates follow it (the thread's culture).</summary>
+    public static void Use(Language language)
+    {
+        Current = language;
+        CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.DefaultThreadCurrentCulture = Culture;
+    }
+
+    /// <summary>The file name of a language in <c>data/lang</c>.</summary>
+    public static string Code(Language language) => language == Language.English ? "en" : "de";
+
+    /// <summary>The text of the key.</summary>
+    public static string T(string key)
+    {
+        if (Find(key) is { } text)
+            return text;
+        if (Reported.Add(key))
+            Console.Error.WriteLine($"Missing text: {key}");
+        return key;
+    }
+
+    /// <summary>The text of the key with its placeholders filled in.</summary>
+    public static string T(string key, params object?[] args) => string.Format(Culture, T(key), args);
+
+    /// <summary>The text of the key, or null where neither the language nor German has it.</summary>
+    public static string? Find(string key) =>
+        Table(Current).GetValueOrDefault(key) ?? (Current == Language.German ? null : Table(Language.German).GetValueOrDefault(key));
+
+    /// <summary>All texts of a language, flattened (for checks).</summary>
+    public static IReadOnlyDictionary<string, string> Load(Language language) => Table(language);
+
+    private static Dictionary<string, string> Table(Language language)
+    {
+        lock (Tables)
+        {
+            if (Tables.TryGetValue(language, out var table))
+                return table;
+            Tables[language] = table = new Dictionary<string, string>();
+            string path = Path.Combine(BuildingCatalog.DefaultDataDirectory, "lang", Code(language) + ".json");
+            if (File.Exists(path))
+            {
+                using var document = JsonDocument.Parse(File.ReadAllText(path));
+                Flatten(document.RootElement, "", table);
+            }
+            return table;
+        }
+    }
+
+    private static void Flatten(JsonElement element, string prefix, Dictionary<string, string> table)
+    {
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.Name.StartsWith('_'))
+                continue;
+            string key = prefix.Length == 0 ? property.Name : prefix + "." + property.Name;
+            if (property.Value.ValueKind == JsonValueKind.Object)
+                Flatten(property.Value, key, table);
+            else if (property.Value.ValueKind == JsonValueKind.String)
+                table[key] = property.Value.GetString()!;
+        }
+    }
+}

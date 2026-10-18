@@ -28,11 +28,8 @@ public sealed partial class BuildingInfo
     private static readonly Color Label = new(190, 165, 120);
     private static readonly Color Selected = new(220, 30, 20);
 
-    private readonly Dictionary<string, string> _names = new();
+    /// <summary>What the simulation's status contains → the state shown (<c>buildingStatus.*</c>); the first match counts.</summary>
     private readonly List<(string Contains, string State)> _states = new();
-    private readonly string _active;
-    private readonly Dictionary<string, string> _soldierNames = new();
-    private readonly string[] _soldierLevels;
 
     /// <summary>The building whose tear-down button was pressed: the panel asks whether to go on.</summary>
     private Building? _confirming;
@@ -41,14 +38,8 @@ public sealed partial class BuildingInfo
     {
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
         var root = document.RootElement;
-        foreach (var name in root.GetProperty("buildingNames").EnumerateObject())
-            _names[name.Name] = name.Value.GetString()!;
         foreach (var state in root.GetProperty("status").EnumerateArray())
             _states.Add((state[0].GetString()!, state[1].GetString()!));
-        _active = root.GetProperty("activeStatus").GetString()!;
-        foreach (var name in root.GetProperty("soldierNames").EnumerateObject())
-            _soldierNames[name.Name] = name.Value.GetString()!;
-        _soldierLevels = root.GetProperty("soldierLevels").EnumerateArray().Select(l => l.GetString()!).ToArray();
     }
 
     /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>
@@ -129,7 +120,7 @@ public sealed partial class BuildingInfo
     {
         var military = world.Military;
         var types = Enum.GetValues<SoldierType>();
-        Write(batch, font, "Besatzung (da / Soll)", new Vector2(Left, GarrisonRowRect(height, 0).Y - 16), Label, 12);
+        Write(batch, font, Lang.T("building.garrison"), new Vector2(Left, GarrisonRowRect(height, 0).Y - 16), Label, 12);
         var occupants = military.Occupants(building);
         for (int i = 0; i < types.Length; i++)
         {
@@ -156,11 +147,11 @@ public sealed partial class BuildingInfo
         }
     }
 
-    public string SoldierName(SoldierType type) => _soldierNames.GetValueOrDefault(type.ToString(), type.ToString());
+    public string SoldierName(SoldierType type) => Lang.Find("soldiers.types." + type) ?? type.ToString();
 
-    public string LevelName(int level) => _soldierLevels[Math.Clamp(level, 1, _soldierLevels.Length) - 1];
+    public string LevelName(int level) => Lang.T("soldiers.levels." + Math.Clamp(level, 1, 3));
 
-    public string NameOf(BuildingDefinition definition) => _names.GetValueOrDefault(definition.Name, definition.Name);
+    public string NameOf(BuildingDefinition definition) => Lang.Find("buildings." + definition.Name) ?? definition.Name;
 
     private static Rectangle DemolishButton(int height) => new(Left, Bottom - 28, Inner, 28);
 
@@ -232,14 +223,14 @@ public sealed partial class BuildingInfo
             return;
         DrawDemolish(batch, pixel, height, font, building, cursor);
         if (OffersPause(world, building) && _confirming != building)
-            Button(batch, pixel, font, PauseButton(height), building.IsPaused ? "Fortsetzen" : "Anhalten", cursor);
+            Button(batch, pixel, font, PauseButton(height), Lang.T(building.IsPaused ? "building.resume" : "building.pause"), cursor);
         if (OffersGarrison(building) && _confirming != building)
             DrawGarrison(batch, pixel, height, font, settlers, people, world, building, cursor);
         if (OffersStorehouse(building) && _confirming != building)
             DrawStorehouse(batch, pixel, world, building, cursor);
 
         // State.
-        Write(batch, font, "Status", new Vector2(Left, y), Label, 12);
+        Write(batch, font, Lang.T("building.status"), new Vector2(Left, y), Label, 12);
         y += 15;
         foreach (string line in font.Wrap(state, Inner))
         {
@@ -250,7 +241,7 @@ public sealed partial class BuildingInfo
         {
             y += 4;
             int percent = (int)Math.Round(c * 100);
-            Write(batch, font, percent == 0 && c > 0 ? "Erfolgschance: unter 1 %" : $"Erfolgschance: {percent} %", new Vector2(Left, y), Text);
+            Write(batch, font, percent == 0 && c > 0 ? Lang.T("building.chanceBelowOne") : Lang.T("building.chance", percent), new Vector2(Left, y), Text);
             y += 17;
         }
 
@@ -258,7 +249,7 @@ public sealed partial class BuildingInfo
         if (goods.Count == 0 || y + 8 + 16 + 30 > limit)
             return;
         y += 8;
-        Write(batch, font, building.State == BuildingState.Finished ? "Waren" : "Baumaterial", new Vector2(Left, y), Label, 12);
+        Write(batch, font, Lang.T(building.State == BuildingState.Finished ? "building.goods" : "building.material"), new Vector2(Left, y), Label, 12);
         y += 16;
         for (int i = 0; i < goods.Count; i++)
         {
@@ -328,13 +319,13 @@ public sealed partial class BuildingInfo
     {
         if (_confirming != building)
         {
-            Button(batch, pixel, font, DemolishButton(height), "Abreißen", cursor);
+            Button(batch, pixel, font, DemolishButton(height), Lang.T("building.demolish"), cursor);
             return;
         }
-        string question = "Wirklich abreißen?";
+        string question = Lang.T("building.demolishQuestion");
         Write(batch, font, question, new Vector2(Left + (Inner - font.Measure(question).X) / 2, Bottom - 50), Text);
-        Button(batch, pixel, font, YesButton(height), "Ja", cursor);
-        Button(batch, pixel, font, NoButton(height), "Nein", cursor);
+        Button(batch, pixel, font, YesButton(height), Lang.T("common.yes"), cursor);
+        Button(batch, pixel, font, NoButton(height), Lang.T("common.no"), cursor);
     }
 
     private static void Button(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle rect, string label, Vector2 cursor) =>
@@ -345,13 +336,13 @@ public sealed partial class BuildingInfo
     {
         string status = world.StatusOf(building);
         if (SoldiersPattern().Match(status) is { Success: true } soldiers)
-            return $"{soldiers.Groups[1].Value}/{soldiers.Groups[2].Value} Soldaten"
-                   + (soldiers.Groups[3].Success ? $", {soldiers.Groups[3].Value} unterwegs" : "")
-                   + (DoorPattern().Match(status) is { Success: true } door ? $", Tür {door.Groups[1].Value} %" : "");
+            return Lang.T("building.soldiers", soldiers.Groups[1].Value, soldiers.Groups[2].Value)
+                   + (soldiers.Groups[3].Success ? Lang.T("building.soldiersOnTheWay", soldiers.Groups[3].Value) : "")
+                   + (DoorPattern().Match(status) is { Success: true } door ? Lang.T("building.door", door.Groups[1].Value) : "");
         foreach (var (contains, state) in _states)
             if (status.Contains(contains, StringComparison.Ordinal))
-                return state;
-        return _active;
+                return Lang.T("buildingStatus." + state);
+        return Lang.T("buildingStatus.active");
     }
 
     private static List<(Material Material, string Text)> Goods(World world, Building building)

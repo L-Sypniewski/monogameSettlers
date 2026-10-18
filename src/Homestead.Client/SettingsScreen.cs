@@ -30,46 +30,57 @@ public sealed class SettingsScreen : IDisposable
     /// <summary>Everything the screen edits.</summary>
     private sealed record State(GameSettings Game, DisplaySettings Display);
 
-    /// <summary>One setting: a row of values to choose from, each with its label.</summary>
-    private sealed record Choice(string Label, string Hint, (string Label, int Value)[] Values, Func<State, int> Get, Func<State, int, State> Set);
+    /// <summary>
+    /// One setting: its text key (label <c>settings.&lt;tab&gt;.&lt;key&gt;</c>, hint with <c>Hint</c> appended), a row of
+    /// values to choose from – each with its label (a text key if it has a dot, otherwise shown as it is).
+    /// </summary>
+    private sealed record Choice(string Key, (string Label, int Value)[] Values, Func<State, int> Get, Func<State, int, State> Set)
+    {
+        public string Label => Lang.T(Key);
+        public string Hint => Lang.T(Key + "Hint");
+    }
 
-    /// <summary>A tab: its key in <c>tabs</c> of <c>settingsScreen</c> (also for capture runs), heading, line below it, settings, when they apply.</summary>
-    private sealed record Tab(string Id, string Name, string Subtitle, Choice[] Choices, string Note = "Gilt für neue Partien, nicht für Spielstände.");
+    private static string ValueLabel(string label) => label.Contains('.') ? Lang.T(label) : label;
+
+    /// <summary>
+    /// A tab: its key in <c>tabs</c> of <c>settingsScreen</c> (also for capture runs; heading <c>settings.tabs.&lt;id&gt;</c>,
+    /// line below it with <c>Subtitle</c> appended), settings, when they apply (a text key).
+    /// </summary>
+    private sealed record Tab(string Id, Choice[] Choices, string Note = "settings.notes.newGames")
+    {
+        public string Name => Lang.T("settings.tabs." + Id);
+        public string Subtitle => Lang.T("settings.tabs." + Id + "Subtitle");
+    }
 
     private static readonly (string, int)[] DepletionValues = [("100 %", 100), ("75 %", 75), ("50 %", 50), ("25 %", 25), ("10 %", 10), ("∞", 0)];
 
-    private static readonly (string, int)[] OnOff = [("An", 1), ("Aus", 0)];
+    private static readonly (string, int)[] OnOff = [("common.on", 1), ("common.off", 0)];
 
-    private static Choice Depletion(string label, string hint, Func<Depletion, int> get, Func<Depletion, int, Depletion> set) =>
-        new(label, hint, DepletionValues, s => get(s.Game.Depletion), (s, v) => s with { Game = s.Game with { Depletion = set(s.Game.Depletion, v) } });
+    private static Choice Depletion(string key, Func<Depletion, int> get, Func<Depletion, int, Depletion> set) =>
+        new("settings.resources." + key, DepletionValues, s => get(s.Game.Depletion),
+            (s, v) => s with { Game = s.Game with { Depletion = set(s.Game.Depletion, v) } });
 
-    private static Choice Display(string label, string hint, (string, int)[] values, Func<DisplaySettings, int> get,
-        Func<DisplaySettings, int, DisplaySettings> set) =>
-        new(label, hint, values, s => get(s.Display), (s, v) => s with { Display = set(s.Display, v) });
+    private static Choice Display(string key, (string, int)[] values, Func<DisplaySettings, int> get, Func<DisplaySettings, int, DisplaySettings> set) =>
+        new("settings.display." + key, values, s => get(s.Display), (s, v) => s with { Display = set(s.Display, v) });
 
     private static readonly Tab[] Tabs =
     [
-        new("resources", "Rohstoffe", "Wie viel jeder Abbau vom Vorkommen verbraucht",
+        new("resources",
         [
-            Depletion("Steinbrüche", "Steinmetze: Anteil der gehauenen Steine, der den Felsen kleiner macht. 100 % wie im Original, ∞: Felsen bleiben.",
-                d => d.Stone, (d, v) => d with { Stone = v }),
-            Depletion("Bergwerke", "Minen (Kohle, Erze, Gold, Edelsteine, Schwefel): Anteil der Funde, der das Vorkommen senkt. ∞: Berge erschöpfen nie.",
-                d => d.Mountain, (d, v) => d with { Mountain = v }),
-            Depletion("Fischgründe", "Fischer: Anteil der Fänge, der den Fischbestand senkt. ∞: Fische gehen nie aus.",
-                d => d.Fish, (d, v) => d with { Fish = v }),
+            Depletion("stone", d => d.Stone, (d, v) => d with { Stone = v }),
+            Depletion("mountain", d => d.Mountain, (d, v) => d with { Mountain = v }),
+            Depletion("fish", d => d.Fish, (d, v) => d with { Fish = v }),
         ]),
-        new("economy", "Wirtschaft", "Produktion, Transport und Bevölkerung", []),
-        new("military", "Militär", "Soldaten, Kampf und Gebiete", []),
-        new("display", "Darstellung", "Grafik und Bedienung",
+        new("economy", []),
+        new("military", []),
+        new("display",
         [
-            Display("Hardware-Cursor", "An: der Mauszeiger des Systems. Aus: das Spiel zeichnet einen eigenen.", OnOff,
-                d => d.HardwareCursor ? 1 : 0, (d, v) => d with { HardwareCursor = v == 1 }),
-            Display("Vollbild", "Beim Start im Vollbild. F11 wechselt jederzeit, nur bis zum Beenden.", OnOff,
-                d => d.FullScreen ? 1 : 0, (d, v) => d with { FullScreen = v == 1 }),
-            Display("Sprache", "Sprache der Texte. Bisher wird nur die Wahl gespeichert – die Texte sind noch deutsch.",
-                [("Deutsch", (int)Language.German), ("English", (int)Language.English)],
+            Display("hardwareCursor", OnOff, d => d.HardwareCursor ? 1 : 0, (d, v) => d with { HardwareCursor = v == 1 }),
+            Display("fullScreen", OnOff, d => d.FullScreen ? 1 : 0, (d, v) => d with { FullScreen = v == 1 }),
+            // Each language by its own name.
+            Display("language", [("Deutsch", (int)Language.German), ("English", (int)Language.English)],
                 d => (int)d.Language, (d, v) => d with { Language = (Language)v }),
-        ], "Gilt sofort nach „Ok“."),
+        ], "settings.notes.immediately"),
     ];
 
     // Layout in the 800 × 600 space of the background, measured on it.
@@ -201,7 +212,7 @@ public sealed class SettingsScreen : IDisposable
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
         {
-            _error = $"Nicht gespeichert: {e.Message}";
+            _error = Lang.T("settings.notSaved", e.Message);
             return false;
         }
     }
@@ -227,14 +238,15 @@ public sealed class SettingsScreen : IDisposable
                 Outline(batch, pixel, ToScreen(new Rectangle(at.X - 2, at.Y - 2, at.Width + 4, at.Height + 4)), Gold);
         }
 
-        var title = font.Measure("Einstellungen", Px(18)) / _scale;
-        Write(batch, font, "Einstellungen", TitleField.Center.X - title.X / 2, TitleField.Center.Y - title.Y / 2, Gold, 18);
+        string heading = Lang.T("settings.title");
+        var title = font.Measure(heading, Px(18)) / _scale;
+        Write(batch, font, heading, TitleField.Center.X - title.X / 2, TitleField.Center.Y - title.Y / 2, Gold, 18);
 
         var current = Tabs[_tab];
         Write(batch, font, current.Name, Content.X + 20, 104, Gold, 15);
         Write(batch, font, current.Subtitle, Content.X + 20, 124, Dim, 11);
         if (current.Choices.Length == 0)
-            Write(batch, font, "Hier gibt es noch nichts einzustellen.", Content.X + 20, RowTop + 6, Text, 13);
+            Write(batch, font, Lang.T("settings.nothingYet"), Content.X + 20, RowTop + 6, Text, 13);
         string? hint = TabAt(hover) is { } hovered && hovered != _tab ? Tabs[hovered].Name : null;
         for (int row = 0; row < current.Choices.Length; row++)
         {
@@ -247,7 +259,7 @@ public sealed class SettingsScreen : IDisposable
             for (int value = 0; value < choice.Values.Length; value++)
             {
                 var (label, number) = choice.Values[value];
-                TextButton.Draw(batch, pixel, font, ToScreen(ValueBox(choice, row, value)), label,
+                TextButton.Draw(batch, pixel, font, ToScreen(ValueBox(choice, row, value)), ValueLabel(label),
                     mouse.ToVector2(), size: Px(label == "∞" ? 18 : 12), selected: number == chosen);
             }
         }
@@ -261,11 +273,11 @@ public sealed class SettingsScreen : IDisposable
             }
         }
 
-        Write(batch, font, _error ?? current.Note, NoteField.X + 6, NoteField.Y + 4,
+        Write(batch, font, _error ?? Lang.T(current.Note), NoteField.X + 6, NoteField.Y + 4,
             _error is null ? Dim : Error, 11);
-        TextButton.Draw(batch, pixel, font, ToScreen(DefaultButton), "Standard", mouse.ToVector2(), size: Px(13));
-        TextButton.Draw(batch, pixel, font, ToScreen(OkButton), "Ok", mouse.ToVector2(), size: Px(13));
-        TextButton.Draw(batch, pixel, font, ToScreen(CancelButton), "Abbrechen", mouse.ToVector2(), size: Px(13));
+        TextButton.Draw(batch, pixel, font, ToScreen(DefaultButton), Lang.T("settings.defaults"), mouse.ToVector2(), size: Px(13));
+        TextButton.Draw(batch, pixel, font, ToScreen(OkButton), Lang.T("common.ok"), mouse.ToVector2(), size: Px(13));
+        TextButton.Draw(batch, pixel, font, ToScreen(CancelButton), Lang.T("common.cancel"), mouse.ToVector2(), size: Px(13));
     }
 
     private void Outline(SpriteBatch batch, Texture2D pixel, Rectangle r, Color color)

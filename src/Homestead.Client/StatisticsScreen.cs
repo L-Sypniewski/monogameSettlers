@@ -26,7 +26,8 @@ public enum StatisticsAction
 /// </summary>
 public sealed class StatisticsScreen : IDisposable
 {
-    public static readonly string[] Pages = ["Übersicht", "Wirtschaft", "Militär", "Waren", "Gesellschaft"];
+    /// <summary>The pages (names: <c>statistics.pages.*</c>).</summary>
+    public static readonly string[] Pages = ["overview", "economy", "military", "goods", "society"];
 
     private static readonly Color[] SoldierColors = [new(150, 170, 200), new(120, 170, 90), new(200, 150, 80)];
 
@@ -51,7 +52,6 @@ public sealed class StatisticsScreen : IDisposable
         var bitmap = gfx.Open(background.GetProperty("file").GetInt32()).ReadGui(background.GetProperty("gui").GetInt32());
         _background = new Texture2D(device, bitmap.Width, bitmap.Height);
         _background.SetData(bitmap.Pixels);
-        var peoples = root.GetProperty("peoples").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString()!);
 
         _world = world;
         _mapName = mapName;
@@ -60,10 +60,10 @@ public sealed class StatisticsScreen : IDisposable
         world.History.Sample(); // up to this moment
         _players = world.History.Players.Select(p =>
         {
-            string people = peoples.GetValueOrDefault(world.PeopleOf(p).ToString(), world.PeopleOf(p).ToString());
+            string people = Lang.T("peoples." + world.PeopleOf(p));
             var ai = world.AiPlayers.FirstOrDefault(a => a.Player == p);
-            string who = p == 0 && ai is null ? "Du" : ai is null ? "Mensch" : names.Character(ai.Character.Id);
-            return (p, $"Spieler {p + 1} · {people} · {who}", PlayerColors.Of(p));
+            string who = p == 0 && ai is null ? Lang.T("statistics.you") : ai is null ? Lang.T("statistics.human") : names.Character(ai.Character.Id);
+            return (p, $"{Lang.T("start.player", p + 1)} · {people} · {who}", PlayerColors.Of(p));
         }).ToList();
     }
 
@@ -138,11 +138,11 @@ public sealed class StatisticsScreen : IDisposable
 
         var cursor = Mouse.GetState().Position.ToVector2();
         long minutes = _world.Tick / World.TicksPerSecond / 60;
-        Charts.Write(batch, font, "Statistik", new Vector2(bounds.X + Margin, bounds.Y + 14), new Color(255, 215, 90), 30);
-        Charts.Write(batch, font, $"{_mapName} · Spielzeit {minutes / 60}:{minutes % 60:00} h · {_players.Count} Spieler",
+        Charts.Write(batch, font, Lang.T("statistics.title"), new Vector2(bounds.X + Margin, bounds.Y + 14), new Color(255, 215, 90), 30);
+        Charts.Write(batch, font, Lang.T("statistics.subtitle", _mapName, $"{minutes / 60}:{minutes % 60:00}", _players.Count),
             new Vector2(bounds.X + Margin + 170, bounds.Y + 26), Charts.Text, 15);
         for (int i = 0; i < Pages.Length; i++)
-            TextButton.Draw(batch, pixel, font, PageButton(bounds, i), Pages[i], cursor, selected: Page == i, size: 15);
+            TextButton.Draw(batch, pixel, font, PageButton(bounds, i), Lang.T("statistics.pages." + Pages[i]), cursor, selected: Page == i, size: 15);
 
         var content = Content(bounds);
         switch (Page)
@@ -165,8 +165,8 @@ public sealed class StatisticsScreen : IDisposable
                 break;
         }
         if (_canResume)
-            TextButton.Draw(batch, pixel, font, ResumeButton(bounds), "Weiterspielen", cursor, size: 16);
-        TextButton.Draw(batch, pixel, font, QuitButton(bounds), "Zum Hauptmenü", cursor, size: 16);
+            TextButton.Draw(batch, pixel, font, ResumeButton(bounds), Lang.T("statistics.resume"), cursor, size: 16);
+        TextButton.Draw(batch, pixel, font, QuitButton(bounds), Lang.T("statistics.mainMenu"), cursor, size: 16);
     }
 
     /// <summary>A value of every player's samples as chart lines.</summary>
@@ -190,14 +190,15 @@ public sealed class StatisticsScreen : IDisposable
             return new ChartSeries(Short(p.Player), p.Color, points);
         }).ToList();
 
-    private static string Short(int player) => $"Spieler {player + 1}";
+    private static string Short(int player) => Lang.T("start.player", player + 1);
 
     private HistorySample? Last(int player) => _world.History.Samples(player) is { Count: > 0 } s ? s[^1] : null;
 
     private void Overview(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle area, Vector2 cursor)
     {
         // The table: one row per player, the strongest land first.
-        string[] headings = ["Land", "Siedler", "Soldaten", "Gebäude", "Produziert", "Getötet", "Gefallen", "Erobert", "Verloren", "Kampfkraft"];
+        string[] headings = ["land", "settlers", "soldiers", "buildings", "produced", "kills", "losses", "captured", "lost", "combatStrength"];
+        headings = headings.Select(h => Lang.T("statistics.columns." + h)).ToArray();
         int tableHeight = 36 + 26 * _players.Count + 8;
         var table = new Rectangle(area.X, area.Y, area.Width, tableHeight);
         var inner = Charts.Panel(batch, pixel, font, table, null);
@@ -222,47 +223,47 @@ public sealed class StatisticsScreen : IDisposable
         }
 
         var charts = new Rectangle(area.X, table.Bottom + 10, area.Width, area.Bottom - table.Bottom - 10);
-        Charts.ShareChart(batch, pixel, font, Cell(charts, 3, 2, 0, 0, 2, 1), "Landanteil", Series(s => s.Land), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(charts, 3, 2, 2, 0), "Land (Felder)", Series(s => s.Land), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(charts, 3, 2, 0, 1), "Siedler", Series(s => s.Settlers), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(charts, 3, 2, 1, 1), "Soldaten", Series(s => s.Soldiers), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(charts, 3, 2, 2, 1), "Gebäude", Series(s => s.Buildings), cursor);
+        Charts.ShareChart(batch, pixel, font, Cell(charts, 3, 2, 0, 0, 2, 1), Lang.T("statistics.charts.landShare"), Series(s => s.Land), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(charts, 3, 2, 2, 0), Lang.T("statistics.charts.land"), Series(s => s.Land), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(charts, 3, 2, 0, 1), Lang.T("statistics.charts.settlers"), Series(s => s.Settlers), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(charts, 3, 2, 1, 1), Lang.T("statistics.charts.soldiers"), Series(s => s.Soldiers), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(charts, 3, 2, 2, 1), Lang.T("statistics.charts.buildings"), Series(s => s.Buildings), cursor);
     }
 
     private void Economy(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle area, Vector2 cursor)
     {
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 0), "Waren hergestellt je Minute", PerMinute(s => s.Produced), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 0), "Waren hergestellt (gesamt)", Series(s => s.Produced), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 2, 0), "Lagerbestand", Series(s => s.Stock), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 1), "Fertige Gebäude", Series(s => s.Buildings), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 1), "Baustellen", Series(s => s.Sites), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 2, 1), "Fachleute", Series(s => s.Specialists), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 0), Lang.T("statistics.charts.producedPerMinute"), PerMinute(s => s.Produced), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 0), Lang.T("statistics.charts.producedTotal"), Series(s => s.Produced), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 2, 0), Lang.T("statistics.charts.stock"), Series(s => s.Stock), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 1), Lang.T("statistics.charts.finished"), Series(s => s.Buildings), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 1), Lang.T("statistics.charts.sites"), Series(s => s.Sites), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 2, 1), Lang.T("statistics.charts.specialists"), Series(s => s.Specialists), cursor);
     }
 
     private void Military(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle area, Vector2 cursor)
     {
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 0), "Soldaten", Series(s => s.Soldiers), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 0), "Kampfkraft", Series(s => s.CombatStrength * 100), cursor, v => $"{v:0} %");
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 2, 0), "Militärgebäude", Series(s => s.MilitaryBuildings), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 1), "Gegner getötet", Series(s => s.Kills), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 1), "Eigene Gefallene", Series(s => s.Losses), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 0), Lang.T("statistics.charts.soldiers"), Series(s => s.Soldiers), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 0), Lang.T("statistics.charts.combatStrength"), Series(s => s.CombatStrength * 100), cursor, v => $"{v:0} %");
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 2, 0), Lang.T("statistics.charts.military"), Series(s => s.MilitaryBuildings), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 1), Lang.T("statistics.charts.kills"), Series(s => s.Kills), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 1), Lang.T("statistics.charts.losses"), Series(s => s.Losses), cursor);
         var rows = _players.Where(p => Last(p.Player) is not null).Select(p =>
         {
             var s = Last(p.Player)!;
             return (Short(p.Player), (IReadOnlyList<(float, Color)>)[(s.Swordsmen, SoldierColors[0]), (s.Bowmen, SoldierColors[1]), (s.Pikemen, SoldierColors[2])]);
         }).ToList();
-        Charts.Bars(batch, pixel, font, Cell(area, 3, 2, 2, 1), "Armee jetzt", rows, cursor,
-            [("Schwert", SoldierColors[0]), ("Bogen", SoldierColors[1]), ("Speer", SoldierColors[2])]);
+        Charts.Bars(batch, pixel, font, Cell(area, 3, 2, 2, 1), Lang.T("statistics.charts.army"), rows, cursor,
+            [(Lang.T("statistics.sword"), SoldierColors[0]), (Lang.T("statistics.bow"), SoldierColors[1]), (Lang.T("statistics.spear"), SoldierColors[2])]);
     }
 
     private void Society(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle area, Vector2 cursor)
     {
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 0), "Träger", Series(s => s.Carriers), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 0), "Wohnraum", Series(s => s.Room), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 2, 0), "Streikende", Series(s => s.Striking), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 1), "Mana erworben", Series(s => s.ManaEarned), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 1), "Gebäude erobert", Series(s => s.Captured), cursor);
-        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 2, 1), "Gebäude verloren (Abriss, Eroberung)", Series(s => s.Destroyed), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 0), Lang.T("statistics.charts.carriers"), Series(s => s.Carriers), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 0), Lang.T("statistics.charts.room"), Series(s => s.Room), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 2, 0), Lang.T("statistics.charts.striking"), Series(s => s.Striking), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 0, 1), Lang.T("statistics.charts.mana"), Series(s => s.ManaEarned), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 1, 1), Lang.T("statistics.charts.captured"), Series(s => s.Captured), cursor);
+        Charts.LineChart(batch, pixel, font, Cell(area, 3, 2, 2, 1), Lang.T("statistics.charts.destroyed"), Series(s => s.Destroyed), cursor);
     }
 
     // ---- goods ----
@@ -285,7 +286,7 @@ public sealed class StatisticsScreen : IDisposable
     private void Goods(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle area, Vector2 cursor)
     {
         var panel = GoodsPanel(area);
-        Charts.Panel(batch, pixel, font, panel, "Ware wählen");
+        Charts.Panel(batch, pixel, font, panel, Lang.T("statistics.chooseGood"));
         if (_goods is not null)
         {
             foreach (var good in _goods.Goods)
@@ -306,14 +307,14 @@ public sealed class StatisticsScreen : IDisposable
             new Vector2((i + 1) * ProductionStatistics.PeriodTicks / (float)World.TicksPerSecond / 60,
                 Enumerable.Range(i - 3, 4).Sum(k => statistics.Produced(p.Player, _good, k)) / 2f)).ToList())).ToList();
         string name = GoodName(_good);
-        Charts.LineChart(batch, pixel, font, Cell(right, 2, 2, 0, 0, 2, 1), $"{name}: hergestellt je Minute", perMinute, cursor);
+        Charts.LineChart(batch, pixel, font, Cell(right, 2, 2, 0, 0, 2, 1), Lang.T("statistics.charts.goodPerMinute", name), perMinute, cursor);
         var totals = _players.Select(p => (Short(p.Player), (IReadOnlyList<(float, Color)>)[(statistics.Total(p.Player, _good), p.Color)])).ToList();
-        Charts.Bars(batch, pixel, font, Cell(right, 2, 2, 0, 1), $"{name}: insgesamt", totals, cursor);
+        Charts.Bars(batch, pixel, font, Cell(right, 2, 2, 0, 1), Lang.T("statistics.charts.goodTotal", name), totals, cursor);
         // What the own people made most.
         int own = _players.FirstOrDefault().Player;
         var top = Enum.GetValues<Material>().Select(m => (Material: m, Total: statistics.Total(own, m))).Where(t => t.Total > 0)
             .OrderByDescending(t => t.Total).Take(8)
             .Select(t => (GoodName(t.Material), (IReadOnlyList<(float, Color)>)[(t.Total, PlayerColors.Of(own))])).ToList();
-        Charts.Bars(batch, pixel, font, Cell(right, 2, 2, 1, 1), $"Meistes Hergestelltes ({Short(own)})", top, cursor);
+        Charts.Bars(batch, pixel, font, Cell(right, 2, 2, 1, 1), Lang.T("statistics.charts.mostMade", Short(own)), top, cursor);
     }
 }

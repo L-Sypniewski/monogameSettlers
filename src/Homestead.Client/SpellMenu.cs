@@ -40,7 +40,7 @@ public sealed class SpellMenu
                 batch.Draw(pixel, row, Color.White * 0.08f);
             portraits.Draw(batch, "MAGE", new Rectangle(row.X, row.Y, Portraits.Size.X + 4, row.Height), settlers, people, PlayerColors.Of(0));
             int y = row.Y + 8;
-            foreach (string line in font.Wrap(spell.Name, row.Width - 54, 13))
+            foreach (string line in font.Wrap(Lang.T("spells." + spell.Kind), row.Width - 54, 13))
             {
                 SelectionPanel.Shadowed(batch, font, line, new Vector2(row.X + 50, y), 13);
                 y += 16;
@@ -55,12 +55,12 @@ public sealed class SpellMenu
         if (aiming is null)
             return;
         int line2 = bottom + 22;
-        string hint = aiming.Kind switch
+        string hint = Lang.T(aiming.Kind switch
         {
-            SpellKind.SummonGoods => "Auf den Zielort klicken",
-            SpellKind.Haste => "Auf eigene Soldaten klicken",
-            _ => "Auf feindliche Soldaten klicken",
-        } + ", Rechtsklick bricht ab";
+            SpellKind.SummonGoods => "spellMenu.clickPlace",
+            SpellKind.Haste => "spellMenu.clickOwn",
+            _ => "spellMenu.clickEnemies",
+        });
         foreach (string text in font.Wrap(hint, BuildMenu.Content.Width, 12))
         {
             SelectionPanel.Shadowed(batch, font, text, new Vector2(BuildMenu.Content.X + 2, line2), 12);

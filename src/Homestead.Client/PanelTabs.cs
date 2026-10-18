@@ -51,10 +51,10 @@ public sealed class PanelTabs : IDisposable
         {
             var images = tab.GetProperty("tab");
             var menus = tab.TryGetProperty("menus", out var list)
-                ? list.EnumerateArray().Select(m => new Menu(m.GetProperty("id").GetString()!, m.GetProperty("name").GetString()!,
+                ? list.EnumerateArray().Select(m => new Menu(m.GetProperty("id").GetString()!, Lang.T("panel.menus." + m.GetProperty("id").GetString()),
                     Image(m.GetProperty("tab"), 0), Image(m.GetProperty("tab"), 1))).ToList()
                 : [];
-            _tabs.Add(new Tab(tab.GetProperty("name").GetString()!, Image(images, 0), Image(images, 1), menus));
+            _tabs.Add(new Tab(Lang.T("panel.tabs." + tab.GetProperty("id").GetString()), Image(images, 0), Image(images, 1), menus));
         }
     }
 
@@ -152,7 +152,7 @@ public sealed class PanelTabs : IDisposable
             y += 19;
         }
         if (placeholder)
-            SelectionPanel.Shadowed(batch, font, "Kommt bald.", new Vector2(content.X + 4, y + 6), 13, new Color(190, 165, 120));
+            SelectionPanel.Shadowed(batch, font, Lang.T("panel.comingSoon"), new Vector2(content.X + 4, y + 6), 13, new Color(190, 165, 120));
     }
 
     public void Dispose()

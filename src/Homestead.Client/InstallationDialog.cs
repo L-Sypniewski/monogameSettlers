@@ -76,7 +76,7 @@ public sealed class InstallationDialog : Game
         _graphics = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height };
         IsMouseVisible = true;
         Window.AllowUserResizing = true;
-        Window.Title = "monoSettlers – Originalinstallation";
+        Window.Title = Lang.T("install.windowTitle");
         _path = configured ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         _takeFirstFound = configured is null;
         Window.TextInput += (_, e) =>
@@ -242,12 +242,9 @@ public sealed class InstallationDialog : Game
         var hover = ToLayout(Mouse.GetState().Position);
         _batch.Begin(samplerState: SamplerState.LinearClamp);
 
-        Write("Originalinstallation von „Die Siedler III“", 30, 24, Gold, 22);
+        Write(Lang.T("install.heading"), 30, 24, Gold, 22);
         float y = 64;
-        foreach (string line in _font.Wrap("monoSettlers bringt keine Grafiken, Klänge oder Karten mit, sondern liest sie aus einer " +
-                                           "installierten „Die Siedler III“ (Gold Edition, History Edition, GOG). Bitte den Installationsordner " +
-                                           "angeben – den Ordner mit GFX, SND und Map darin. Er wird in den Einstellungen vermerkt und bei " +
-                                           "jedem Start geprüft.", Px(840), Px(13)))
+        foreach (string line in _font.Wrap(Lang.T("install.explanation"), Px(840), Px(13)))
         {
             Write(line, 30, y, Text, 13);
             y += 19;
@@ -262,9 +259,9 @@ public sealed class InstallationDialog : Game
         DrawFound(hover);
         DrawCheck();
 
-        Button(QuitButton, "Beenden", hover, enabled: true);
-        Button(StartButton, "Spiel starten", hover, enabled: ValidRoot is not null);
-        Write("Esc beenden · Enter öffnen/starten · Strg+V einfügen", 190, 570, Dim, 11);
+        Button(QuitButton, Lang.T("install.quit"), hover, enabled: true);
+        Button(StartButton, Lang.T("install.start"), hover, enabled: ValidRoot is not null);
+        Write(Lang.T("install.keys"), 190, 570, Dim, 11);
         _batch.End();
         if (target is not null)
         {
@@ -293,10 +290,10 @@ public sealed class InstallationDialog : Game
             bool installation = folder >= 0 && _installations.Contains(_folders[folder]);
             Write(Shorten(rows[index]!, rect.Width - 120, 13, fromStart: false), rect.X + 6, rect.Y + 3, installation ? Good : Text, 13);
             if (installation)
-                Write("✓ Installation", rect.Right - 108, rect.Y + 4, Good, 11);
+                Write(Lang.T("install.marked"), rect.Right - 108, rect.Y + 4, Good, 11);
         }
         if (rows.Length == 0)
-            Write("(keine Unterordner)", Browser.X + 10, Browser.Y + BrowserRow + 10, Dim, 12);
+            Write(Lang.T("install.noSubfolders"), Browser.X + 10, Browser.Y + BrowserRow + 10, Dim, 12);
         if (rows.Length > visible)
         {
             // Scroll position at the right edge.
@@ -310,11 +307,11 @@ public sealed class InstallationDialog : Game
     private void DrawFound(Point hover)
     {
         Box(FoundBox, Panel, Line);
-        Write(_searching ? "Gefunden (suche …)" : "Gefunden", FoundBox.X + 8, FoundBox.Y + 6, Gold, 12);
+        Write(Lang.T(_searching ? "install.foundSearching" : "install.found"), FoundBox.X + 8, FoundBox.Y + 6, Gold, 12);
         lock (_found)
         {
             if (_found.Count == 0 && !_searching)
-                Write("nichts an den üblichen Orten", FoundBox.X + 10, FoundBox.Y + 30, Dim, 12);
+                Write(Lang.T("install.nothingFound"), FoundBox.X + 10, FoundBox.Y + 30, Dim, 12);
             for (int i = 0; i < _found.Count && 28 + (i + 1) * FoundRow <= FoundBox.Height; i++)
             {
                 var rect = new Rectangle(FoundBox.X + 4, FoundBox.Y + 28 + i * FoundRow, FoundBox.Width - 8, FoundRow);
@@ -328,10 +325,10 @@ public sealed class InstallationDialog : Game
     private void DrawCheck()
     {
         Box(CheckBox, Panel, Line);
-        Write("Prüfung", CheckBox.X + 8, CheckBox.Y + 6, Gold, 12);
+        Write(Lang.T("install.check"), CheckBox.X + 8, CheckBox.Y + 6, Gold, 12);
         if (_check is not { } check || check.Version != _checkVersion)
         {
-            Write("prüfe …", CheckBox.X + 10, CheckBox.Y + 30, Dim, 12);
+            Write(Lang.T("install.checking"), CheckBox.X + 10, CheckBox.Y + 30, Dim, 12);
             return;
         }
         var r = check.Report;
@@ -348,17 +345,17 @@ public sealed class InstallationDialog : Game
         }
         if (!r.Exists)
         {
-            Item(false, "Den Ordner gibt es nicht.");
+            Item(false, Lang.T("install.noFolder"));
             return;
         }
         if (check.Root is not null && !SamePath(check.Root, _path))
-            Item(true, $"Installation gefunden: {Shorten(check.Root, CheckBox.Width - 44, 12, fromStart: true)}");
-        Item(r.GfxOk, !r.HasGfx ? "Kein Ordner GFX (Grafiken)."
-            : r.MissingGfx.Count == 0 ? $"Grafiken: {r.GfxFiles} Dateien."
-            : $"Grafiken unvollständig, es fehlen: {string.Join(", ", r.MissingGfx.Take(8))}{(r.MissingGfx.Count > 8 ? " …" : "")}.");
-        Item(r.SoundsOk, !r.HasSounds ? "Kein Ordner SND (Klänge)."
-            : r.MissingSounds.Count == 0 ? "Klänge vorhanden." : $"Klänge unvollständig: {string.Join(", ", r.MissingSounds)} fehlt.");
-        Item(r.MapsOk, !r.HasMaps ? "Kein Ordner Map (Karten)." : r.Maps == 0 ? "Keine Karten im Ordner Map." : $"Karten: {r.Maps}.");
+            Item(true, Lang.T("install.foundAt", Shorten(check.Root, CheckBox.Width - 44, 12, fromStart: true)));
+        Item(r.GfxOk, !r.HasGfx ? Lang.T("install.noGfx")
+            : r.MissingGfx.Count == 0 ? Lang.T("install.gfx", r.GfxFiles)
+            : Lang.T("install.gfxMissing", string.Join(", ", r.MissingGfx.Take(8)) + (r.MissingGfx.Count > 8 ? " …" : "")));
+        Item(r.SoundsOk, !r.HasSounds ? Lang.T("install.noSounds")
+            : r.MissingSounds.Count == 0 ? Lang.T("install.sounds") : Lang.T("install.soundsMissing", string.Join(", ", r.MissingSounds)));
+        Item(r.MapsOk, !r.HasMaps ? Lang.T("install.noMaps") : r.Maps == 0 ? Lang.T("install.emptyMaps") : Lang.T("install.maps", r.Maps));
     }
 
     private static bool SamePath(string a, string b) =>

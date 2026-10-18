@@ -4,7 +4,7 @@ using Homestead.Assets;
 
 namespace Homestead.Client;
 
-/// <summary>The language of the texts; only stored so far (the texts are German).</summary>
+/// <summary>The language of the texts (<see cref="Lang"/>).</summary>
 public enum Language { German, English }
 
 /// <summary>
@@ -20,7 +20,9 @@ public sealed record DisplaySettings
 
     public bool FullScreen { get; init; }
 
-    public Language Language { get; init; } = Language.German;
+    /// <summary>Until chosen: German on a German system, English otherwise.</summary>
+    public Language Language { get; init; } =
+        System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de" ? Language.German : Language.English;
 
     /// <summary>The settings in the file (default: the user's); missing or unreadable values keep their default.</summary>
     public static DisplaySettings Load(string? path = null)
@@ -35,7 +37,8 @@ public sealed record DisplaySettings
             HardwareCursor = Flag("hardwareCursor", settings.HardwareCursor),
             FullScreen = Flag("fullScreen", settings.FullScreen),
             Language = display.TryGetProperty("language", out var language) && language.ValueKind == JsonValueKind.String
-                && language.GetString() == "en" ? Language.English : Language.German,
+                ? language.GetString() == "en" ? Language.English : Language.German
+                : settings.Language,
         };
     }
 

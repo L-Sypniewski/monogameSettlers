@@ -35,7 +35,7 @@ public sealed class SelectionPanel
     private static Rectangle ActionRect(int i) =>
         new(BuildMenu.Content.X + 2, BuildMenu.Content.Bottom - 44 - i * ActionHeight, BuildMenu.Content.Width - 4, 20);
 
-    private static string TextOf(SelectionAction action) => action == SelectionAction.Steal ? "Waren stehlen" : "Land einnehmen";
+    private static string TextOf(SelectionAction action) => Lang.T(action == SelectionAction.Steal ? "selection.steal" : "selection.claim");
 
     /// <summary>The order text under the point (panel space), or null.</summary>
     public static SelectionAction? ActionAt(IEnumerable<Settler> selection, Vector2 panel)
@@ -73,7 +73,7 @@ public sealed class SelectionPanel
             var rect = ActionRect(i);
             Shadowed(batch, font, TextOf(actions[i]), rect.Location.ToVector2(), 14, rect.Contains(cursor) ? new Color(255, 240, 160) : Color.White);
         }
-        Shadowed(batch, font, $"Kampfkraft: {combatStrength * 100:0}%", new Vector2(content.X + 2, content.Bottom - 20), 14);
+        Shadowed(batch, font, Lang.T("selection.combatStrength", $"{combatStrength * 100:0}"), new Vector2(content.X + 2, content.Bottom - 20), 14);
     }
 
     /// <summary>White text with a dark shadow, readable on the blue panel.</summary>

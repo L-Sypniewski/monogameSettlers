@@ -39,31 +39,28 @@ public sealed class TitleScreen : IDisposable
 
     private const string Repository = "https://github.com/meue/monogameSettlers";
 
-    /// <summary>A popup offering to open a page of the repository in the browser.</summary>
-    private sealed record Link(string Name, string Text, string Url);
+    /// <summary>A popup offering to open a page of the repository in the browser; its text is <c>title.links.&lt;name&gt;</c>.</summary>
+    private sealed record Link(string Name, string Url)
+    {
+        public string Text => Lang.T("title.links." + Name);
+    }
 
-    private static readonly Link Readme = new("readme",
-        "Was monoSettlers ist, was schon geht und wie man es baut und startet, steht in der README im Repository auf GitHub.",
-        Repository + "/blob/main/README.md");
+    private static readonly Link Readme = new("readme", Repository + "/blob/main/README.md");
+    private static readonly Link Contributing = new("contribution", Repository + "/blob/main/CONTRIBUTING.md");
+    private static readonly Link Licenses = new("licenses", Repository + "/blob/main/LICENSE.md");
 
-    private static readonly Link Contributing = new("contribution",
-        "Mitwirken ist willkommen! Wie Beiträge ablaufen und welche Regeln gelten (Clean Room, keine Original-Dateien), " +
-        "steht im Repository auf GitHub.", Repository + "/blob/main/CONTRIBUTING.md");
-
-    private static readonly Link Licenses = new("licenses",
-        "monoSettlers ist Open Source unter der MIT-Lizenz. Lizenztext und Hinweise zu übernommenem Code stehen " +
-        "im Repository auf GitHub.", Repository + "/blob/main/LICENSE.md");
-
-    /// <summary>The buttons: what they ask the game to do, the page they open, or the popup (<c>Link</c>).</summary>
-    private static readonly (string Label, TitleAction Action, Page Opens, Link? Link)[] Buttons =
+    /// <summary>The buttons (label <c>title.buttons.&lt;key&gt;</c>): what they ask the game to do, the page they open, or the popup (<c>Link</c>).</summary>
+    private static readonly (string Key, TitleAction Action, Page Opens, Link? Link)[] Buttons =
     [
-        ("Einzelspieler", TitleAction.SinglePlayer, Page.Main, null),
-        ("Spiel laden", TitleAction.None, Page.Load, null),
-        ("Einstellungen", TitleAction.Settings, Page.Main, null),
-        ("Readme", TitleAction.None, Page.Main, Readme),
-        ("Contribution", TitleAction.None, Page.Main, Contributing),
-        ("Lizenzen", TitleAction.None, Page.Main, Licenses),
+        ("singlePlayer", TitleAction.SinglePlayer, Page.Main, null),
+        ("load", TitleAction.None, Page.Load, null),
+        ("settings", TitleAction.Settings, Page.Main, null),
+        ("readme", TitleAction.None, Page.Main, Readme),
+        ("contribution", TitleAction.None, Page.Main, Contributing),
+        ("licenses", TitleAction.None, Page.Main, Licenses),
     ];
+
+    private static string Label(string key) => Lang.T("title.buttons." + key);
 
     // The original's engraved buttons: a fill a little darker than the gold, a dark line around it and a light
     // one just outside to the lower right.
@@ -75,9 +72,10 @@ public sealed class TitleScreen : IDisposable
     private static readonly Color HoverText = new(255, 236, 140);
     private static readonly Color Version = new(240, 222, 70);
 
-    private readonly Texture2D _background, _plain, _popupImage;
+    private readonly Texture2D _plain, _popupImage;
+    /// <summary>The main menu picture per language (the Gold Edition has a German and an English one).</summary>
+    private readonly Dictionary<Language, Texture2D> _backgrounds = new();
     private readonly Rectangle _plainStrip;
-    private readonly Dictionary<string, string> _peoples = new();
     private Page _page = Page.Main;
     private SaveInfo?[] _slots = [];
     private Link? _popup;
@@ -96,14 +94,16 @@ public sealed class TitleScreen : IDisposable
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
         var look = document.RootElement.GetProperty("titleScreen");
         var file = gfx.Open(look.GetProperty("file").GetInt32());
-        Texture2D Image(string name)
+        Texture2D Image(string name) => Gui(look.GetProperty(name).GetInt32());
+        Texture2D Gui(int index)
         {
-            var bitmap = file.ReadGui(look.GetProperty(name).GetInt32());
+            var bitmap = file.ReadGui(index);
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
         }
-        _background = Image("background");
+        foreach (var language in Enum.GetValues<Language>())
+            _backgrounds[language] = Gui(look.GetProperty("background").GetProperty(Lang.Code(language)).GetInt32());
         _plain = Image("plain");
         var popup = look.GetProperty("popup");
         var popupBitmap = gfx.Open(popup[0].GetInt32()).ReadGui(popup[1].GetInt32());
@@ -111,9 +111,6 @@ public sealed class TitleScreen : IDisposable
         _popupImage.SetData(popupBitmap.Pixels);
         var strip = look.GetProperty("plainStrip");
         _plainStrip = new Rectangle(strip[0].GetInt32(), strip[1].GetInt32(), strip[2].GetInt32(), strip[3].GetInt32());
-        if (document.RootElement.TryGetProperty("peoples", out var names))
-            foreach (var name in names.EnumerateObject())
-                _peoples[name.Name] = name.Value.GetString()!;
     }
 
     // Layout in the 800 × 600 space of the picture, measured on the original menu.
@@ -255,22 +252,22 @@ public sealed class TitleScreen : IDisposable
         var hover = ToLayout(Mouse.GetState().Position);
         bool held = Mouse.GetState().LeftButton == ButtonState.Pressed;
         batch.Draw(_plain, view, _plainStrip, Color.White);
-        batch.Draw(_background, ToScreen(new Rectangle(0, 0, Width, Height)), Color.White);
+        batch.Draw(_backgrounds[Lang.Current], ToScreen(new Rectangle(0, 0, Width, Height)), Color.White);
 
         for (int index = 0; index < Buttons.Length; index++)
-            Engraved(batch, pixel, font, Button(index), Buttons[index].Label, hover, held,
+            Engraved(batch, pixel, font, Button(index), Label(Buttons[index].Key), hover, held,
                 _popup is not null ? Buttons[index].Link == _popup : _page != Page.Main && Buttons[index].Opens == _page);
-        Engraved(batch, pixel, font, QuitButton, "Beenden", hover, held, false);
+        Engraved(batch, pixel, font, QuitButton, Label("quit"), hover, held, false);
 
         if (_page != Page.Main)
         {
             var panel = ToScreen(PagePanel);
             batch.Draw(pixel, panel, PressedFill * 0.92f);
             Frame(batch, pixel, PagePanel, Dark, Light);
-            Write(batch, font, Buttons.First(b => b.Link is null && b.Opens == _page).Label, PagePanel.X + 10, PagePanel.Y + 7, Text, 14);
+            Write(batch, font, Label(Buttons.First(b => b.Link is null && b.Opens == _page).Key), PagePanel.X + 10, PagePanel.Y + 7, Text, 14);
             DrawSlots(batch, font, hover);
         }
-        Write(batch, font, "monoSettlers · Fan-Projekt, nicht verbunden mit Ubisoft oder Blue Byte", 27, 577, Version, 10);
+        Write(batch, font, Lang.T("title.disclaimer"), 27, 577, Version, 10);
         if (_popup is not null)
             DrawPopup(batch, pixel, font, _popup);
     }
@@ -292,13 +289,13 @@ public sealed class TitleScreen : IDisposable
         }
         Paragraph(link.Text, Text, 12);
         Paragraph(_browserFailed
-            ? "Der Browser ließ sich nicht öffnen. Die Seite liegt hier:"
-            : "Dafür wird diese Seite im Browser geöffnet:", Text, 12);
+            ? Lang.T("title.popup.browserFailed")
+            : Lang.T("title.popup.willOpen"), Text, 12);
         Paragraph(link.Url, HoverText, 10);
 
         var cursor = Mouse.GetState().Position.ToVector2();
-        TextButton.Draw(batch, pixel, font, ToScreen(OpenButton), "Im Browser öffnen", cursor, size: Px(12));
-        TextButton.Draw(batch, pixel, font, ToScreen(CancelButton), "Abbrechen", cursor, size: Px(12));
+        TextButton.Draw(batch, pixel, font, ToScreen(OpenButton), Lang.T("title.popup.open"), cursor, size: Px(12));
+        TextButton.Draw(batch, pixel, font, ToScreen(CancelButton), Lang.T("common.cancel"), cursor, size: Px(12));
     }
 
     /// <summary>The save slots: map, date and people; empty ones dashed.</summary>
@@ -314,8 +311,8 @@ public sealed class TitleScreen : IDisposable
             }
             var color = rect.Contains(hover) ? HoverText : Text;
             Write(batch, font, $"{slot + 1}.  {Shorten(font, info.Map, rect.Width - 24, 12)}", rect.X + 4, rect.Y + 1, color, 12);
-            string when = info.SavedAt.ToString("dd.MM.yy HH:mm", CultureInfo.InvariantCulture);
-            Write(batch, font, $"{when} · {_peoples.GetValueOrDefault(info.People, info.People)}", rect.X + 22, rect.Y + 15, color * 0.85f, 10);
+            string when = info.SavedAt.ToString(Lang.T("formats.savedAt"), Lang.Culture);
+            Write(batch, font, $"{when} · {Lang.T("peoples." + info.People)}", rect.X + 22, rect.Y + 15, color * 0.85f, 10);
         }
     }
 
@@ -367,7 +364,8 @@ public sealed class TitleScreen : IDisposable
 
     public void Dispose()
     {
-        _background.Dispose();
+        foreach (var background in _backgrounds.Values)
+            background.Dispose();
         _plain.Dispose();
         _popupImage.Dispose();
     }

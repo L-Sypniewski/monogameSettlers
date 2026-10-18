@@ -48,31 +48,41 @@ public sealed class StartScreen : IDisposable
     /// <summary>A map in the list: index into the map files, name, player count (0: unreadable), category.</summary>
     private sealed record MapEntry(int Index, string Name, int Players, int Category);
 
-    /// <summary>Map categories: the folders of the original's map directory (the tutorial counts as single player).</summary>
-    private static readonly string[] Categories = ["Einzelspieler", "Mehrspieler", "Eigene", "Zufallsgenerator"];
+    /// <summary>Map categories (<c>start.categories.*</c>): the folders of the original's map directory (the tutorial counts as single player).</summary>
+    private static readonly string[] Categories = ["singlePlayer", "multiplayer", "user", "random"];
+
+    private static string CategoryName(int category) => Lang.T("start.categories." + Categories[category]);
 
     private const int RandomCategory = 3;
 
-    /// <summary>One setting of the random map generator: its row label, the values to choose from and how they map to the settings.</summary>
-    private sealed record RandomOption(string Label, string[] Values, Func<RandomMapSettings, int> Get,
-        Func<RandomMapSettings, int, RandomMapSettings> Set, string? Hint = null);
+    /// <summary>
+    /// One setting of the random map generator: its key (label <c>start.random.&lt;key&gt;</c>, hint
+    /// <c>start.random.&lt;key&gt;Hint</c> if there is one), the values to choose from (numbers as they are, otherwise
+    /// text keys) and how they map to the settings.
+    /// </summary>
+    private sealed record RandomOption(string Key, string[] ValueKeys, Func<RandomMapSettings, int> Get,
+        Func<RandomMapSettings, int, RandomMapSettings> Set)
+    {
+        public string Label => Lang.T("start.random." + Key);
+        public string? Hint => Lang.Find("start.random." + Key + "Hint");
+        public string[] Values => ValueKeys.Select(v => char.IsDigit(v[0]) ? v : Lang.T(v)).ToArray();
+    }
 
-    private static readonly string[] Levels = ["wenig", "mittel", "viel"];
-    private static readonly string[] SymmetryNames = ["Nein", "Achsen", "Wiederholung"];
+    private static readonly string[] Levels = ["start.levels.few", "start.levels.medium", "start.levels.many"];
+    private static readonly string[] Symmetries = ["start.symmetry.none", "start.symmetry.mirror", "start.symmetry.repeat"];
 
     private static readonly RandomOption[] RandomOptions =
     [
-        new("Spieler", ["2", "3", "4", "5", "6"], s => s.Players - RandomMapSettings.MinPlayers,
-            (s, v) => s with { Players = v + RandomMapSettings.MinPlayers }, "Die Kartengröße wächst mit der Spielerzahl."),
-        new("Symmetrie", SymmetryNames, s => (int)s.Symmetry, (s, v) => s with { Symmetry = (MapSymmetry)v },
-            "Achsen: jeder Spieler hat das Spiegelbild seiner Nachbarn (bei 5 Spielern annähernd). Wiederholung: gleiche Umgebung um jeden Start."),
-        new("Flüsse", Levels, s => (int)s.Rivers, (s, v) => s with { Rivers = (Abundance)v }, "Flüsse und Seen."),
-        new("Rohstoffe", Levels, s => (int)s.Resources, (s, v) => s with { Resources = (Abundance)v }, "Kohle, Erze, Edelsteine, Schwefel in den Bergen; Fisch."),
-        new("Steine", Levels, s => (int)s.Stones, (s, v) => s with { Stones = (Abundance)v }, "Steinvorkommen für Steinmetze."),
-        new("Wälder", Levels, s => (int)s.Forests, (s, v) => s with { Forests = (Abundance)v }),
-        new("Dekoration", Levels, s => (int)s.Decorations, (s, v) => s with { Decorations = (Abundance)v }, "Büsche, Blumen, Pilze, Gräber, Felsen."),
-        new("Schätze", ["aus", "normal", "viel"], s => (int)s.Treasures, (s, v) => s with { Treasures = (TreasureLevel)v },
-            "Warenstapel im Land zwischen den Spielern: Gold, Edelsteine, Eisen, Kohle, Waffen, Steine, Werkzeuge."),
+        new("players", ["2", "3", "4", "5", "6"], s => s.Players - RandomMapSettings.MinPlayers,
+            (s, v) => s with { Players = v + RandomMapSettings.MinPlayers }),
+        new("symmetry", Symmetries, s => (int)s.Symmetry, (s, v) => s with { Symmetry = (MapSymmetry)v }),
+        new("rivers", Levels, s => (int)s.Rivers, (s, v) => s with { Rivers = (Abundance)v }),
+        new("resources", Levels, s => (int)s.Resources, (s, v) => s with { Resources = (Abundance)v }),
+        new("stones", Levels, s => (int)s.Stones, (s, v) => s with { Stones = (Abundance)v }),
+        new("forests", Levels, s => (int)s.Forests, (s, v) => s with { Forests = (Abundance)v }),
+        new("decorations", Levels, s => (int)s.Decorations, (s, v) => s with { Decorations = (Abundance)v }),
+        new("treasures", ["start.levels.none", "start.levels.normal", "start.levels.many"], s => (int)s.Treasures,
+            (s, v) => s with { Treasures = (TreasureLevel)v }),
     ];
 
     private static int CategoryOf(string folder) => folder.ToUpperInvariant() switch
@@ -89,7 +99,6 @@ public sealed class StartScreen : IDisposable
     /// <summary>Maps of the current category in list order.</summary>
     private MapEntry[] _shown = [];
     private int _category;
-    private readonly Dictionary<Civilization, string> _peopleNames = new();
 
     private int _selected;
     private int _scroll;
@@ -145,10 +154,6 @@ public sealed class StartScreen : IDisposable
         }).ToArray();
         _presetPeoples = peoples is { Count: > 0 } ? peoples : null;
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        if (document.RootElement.TryGetProperty("peoples", out var names))
-            foreach (var name in names.EnumerateObject())
-                if (Enum.TryParse<Civilization>(name.Name, out var people))
-                    _peopleNames[people] = name.Value.GetString()!;
         var look = document.RootElement.GetProperty("startScreen");
         var file = gfx.Open(look.GetProperty("file").GetInt32());
         Texture2D Image(string name)
@@ -192,7 +197,7 @@ public sealed class StartScreen : IDisposable
     }
 
     private string NameOf(Civilization? people) =>
-        people is { } p ? _peopleNames.GetValueOrDefault(p, p.ToString()) : "Zufall";
+        people is { } p ? Lang.T("peoples." + p) : Lang.T("start.randomPeople");
 
     /// <summary>Players of the selected map (at least one row).</summary>
     private int PlayerCount => Math.Max(1, _map?.Players.Count ?? 2);
@@ -236,7 +241,7 @@ public sealed class StartScreen : IDisposable
         if (_category == RandomCategory)
             Show(() => RandomMapGenerator.Generate(_randomSettings, _randomSeed));
         else if (_shown.Length == 0)
-            Show(null, "keine Karten in dieser Kategorie");
+            Show(null, Lang.T("start.noMaps"));
         else
             Show(() => OriginalMap.Open(_mapFiles[_shown[_selected].Index]));
     }
@@ -303,7 +308,7 @@ public sealed class StartScreen : IDisposable
     private static Rectangle OptionValue(int option, int value)
     {
         const int left = 440, width = 250;
-        int count = RandomOptions[option].Values.Length;
+        int count = RandomOptions[option].ValueKeys.Length;
         return new Rectangle(left + value * width / count, OptionY(option), width / count - 3, OptionRow - 4);
     }
 
@@ -330,7 +335,7 @@ public sealed class StartScreen : IDisposable
 
     private Rectangle HardcoreBox(int player) => Cell(660, player);
 
-    private const string HardcoreHint = "Hardcore: +10 % Kampfkraft, +30 % Siedler je Wohnhaus, +20 % Lebenspunkte, −25 % Baukosten, 10 % schnellere Produktion, mehr Startausstattung.";
+    private static string HardcoreHint => Lang.T("start.hardcoreHint");
 
     /// <summary>The mark of start position <paramref name="position"/> on the preview.</summary>
     private Rectangle MarkAt(int position)
@@ -353,7 +358,7 @@ public sealed class StartScreen : IDisposable
 
     private static int VisibleRows => ListArea.Height / RowHeight;
 
-    private static string PlayerName(int player) => $"Spieler {player + 1}";
+    private static string PlayerName(int player) => Lang.T("start.player", player + 1);
 
     // From the 800 × 600 space to the window: scaled to fit, centered.
     private float _scale = 1;
@@ -478,7 +483,7 @@ public sealed class StartScreen : IDisposable
             if (RecentRow(entry).Contains(at))
                 ShowRandom(entries[entry].Settings, entries[entry].Seed);
         for (int option = 0; option < RandomOptions.Length; option++)
-            for (int value = 0; value < RandomOptions[option].Values.Length; value++)
+            for (int value = 0; value < RandomOptions[option].ValueKeys.Length; value++)
                 if (OptionValue(option, value).Contains(at) && RandomOptions[option].Get(_randomSettings) != value)
                     ShowRandom(RandomOptions[option].Set(_randomSettings, value), _randomSeed);
         if (RerollButton.Contains(at))
@@ -590,17 +595,17 @@ public sealed class StartScreen : IDisposable
         batch.Draw(_background, page, Color.White);
 
         // Heading and keys on the stone above the list.
-        Write(batch, font, _category == RandomCategory ? "Zufallskarte erstellen" : $"Karten: {Categories[_category]}", 92, 22, Gold, 18);
+        Write(batch, font, _category == RandomCategory ? Lang.T("start.randomHeading") : Lang.T("start.mapsHeading", CategoryName(_category)), 92, 22, Gold, 18);
         string keys = _category == RandomCategory
-            ? "Enter starten · Esc beenden · R neu würfeln · Tab Kategorie"
-            : "Enter starten · Esc beenden · ↑/↓ Karte · Tab Kategorie";
+            ? Lang.T("start.keysRandom")
+            : Lang.T("start.keys");
         Write(batch, font, keys, 700 - Measure(font, keys, 11), 30, Dim, 11);
 
         for (int category = 0; category < Categories.Length; category++)
-            Oval(batch, font, CategoryButton(category), category == RandomCategory ? "Zufall" : Categories[category], hover,
+            Oval(batch, font, CategoryButton(category), category == RandomCategory ? Lang.T("start.randomShort") : CategoryName(category), hover,
                 category == _category);
-        Oval(batch, font, StartButton, "Starten", hover, enabled: _map is not null);
-        Oval(batch, font, QuitButton, "Beenden", hover);
+        Oval(batch, font, StartButton, Lang.T("start.start"), hover, enabled: _map is not null);
+        Oval(batch, font, QuitButton, Lang.T("start.quit"), hover);
 
         if (_category == RandomCategory)
             hint = DrawRandomPanel(batch, pixel, font, mouse, hover);
@@ -629,7 +634,7 @@ public sealed class StartScreen : IDisposable
                 int? player = RandomPositions ? _positions[position] : position;
                 bool hot = RandomPositions && (mark.Contains(hover) || _positionMenu == position);
                 if (RandomPositions && mark.Contains(hover))
-                    hint = "Startposition: „?“ wird beim Start gelost, ein Klick weist sie einem Spieler zu.";
+                    hint = Lang.T("start.positionHint");
                 batch.Draw(pixel, ToScreen(new Rectangle(mark.X - 1, mark.Y - 1, mark.Width + 2, mark.Height + 2)), hot ? Gold : Color.Black);
                 var fill = player is { } p ? ShownColor(p) : Color.Black;
                 batch.Draw(pixel, ToScreen(new Rectangle(mark.X + 1, mark.Y + 1, mark.Width - 2, mark.Height - 2)), fill);
@@ -637,13 +642,13 @@ public sealed class StartScreen : IDisposable
                 Centered(batch, font, label, mark, player is null ? Color.White : TextOn(fill), 11, shadow: false);
             }
             Write(batch, font, _map.Name, 82, 512, Gold, 15);
-            string kind = _category == RandomCategory ? "Zufallskarte" : _map.IsSinglePlayer ? "Einzelspieler" : "Mehrspieler";
-            string facts = $"{kind} · {_map.Players.Count} Spieler · {_map.Area.Size} × {_map.Area.Size} Felder"
-                           + (_map.Buildings.Count > 0 ? $" · {_map.Buildings.Count} Gebäude" : "");
+            string kind = Lang.T(_category == RandomCategory ? "start.kind.random" : _map.IsSinglePlayer ? "start.kind.singlePlayer" : "start.kind.multiplayer");
+            string facts = Lang.T("start.facts", kind, _map.Players.Count, _map.Area.Size)
+                           + (_map.Buildings.Count > 0 ? Lang.T("start.factsBuildings", _map.Buildings.Count) : "");
             Write(batch, font, facts, 82, 531, Text, 11);
         }
         else
-            Write(batch, font, $"Karte nicht lesbar: {_mapError}", 82, 512, Color.OrangeRed, 12);
+            Write(batch, font, Lang.T("start.unreadable", _mapError), 82, 512, Color.OrangeRed, 12);
 
         hint = DrawPlayers(batch, pixel, font, hover) ?? hint;
 
@@ -660,7 +665,7 @@ public sealed class StartScreen : IDisposable
                 if (entry.Contains(hover))
                     batch.Draw(_rowBar, ToScreen(entry), Color.White);
                 if (item == 0)
-                    Write(batch, font, "? (Zufall)", entry.X + 8, entry.Y + 2, Text, 12);
+                    Write(batch, font, Lang.T("start.positionRandom"), entry.X + 8, entry.Y + 2, Text, 12);
                 else
                 {
                     batch.Draw(pixel, ToScreen(new Rectangle(entry.X + 6, entry.Y + 4, 10, 10)), ShownColor(item - 1));
@@ -688,11 +693,11 @@ public sealed class StartScreen : IDisposable
                 batch.Draw(_rowBar, ToScreen(row), Color.White);
             var color = selected ? Color.White : row.Contains(hover) ? HoverText : Text;
             Write(batch, font, entry.Name, row.X + 8, row.Y + 2, color, 13);
-            string players = entry.Players > 0 ? $"{entry.Players} Spieler" : "?";
+            string players = entry.Players > 0 ? Lang.T("start.playerCount", entry.Players) : "?";
             Write(batch, font, players, row.Right - 10 - Measure(font, players, 12), row.Y + 3, selected ? color : Dim, 12);
         }
         if (_shown.Length == 0)
-            Write(batch, font, "Keine Karten in dieser Kategorie.", ListArea.X + 8, ListArea.Y + 4, Dim, 13);
+            Write(batch, font, Lang.T("start.noMapsInCategory"), ListArea.X + 8, ListArea.Y + 4, Dim, 13);
         if (!scrolls)
             return;
         // Scroll bar: the original's groove with a stone handle.
@@ -711,16 +716,16 @@ public sealed class StartScreen : IDisposable
         string? hint = null;
         int size = Math.Min(13, Control - 3);
         int header = RowY(-1) + (PlayerRow - 11) / 2;
-        Write(batch, font, "Spieler", 346, header, Gold, 11);
-        Centered(batch, font, "Volk", new Rectangle(LeftArrow(0).X, header, RightArrow(0).Right - LeftArrow(0).X, 12), Gold, 11);
-        Centered(batch, font, "Farbe", new Rectangle(ColorBox(0).X - 10, header, ColorBox(0).Width + 20, 12), Gold, 11);
-        Centered(batch, font, "Hardcore", new Rectangle(HardcoreBox(0).X - 20, header, HardcoreBox(0).Width + 40, 12), Gold, 11);
-        var fixedHint = "Die Karte gibt das Volk dieser Startposition vor; es gilt für den Spieler, der dort startet.";
+        Write(batch, font, Lang.T("start.columns.player"), 346, header, Gold, 11);
+        Centered(batch, font, Lang.T("start.columns.people"), new Rectangle(LeftArrow(0).X, header, RightArrow(0).Right - LeftArrow(0).X, 12), Gold, 11);
+        Centered(batch, font, Lang.T("start.columns.color"), new Rectangle(ColorBox(0).X - 10, header, ColorBox(0).Width + 20, 12), Gold, 11);
+        Centered(batch, font, Lang.T("start.columns.hardcore"), new Rectangle(HardcoreBox(0).X - 20, header, HardcoreBox(0).Width + 40, 12), Gold, 11);
+        var fixedHint = Lang.T("start.fixedPeopleHint");
         for (int player = 0; player < PlayerCount; player++)
         {
             var left = LeftArrow(player);
             var right = RightArrow(player);
-            Write(batch, font, PlayerName(player) + (player == 0 ? " (Du)" : ""), 346, left.Y + (left.Height - size) / 2 - 1,
+            Write(batch, font, PlayerName(player) + (player == 0 ? Lang.T("start.you") : ""), 346, left.Y + (left.Height - size) / 2 - 1,
                 player == 0 ? HoverText : Text, size);
 
             var fixedPeople = FixedPeople(player);
@@ -731,7 +736,7 @@ public sealed class StartScreen : IDisposable
                 Small(batch, pixel, font, right, ">");
             }
             var name = new Rectangle(left.Right, left.Y, right.X - left.Right, left.Height);
-            Centered(batch, font, NameOf(people) + (fixedPeople is null ? "" : " (Karte)"), name, fixedPeople is null ? Text : Dim, size);
+            Centered(batch, font, NameOf(people) + (fixedPeople is null ? "" : Lang.T("start.byMap")), name, fixedPeople is null ? Text : Dim, size);
             if (fixedPeople is not null && name.Contains(hover))
                 hint = fixedHint;
 
@@ -743,7 +748,7 @@ public sealed class StartScreen : IDisposable
             if (_colors[player] is null)
                 Centered(batch, font, "?", swatch, Color.White, size);
             if (swatch.Contains(hover))
-                hint = "Farbe: Klick die nächste freie, Rechtsklick die vorige; „?“ wird beim Start gelost.";
+                hint = Lang.T("start.colorHint");
 
             // Hardcore: a stone box, pressed and lit while on.
             var box = HardcoreBox(player);
@@ -759,10 +764,10 @@ public sealed class StartScreen : IDisposable
     /// <summary>The random map generator in place of the list: last maps, "Neu würfeln", settings. Returns the hint under the mouse.</summary>
     private string? DrawRandomPanel(SpriteBatch batch, Texture2D pixel, UiFont font, Point mouse, Point hover)
     {
-        Write(batch, font, "Vorherige Karten", 96, 64, Gold, 13);
+        Write(batch, font, Lang.T("start.recent"), 96, 64, Gold, 13);
         var entries = _history.Entries;
         if (entries.Count == 0)
-            Write(batch, font, "noch keine gespielt", 100, RecentRow(0).Y + 2, Dim, 12);
+            Write(batch, font, Lang.T("start.noneRecent"), 100, RecentRow(0).Y + 2, Dim, 12);
         for (int entry = 0; entry < entries.Count; entry++)
         {
             var e = entries[entry];
@@ -771,11 +776,11 @@ public sealed class StartScreen : IDisposable
             if (current)
                 batch.Draw(_rowBar, ToScreen(row), Color.White);
             var color = current ? Color.White : row.Contains(hover) ? HoverText : Text;
-            Write(batch, font, $"{e.Settings.Players} Spieler · {SymmetryNames[(int)e.Settings.Symmetry]}", row.X + 6, row.Y + 3, color, 12);
-            string date = e.Created.ToString("dd.MM. HH:mm");
+            Write(batch, font, $"{Lang.T("start.playerCount", e.Settings.Players)} · {Lang.T(Symmetries[(int)e.Settings.Symmetry])}", row.X + 6, row.Y + 3, color, 12);
+            string date = e.Created.ToString(Lang.T("formats.recentMap"), Lang.Culture);
             Write(batch, font, date, row.Right - 6 - Measure(font, date, 11), row.Y + 4, current ? color : Dim, 11);
         }
-        TextButton.Draw(batch, pixel, font, ToScreen(RerollButton), "Neu würfeln", mouse.ToVector2(), size: Px(13));
+        TextButton.Draw(batch, pixel, font, ToScreen(RerollButton), Lang.T("start.reroll"), mouse.ToVector2(), size: Px(13));
         Write(batch, font, $"#{(uint)_randomSeed:X8}", RerollButton.Right + 10, RerollButton.Y + 7, Dim, 12);
 
         string? hint = null;
@@ -787,11 +792,12 @@ public sealed class StartScreen : IDisposable
             if (new Rectangle(356, y, 340, OptionRow).Contains(hover))
                 hint = o.Hint;
             int chosen = o.Get(_randomSettings);
-            for (int value = 0; value < o.Values.Length; value++)
+            var values = o.Values;
+            for (int value = 0; value < values.Length; value++)
             {
                 var box = OptionValue(option, value);
-                int size = Measure(font, o.Values[value], 12) > box.Width - 8 ? 10 : 12;
-                TextButton.Draw(batch, pixel, font, ToScreen(box), o.Values[value], mouse.ToVector2(), size: Px(size), selected: value == chosen);
+                int size = Measure(font, values[value], 12) > box.Width - 8 ? 10 : 12;
+                TextButton.Draw(batch, pixel, font, ToScreen(box), values[value], mouse.ToVector2(), size: Px(size), selected: value == chosen);
             }
         }
         return hint;

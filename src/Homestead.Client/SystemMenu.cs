@@ -39,14 +39,6 @@ public sealed class SystemMenu
 
     private Page _page;
     private SaveInfo?[] _slots = new SaveInfo?[SaveSlots.Count];
-    private readonly Dictionary<string, string> _peoples = new();
-
-    public SystemMenu()
-    {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        foreach (var people in document.RootElement.GetProperty("peoples").EnumerateObject())
-            _peoples[people.Name] = people.Value.GetString()!;
-    }
 
     /// <summary>The slot chosen by the last <see cref="SystemAction.Save"/>.</summary>
     public int ChosenSlot { get; private set; }
@@ -76,11 +68,11 @@ public sealed class SystemMenu
         switch (_page)
         {
             case Page.Overview:
-                Centered(batch, font, "Spiel speichern", SaveItem, 18, SaveItem.Contains(cursor));
-                Centered(batch, font, "Spiel beenden", QuitItem, 18, QuitItem.Contains(cursor));
+                Centered(batch, font, Lang.T("system.save"), SaveItem, 18, SaveItem.Contains(cursor));
+                Centered(batch, font, Lang.T("system.quit"), QuitItem, 18, QuitItem.Contains(cursor));
                 break;
             case Page.Save:
-                Centered(batch, font, "Spiel speichern", SaveItem, 18, false);
+                Centered(batch, font, Lang.T("system.save"), SaveItem, 18, false);
                 for (int i = 0; i < _slots.Length; i++)
                 {
                     var rect = Slot(i);
@@ -91,15 +83,15 @@ public sealed class SystemMenu
                         continue;
                     }
                     Write(batch, font, Fit(font, info.Map, rect.Width), new Vector2(rect.X, rect.Y), over);
-                    string when = info.SavedAt.ToString("dd.MM.yy HH:mm", CultureInfo.InvariantCulture);
-                    Write(batch, font, Fit(font, $"{when}  {_peoples.GetValueOrDefault(info.People, info.People)}", rect.Width), new Vector2(rect.X, rect.Y + 16), over);
+                    string when = info.SavedAt.ToString(Lang.T("formats.savedAt"), Lang.Culture);
+                    Write(batch, font, Fit(font, $"{when}  {Lang.T("peoples." + info.People)}", rect.Width), new Vector2(rect.X, rect.Y + 16), over);
                 }
                 break;
             case Page.Quit:
                 var middle = new Rectangle(Content.X, Content.Center.Y - 12, Content.Width, 24);
-                Centered(batch, font, "Spiel wirklich beenden?", middle, 17, false);
-                Centered(batch, font, "Ja", Yes, 18, Yes.Contains(cursor));
-                Centered(batch, font, "Nein", No, 18, No.Contains(cursor));
+                Centered(batch, font, Lang.T("system.quitQuestion"), middle, 17, false);
+                Centered(batch, font, Lang.T("common.yes"), Yes, 18, Yes.Contains(cursor));
+                Centered(batch, font, Lang.T("common.no"), No, 18, No.Contains(cursor));
                 break;
         }
     }

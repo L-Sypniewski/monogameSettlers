@@ -76,7 +76,8 @@ public sealed record MagicConfig
         static (int, int) Range(JsonElement e) => (e[0].GetInt32(), e[1].GetInt32());
         static Spell Read(JsonElement s, Civilization people) => new(
             Enum.Parse<SpellKind>(s.GetProperty("spell").GetString()!),
-            s.GetProperty("name").GetString()!,
+            // The name shown comes from the client's texts (spells.<Kind>); "name" is optional.
+            s.TryGetProperty("name", out var name) ? name.GetString()! : s.GetProperty("spell").GetString()!,
             s.GetProperty("cost").GetInt32(),
             s.TryGetProperty("count", out var count) ? count.GetInt32() : 0,
             s.TryGetProperty("seconds", out var seconds) ? Ticks(seconds.GetDouble()) : 0,

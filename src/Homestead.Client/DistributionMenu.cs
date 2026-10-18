@@ -38,7 +38,7 @@ public sealed class DistributionMenu
             var material = Materials.Parse(entry.GetString()!)!.Value;
             var targets = new List<(string, string)>();
             if (buildings.Any(b => b.ConstructionPiles.Any(p => p.Material == material)))
-                targets.Add((Logistics.Construction, "Baustelle"));
+                targets.Add((Logistics.Construction, Lang.T("distribution.construction")));
             targets.AddRange(buildings.Where(b => b.RequestPiles.Any(p => p.Material == material)).Select(b => (b.Name, nameOf(b))));
             if (targets.Count >= 2 && grid.Goods.FirstOrDefault(g => g.Material == material) is { } good)
                 _goods.Add((good, targets));

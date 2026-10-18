@@ -35,11 +35,12 @@ public sealed class ProfessionsMenu : IDisposable
     private const double Step = 0.05;
     private static readonly int[] Amounts = [5, 1];
 
-    private static readonly (Share Share, string Sign, string Name)[] Shares =
+    /// <summary>The shares: at least (&gt;) or at most (&lt;), name <c>professions.&lt;key&gt;</c>.</summary>
+    private static readonly (Share Share, string Sign, string Key)[] Shares =
     [
-        (Share.Carriers, ">", "Träger"),
-        (Share.Diggers, "<", "Planierer"),
-        (Share.Builders, "<", "Bauarb."),
+        (Share.Carriers, ">", "carriers"),
+        (Share.Diggers, "<", "diggers"),
+        (Share.Builders, "<", "builders"),
     ];
 
     /// <summary>The special professions: top left, top right, bottom left, bottom right.</summary>
@@ -95,7 +96,8 @@ public sealed class ProfessionsMenu : IDisposable
     {
         for (int row = 0; row < Shares.Length; row++)
         {
-            var (share, sign, name) = Shares[row];
+            var (share, sign, key) = Shares[row];
+            string name = Lang.T("professions." + key);
             var spinner = Spinner(row);
             batch.Draw(_spinner, spinner, Color.White);
             if (spinner.Contains(cursor))
@@ -104,8 +106,9 @@ public sealed class ProfessionsMenu : IDisposable
             Write(batch, font, $"{sign} {percent} % {name}", new Vector2(spinner.Right + 8, spinner.Y + 6), Text, 15);
         }
 
-        var heading = font.Measure("Spezialberufe", 15);
-        Write(batch, font, "Spezialberufe", new Vector2(Left + (Width - heading.X) / 2, HeadingY), Text, 15);
+        string special = Lang.T("professions.special");
+        var heading = font.Measure(special, 15);
+        Write(batch, font, special, new Vector2(Left + (Width - heading.X) / 2, HeadingY), Text, 15);
         for (int e = 0; e < Entries.Length; e++)
         {
             var entry = Entries[e];
@@ -186,7 +189,7 @@ public sealed class ProfessionsMenu : IDisposable
             if (Spinner(row).Contains(panel))
                 return Shares[row].Share == Share.Carriers
                     ? "carriers kept at least (up/down: 5 % more/less)"
-                    : $"{Shares[row].Name} at most (up/down: 5 % more/less)";
+                    : $"{Shares[row].Key} at most (up/down: 5 % more/less)";
         for (int e = 0; e < Entries.Length; e++)
         {
             var entry = Entries[e];

@@ -83,7 +83,7 @@ public sealed class MapGame : Game
     {
         if (a.TraitOfNote(line) is not { } trait)
             return;
-        string who = $"Spieler {a.Player + 1} ({_aiNames.Character(a.Character.Id)}) · {_aiNames.Trait(trait.Id)}";
+        string who = $"{Lang.T("start.player", a.Player + 1)} ({_aiNames.Character(a.Character.Id)}) · {_aiNames.Trait(trait.Id)}";
         Console.WriteLine($"{who}: {line}");
         _message = $"{who}: {line}";
     }
@@ -853,6 +853,7 @@ public sealed class MapGame : Game
     private void ApplyDisplay(DisplaySettings display)
     {
         _display = display;
+        Lang.Use(display.Language);
         IsMouseVisible = display.HardwareCursor;
         if (_captureDirectory is null && display.FullScreen != _graphics.IsFullScreen)
             SetFullScreen(display.FullScreen);
@@ -1523,9 +1524,12 @@ public sealed class MapGame : Game
     private GameEvent? _shownEvent;
 
     /// <summary>The event's text, its building's name filled in.</summary>
-    private string TextOf(GameEvent e) => e.Building is { } building
-        ? e.Definition.Text.Replace("{building}", _buildingInfo.NameOf(building.Definition))
-        : e.Definition.Text;
+    /// <summary>The event's text in the chosen language (<c>events.texts.&lt;id&gt;</c>; greetings carry theirs), the building's name filled in.</summary>
+    private string TextOf(GameEvent e)
+    {
+        string text = Lang.Find("events.texts." + e.Definition.Id) ?? e.Definition.Text;
+        return e.Building is { } building ? text.Replace("{building}", _buildingInfo.NameOf(building.Definition)) : text;
+    }
 
     /// <summary>
     /// Shows the event's page in the panel (like the computer button, the selection goes), flies the camera
@@ -1654,18 +1658,18 @@ public sealed class MapGame : Game
     private void AddCheats()
     {
         GridPoint Center() => ScreenToGrid(new Vector2(GraphicsDevice.Viewport.Width / 2f, GraphicsDevice.Viewport.Height / 2f));
-        void Units(string label, int count, Func<GridPoint, Settler?> spawn) => _cheats.Add($"{count} {label}", () =>
+        void Units(string key, int count, Func<GridPoint, Settler?> spawn) => _cheats.Add($"{count} {Lang.T("cheats." + key)}", () =>
         {
             int made = Enumerable.Range(0, count).Count(_ => spawn(Center()) is not null);
-            _message = $"cheat: {made} {label}";
+            _message = $"cheat: {made} {key}";
         });
-        foreach (var (type, name) in new[] { (SoldierType.Swordsman, "Schwertkämpfer"), (SoldierType.Bowman, "Bogenschützen"), (SoldierType.Pikeman, "Pikeniere") })
-            Units(name, 5, at => _world.SpawnSoldier(at, type, _world.Magic.SoldierLevel(0, type)));
-        Units("Priester", 1, at => _world.Magic.SpawnPriest(at, 0));
-        Units("Geologen", 2, at => _world.Spawn(at, Profession.Geologist));
-        Units("Späher", 2, at => _world.Spawn(at, Profession.Scout));
-        Units("Pioniere", 2, at => _world.Spawn(at, Profession.Pioneer));
-        Units("Träger", 5, at => _world.Spawn(at, Profession.Carrier));
+        foreach (var type in new[] { SoldierType.Swordsman, SoldierType.Bowman, SoldierType.Pikeman })
+            Units(type.ToString().ToLowerInvariant(), 5, at => _world.SpawnSoldier(at, type, _world.Magic.SoldierLevel(0, type)));
+        Units("priests", 1, at => _world.Magic.SpawnPriest(at, 0));
+        Units("geologists", 2, at => _world.Spawn(at, Profession.Geologist));
+        Units("scouts", 2, at => _world.Spawn(at, Profession.Scout));
+        Units("pioneers", 2, at => _world.Spawn(at, Profession.Pioneer));
+        Units("carriers", 5, at => _world.Spawn(at, Profession.Carrier));
         _cheats.Add("+50 Mana", () =>
         {
             _world.Magic.AddMana(0, 50);

@@ -2,23 +2,23 @@
   "_comment": "Build menu: the categories of the original's build menu with their buildings, in order (lists as in JSettlers' EBuildingsCategory, MIT). Buildings a people does not have are left out. tab: GUI images (file 03, large size) of the category button, normal and selected.",
   "_panelTabsComment": "The main tabs below the minimap (GUI images of file 03: [normal, pressed], drawn over the blue panel where its own tabs are) and the sub-menus in the dark bar below them (the build tab uses buildMenu). The sub-menus are only placeholders for now.",
   "panelTabs": [
-    { "id": "build", "name": "Bauen", "tab": [ 53, 62 ] },
+    { "id": "build", "tab": [ 53, 62 ] },
     {
-      "id": "goods", "name": "Waren", "tab": [ 56, 65 ],
+      "id": "goods", "tab": [ 56, 65 ],
       "menus": [
-        { "id": "stock", "name": "Lagerbestand", "tab": [ 260, 272 ] },
-        { "id": "tools", "name": "Herstellung", "tab": [ 263, 275 ] },
-        { "id": "distribution", "name": "Warenverteilung", "tab": [ 266, 278 ] },
-        { "id": "transport", "name": "Warentransport", "tab": [ 269, 281 ] }
+        { "id": "stock", "tab": [ 260, 272 ] },
+        { "id": "tools", "tab": [ 263, 275 ] },
+        { "id": "distribution", "tab": [ 266, 278 ] },
+        { "id": "transport", "tab": [ 269, 281 ] }
       ]
     },
     {
-      "id": "settlers", "name": "Siedler", "tab": [ 59, 68 ],
+      "id": "settlers", "tab": [ 59, 68 ],
       "menus": [
-        { "id": "overview", "name": "Siedlerstatistik", "tab": [ 236, 248 ] },
-        { "id": "professions", "name": "Berufe", "tab": [ 239, 251 ] },
-        { "id": "soldiers", "name": "Krieger", "tab": [ 242, 254 ] },
-        { "id": "statistics", "name": "Produktion", "tab": [ 245, 257 ] }
+        { "id": "overview", "tab": [ 236, 248 ] },
+        { "id": "professions", "tab": [ 239, 251 ] },
+        { "id": "soldiers", "tab": [ 242, 254 ] },
+        { "id": "statistics", "tab": [ 245, 257 ] }
       ]
     }
   ],
@@ -36,8 +36,8 @@
   "_textButtonComment": "Wide text buttons (Abreißen, Ja/Nein, the statistics screen …): the stone buttons of the original's menus before the game, GUI image 0 of file 02 (a sheet) – source rectangles [x, y, width, height] of the button up and pressed; border: the frame kept unstretched. statisticsBackground: the blue marble (GUI image of file 02).",
   "textButton": { "file": 2, "gui": 0, "normal": [ 180, 416, 83, 40 ], "pressed": [ 282, 416, 86, 40 ], "border": 9 },
   "statisticsBackground": { "file": 2, "gui": 29 },
-  "_titleScreenComment": "Title screen: the Gold Edition's main menu picture (file 61, GUI 1 German, 2 English; 800 × 600), beside it a plain gold strip [x, y, width, height] of GUI image 0; popup: the message box of the menus before the game ([file, GUI image], 401 × 201: text area, marble for the buttons below).",
-  "titleScreen": { "file": 61, "background": 1, "plain": 0, "plainStrip": [ 10, 0, 120, 768 ], "popup": [ 2, 16 ] },
+  "_titleScreenComment": "Title screen: the Gold Edition's main menu picture per language (file 61, GUI 1 German, 2 English; 800 × 600), beside it a plain gold strip [x, y, width, height] of GUI image 0; popup: the message box of the menus before the game ([file, GUI image], 401 × 201: text area, marble for the buttons below).",
+  "titleScreen": { "file": 61, "background": { "de": 1, "en": 2 }, "plain": 0, "plainStrip": [ 10, 0, 120, 768 ], "popup": [ 2, 16 ] },
   "_settingsScreenComment": "Settings screen: a background of the original's menus (file 02, GUI 14, 800 × 600: four small boxes and a title field at the top, a large dark area, a note field at the bottom), marble beside it (GUI 29); tabs in the four boxes: icons of the original's statistics menus ([bright, dark] GUI images of tabs.file).",
   "settingsScreen": { "file": 2, "background": 14, "marble": 29,
     "tabs": { "file": 3, "resources": [ 239, 251 ], "economy": [ 245, 257 ], "military": [ 242, 254 ], "display": [ 290, 305 ] } },
@@ -57,12 +57,12 @@
   "_goodsGridComment": "Siedler > Produktion, Waren > Lagerbestand: the goods, row by row, with their GUI icon ([file, index], the large size – from JSettlers' EMaterialType, MIT, whose base index is the small one; weapon: the people's own from soldiersMenu) and German name. Goods the people cannot make are dark.",
   "goodsGrid": {
     "goods": [
-      [ { "good": "PLANK", "icon": [ 3, 170 ], "name": "Bretter" }, { "good": "STONE", "icon": [ 3, 176 ], "name": "Steine" }, { "good": "TRUNK", "icon": [ 3, 173 ], "name": "Baumstämme" }, { "good": "COAL", "icon": [ 3, 146 ], "name": "Kohle" }, { "good": "IRONORE", "icon": [ 3, 149 ], "name": "Eisenerz" }, { "good": "GOLDORE", "icon": [ 3, 152 ], "name": "Golderz" } ],
-      [ { "good": "IRON", "icon": [ 3, 134 ], "name": "Eisenbarren" }, { "good": "HAMMER", "icon": [ 3, 128 ], "name": "Hammer" }, { "good": "BLADE", "icon": [ 3, 140 ], "name": "Schaufel" }, { "good": "AXE", "icon": [ 3, 155 ], "name": "Axt" }, { "good": "SAW", "icon": [ 3, 179 ], "name": "Säge" }, { "good": "PICK", "icon": [ 3, 131 ], "name": "Spitzhacke" } ],
-      [ { "good": "FISHINGROD", "icon": [ 3, 143 ], "name": "Angel" }, { "good": "SCYTHE", "icon": [ 3, 167 ], "name": "Sense" }, { "good": "SWORD", "icon": "weapon", "name": "Schwerter" }, { "good": "BOW", "icon": "weapon", "name": "Bögen" }, { "good": "SPEAR", "icon": "weapon", "name": "Speere" }, { "good": "HONEY", "icon": [ 14, 131 ], "name": "Honig" } ],
-      [ { "good": "FISH", "icon": [ 3, 191 ], "name": "Fisch" }, { "good": "PIG", "icon": [ 3, 161 ], "name": "Schweine" }, { "good": "MEAT", "icon": [ 3, 164 ], "name": "Fleisch" }, { "good": "CROP", "icon": [ 3, 182 ], "name": "Getreide" }, { "good": "FLOUR", "icon": [ 3, 185 ], "name": "Mehl" }, { "good": "BREAD", "icon": [ 3, 188 ], "name": "Brot" } ],
-      [ { "good": "WATER", "icon": [ 3, 158 ], "name": "Wasser" }, { "good": "WINE", "icon": [ 14, 125 ], "name": "Wein" }, { "good": "KEG", "icon": [ 24, 125 ], "name": "Bier" }, { "good": "LIQUOR", "icon": [ 34, 134 ], "name": "Reisschnaps" }, { "good": "RICE", "icon": [ 34, 131 ], "name": "Reis" }, { "good": "SULFUR", "icon": [ 34, 128 ], "name": "Schwefel" } ],
-      [ { "good": "GOLD", "icon": [ 3, 137 ], "name": "Goldbarren" }, { "good": "GEMS", "icon": [ 24, 122 ], "name": "Edelsteine" }, { "good": "MEAD", "icon": [ 14, 128 ], "name": "Met" }, { "good": "GUN_POWDER", "icon": [ 34, 137 ], "name": "Schießpulver" } ]
+      [ { "good": "PLANK", "icon": [ 3, 170 ] }, { "good": "STONE", "icon": [ 3, 176 ] }, { "good": "TRUNK", "icon": [ 3, 173 ] }, { "good": "COAL", "icon": [ 3, 146 ] }, { "good": "IRONORE", "icon": [ 3, 149 ] }, { "good": "GOLDORE", "icon": [ 3, 152 ] } ],
+      [ { "good": "IRON", "icon": [ 3, 134 ] }, { "good": "HAMMER", "icon": [ 3, 128 ] }, { "good": "BLADE", "icon": [ 3, 140 ] }, { "good": "AXE", "icon": [ 3, 155 ] }, { "good": "SAW", "icon": [ 3, 179 ] }, { "good": "PICK", "icon": [ 3, 131 ] } ],
+      [ { "good": "FISHINGROD", "icon": [ 3, 143 ] }, { "good": "SCYTHE", "icon": [ 3, 167 ] }, { "good": "SWORD", "icon": "weapon" }, { "good": "BOW", "icon": "weapon" }, { "good": "SPEAR", "icon": "weapon" }, { "good": "HONEY", "icon": [ 14, 131 ] } ],
+      [ { "good": "FISH", "icon": [ 3, 191 ] }, { "good": "PIG", "icon": [ 3, 161 ] }, { "good": "MEAT", "icon": [ 3, 164 ] }, { "good": "CROP", "icon": [ 3, 182 ] }, { "good": "FLOUR", "icon": [ 3, 185 ] }, { "good": "BREAD", "icon": [ 3, 188 ] } ],
+      [ { "good": "WATER", "icon": [ 3, 158 ] }, { "good": "WINE", "icon": [ 14, 125 ] }, { "good": "KEG", "icon": [ 24, 125 ] }, { "good": "LIQUOR", "icon": [ 34, 134 ] }, { "good": "RICE", "icon": [ 34, 131 ] }, { "good": "SULFUR", "icon": [ 34, 128 ] } ],
+      [ { "good": "GOLD", "icon": [ 3, 137 ] }, { "good": "GEMS", "icon": [ 24, 122 ] }, { "good": "MEAD", "icon": [ 14, 128 ] }, { "good": "GUN_POWDER", "icon": [ 34, 137 ] } ]
     ]
   },
   "_portraitsComment":"Unit portraits in the stone frame (GUI images of the people's file, the large 40x60 one; the medium and small are the two before it), by animation type; WORKER: the specialists (Fachleute), THIEF: scout. From the carrier on the same distance in every file (digger +3, builder +6, worker +18, thief +51, geologist +54, healer +63, priest +69 – Asians +75, pioneer +72 – missing for Egyptians). soldiers: the first, then swordsman, pikeman, bowman of level 1, the same of level 2 and 3, three images apart. common: the same for every people (file 03, or [file, index]); FRAME: an empty frame, behind the figure of kinds without a portrait.",
@@ -152,180 +152,33 @@
       ]
     }
   ],
-  "_namesComment": "German names of the buildings, shown in the building info panel.",
-  "buildingNames": {
-    "stock": "Lagerhaus",
-    "lumberjack": "Holzfäller",
-    "stonecutter": "Steinmetz",
-    "sawmill": "Sägewerk",
-    "forester": "Förster",
-    "lookout_tower": "Aussichtsturm",
-    "coalmine": "Kohlemine",
-    "goldmine": "Goldmine",
-    "ironmine": "Eisenmine",
-    "gemsmine": "Edelsteinmine",
-    "sulfurmine": "Schwefelmine",
-    "goldmelt": "Goldschmelze",
-    "ironmelt": "Eisenschmelze",
-    "toolsmith": "Werkzeugschmiede",
-    "weaponsmith": "Waffenschmiede",
-    "winegrower": "Weinbauer",
-    "brewery": "Brauerei",
-    "distillery": "Schnapsbrennerei",
-    "mead_brewery": "Metbrauerei",
-    "beekeeping": "Imkerei",
-    "rice_farm": "Reisfarm",
-    "laboratory": "Labor",
-    "charcoal_burner": "Köhlerei",
-    "tower": "Kleiner Turm",
-    "big_tower": "Großer Turm",
-    "castle": "Burg",
-    "barrack": "Kaserne",
-    "hospital": "Heiler",
-    "baker": "Bäckerei",
-    "mill": "Mühle",
-    "slaughterhouse": "Metzgerei",
-    "pig_farm": "Schweinezucht",
-    "farm": "Getreidefarm",
-    "fisher": "Fischerhütte",
-    "waterworks": "Wasserwerk",
-    "donkey_farm": "Eselzucht",
-    "small_livinghouse": "Kleines Wohnhaus",
-    "medium_livinghouse": "Mittleres Wohnhaus",
-    "big_livinghouse": "Großes Wohnhaus",
-    "dockyard": "Werft",
-    "harbor": "Hafen",
-    "market_place": "Marktplatz",
-    "temple": "Kleiner Tempel",
-    "big_temple": "Großer Tempel"
-  },
-  "_soldiersComment": "Soldier upgrades in the small temple's panel: names of the soldier types and of the levels 1-3.",
-  "soldierNames": { "Swordsman": "Schwertkämpfer", "Bowman": "Bogenschütze", "Pikeman": "Pikenier" },
-  "soldierLevels": [ "Soldat", "Feldwebel", "Hauptmann" ],
-  "_peoplesComment": "German names of the peoples, for the start screen.",
-  "peoples": { "Roman": "Römer", "Egyptian": "Ägypter", "Asian": "Asiaten", "Amazon": "Amazonen" },
-  "_aiComment": "German names of the AI characters and their traits (ids from ai.json, docs/KI-TACTICS.md), for messages and menus.",
-  "aiCharacters": {
-    "standard": "Standard", "general": "Feldherr", "rusher": "Stürmer", "trickster": "Hinterhältiger",
-    "landTaker": "Landnehmer", "merchant": "Wirtschafter",
-    "hothead": "Hitzkopf", "unyielding": "Unbeugsamer", "legion": "Legion", "skirmisher": "Plänklerin"
-  },
-  "aiTraits": {
-    "guardByThreat": "Bewachung nach Bedrohung", "pincer": "Zange und Finte", "frontGarrison": "Besatzung nach Frontlage",
-    "reinforceThreatened": "Türme vorab aufstocken", "rotateWounded": "Verwundete tauschen", "formation": "Schlachtordnung",
-    "flanking": "Hinterhalt", "spellTiming": "Zauber im richtigen Moment", "exposedTowers": "Entblößte Türme",
-    "landGrab": "Landnahme", "economicTargets": "Wirtschaft treffen", "goldRace": "Goldrausch", "goldGuard": "Goldwacht",
-    "goldRaid": "Goldraub", "earlyRush": "Früher Ansturm", "powerSpike": "Kraftprobe", "waves": "Angriffswellen", "earlyArmy": "Frühe Armee", "forwardBase": "Vorposten",
-    "multiFront": "Mehrere Fronten", "jitter": "Unberechenbar",
-    "frontTowers": "Türme zur Front", "everyOtherTower": "Jeder zweite Turm", "rotatingTowers": "Wechselnde Türme",
-    "thief": "Langfinger", "summoner": "Warenzauber"
-  },
-  "_statusComment": "Building info panel: the simulation's status text mapped to a short German state. The first entry whose text is contained in the status wins; anything else counts as active. Military buildings show their soldiers instead.",
+  "_statusComment": "Building info panel: the simulation's status text mapped to the key of the state shown (buildingStatus.* in data/lang). The first entry whose text is contained in the status wins; anything else counts as active. Military buildings show their soldiers instead.",
   "status": [
-    [
-      "pausing",
-      "Hält an"
-    ],
-    [
-      "paused",
-      "Angehalten"
-    ],
-    [
-      "on strike",
-      "Streik: kein Wohnraum"
-    ],
-    [
-      "levelling the ground",
-      "Baustelle: Planieren"
-    ],
-    [
-      "waiting for material",
-      "Baustelle: Warte auf Material"
-    ],
-    [
-      "construction site",
-      "Baustelle: Im Bau"
-    ],
-    [
-      "tool missing",
-      "Kein Werkzeug"
-    ],
-    [
-      "no worker",
-      "Kein Arbeiter"
-    ],
-    [
-      "fetching the tool",
-      "Warte auf Arbeiter"
-    ],
-    [
-      "worker is on the way",
-      "Warte auf Arbeiter"
-    ],
-    [
-      "output pile is full",
-      "Ausgabe voll"
-    ],
-    [
-      "waiting for wounded soldiers",
-      "Warte auf Verwundete"
-    ],
-    [
-      "waiting for food",
-      "Warte auf Nahrung"
-    ],
-    [
-      "waiting for weapons",
-      "Warte auf Waffen und Träger"
-    ],
-    [
-      "waiting for",
-      "Warte auf Rohstoffe"
-    ],
-    [
-      "mine is exhausted",
-      "Erschöpft"
-    ],
-    [
-      "in range",
-      "Nichts in Reichweite"
-    ],
-    [
-      "no free ground",
-      "Nichts in Reichweite"
-    ],
-    [
-      "no field to sow",
-      "Nichts in Reichweite"
-    ],
-    [
-      "everything in stock",
-      "Alles vorrätig"
-    ],
-    [
-      "training a soldier",
-      "Bildet aus"
-    ],
-    [
-      "recruit is on the way",
-      "Bildet aus"
-    ],
-    [
-      "residents still to come",
-      "Bewohner ziehen ein"
-    ],
-    [
-      "all residents moved out",
-      "Bewohnt"
-    ],
-    [
-      "storehouse",
-      "Lager"
-    ],
-    [
-      "no function yet",
-      "Ohne Funktion"
-    ]
-  ],
-  "activeStatus": "Aktiv"
+    [ "pausing", "pausing" ],
+    [ "paused", "paused" ],
+    [ "on strike", "onStrike" ],
+    [ "levelling the ground", "levelling" ],
+    [ "waiting for material", "waitingForMaterial" ],
+    [ "construction site", "constructing" ],
+    [ "tool missing", "noTool" ],
+    [ "no worker", "noWorker" ],
+    [ "fetching the tool", "waitingForWorker" ],
+    [ "worker is on the way", "waitingForWorker" ],
+    [ "output pile is full", "outputFull" ],
+    [ "waiting for wounded soldiers", "waitingForWounded" ],
+    [ "waiting for food", "waitingForFood" ],
+    [ "waiting for weapons", "waitingForWeapons" ],
+    [ "waiting for", "waitingForGoods" ],
+    [ "mine is exhausted", "exhausted" ],
+    [ "in range", "nothingInRange" ],
+    [ "no free ground", "nothingInRange" ],
+    [ "no field to sow", "nothingInRange" ],
+    [ "everything in stock", "allInStock" ],
+    [ "training a soldier", "training" ],
+    [ "recruit is on the way", "training" ],
+    [ "residents still to come", "residentsComing" ],
+    [ "all residents moved out", "inhabited" ],
+    [ "storehouse", "storehouse" ],
+    [ "no function yet", "noFunction" ]
+  ]
 }

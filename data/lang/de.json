@@ -1,0 +1,504 @@
+{
+  "common": {
+    "cancel": "Abbrechen",
+    "ok": "Ok",
+    "yes": "Ja",
+    "no": "Nein",
+    "on": "An",
+    "off": "Aus"
+  },
+  "formats": {
+    "savedAt": "dd.MM.yy HH:mm",
+    "recentMap": "dd.MM. HH:mm"
+  },
+  "title": {
+    "buttons": {
+      "singlePlayer": "Einzelspieler",
+      "load": "Spiel laden",
+      "settings": "Einstellungen",
+      "readme": "Readme",
+      "contribution": "Contribution",
+      "licenses": "Lizenzen",
+      "quit": "Beenden"
+    },
+    "disclaimer": "monoSettlers · Fan-Projekt, nicht verbunden mit Ubisoft oder Blue Byte",
+    "links": {
+      "readme": "Was monoSettlers ist, was schon geht und wie man es baut und startet, steht in der README im Repository auf GitHub.",
+      "contribution": "Mitwirken ist willkommen! Wie Beiträge ablaufen und welche Regeln gelten (Clean Room, keine Original-Dateien), steht im Repository auf GitHub.",
+      "licenses": "monoSettlers ist Open Source unter der MIT-Lizenz. Lizenztext und Hinweise zu übernommenem Code stehen im Repository auf GitHub."
+    },
+    "popup": {
+      "willOpen": "Dafür wird diese Seite im Browser geöffnet:",
+      "browserFailed": "Der Browser ließ sich nicht öffnen. Die Seite liegt hier:",
+      "open": "Im Browser öffnen"
+    }
+  },
+  "peoples": {
+    "Roman": "Römer",
+    "Egyptian": "Ägypter",
+    "Asian": "Asiaten",
+    "Amazon": "Amazonen"
+  },
+  "goods": {
+    "PLANK": "Bretter",
+    "STONE": "Steine",
+    "TRUNK": "Baumstämme",
+    "COAL": "Kohle",
+    "IRONORE": "Eisenerz",
+    "GOLDORE": "Golderz",
+    "IRON": "Eisenbarren",
+    "HAMMER": "Hammer",
+    "BLADE": "Schaufel",
+    "AXE": "Axt",
+    "SAW": "Säge",
+    "PICK": "Spitzhacke",
+    "FISHINGROD": "Angel",
+    "SCYTHE": "Sense",
+    "SWORD": "Schwerter",
+    "BOW": "Bögen",
+    "SPEAR": "Speere",
+    "HONEY": "Honig",
+    "FISH": "Fisch",
+    "PIG": "Schweine",
+    "MEAT": "Fleisch",
+    "CROP": "Getreide",
+    "FLOUR": "Mehl",
+    "BREAD": "Brot",
+    "WATER": "Wasser",
+    "WINE": "Wein",
+    "KEG": "Bier",
+    "LIQUOR": "Reisschnaps",
+    "RICE": "Reis",
+    "SULFUR": "Schwefel",
+    "GOLD": "Goldbarren",
+    "GEMS": "Edelsteine",
+    "MEAD": "Met",
+    "GUN_POWDER": "Schießpulver"
+  },
+  "panel": {
+    "tabs": {
+      "build": "Bauen",
+      "goods": "Waren",
+      "settlers": "Siedler"
+    },
+    "menus": {
+      "stock": "Lagerbestand",
+      "tools": "Herstellung",
+      "distribution": "Warenverteilung",
+      "transport": "Warentransport",
+      "overview": "Siedlerstatistik",
+      "professions": "Berufe",
+      "soldiers": "Krieger",
+      "statistics": "Produktion"
+    },
+    "comingSoon": "Kommt bald."
+  },
+  "buildings": {
+    "stock": "Lagerhaus",
+    "lumberjack": "Holzfäller",
+    "stonecutter": "Steinmetz",
+    "sawmill": "Sägewerk",
+    "forester": "Förster",
+    "lookout_tower": "Aussichtsturm",
+    "coalmine": "Kohlemine",
+    "goldmine": "Goldmine",
+    "ironmine": "Eisenmine",
+    "gemsmine": "Edelsteinmine",
+    "sulfurmine": "Schwefelmine",
+    "goldmelt": "Goldschmelze",
+    "ironmelt": "Eisenschmelze",
+    "toolsmith": "Werkzeugschmiede",
+    "weaponsmith": "Waffenschmiede",
+    "winegrower": "Weinbauer",
+    "brewery": "Brauerei",
+    "distillery": "Schnapsbrennerei",
+    "mead_brewery": "Metbrauerei",
+    "beekeeping": "Imkerei",
+    "rice_farm": "Reisfarm",
+    "laboratory": "Labor",
+    "charcoal_burner": "Köhlerei",
+    "tower": "Kleiner Turm",
+    "big_tower": "Großer Turm",
+    "castle": "Burg",
+    "barrack": "Kaserne",
+    "hospital": "Heiler",
+    "baker": "Bäckerei",
+    "mill": "Mühle",
+    "slaughterhouse": "Metzgerei",
+    "pig_farm": "Schweinezucht",
+    "farm": "Getreidefarm",
+    "fisher": "Fischerhütte",
+    "waterworks": "Wasserwerk",
+    "donkey_farm": "Eselzucht",
+    "small_livinghouse": "Kleines Wohnhaus",
+    "medium_livinghouse": "Mittleres Wohnhaus",
+    "big_livinghouse": "Großes Wohnhaus",
+    "dockyard": "Werft",
+    "harbor": "Hafen",
+    "market_place": "Marktplatz",
+    "temple": "Kleiner Tempel",
+    "big_temple": "Großer Tempel"
+  },
+  "soldiers": {
+    "types": {
+      "Swordsman": "Schwertkämpfer",
+      "Bowman": "Bogenschütze",
+      "Pikeman": "Pikenier"
+    },
+    "levels": {
+      "1": "Soldat",
+      "2": "Feldwebel",
+      "3": "Hauptmann"
+    }
+  },
+  "ai": {
+    "characters": {
+      "standard": "Standard",
+      "general": "Feldherr",
+      "rusher": "Stürmer",
+      "trickster": "Hinterhältiger",
+      "landTaker": "Landnehmer",
+      "merchant": "Wirtschafter",
+      "hothead": "Hitzkopf",
+      "unyielding": "Unbeugsamer",
+      "legion": "Legion",
+      "skirmisher": "Plänklerin"
+    },
+    "traits": {
+      "guardByThreat": "Bewachung nach Bedrohung",
+      "pincer": "Zange und Finte",
+      "frontGarrison": "Besatzung nach Frontlage",
+      "reinforceThreatened": "Türme vorab aufstocken",
+      "rotateWounded": "Verwundete tauschen",
+      "formation": "Schlachtordnung",
+      "flanking": "Hinterhalt",
+      "spellTiming": "Zauber im richtigen Moment",
+      "exposedTowers": "Entblößte Türme",
+      "landGrab": "Landnahme",
+      "economicTargets": "Wirtschaft treffen",
+      "goldRace": "Goldrausch",
+      "goldGuard": "Goldwacht",
+      "goldRaid": "Goldraub",
+      "earlyRush": "Früher Ansturm",
+      "powerSpike": "Kraftprobe",
+      "waves": "Angriffswellen",
+      "earlyArmy": "Frühe Armee",
+      "forwardBase": "Vorposten",
+      "multiFront": "Mehrere Fronten",
+      "jitter": "Unberechenbar",
+      "frontTowers": "Türme zur Front",
+      "everyOtherTower": "Jeder zweite Turm",
+      "rotatingTowers": "Wechselnde Türme",
+      "thief": "Langfinger",
+      "summoner": "Warenzauber"
+    }
+  },
+  "buildingStatus": {
+    "active": "Aktiv",
+    "pausing": "Hält an",
+    "paused": "Angehalten",
+    "onStrike": "Streik: kein Wohnraum",
+    "levelling": "Baustelle: Planieren",
+    "waitingForMaterial": "Baustelle: Warte auf Material",
+    "constructing": "Baustelle: Im Bau",
+    "noTool": "Kein Werkzeug",
+    "noWorker": "Kein Arbeiter",
+    "waitingForWorker": "Warte auf Arbeiter",
+    "outputFull": "Ausgabe voll",
+    "waitingForWounded": "Warte auf Verwundete",
+    "waitingForFood": "Warte auf Nahrung",
+    "waitingForWeapons": "Warte auf Waffen und Träger",
+    "waitingForGoods": "Warte auf Rohstoffe",
+    "exhausted": "Erschöpft",
+    "nothingInRange": "Nichts in Reichweite",
+    "allInStock": "Alles vorrätig",
+    "training": "Bildet aus",
+    "residentsComing": "Bewohner ziehen ein",
+    "inhabited": "Bewohnt",
+    "storehouse": "Lager",
+    "noFunction": "Ohne Funktion"
+  },
+  "events": {
+    "texts": {
+      "noStaff": "Für {building} fehlt das Personal.",
+      "noTool": "Für {building} fehlt das Werkzeug.",
+      "attacked": "Deine Leute werden angegriffen!",
+      "buildingAttacked": "{building} wird angegriffen!",
+      "buildingLost": "{building} wurde vom Feind erobert!",
+      "buildingCaptured": "Du hast {building} erobert.",
+      "mineExhausted": "{building} ist erschöpft.",
+      "noResources": "{building} findet nichts mehr."
+    },
+    "categories": {
+      "info": "Info",
+      "combat": "Kampf",
+      "resources": "Rohstoffe",
+      "trade": "Handel"
+    },
+    "dates": {
+      "12-25": "Frohe Weihnachten!",
+      "01-01": "Frohes neues Jahr!"
+    }
+  },
+  "spells": {
+    "Convert": "Barbaren bekehren",
+    "Haste": "Samuraischwert",
+    "Freeze": "Einfrieren",
+    "Scatter": "Zerstreuen",
+    "SummonGoods": "Waren herbeirufen"
+  },
+  "system": {
+    "save": "Spiel speichern",
+    "quit": "Spiel beenden",
+    "quitQuestion": "Spiel wirklich beenden?"
+  },
+  "start": {
+    "categories": {
+      "singlePlayer": "Einzelspieler",
+      "multiplayer": "Mehrspieler",
+      "user": "Eigene",
+      "random": "Zufallsgenerator"
+    },
+    "levels": {
+      "few": "wenig",
+      "medium": "mittel",
+      "many": "viel",
+      "none": "aus",
+      "normal": "normal"
+    },
+    "symmetry": {
+      "none": "Nein",
+      "mirror": "Achsen",
+      "repeat": "Wiederholung"
+    },
+    "random": {
+      "players": "Spieler",
+      "playersHint": "Die Kartengröße wächst mit der Spielerzahl.",
+      "symmetry": "Symmetrie",
+      "symmetryHint": "Achsen: jeder Spieler hat das Spiegelbild seiner Nachbarn (bei 5 Spielern annähernd). Wiederholung: gleiche Umgebung um jeden Start.",
+      "rivers": "Flüsse",
+      "riversHint": "Flüsse und Seen.",
+      "resources": "Rohstoffe",
+      "resourcesHint": "Kohle, Erze, Edelsteine, Schwefel in den Bergen; Fisch.",
+      "stones": "Steine",
+      "stonesHint": "Steinvorkommen für Steinmetze.",
+      "forests": "Wälder",
+      "decorations": "Dekoration",
+      "decorationsHint": "Büsche, Blumen, Pilze, Gräber, Felsen.",
+      "treasures": "Schätze",
+      "treasuresHint": "Warenstapel im Land zwischen den Spielern: Gold, Edelsteine, Eisen, Kohle, Waffen, Steine, Werkzeuge."
+    },
+    "randomPeople": "Zufall",
+    "noMaps": "keine Karten in dieser Kategorie",
+    "hardcoreHint": "Hardcore: +10 % Kampfkraft, +30 % Siedler je Wohnhaus, +20 % Lebenspunkte, −25 % Baukosten, 10 % schnellere Produktion, mehr Startausstattung.",
+    "player": "Spieler {0}",
+    "playerCount": "{0} Spieler",
+    "randomHeading": "Zufallskarte erstellen",
+    "mapsHeading": "Karten: {0}",
+    "keysRandom": "Enter starten · Esc beenden · R neu würfeln · Tab Kategorie",
+    "keys": "Enter starten · Esc beenden · ↑/↓ Karte · Tab Kategorie",
+    "randomShort": "Zufall",
+    "start": "Starten",
+    "quit": "Beenden",
+    "positionHint": "Startposition: „?“ wird beim Start gelost, ein Klick weist sie einem Spieler zu.",
+    "kind": {
+      "random": "Zufallskarte",
+      "singlePlayer": "Einzelspieler",
+      "multiplayer": "Mehrspieler"
+    },
+    "facts": "{0} · {1} Spieler · {2} × {2} Felder",
+    "factsBuildings": " · {0} Gebäude",
+    "unreadable": "Karte nicht lesbar: {0}",
+    "positionRandom": "? (Zufall)",
+    "noMapsInCategory": "Keine Karten in dieser Kategorie.",
+    "columns": {
+      "player": "Spieler",
+      "people": "Volk",
+      "color": "Farbe",
+      "hardcore": "Hardcore"
+    },
+    "fixedPeopleHint": "Die Karte gibt das Volk dieser Startposition vor; es gilt für den Spieler, der dort startet.",
+    "you": " (Du)",
+    "byMap": " (Karte)",
+    "colorHint": "Farbe: Klick die nächste freie, Rechtsklick die vorige; „?“ wird beim Start gelost.",
+    "recent": "Vorherige Karten",
+    "noneRecent": "noch keine gespielt",
+    "reroll": "Neu würfeln"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "defaults": "Standard",
+    "nothingYet": "Hier gibt es noch nichts einzustellen.",
+    "notSaved": "Nicht gespeichert: {0}",
+    "notes": {
+      "newGames": "Gilt für neue Partien, nicht für Spielstände.",
+      "immediately": "Gilt sofort nach „Ok“."
+    },
+    "tabs": {
+      "resources": "Rohstoffe",
+      "resourcesSubtitle": "Wie viel jeder Abbau vom Vorkommen verbraucht",
+      "economy": "Wirtschaft",
+      "economySubtitle": "Produktion, Transport und Bevölkerung",
+      "military": "Militär",
+      "militarySubtitle": "Soldaten, Kampf und Gebiete",
+      "display": "Darstellung",
+      "displaySubtitle": "Grafik und Bedienung"
+    },
+    "resources": {
+      "stone": "Steinbrüche",
+      "stoneHint": "Steinmetze: Anteil der gehauenen Steine, der den Felsen kleiner macht. 100 % wie im Original, ∞: Felsen bleiben.",
+      "mountain": "Bergwerke",
+      "mountainHint": "Minen (Kohle, Erze, Gold, Edelsteine, Schwefel): Anteil der Funde, der das Vorkommen senkt. ∞: Berge erschöpfen nie.",
+      "fish": "Fischgründe",
+      "fishHint": "Fischer: Anteil der Fänge, der den Fischbestand senkt. ∞: Fische gehen nie aus."
+    },
+    "display": {
+      "hardwareCursor": "Hardware-Cursor",
+      "hardwareCursorHint": "An: der Mauszeiger des Systems. Aus: das Spiel zeichnet einen eigenen.",
+      "fullScreen": "Vollbild",
+      "fullScreenHint": "Beim Start im Vollbild. F11 wechselt jederzeit, nur bis zum Beenden.",
+      "language": "Sprache",
+      "languageHint": "Sprache der Texte."
+    }
+  },
+  "install": {
+    "windowTitle": "monoSettlers – Originalinstallation",
+    "heading": "Originalinstallation von „Die Siedler III“",
+    "explanation": "monoSettlers bringt keine Grafiken, Klänge oder Karten mit, sondern liest sie aus einer installierten „Die Siedler III“ (Gold Edition, History Edition, GOG). Bitte den Installationsordner angeben – den Ordner mit GFX, SND und Map darin. Er wird in den Einstellungen vermerkt und bei jedem Start geprüft.",
+    "quit": "Beenden",
+    "start": "Spiel starten",
+    "keys": "Esc beenden · Enter öffnen/starten · Strg+V einfügen",
+    "marked": "✓ Installation",
+    "noSubfolders": "(keine Unterordner)",
+    "found": "Gefunden",
+    "foundSearching": "Gefunden (suche …)",
+    "nothingFound": "nichts an den üblichen Orten",
+    "check": "Prüfung",
+    "checking": "prüfe …",
+    "noFolder": "Den Ordner gibt es nicht.",
+    "foundAt": "Installation gefunden: {0}",
+    "noGfx": "Kein Ordner GFX (Grafiken).",
+    "gfx": "Grafiken: {0} Dateien.",
+    "gfxMissing": "Grafiken unvollständig, es fehlen: {0}.",
+    "noSounds": "Kein Ordner SND (Klänge).",
+    "sounds": "Klänge vorhanden.",
+    "soundsMissing": "Klänge unvollständig: {0} fehlt.",
+    "noMaps": "Kein Ordner Map (Karten).",
+    "emptyMaps": "Keine Karten im Ordner Map.",
+    "maps": "Karten: {0}."
+  },
+  "statistics": {
+    "title": "Statistik",
+    "subtitle": "{0} · Spielzeit {1} h · {2} Spieler",
+    "resume": "Weiterspielen",
+    "mainMenu": "Zum Hauptmenü",
+    "you": "Du",
+    "human": "Mensch",
+    "noData": "noch keine Daten",
+    "chooseGood": "Ware wählen",
+    "sword": "Schwert",
+    "bow": "Bogen",
+    "spear": "Speer",
+    "pages": {
+      "overview": "Übersicht",
+      "economy": "Wirtschaft",
+      "military": "Militär",
+      "goods": "Waren",
+      "society": "Gesellschaft"
+    },
+    "columns": {
+      "land": "Land",
+      "settlers": "Siedler",
+      "soldiers": "Soldaten",
+      "buildings": "Gebäude",
+      "produced": "Produziert",
+      "kills": "Getötet",
+      "losses": "Gefallen",
+      "captured": "Erobert",
+      "lost": "Verloren",
+      "combatStrength": "Kampfkraft"
+    },
+    "charts": {
+      "landShare": "Landanteil",
+      "land": "Land (Felder)",
+      "settlers": "Siedler",
+      "soldiers": "Soldaten",
+      "buildings": "Gebäude",
+      "producedPerMinute": "Waren hergestellt je Minute",
+      "producedTotal": "Waren hergestellt (gesamt)",
+      "stock": "Lagerbestand",
+      "finished": "Fertige Gebäude",
+      "sites": "Baustellen",
+      "specialists": "Fachleute",
+      "combatStrength": "Kampfkraft",
+      "military": "Militärgebäude",
+      "kills": "Gegner getötet",
+      "losses": "Eigene Gefallene",
+      "army": "Armee jetzt",
+      "carriers": "Träger",
+      "room": "Wohnraum",
+      "striking": "Streikende",
+      "mana": "Mana erworben",
+      "captured": "Gebäude erobert",
+      "destroyed": "Gebäude verloren (Abriss, Eroberung)",
+      "goodPerMinute": "{0}: hergestellt je Minute",
+      "goodTotal": "{0}: insgesamt",
+      "mostMade": "Meistes Hergestelltes ({0})"
+    }
+  },
+  "soldiersMenu": {
+    "offensive": "Offensiv: {0}%",
+    "divine": "Göttl. Aufwertung: {0}%",
+    "manual": "Manuell",
+    "automatic": "Automatisch",
+    "recruitment": "Rekrutierung"
+  },
+  "professions": {
+    "carriers": "Träger",
+    "diggers": "Planierer",
+    "builders": "Bauarb.",
+    "special": "Spezialberufe"
+  },
+  "selection": {
+    "steal": "Waren stehlen",
+    "claim": "Land einnehmen",
+    "combatStrength": "Kampfkraft: {0}%"
+  },
+  "manufacture": {
+    "tools": "Werkzeug",
+    "weapons": "Waffen"
+  },
+  "spellMenu": {
+    "clickPlace": "Auf den Zielort klicken, Rechtsklick bricht ab",
+    "clickOwn": "Auf eigene Soldaten klicken, Rechtsklick bricht ab",
+    "clickEnemies": "Auf feindliche Soldaten klicken, Rechtsklick bricht ab"
+  },
+  "distribution": {
+    "construction": "Baustelle"
+  },
+  "cheats": {
+    "swordsman": "Schwertkämpfer",
+    "bowman": "Bogenschützen",
+    "pikeman": "Pikeniere",
+    "priests": "Priester",
+    "geologists": "Geologen",
+    "scouts": "Späher",
+    "pioneers": "Pioniere",
+    "carriers": "Träger"
+  },
+  "building": {
+    "garrison": "Besatzung (da / Soll)",
+    "resume": "Fortsetzen",
+    "pause": "Anhalten",
+    "status": "Status",
+    "chanceBelowOne": "Erfolgschance: unter 1 %",
+    "chance": "Erfolgschance: {0} %",
+    "goods": "Waren",
+    "material": "Baumaterial",
+    "demolish": "Abreißen",
+    "demolishQuestion": "Wirklich abreißen?",
+    "soldiers": "{0}/{1} Soldaten",
+    "soldiersOnTheWay": ", {0} unterwegs",
+    "door": ", Tür {0} %"
+  }
+}

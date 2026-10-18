@@ -12,15 +12,15 @@
   "castSeconds": 1.5,
   "_spellsComment": "name: shown in the menu. Convert: up to count enemy soldiers change sides (they keep their people, only the color changes). Haste: own soldiers strike factor times as fast for seconds. Freeze: every enemy soldier and priest stands still for seconds (neither walks nor fights). Scatter: up to count enemy soldiers are put on random free points of the map.",
   "spells": {
-    "Roman": { "spell": "Convert", "name": "Barbaren bekehren", "cost": 40, "count": 5 },
-    "Asian": { "spell": "Haste", "name": "Samuraischwert", "cost": 20, "seconds": 10, "factor": 2 },
-    "Amazon": { "spell": "Freeze", "name": "Einfrieren", "cost": 30, "seconds": 10 },
-    "Egyptian": { "spell": "Scatter", "name": "Zerstreuen", "cost": 40, "count": 8 }
+    "Roman": { "spell": "Convert", "cost": 40, "count": 5 },
+    "Asian": { "spell": "Haste", "cost": 20, "seconds": 10, "factor": 2 },
+    "Amazon": { "spell": "Freeze", "cost": 30, "seconds": 10 },
+    "Egyptian": { "spell": "Scatter", "cost": 40, "count": 8 }
   },
   "_commonSpellsComment": "Spells every people knows, after its own. SummonGoods needs no fight: piles (min, max) piles of amount (min, max) goods appear around the target, each of a random group, then a random material of it; extra: further piles per people, each with its chance.",
   "commonSpells": [
     {
-      "spell": "SummonGoods", "name": "Waren herbeirufen", "cost": 30, "piles": [3, 4], "amount": [4, 8],
+      "spell": "SummonGoods", "cost": 30, "piles": [3, 4], "amount": [4, 8],
       "goods": [
         ["BREAD", "FISH", "MEAT"],
         ["SWORD", "BOW", "SPEAR"],

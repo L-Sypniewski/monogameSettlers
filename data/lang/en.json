@@ -1,0 +1,504 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "ok": "OK",
+    "yes": "Yes",
+    "no": "No",
+    "on": "On",
+    "off": "Off"
+  },
+  "formats": {
+    "savedAt": "MM/dd/yy h:mm tt",
+    "recentMap": "MM/dd h:mm tt"
+  },
+  "title": {
+    "buttons": {
+      "singlePlayer": "Single player",
+      "load": "Load game",
+      "settings": "Settings",
+      "readme": "Readme",
+      "contribution": "Contribution",
+      "licenses": "Licenses",
+      "quit": "Quit"
+    },
+    "disclaimer": "monoSettlers · fan project, not affiliated with Ubisoft or Blue Byte",
+    "links": {
+      "readme": "What monoSettlers is, what already works and how to build and run it is in the README of the repository on GitHub.",
+      "contribution": "Contributions are welcome! How they work and which rules apply (clean room, no original files) is in the repository on GitHub.",
+      "licenses": "monoSettlers is open source under the MIT license. The license text and notices on code taken from others are in the repository on GitHub."
+    },
+    "popup": {
+      "willOpen": "This page will open in your browser:",
+      "browserFailed": "The browser could not be opened. The page is here:",
+      "open": "Open in browser"
+    }
+  },
+  "peoples": {
+    "Roman": "Romans",
+    "Egyptian": "Egyptians",
+    "Asian": "Asians",
+    "Amazon": "Amazons"
+  },
+  "goods": {
+    "PLANK": "Planks",
+    "STONE": "Stones",
+    "TRUNK": "Logs",
+    "COAL": "Coal",
+    "IRONORE": "Iron ore",
+    "GOLDORE": "Gold ore",
+    "IRON": "Iron bars",
+    "HAMMER": "Hammers",
+    "BLADE": "Shovels",
+    "AXE": "Axes",
+    "SAW": "Saws",
+    "PICK": "Pickaxes",
+    "FISHINGROD": "Fishing rods",
+    "SCYTHE": "Scythes",
+    "SWORD": "Swords",
+    "BOW": "Bows",
+    "SPEAR": "Spears",
+    "HONEY": "Honey",
+    "FISH": "Fish",
+    "PIG": "Pigs",
+    "MEAT": "Meat",
+    "CROP": "Grain",
+    "FLOUR": "Flour",
+    "BREAD": "Bread",
+    "WATER": "Water",
+    "WINE": "Wine",
+    "KEG": "Beer",
+    "LIQUOR": "Rice liquor",
+    "RICE": "Rice",
+    "SULFUR": "Sulfur",
+    "GOLD": "Gold bars",
+    "GEMS": "Gems",
+    "MEAD": "Mead",
+    "GUN_POWDER": "Gunpowder"
+  },
+  "panel": {
+    "tabs": {
+      "build": "Build",
+      "goods": "Goods",
+      "settlers": "Settlers"
+    },
+    "menus": {
+      "stock": "Stock",
+      "tools": "Manufacture",
+      "distribution": "Distribution",
+      "transport": "Transport",
+      "overview": "Settler statistics",
+      "professions": "Professions",
+      "soldiers": "Warriors",
+      "statistics": "Production"
+    },
+    "comingSoon": "Coming soon."
+  },
+  "buildings": {
+    "stock": "Storehouse",
+    "lumberjack": "Woodcutter",
+    "stonecutter": "Stonecutter",
+    "sawmill": "Sawmill",
+    "forester": "Forester",
+    "lookout_tower": "Lookout tower",
+    "coalmine": "Coal mine",
+    "goldmine": "Gold mine",
+    "ironmine": "Iron mine",
+    "gemsmine": "Gem mine",
+    "sulfurmine": "Sulfur mine",
+    "goldmelt": "Gold smelter",
+    "ironmelt": "Iron smelter",
+    "toolsmith": "Toolsmith",
+    "weaponsmith": "Weaponsmith",
+    "winegrower": "Winegrower",
+    "brewery": "Brewery",
+    "distillery": "Distillery",
+    "mead_brewery": "Mead brewery",
+    "beekeeping": "Beekeeper",
+    "rice_farm": "Rice farm",
+    "laboratory": "Laboratory",
+    "charcoal_burner": "Charcoal burner",
+    "tower": "Small tower",
+    "big_tower": "Large tower",
+    "castle": "Castle",
+    "barrack": "Barracks",
+    "hospital": "Healer",
+    "baker": "Bakery",
+    "mill": "Mill",
+    "slaughterhouse": "Butcher",
+    "pig_farm": "Pig farm",
+    "farm": "Grain farm",
+    "fisher": "Fisherman's hut",
+    "waterworks": "Waterworks",
+    "donkey_farm": "Donkey farm",
+    "small_livinghouse": "Small residence",
+    "medium_livinghouse": "Medium residence",
+    "big_livinghouse": "Large residence",
+    "dockyard": "Shipyard",
+    "harbor": "Harbor",
+    "market_place": "Marketplace",
+    "temple": "Small temple",
+    "big_temple": "Large temple"
+  },
+  "soldiers": {
+    "types": {
+      "Swordsman": "Swordsman",
+      "Bowman": "Bowman",
+      "Pikeman": "Pikeman"
+    },
+    "levels": {
+      "1": "Soldier",
+      "2": "Sergeant",
+      "3": "Captain"
+    }
+  },
+  "ai": {
+    "characters": {
+      "standard": "Standard",
+      "general": "General",
+      "rusher": "Rusher",
+      "trickster": "Trickster",
+      "landTaker": "Land taker",
+      "merchant": "Merchant",
+      "hothead": "Hothead",
+      "unyielding": "Unyielding",
+      "legion": "Legion",
+      "skirmisher": "Skirmisher"
+    },
+    "traits": {
+      "guardByThreat": "Guard by threat",
+      "pincer": "Pincer and feint",
+      "frontGarrison": "Garrison by front",
+      "reinforceThreatened": "Reinforce towers early",
+      "rotateWounded": "Rotate the wounded",
+      "formation": "Battle formation",
+      "flanking": "Ambush",
+      "spellTiming": "Well-timed spells",
+      "exposedTowers": "Exposed towers",
+      "landGrab": "Land grab",
+      "economicTargets": "Hit the economy",
+      "goldRace": "Gold rush",
+      "goldGuard": "Gold guard",
+      "goldRaid": "Gold raid",
+      "earlyRush": "Early rush",
+      "powerSpike": "Power spike",
+      "waves": "Attack waves",
+      "earlyArmy": "Early army",
+      "forwardBase": "Forward base",
+      "multiFront": "Several fronts",
+      "jitter": "Unpredictable",
+      "frontTowers": "Towers to the front",
+      "everyOtherTower": "Every other tower",
+      "rotatingTowers": "Rotating towers",
+      "thief": "Light fingers",
+      "summoner": "Goods summoner"
+    }
+  },
+  "buildingStatus": {
+    "active": "Active",
+    "pausing": "Pausing",
+    "paused": "Paused",
+    "onStrike": "On strike: no housing",
+    "levelling": "Construction: levelling",
+    "waitingForMaterial": "Construction: waiting for material",
+    "constructing": "Construction: building",
+    "noTool": "No tool",
+    "noWorker": "No worker",
+    "waitingForWorker": "Waiting for a worker",
+    "outputFull": "Output full",
+    "waitingForWounded": "Waiting for the wounded",
+    "waitingForFood": "Waiting for food",
+    "waitingForWeapons": "Waiting for weapons and carriers",
+    "waitingForGoods": "Waiting for raw materials",
+    "exhausted": "Exhausted",
+    "nothingInRange": "Nothing in range",
+    "allInStock": "Everything in stock",
+    "training": "Training",
+    "residentsComing": "Residents moving in",
+    "inhabited": "Inhabited",
+    "storehouse": "Storage",
+    "noFunction": "No function"
+  },
+  "events": {
+    "texts": {
+      "noStaff": "{building} has no staff.",
+      "noTool": "{building} is missing its tool.",
+      "attacked": "Your people are under attack!",
+      "buildingAttacked": "{building} is under attack!",
+      "buildingLost": "{building} was taken by the enemy!",
+      "buildingCaptured": "You captured {building}.",
+      "mineExhausted": "{building} is exhausted.",
+      "noResources": "{building} finds nothing more."
+    },
+    "categories": {
+      "info": "Info",
+      "combat": "Combat",
+      "resources": "Resources",
+      "trade": "Trade"
+    },
+    "dates": {
+      "12-25": "Merry Christmas!",
+      "01-01": "Happy New Year!"
+    }
+  },
+  "spells": {
+    "Convert": "Convert barbarians",
+    "Haste": "Samurai sword",
+    "Freeze": "Freeze",
+    "Scatter": "Scatter",
+    "SummonGoods": "Summon goods"
+  },
+  "system": {
+    "save": "Save game",
+    "quit": "Quit game",
+    "quitQuestion": "Really quit the game?"
+  },
+  "start": {
+    "categories": {
+      "singlePlayer": "Single player",
+      "multiplayer": "Multiplayer",
+      "user": "Own maps",
+      "random": "Random generator"
+    },
+    "levels": {
+      "few": "few",
+      "medium": "medium",
+      "many": "many",
+      "none": "none",
+      "normal": "normal"
+    },
+    "symmetry": {
+      "none": "None",
+      "mirror": "Mirrored",
+      "repeat": "Repeated"
+    },
+    "random": {
+      "players": "Players",
+      "playersHint": "The map grows with the number of players.",
+      "symmetry": "Symmetry",
+      "symmetryHint": "Mirrored: every player has the mirror image of their neighbours (roughly with 5 players). Repeated: the same surroundings around every start.",
+      "rivers": "Rivers",
+      "riversHint": "Rivers and lakes.",
+      "resources": "Resources",
+      "resourcesHint": "Coal, ores, gems, sulfur in the mountains; fish.",
+      "stones": "Stones",
+      "stonesHint": "Rocks for stonecutters.",
+      "forests": "Forests",
+      "decorations": "Decoration",
+      "decorationsHint": "Bushes, flowers, mushrooms, graves, boulders.",
+      "treasures": "Treasures",
+      "treasuresHint": "Piles of goods in the land between the players: gold, gems, iron, coal, weapons, stones, tools."
+    },
+    "randomPeople": "Random",
+    "noMaps": "no maps in this category",
+    "hardcoreHint": "Hardcore: +10 % combat strength, +30 % settlers per residence, +20 % hit points, −25 % building costs, 10 % faster production, more starting equipment.",
+    "player": "Player {0}",
+    "playerCount": "{0} players",
+    "randomHeading": "Create a random map",
+    "mapsHeading": "Maps: {0}",
+    "keysRandom": "Enter start · Esc quit · R reroll · Tab category",
+    "keys": "Enter start · Esc quit · ↑/↓ map · Tab category",
+    "randomShort": "Random",
+    "start": "Start",
+    "quit": "Back",
+    "positionHint": "Start position: “?” is drawn at the start, a click gives it to a player.",
+    "kind": {
+      "random": "Random map",
+      "singlePlayer": "Single player",
+      "multiplayer": "Multiplayer"
+    },
+    "facts": "{0} · {1} players · {2} × {2} fields",
+    "factsBuildings": " · {0} buildings",
+    "unreadable": "Map not readable: {0}",
+    "positionRandom": "? (random)",
+    "noMapsInCategory": "No maps in this category.",
+    "columns": {
+      "player": "Player",
+      "people": "People",
+      "color": "Color",
+      "hardcore": "Hardcore"
+    },
+    "fixedPeopleHint": "The map sets the people of this start position; it applies to the player starting there.",
+    "you": " (you)",
+    "byMap": " (map)",
+    "colorHint": "Color: click for the next free one, right-click for the previous one; “?” is drawn at the start.",
+    "recent": "Previous maps",
+    "noneRecent": "none played yet",
+    "reroll": "Reroll"
+  },
+  "settings": {
+    "title": "Settings",
+    "defaults": "Defaults",
+    "nothingYet": "Nothing to set here yet.",
+    "notSaved": "Not saved: {0}",
+    "notes": {
+      "newGames": "Applies to new games, not to saved ones.",
+      "immediately": "Applies right after “OK”."
+    },
+    "tabs": {
+      "resources": "Resources",
+      "resourcesSubtitle": "How much each harvest uses up the deposit",
+      "economy": "Economy",
+      "economySubtitle": "Production, transport and population",
+      "military": "Military",
+      "militarySubtitle": "Soldiers, combat and territory",
+      "display": "Display",
+      "displaySubtitle": "Graphics and controls"
+    },
+    "resources": {
+      "stone": "Quarries",
+      "stoneHint": "Stonecutters: share of the stones cut that makes the rock smaller. 100 % as in the original, ∞: rocks stay.",
+      "mountain": "Mines",
+      "mountainHint": "Mines (coal, ores, gold, gems, sulfur): share of the finds that lowers the deposit. ∞: mountains never run out.",
+      "fish": "Fishing grounds",
+      "fishHint": "Fishermen: share of the catches that lowers the fish stock. ∞: fish never run out."
+    },
+    "display": {
+      "hardwareCursor": "Hardware cursor",
+      "hardwareCursorHint": "On: the system's mouse pointer. Off: the game draws its own.",
+      "fullScreen": "Full screen",
+      "fullScreenHint": "Start in full screen. F11 switches at any time, until quitting.",
+      "language": "Language",
+      "languageHint": "Language of the texts."
+    }
+  },
+  "install": {
+    "windowTitle": "monoSettlers – original installation",
+    "heading": "Original installation of “The Settlers III”",
+    "explanation": "monoSettlers comes without graphics, sounds or maps; it reads them from an installed “The Settlers III” (Gold Edition, History Edition, GOG). Please give the installation folder – the one with GFX, SND and Map in it. It is stored in the settings and checked on every start.",
+    "quit": "Quit",
+    "start": "Start the game",
+    "keys": "Esc quit · Enter open/start · Ctrl+V paste",
+    "marked": "✓ Installation",
+    "noSubfolders": "(no subfolders)",
+    "found": "Found",
+    "foundSearching": "Found (searching …)",
+    "nothingFound": "nothing in the usual places",
+    "check": "Check",
+    "checking": "checking …",
+    "noFolder": "The folder does not exist.",
+    "foundAt": "Installation found: {0}",
+    "noGfx": "No GFX folder (graphics).",
+    "gfx": "Graphics: {0} files.",
+    "gfxMissing": "Graphics incomplete, missing: {0}.",
+    "noSounds": "No SND folder (sounds).",
+    "sounds": "Sounds present.",
+    "soundsMissing": "Sounds incomplete: {0} missing.",
+    "noMaps": "No Map folder (maps).",
+    "emptyMaps": "No maps in the Map folder.",
+    "maps": "Maps: {0}."
+  },
+  "statistics": {
+    "title": "Statistics",
+    "subtitle": "{0} · played {1} h · {2} players",
+    "resume": "Resume",
+    "mainMenu": "Main menu",
+    "you": "You",
+    "human": "Human",
+    "noData": "no data yet",
+    "chooseGood": "Choose a good",
+    "sword": "Sword",
+    "bow": "Bow",
+    "spear": "Spear",
+    "pages": {
+      "overview": "Overview",
+      "economy": "Economy",
+      "military": "Military",
+      "goods": "Goods",
+      "society": "Society"
+    },
+    "columns": {
+      "land": "Land",
+      "settlers": "Settlers",
+      "soldiers": "Soldiers",
+      "buildings": "Buildings",
+      "produced": "Produced",
+      "kills": "Killed",
+      "losses": "Fallen",
+      "captured": "Captured",
+      "lost": "Lost",
+      "combatStrength": "Strength"
+    },
+    "charts": {
+      "landShare": "Share of the land",
+      "land": "Land (fields)",
+      "settlers": "Settlers",
+      "soldiers": "Soldiers",
+      "buildings": "Buildings",
+      "producedPerMinute": "Goods made per minute",
+      "producedTotal": "Goods made (total)",
+      "stock": "Stock",
+      "finished": "Finished buildings",
+      "sites": "Construction sites",
+      "specialists": "Specialists",
+      "combatStrength": "Combat strength",
+      "military": "Military buildings",
+      "kills": "Enemies killed",
+      "losses": "Own fallen",
+      "army": "Army now",
+      "carriers": "Carriers",
+      "room": "Housing",
+      "striking": "On strike",
+      "mana": "Mana earned",
+      "captured": "Buildings captured",
+      "destroyed": "Buildings lost (demolished, captured)",
+      "goodPerMinute": "{0}: made per minute",
+      "goodTotal": "{0}: total",
+      "mostMade": "Made most ({0})"
+    }
+  },
+  "soldiersMenu": {
+    "offensive": "Offensive: {0}%",
+    "divine": "Divine upgrade: {0}%",
+    "manual": "Manual",
+    "automatic": "Automatic",
+    "recruitment": "Recruitment"
+  },
+  "professions": {
+    "carriers": "Carriers",
+    "diggers": "Diggers",
+    "builders": "Builders",
+    "special": "Special professions"
+  },
+  "selection": {
+    "steal": "Steal goods",
+    "claim": "Claim land",
+    "combatStrength": "Combat strength: {0}%"
+  },
+  "manufacture": {
+    "tools": "Tools",
+    "weapons": "Weapons"
+  },
+  "spellMenu": {
+    "clickPlace": "Click the target place, right-click cancels",
+    "clickOwn": "Click your own soldiers, right-click cancels",
+    "clickEnemies": "Click enemy soldiers, right-click cancels"
+  },
+  "distribution": {
+    "construction": "Construction site"
+  },
+  "cheats": {
+    "swordsman": "swordsmen",
+    "bowman": "bowmen",
+    "pikeman": "pikemen",
+    "priests": "priests",
+    "geologists": "geologists",
+    "scouts": "scouts",
+    "pioneers": "pioneers",
+    "carriers": "carriers"
+  },
+  "building": {
+    "garrison": "Garrison (present / wanted)",
+    "resume": "Resume",
+    "pause": "Pause",
+    "status": "Status",
+    "chanceBelowOne": "Chance of success: below 1 %",
+    "chance": "Chance of success: {0} %",
+    "goods": "Goods",
+    "material": "Building material",
+    "demolish": "Demolish",
+    "demolishQuestion": "Really demolish?",
+    "soldiers": "{0}/{1} soldiers",
+    "soldiersOnTheWay": ", {0} on the way",
+    "door": ", door {0} %"
+  }
+}

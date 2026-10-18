@@ -62,7 +62,8 @@ public sealed class EventButtons : IDisposable
         if (root.TryGetProperty("dates", out var dates))
             foreach (var date in dates.EnumerateArray())
                 _dates.Add(new DateMessage(date.GetProperty("date").GetString()!,
-                    Enum.Parse<EventCategory>(date.GetProperty("category").GetString()!, ignoreCase: true), date.GetProperty("text").GetString()!));
+                    Enum.Parse<EventCategory>(date.GetProperty("category").GetString()!, ignoreCase: true),
+                    Lang.T("events.dates." + date.GetProperty("date").GetString())));
         if (remember)
             _shown = ReadShown();
         foreach (var category in root.GetProperty("categories").EnumerateObject())
@@ -71,7 +72,7 @@ public sealed class EventButtons : IDisposable
             var slot = value.GetProperty("slot");
             var icons = value.GetProperty("icons");
             var lit = Image(icons[1].GetInt32());
-            _buttons[Enum.Parse<EventCategory>(category.Name, ignoreCase: true)] = new Button(value.GetProperty("name").GetString()!,
+            _buttons[Enum.Parse<EventCategory>(category.Name, ignoreCase: true)] = new Button(Lang.T("events.categories." + category.Name),
                 new Rectangle(slot[0].GetInt32(), slot[1].GetInt32(), lit.Width, lit.Height), lit);
         }
     }

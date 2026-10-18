@@ -76,12 +76,12 @@ public sealed class SoldiersMenu : IDisposable
     {
         var military = world.Military;
         var magic = world.Magic;
-        Write(batch, font, $"Offensiv: {military.CombatStrength(player) * 100:0}%", new Vector2(Left, OffensiveY), Text, 15);
+        Write(batch, font, Lang.T("soldiersMenu.offensive", $"{military.CombatStrength(player) * 100:0}"), new Vector2(Left, OffensiveY), Text, 15);
 
         // Divine upgrade: how far the mana earned is on the way to the next upgrade.
         int earned = magic.ManaEarned(player);
         int progress = magic.UpgradeThreshold(player) is { } next && next > 0 ? Math.Min(100, earned * 100 / next) : 100;
-        Write(batch, font, $"Göttl. Aufwertung: {progress}%", new Vector2(Left, DivineY), Text, 13);
+        Write(batch, font, Lang.T("soldiersMenu.divine", progress), new Vector2(Left, DivineY), Text, 13);
         for (int i = 0; i < Types.Length; i++)
         {
             var type = Types[i];
@@ -98,13 +98,14 @@ public sealed class SoldiersMenu : IDisposable
         var switchButton = SwitchButton;
         portraits.Draw(batch, "BEARER", new Rectangle(Left, SwitchY, 40, 60), settlers, people, PlayerColors.Of(player));
         Write(batch, font, world.Recruitment.Convertible(player).ToString(), new Vector2(Left + 44, SwitchY + 20), Text, 15);
-        TextButton.Draw(batch, pixel, font, switchButton, military.IsManualRecruitment(player) ? "Manuell" : "Automatisch", cursor);
+        TextButton.Draw(batch, pixel, font, switchButton, Lang.T(military.IsManualRecruitment(player) ? "soldiersMenu.manual" : "soldiersMenu.automatic"), cursor);
         if (!military.IsManualRecruitment(player))
             return;
 
         // Manual recruitment: per type the weapons in stock, arrows, the soldiers planned.
-        var heading = font.Measure("Rekrutierung", 13);
-        Write(batch, font, "Rekrutierung", new Vector2(Left + (Width - heading.X) / 2, RecruitY), Label, 13);
+        string recruitment = Lang.T("soldiersMenu.recruitment");
+        var heading = font.Measure(recruitment, 13);
+        Write(batch, font, recruitment, new Vector2(Left + (Width - heading.X) / 2, RecruitY), Label, 13);
         for (int row = 0; row < Types.Length; row++)
         {
             var type = Types[row];

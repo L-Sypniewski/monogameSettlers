@@ -44,12 +44,13 @@ public sealed class GoodsGrid : IDisposable
             int column = 0;
             foreach (var entry in line.EnumerateArray())
             {
-                var material = Materials.Parse(entry.GetProperty("good").GetString()!)!.Value;
+                string good = entry.GetProperty("good").GetString()!;
+                var material = Materials.Parse(good)!.Value;
                 var icon = entry.GetProperty("icon");
                 var texture = icon.ValueKind == JsonValueKind.Array
                     ? Load(icon[0].GetInt32(), icon[1].GetInt32())
                     : Load(weapons.GetProperty("file").GetInt32(), weapons.GetProperty(WeaponKey(material)).GetInt32());
-                _goods.Add(new Good(material, entry.GetProperty("name").GetString()!, texture, row, column++));
+                _goods.Add(new Good(material, Lang.T("goods." + good), texture, row, column++));
             }
             row++;
         }

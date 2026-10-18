@@ -1,12 +1,12 @@
 {
-  "_comment": "Events: messages to a player, shown as the blinking buttons at the bottom of the side panel (right of the computer button). categories: per kind of event its button – slot: top left on the panel image (unscaled, panel space), icons: GUI images of file 03 [dark, lit]; name: hover text. blinkSeconds: how long a button blinks after an event (then it stays lit until looked at); arrowSeconds: how long the arrows point at the place after jumping there (click on the button or space: the latest event); the event's text shows in the panel when looking at it. events: what triggers them – category, cooldownSeconds (per player: at most one such event in that time; 0 = every time), afterSeconds (states of buildings: reported once they lasted this long, once per building until the state ends), text ({building}: its name), enabled.",
+  "_comment": "Events: messages to a player, shown as the blinking buttons at the bottom of the side panel (right of the computer button). categories: per kind of event its button – slot: top left on the panel image (unscaled, panel space), icons: GUI images of file 03 [dark, lit]; name and text: events.categories.* and events.texts.* in data/lang ({building}: its name). blinkSeconds: how long a button blinks after an event (then it stays lit until looked at); arrowSeconds: how long the arrows point at the place after jumping there (click on the button or space: the latest event); the event's text shows in the panel when looking at it. events: what triggers them – category, cooldownSeconds (per player: at most one such event in that time; 0 = every time), afterSeconds (states of buildings: reported once they lasted this long, once per building until the state ends), enabled.",
   "blinkSeconds": 12,
   "arrowSeconds": 4,
   "categories": {
-    "info": { "name": "Info", "slot": [ 45, 491 ], "icons": [ 101, 113 ] },
-    "combat": { "name": "Kampf", "slot": [ 85, 491 ], "icons": [ 104, 116 ] },
-    "resources": { "name": "Rohstoffe", "slot": [ 125, 491 ], "icons": [ 107, 119 ] },
-    "trade": { "name": "Handel", "slot": [ 165, 491 ], "icons": [ 110, 122 ] }
+    "info": { "slot": [ 45, 491 ], "icons": [ 101, 113 ] },
+    "combat": { "slot": [ 85, 491 ], "icons": [ 104, 116 ] },
+    "resources": { "slot": [ 125, 491 ], "icons": [ 107, 119 ] },
+    "trade": { "slot": [ 165, 491 ], "icons": [ 110, 122 ] }
   },
   "events": {
     "noStaff": {
@@ -14,7 +14,6 @@
       "category": "info",
       "cooldownSeconds": 60,
       "afterSeconds": 15,
-      "text": "Für {building} fehlt das Personal.",
       "enabled": true
     },
     "noTool": {
@@ -22,35 +21,30 @@
       "category": "info",
       "cooldownSeconds": 60,
       "afterSeconds": 15,
-      "text": "Für {building} fehlt das Werkzeug.",
       "enabled": true
     },
     "attacked": {
       "_comment": "One of the player's settlers in the open (soldier, geologist, priest, …) is struck or shot at.",
       "category": "combat",
       "cooldownSeconds": 60,
-      "text": "Deine Leute werden angegriffen!",
       "enabled": true
     },
     "buildingAttacked": {
       "_comment": "The door of one of the player's military buildings or its guard in front of it is struck or shot at.",
       "category": "combat",
       "cooldownSeconds": 60,
-      "text": "{building} wird angegriffen!",
       "enabled": true
     },
     "buildingLost": {
       "_comment": "The enemy took one of the player's military buildings.",
       "category": "combat",
       "cooldownSeconds": 0,
-      "text": "{building} wurde vom Feind erobert!",
       "enabled": true
     },
     "buildingCaptured": {
       "_comment": "The player took an enemy military building.",
       "category": "combat",
       "cooldownSeconds": 0,
-      "text": "Du hast {building} erobert.",
       "enabled": true
     },
     "mineExhausted": {
@@ -59,7 +53,6 @@
       "cooldownSeconds": 60,
       "afterSeconds": 0,
       "maxChance": 5,
-      "text": "{building} ist erschöpft.",
       "enabled": true
     },
     "noResources": {
@@ -67,13 +60,12 @@
       "category": "resources",
       "cooldownSeconds": 60,
       "afterSeconds": 15,
-      "text": "{building} findet nichts mehr.",
       "enabled": true
     }
   },
-  "_datesComment": "Messages on certain days (month-day, real date), at most once a year per entry, while a game runs (remembered in ~/.config/homestead/events-shown.json).",
+  "_datesComment": "Messages on certain days (month-day, real date; text: events.dates.<date> in data/lang), at most once a year per entry, while a game runs (remembered in ~/.config/homestead/events-shown.json).",
   "dates": [
-    { "date": "12-25", "category": "info", "text": "Frohe Weihnachten!" },
-    { "date": "01-01", "category": "info", "text": "Frohes neues Jahr!" }
+    { "date": "12-25", "category": "info" },
+    { "date": "01-01", "category": "info" }
   ]
 }
