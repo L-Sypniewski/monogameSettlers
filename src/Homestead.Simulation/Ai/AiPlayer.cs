@@ -118,8 +118,11 @@ public sealed partial class AiPlayer
             _nextSurvey = _world.Tick + SurveyTicks;
         }
         var mine = _world.Buildings.Where(b => b.Exists && b.Player == Player).ToList();
+        // Home: the military building most of the own buildings can be reached from. A map may wall in a
+        // door (Z10: two Egyptian castles side by side), and nothing would be reachable from there.
         if (_home is not { Exists: true } || _home.Player != Player)
-            _home = mine.Where(IsMilitary).OrderBy(b => b.State == BuildingState.Finished ? 0 : 1).FirstOrDefault()
+            _home = mine.Where(IsMilitary).OrderBy(b => b.State == BuildingState.Finished ? 0 : 1)
+                        .ThenByDescending(b => mine.Count(o => _world.Reachable(Player, b.Door, o.Door))).FirstOrDefault()
                     ?? mine.FirstOrDefault();
         if (_home is null)
             return;
@@ -510,8 +513,9 @@ public sealed partial class AiPlayer
             if (PathFinder.Distance(default, offset) > SearchRadius)
                 break;
             var p = anchor + offset;
-            if (!map.Contains(p) || map.OwnerAt(p) != Player || !_world.CanPlace(definition, p, out _, Player)
-                || !_world.Reachable(Player, homeDoor, p + definition.Door) || OnFields(definition, p))
+            // Reachability first: a lookup, while placing checks a lot (levelling among them).
+            if (!map.Contains(p) || map.OwnerAt(p) != Player || !_world.Reachable(Player, homeDoor, p + definition.Door)
+                || !_world.CanPlace(definition, p, out _, Player) || OnFields(definition, p))
                 continue;
             if (isMine)
             {

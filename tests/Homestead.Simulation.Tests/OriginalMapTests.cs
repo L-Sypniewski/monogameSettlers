@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Homestead.Assets;
 using Homestead.Assets.Maps;
+using Homestead.Simulation.Ai;
+using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Pathfinding;
 using Xunit.Abstractions;
@@ -147,5 +149,24 @@ public class OriginalMapTests(ITestOutputHelper output)
         Assert.True(fish > 0 && ore > 0);
         Assert.True(fishInWater >= fish * 0.999);
         Assert.True(oreInMountains >= ore * 0.99);
+    }
+
+    [Fact]
+    public void The_ai_home_is_not_a_military_building_with_a_walled_in_door()
+    {
+        // Amazon campaign Z10: an Egyptian castle's door lies in the footprint of the castle next to it. As
+        // home, nothing was reachable, and every placement search ran over all spots each time (1.5 s ticks).
+        if (TryLocate() is not { } installation || installation.FindPath("S3QOTA/MIS_M/Z/Z10.MAP") is not { } path)
+        {
+            output.WriteLine("No installation found, skipped.");
+            return;
+        }
+        var (world, report) = OriginalScenario.Load(OriginalMap.Open(path), random: new Random(1), seed: 1);
+        var ai = new AiPlayer(world, report.Catalogs[1], 1);
+        world.AiPlayers.Add(ai);
+        for (int t = 0; t < 30 * World.TicksPerSecond; t++)
+            world.Step();
+
+        Assert.Contains(world.Buildings, b => b.Exists && b.Player == 1 && b.State != BuildingState.Finished);
     }
 }

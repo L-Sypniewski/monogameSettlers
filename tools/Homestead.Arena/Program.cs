@@ -45,13 +45,18 @@ var randomMaps = names.Select(n => RandomMapSettings.ParseName(n, IntOption("--s
     .Select(r => RandomMapGenerator.Generate(r.Settings, r.Seed))
     .Select(m => (File: m.Name, Map: m)).ToList();
 names.RemoveAll(n => RandomMapSettings.ParseName(n) is not null);
+// A name may also be a map file of the installation (e.g. S3QOTA/MIS_M/Z/Z10.MAP for a mission).
+var pathMaps = names.Select(n => installation.FindPath(n)).OfType<string>().Where(File.Exists)
+    .Select(f => (File: f, Map: OriginalMap.Open(f))).ToList();
+names.RemoveAll(n => installation.FindPath(n) is { } f && File.Exists(f));
 var maps = installation.MapFiles
-    .Where(f => names.Count == 0 ? randomMaps.Count == 0 : names.Any(n => Path.GetFileNameWithoutExtension(f).Equals(n, StringComparison.OrdinalIgnoreCase)))
+    .Where(f => names.Count == 0 ? randomMaps.Count == 0 && pathMaps.Count == 0 : names.Any(n => Path.GetFileNameWithoutExtension(f).Equals(n, StringComparison.OrdinalIgnoreCase)))
     .Select(f => (File: f, Map: OriginalMap.Open(f)))
     .Where(m => names.Count > 0 || m.Map is { IsSinglePlayer: false, Buildings.Count: 0 })
     .ToList();
-if (!all && names.Count == 0)
+if (!all && names.Count == 0 && pathMaps.Count == 0)
     maps = maps.Take(1).ToList();
+maps.AddRange(pathMaps);
 maps.AddRange(randomMaps);
 
 var siteSince = new Dictionary<int, long>();
