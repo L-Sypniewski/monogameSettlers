@@ -10,8 +10,10 @@ namespace Homestead.Simulation.Tests;
 /// <summary>The campaigns of data/campaign.json against the original installation; pass unchecked without one.</summary>
 public class CampaignTests(ITestOutputHelper output)
 {
-    private static JsonElement Missions(JsonDocument document) =>
-        document.RootElement.GetProperty("campaigns").GetProperty("settlers").GetProperty("peoples");
+    /// <summary>Every side of every campaign with its campaign's id.</summary>
+    private static IEnumerable<(string Campaign, JsonProperty Side)> Sides(JsonDocument document) =>
+        document.RootElement.GetProperty("campaigns").EnumerateObject()
+            .SelectMany(c => c.Value.GetProperty("sides").EnumerateObject().Select(s => (c.Name, s)));
 
     [Fact]
     public void The_text_table_holds_the_mission_descriptions_in_german_and_english()
@@ -38,27 +40,37 @@ public class CampaignTests(ITestOutputHelper output)
         try { installation = GameInstallation.Locate(); }
         catch (Exception) { output.WriteLine("No installation found, skipped."); return; }
 
-        var texts = new GfxDirectory(installation.GfxDirectory).Open(7).ReadTexts(0);
+        var gfx = new GfxDirectory(installation.GfxDirectory);
+        var texts = gfx.Open(7).ReadTexts(0);
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "campaign.json")));
-        foreach (var people in Missions(document).EnumerateObject())
+        foreach (var (campaign, side) in Sides(document))
         {
-            Assert.NotNull(installation.FindPath(people.Value.GetProperty("intro").GetString()!));
-            Assert.NotNull(installation.FindPath(people.Value.GetProperty("outro").GetString()!));
-            foreach (var mission in people.Value.GetProperty("missions").EnumerateArray())
+            Assert.NotNull(installation.FindPath(side.Value.GetProperty("intro").GetString()!));
+            Assert.NotNull(installation.FindPath(side.Value.GetProperty("outro").GetString()!));
+            foreach (var mission in side.Value.GetProperty("missions").EnumerateArray())
             {
                 string map = mission.GetProperty("map").GetString()!;
                 string? path = installation.FindPath(map);
                 Assert.True(path is not null, $"{map} exists");
                 Assert.NotNull(installation.FindPath(mission.GetProperty("voice").GetString()!));
                 Assert.StartsWith("MISSIONSNAME", texts[mission.GetProperty("text").GetInt32()]);
-                Assert.StartsWith("-", texts[mission.GetProperty("hint").GetInt32()]);
+                // The settlers' hints are a list, the Amazons' campaign headed "TIPS & TRICKS".
+                Assert.Matches("^(-|TIPS & TRICKS)", texts[mission.GetProperty("hint").GetInt32()]);
 
-                // The own player is the map's first, with the people of the campaign.
+                if (mission.TryGetProperty("preview", out var preview))
+                    Assert.True(gfx.Open(preview[0].GetInt32()).ReadSettler(preview[1].GetInt32(), preview[2].GetInt32()).Width > 200);
+
+                // The own player is the map's first: with the side's people (the three peoples' side: one of them),
+                // a building or settlers to found one.
                 var original = OriginalMap.Open(path!);
                 var (world, report) = OriginalScenario.Load(original);
-                Assert.Equal(Enum.Parse<Civilization>(people.Name), report.Catalogs[0].Civilization);
-                Assert.Contains(world.Buildings, b => b.Player == 0);
-                output.WriteLine($"{people.Name} {original.Name}: {report.Buildings} buildings, {report.Settlers} settlers, skipped {report.Skipped.Count}");
+                var own = report.Catalogs[0].Civilization;
+                if (Enum.TryParse<Civilization>(side.Name, out var people))
+                    Assert.Equal(people, own);
+                else
+                    Assert.Equal(side.Name == "amazons", own == Civilization.Amazon);
+                Assert.True(world.Buildings.Any(b => b.Player == 0) || world.Settlers.Any(s => s.Player == 0), $"{original.Name}: player 1 has something");
+                output.WriteLine($"{campaign}/{side.Name} {original.Name}: {report.Buildings} buildings, {report.Settlers} settlers, skipped {report.Skipped.Count}");
             }
         }
     }

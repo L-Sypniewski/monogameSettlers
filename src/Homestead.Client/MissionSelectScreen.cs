@@ -12,6 +12,7 @@ namespace Homestead.Client;
 /// <c>data/ui.json</c>, scaled from 800 × 600, marble beside it): first the intro video, then every accomplished mission
 /// and the next, with their names from the mission texts, to play again or on, after the last one the outro video.
 /// A click chooses (<see cref="Chosen"/>, <see cref="ChosenVideo"/>); "Zurück" (Esc) goes back to the choice of people.
+/// A longer list scrolls (wheel, arrow keys, the start screen's scroll bar), opening at the newest mission.
 /// </summary>
 public sealed class MissionSelectScreen : IDisposable
 {
@@ -26,11 +27,13 @@ public sealed class MissionSelectScreen : IDisposable
 
     private static readonly Rectangle BackButton = new(680, 555, 97, 25);
 
-    private readonly Texture2D _background, _marble;
-    private readonly Rectangle _heading, _list;
-    private readonly Civilization _people;
+    private readonly Texture2D _background, _marble, _sheet, _scrollTop, _scrollTrack, _scrollBottom;
+    private readonly Rectangle _heading, _list, _handle;
+    private readonly string _side;
     private readonly IReadOnlyList<string> _names;
     private readonly int _accomplished;
+    /// <summary>The first row shown.</summary>
+    private int _scroll;
 
     private float _scale = 1;
     private Vector2 _origin;
@@ -39,14 +42,17 @@ public sealed class MissionSelectScreen : IDisposable
 
     /// <param name="names">The names of all the campaign's missions in order.</param>
     /// <param name="accomplished">Missions accomplished so far: those and the next one can be chosen.</param>
-    public MissionSelectScreen(GraphicsDevice device, GfxDirectory gfx, Civilization people, IReadOnlyList<string> names, int accomplished)
+    /// <param name="side">The side's name for the heading.</param>
+    public MissionSelectScreen(GraphicsDevice device, GfxDirectory gfx, string side, IReadOnlyList<string> names, int accomplished)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
         var look = document.RootElement.GetProperty("missionScreen");
-        var file = gfx.Open(look.GetProperty("file").GetInt32());
-        Texture2D Image(string name)
+        // The scroll bar's pieces are the start screen's.
+        var scrollLook = document.RootElement.GetProperty("startScreen");
+        Texture2D Image(string name, JsonElement? from = null)
         {
-            var bitmap = file.ReadGui(look.GetProperty(name).GetInt32());
+            var source = from ?? look;
+            var bitmap = gfx.Open(source.GetProperty("file").GetInt32()).ReadGui(source.GetProperty(name).GetInt32());
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
@@ -54,11 +60,18 @@ public sealed class MissionSelectScreen : IDisposable
         static Rectangle Box(JsonElement e) => new(e[0].GetInt32(), e[1].GetInt32(), e[2].GetInt32(), e[3].GetInt32());
         _background = Image("background");
         _marble = Image("marble");
+        _sheet = Image("sheet", scrollLook);
+        _scrollTop = Image("scrollTop", scrollLook);
+        _scrollTrack = Image("scrollTrack", scrollLook);
+        _scrollBottom = Image("scrollBottom", scrollLook);
+        _handle = Box(scrollLook.GetProperty("handle"));
         _heading = Box(look.GetProperty("heading"));
         _list = Box(look.GetProperty("list"));
-        _people = people;
+        _side = side;
         _names = names;
         _accomplished = accomplished;
+        // The newest mission (the outro once every one is accomplished) at the bottom.
+        _scroll = Math.Clamp(RowCount - VisibleRows, 0, MaxScroll);
     }
 
     /// <summary>The mission (from 0) clicked in the last <see cref="Update"/>, if any.</summary>
@@ -106,15 +119,24 @@ public sealed class MissionSelectScreen : IDisposable
 
     private int Px(float size) => Math.Max(8, (int)MathF.Round(size * _scale));
 
-    private Rectangle Row(int row) => new(_list.X + 12, _list.Y + 14 + row * RowHeight, _list.Width - 24, RowHeight - 4);
+    private int RowCount => Rows().Count();
 
-    /// <summary>The row under the point (its index), if any.</summary>
+    private int VisibleRows => (_list.Height - 14) / RowHeight;
+
+    private int MaxScroll => Math.Max(0, RowCount - VisibleRows);
+
+    private Rectangle Track => new(_list.Right - 22, _list.Y + 14, 12, VisibleRows * RowHeight - 4);
+
+    /// <summary>The place of the n-th shown row (narrower beside the scroll bar).</summary>
+    private Rectangle Row(int shown) =>
+        new(_list.X + 12, _list.Y + 14 + shown * RowHeight, _list.Width - 24 - (MaxScroll > 0 ? 18 : 0), RowHeight - 4);
+
+    /// <summary>The row under the point (its index in <see cref="Rows"/>), if any.</summary>
     private int? At(Point layout)
     {
-        int count = Rows().Count();
-        for (int row = 0; row < count; row++)
-            if (Row(row).Contains(layout))
-                return row;
+        for (int shown = 0; shown < VisibleRows && _scroll + shown < RowCount; shown++)
+            if (Row(shown).Contains(layout))
+                return _scroll + shown;
         return null;
     }
 
@@ -125,10 +147,27 @@ public sealed class MissionSelectScreen : IDisposable
         var keys = Keyboard.GetState();
         var mouse = Mouse.GetState();
         bool clicked = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
-        bool escape = keys.IsKeyDown(Keys.Escape) && !_previousKeys.IsKeyDown(Keys.Escape);
-        _previousKeys = keys;
+        bool Pressed(Keys key) => keys.IsKeyDown(key) && !_previousKeys.IsKeyDown(key);
+        bool escape = Pressed(Keys.Escape);
+        int wheel = mouse.ScrollWheelValue - _previousMouse.ScrollWheelValue;
+        var previous = _previousMouse;
         _previousMouse = mouse;
         var at = ToLayout(mouse.Position);
+        if (wheel != 0)
+            _scroll -= Math.Sign(wheel);
+        if (Pressed(Keys.Down))
+            _scroll++;
+        if (Pressed(Keys.Up))
+            _scroll--;
+        if (Pressed(Keys.PageDown))
+            _scroll += VisibleRows - 1;
+        if (Pressed(Keys.PageUp))
+            _scroll -= VisibleRows - 1;
+        _previousKeys = keys;
+        // The scroll bar: a click or drag on it moves there.
+        if (mouse.LeftButton == ButtonState.Pressed && Track.Contains(ToLayout(previous.Position)) && MaxScroll > 0)
+            _scroll = (int)MathF.Round((at.Y - Track.Y - 8) / (float)(Track.Height - 16) * MaxScroll);
+        _scroll = Math.Clamp(_scroll, 0, MaxScroll);
         var chosen = clicked && At(at) is { } row ? Rows().ElementAt(row) : ((int?)null, (Video?)null);
         (Chosen, ChosenVideo) = chosen;
         return escape || clicked && BackButton.Contains(at);
@@ -149,12 +188,12 @@ public sealed class MissionSelectScreen : IDisposable
             batch.Draw(_marble, view, new Rectangle(14, 0, _marble.Width - 28, _marble.Height), Color.White);
         batch.Draw(_background, page, Color.White);
 
-        WriteCentered(batch, font, $"{Lang.T("peoples." + _people)} · {Lang.T("campaign.chooseMission")}", _heading, Gold, 13);
+        WriteCentered(batch, font, $"{_side} · {Lang.T("campaign.chooseMission")}", _heading, Gold, 13);
         var hover = At(ToLayout(Mouse.GetState().Position));
-        int index = 0;
-        foreach (var (mission, video) in Rows())
+        int index = _scroll;
+        foreach (var (mission, video) in Rows().Skip(_scroll).Take(VisibleRows))
         {
-            var row = Row(index);
+            var row = Row(index - _scroll);
             bool lit = index++ == hover;
             if (lit)
                 batch.Draw(pixel, ToScreen(row), Gold * 0.18f);
@@ -163,6 +202,16 @@ public sealed class MissionSelectScreen : IDisposable
             string state = Lang.T(mission is null ? "campaign.video" : mission < _accomplished ? "campaign.missionDone" : "campaign.missionNew");
             float width = font.Measure(state, Px(12)).X / _scale;
             Write(batch, font, state, row.Right - 8 - width, row.Y + 9, mission is null || mission < _accomplished ? Dim : Gold, 12);
+        }
+        if (MaxScroll > 0)
+        {
+            var track = Track;
+            batch.Draw(_scrollTop, ToScreen(new Rectangle(track.X, track.Y, 12, 8)), Color.White);
+            batch.Draw(_scrollTrack, ToScreen(new Rectangle(track.X, track.Y + 8, 12, track.Height - 16)), Color.White);
+            batch.Draw(_scrollBottom, ToScreen(new Rectangle(track.X, track.Bottom - 8, 12, 8)), Color.White);
+            int height = Math.Max(16, (track.Height - 16) * VisibleRows / RowCount);
+            int y = track.Y + 8 + (track.Height - 16 - height) * _scroll / MaxScroll;
+            batch.Draw(_sheet, ToScreen(new Rectangle(track.X + 2, y, 8, height)), _handle, Color.White);
         }
         TextButton.Draw(batch, pixel, font, ToScreen(BackButton), Lang.T("campaign.back"), Mouse.GetState().Position.ToVector2(), size: Px(13));
     }
@@ -183,7 +232,7 @@ public sealed class MissionSelectScreen : IDisposable
 
     public void Dispose()
     {
-        _background.Dispose();
-        _marble.Dispose();
+        foreach (var texture in new[] { _background, _marble, _sheet, _scrollTop, _scrollTrack, _scrollBottom })
+            texture.Dispose();
     }
 }

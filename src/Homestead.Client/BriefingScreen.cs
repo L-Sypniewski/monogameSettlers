@@ -17,7 +17,7 @@ public enum BriefingAction { None, Back, Start }
 /// A campaign mission's description as in the original, on the map selection's background (<c>startScreen</c> in
 /// <c>data/ui.json</c>, GUI 8 of file 02): the mission text (GFX file 07, scrolls with the wheel, the arrow keys and the
 /// scroll bar) in the upper panel, the map in the slanted window with the players' short names at their start
-/// positions, the hints right of it, "Zurück" (Esc) and "Weiter" (Enter) below. The spoken briefing plays meanwhile.
+/// positions (or the original's finished picture, Amazons' campaign), the hints right of it, "Zurück" (Esc) and "Weiter" (Enter) below. The spoken briefing plays meanwhile.
 /// </summary>
 public sealed class BriefingScreen : IDisposable
 {
@@ -40,6 +40,8 @@ public sealed class BriefingScreen : IDisposable
     private readonly Rectangle _handle;
     private readonly OriginalMap _map;
     private readonly Texture2D _preview;
+    /// <summary>The original's finished picture of the mission for the slanted window, if it has one.</summary>
+    private readonly Texture2D? _picture;
     private readonly string _text, _hint;
     private readonly IReadOnlyList<string> _labels;
     private readonly SoundEffect? _voice;
@@ -84,6 +86,12 @@ public sealed class BriefingScreen : IDisposable
         _text = Clean(mission.Text < texts.Count ? texts[mission.Text] : "");
         _hint = Clean(mission.Hint < texts.Count ? texts[mission.Hint] : "");
         _labels = mission.Labels;
+        if (mission.Preview is { } picture)
+        {
+            var bitmap = gfx.Open(picture.File).ReadSettler(picture.Sequence, picture.Frame);
+            _picture = new Texture2D(device, bitmap.Width, bitmap.Height);
+            _picture.SetData(bitmap.Pixels);
+        }
         MapPath = _map.Path;
 
         if (volume > 0 && installation.FindPath(mission.Voice) is { } voice)
@@ -217,6 +225,12 @@ public sealed class BriefingScreen : IDisposable
     /// <summary>The map in the slanted window, one strip per row shifted like the map's rows, with the players' short names.</summary>
     private void DrawPreview(SpriteBatch batch, UiFont font)
     {
+        // The original's picture fills the window (its corners are transparent).
+        if (_picture is not null)
+        {
+            batch.Draw(_picture, ToScreen(new Rectangle(PreviewLeft - PreviewSlant + 1, PreviewTop + 1, _picture.Width, _picture.Height)), Color.White);
+            return;
+        }
         Vector2 Point(float u, float v) => new(PreviewLeft - PreviewSlant * v + PreviewWidth * u, PreviewTop + PreviewHeight * v);
         int size = _map.Area.Size;
         var top = ToScreen(new Vector2(0, PreviewTop));
@@ -268,6 +282,7 @@ public sealed class BriefingScreen : IDisposable
         _speaking?.Dispose();
         _voice?.Dispose();
         _preview.Dispose();
+        _picture?.Dispose();
         foreach (var texture in new[] { _background, _marble, _sheet, _scrollTop, _scrollTrack, _scrollBottom })
             texture.Dispose();
     }

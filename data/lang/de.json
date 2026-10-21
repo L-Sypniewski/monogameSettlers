@@ -56,7 +56,12 @@
     "missionNew": "neu",
     "introVideo": "Intro",
     "outroVideo": "Abschluss",
-    "video": "Video"
+    "video": "Video",
+    "chooseSide": "Wähle deine Seite",
+    "sides": {
+      "amazons": "Amazonen",
+      "peoples": "Die drei Völker"
+    }
   },
   "peoples": {
     "Roman": "Römer",

@@ -8,9 +8,11 @@ using Microsoft.Xna.Framework.Input;
 namespace Homestead.Client;
 
 /// <summary>
-/// The campaign's first page: choosing the people on the original's background (<c>campaignScreen</c> in
-/// <c>data/ui.json</c>, scaled from 800 × 600, marble beside it). A click on a people's picture or name chooses it
-/// (<see cref="Chosen"/>), "Zurück" (Esc; the original has none) goes back to the title screen.
+/// A campaign's first page: choosing the side on the original's background (<c>campaignScreens</c> in
+/// <c>data/ui.json</c> by campaign, scaled from 800 × 600, marble beside it) – a people in the settlers' campaign (its
+/// picture framed in gold under the mouse), the Amazons or the three peoples in theirs (a brighter picture of the
+/// figures laid over them). A click on a side's picture or name chooses it (<see cref="Chosen"/>), "Zurück" (Esc; the
+/// original has none) goes back to the title screen.
 /// </summary>
 public sealed class CampaignScreen : IDisposable
 {
@@ -23,36 +25,52 @@ public sealed class CampaignScreen : IDisposable
 
     private readonly Texture2D _background, _marble;
     private readonly Rectangle _heading;
-    private readonly (Civilization People, Rectangle Picture, Rectangle Name)[] _peoples;
+    /// <summary>Per side: its id, picture and name field, the brighter picture laid over it under the mouse (if any).</summary>
+    private readonly (string Side, Rectangle Picture, Rectangle Name, Texture2D? Lit)[] _sides;
+    private readonly IReadOnlyDictionary<string, CampaignSide> _config;
 
     private float _scale = 1;
     private Vector2 _origin;
     private KeyboardState _previousKeys = Keyboard.GetState();
     private MouseState _previousMouse = Mouse.GetState();
 
-    public CampaignScreen(GraphicsDevice device, GfxDirectory gfx)
+    /// <param name="campaign">The campaign (<c>settlers</c>, <c>amazons</c>).</param>
+    public CampaignScreen(GraphicsDevice device, GfxDirectory gfx, string campaign)
     {
+        Campaign = campaign;
+        _config = CampaignConfig.Load().Campaigns[campaign];
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var look = document.RootElement.GetProperty("campaignScreen");
-        var file = gfx.Open(look.GetProperty("file").GetInt32());
-        Texture2D Image(string name)
+        var look = document.RootElement.GetProperty("campaignScreens").GetProperty(campaign);
+        int file = look.GetProperty("file").GetInt32();
+        Texture2D Texture(GfxBitmap bitmap)
         {
-            var bitmap = file.ReadGui(look.GetProperty(name).GetInt32());
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
         }
+        // An image of the screen's file, or [file, image] of another.
+        Texture2D Image(JsonElement e) => e.ValueKind == JsonValueKind.Array
+            ? Texture(gfx.Open(e[0].GetInt32()).ReadGui(e[1].GetInt32()))
+            : Texture(gfx.Open(file).ReadGui(e.GetInt32()));
         static Rectangle Box(JsonElement e) => new(e[0].GetInt32(), e[1].GetInt32(), e[2].GetInt32(), e[3].GetInt32());
-        _background = Image("background");
-        _marble = Image("marble");
+        _background = Image(look.GetProperty("background"));
+        _marble = Image(look.GetProperty("marble"));
         _heading = Box(look.GetProperty("heading"));
-        _peoples = look.GetProperty("peoples").EnumerateObject()
-            .Select(p => (Enum.Parse<Civilization>(p.Name), Box(p.Value.GetProperty("picture")), Box(p.Value.GetProperty("name"))))
+        // The brighter picture: [file, sequence, frame] of a settler sequence, placed on the picture's rectangle.
+        _sides = look.GetProperty("sides").EnumerateObject()
+            .Select(s => (s.Name, Box(s.Value.GetProperty("picture")), Box(s.Value.GetProperty("name")),
+                s.Value.TryGetProperty("lit", out var lit) ? Texture(gfx.Open(lit[0].GetInt32()).ReadSettler(lit[1].GetInt32(), lit[2].GetInt32())) : null))
             .ToArray();
     }
 
-    /// <summary>The people clicked in the last <see cref="Update"/>, if any.</summary>
-    public Civilization? Chosen { get; private set; }
+    /// <summary>The campaign whose sides are shown.</summary>
+    public string Campaign { get; }
+
+    /// <summary>The side clicked in the last <see cref="Update"/>, if any.</summary>
+    public string? Chosen { get; private set; }
+
+    /// <summary>For capture runs: the side shown as if under the mouse.</summary>
+    public string? Hovered { get; set; }
 
     private void Fit(Rectangle view)
     {
@@ -72,11 +90,11 @@ public sealed class CampaignScreen : IDisposable
 
     private int Px(float size) => Math.Max(8, (int)MathF.Round(size * _scale));
 
-    /// <summary>The people under the mouse (its picture or its name).</summary>
-    private Civilization? At(Point layout) =>
-        _peoples.FirstOrDefault(p => p.Picture.Contains(layout) || p.Name.Contains(layout)) is { Picture.Width: > 0 } hit ? hit.People : null;
+    /// <summary>The side under the mouse (its picture or its name).</summary>
+    private string? At(Point layout) =>
+        _sides.FirstOrDefault(s => s.Picture.Contains(layout) || s.Name.Contains(layout)).Side;
 
-    /// <summary>One frame; true: back to the title screen. A chosen people is in <see cref="Chosen"/>.</summary>
+    /// <summary>One frame; true: back to the title screen. A chosen side is in <see cref="Chosen"/>.</summary>
     public bool Update(Rectangle view)
     {
         Fit(view);
@@ -108,14 +126,18 @@ public sealed class CampaignScreen : IDisposable
             batch.Draw(_marble, view, new Rectangle(14, 0, _marble.Width - 28, _marble.Height), Color.White);
         batch.Draw(_background, page, Color.White);
 
-        WriteCentered(batch, font, Lang.T("campaign.choosePeople"), _heading, Gold, 15);
-        var hover = At(ToLayout(Mouse.GetState().Position));
-        foreach (var (people, picture, name) in _peoples)
+        WriteCentered(batch, font, Lang.T(Campaign == "settlers" ? "campaign.choosePeople" : "campaign.chooseSide"), _heading, Gold, 15);
+        var hover = Hovered ?? At(ToLayout(Mouse.GetState().Position));
+        foreach (var (side, picture, name, brighter) in _sides)
         {
-            bool lit = people == hover;
-            if (lit)
+            bool lit = side == hover;
+            if (lit && brighter is not null)
+                batch.Draw(brighter, ToScreen(picture), Color.White);
+            else if (lit)
                 Outline(batch, pixel, ToScreen(new Rectangle(picture.X - 3, picture.Y - 3, picture.Width + 6, picture.Height + 6)), Gold);
-            WriteCentered(batch, font, Lang.T("peoples." + people), name, lit ? Gold : Text, 16);
+            string label = Lang.T(_config[side].Name);
+            int size = font.Measure(label, Px(16)).X / _scale > name.Width - 6 ? 12 : 16;
+            WriteCentered(batch, font, label, name, lit ? Gold : Text, size);
         }
         TextButton.Draw(batch, pixel, font, ToScreen(BackButton), Lang.T("campaign.back"), Mouse.GetState().Position.ToVector2(), size: Px(13));
     }
@@ -142,5 +164,7 @@ public sealed class CampaignScreen : IDisposable
     {
         _background.Dispose();
         _marble.Dispose();
+        foreach (var side in _sides)
+            side.Lit?.Dispose();
     }
 }

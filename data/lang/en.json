@@ -56,7 +56,12 @@
     "missionNew": "new",
     "introVideo": "Intro",
     "outroVideo": "Finale",
-    "video": "video"
+    "video": "video",
+    "chooseSide": "Choose your side",
+    "sides": {
+      "amazons": "Amazons",
+      "peoples": "The three peoples"
+    }
   },
   "peoples": {
     "Roman": "Romans",

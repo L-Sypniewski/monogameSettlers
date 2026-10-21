@@ -128,23 +128,25 @@ public class SaveTests
         SaveSlots.Directory = Path.Combine(Path.GetTempPath(), "homestead-save-test-" + Guid.NewGuid());
         try
         {
-            Assert.Equal(0, CampaignProgress.Load().Accomplished("settlers", Civilization.Roman));
+            Assert.Equal(0, CampaignProgress.Load().Accomplished("settlers", "Roman"));
             var progress = CampaignProgress.Load();
-            progress.Accomplish(new MissionRef("settlers", Civilization.Roman, 1));
-            progress.Accomplish(new MissionRef("settlers", Civilization.Roman, 0));
-            progress.Accomplish(new MissionRef("settlers", Civilization.Asian, 0));
+            progress.Accomplish(new MissionRef("settlers", "Roman", 1));
+            progress.Accomplish(new MissionRef("settlers", "Roman", 0));
+            progress.Accomplish(new MissionRef("settlers", "Asian", 0));
             progress.Save();
             var loaded = CampaignProgress.Load();
-            Assert.Equal(2, loaded.Accomplished("settlers", Civilization.Roman));
-            Assert.Equal(1, loaded.Accomplished("settlers", Civilization.Asian));
-            Assert.Equal(0, loaded.Accomplished("settlers", Civilization.Egyptian));
-            Assert.Equal(0, loaded.Accomplished("amazons", Civilization.Roman));
+            Assert.Equal(2, loaded.Accomplished("settlers", "Roman"));
+            Assert.Equal(1, loaded.Accomplished("settlers", "Asian"));
+            Assert.Equal(0, loaded.Accomplished("settlers", "Egyptian"));
+            Assert.Equal(0, loaded.Accomplished("amazons", "Roman"));
+            Assert.Equal(0, loaded.Accomplished("amazons", "amazons"));
 
-            var mission = new MissionRef("settlers", Civilization.Egyptian, 3);
+            var mission = new MissionRef("settlers", "Egyptian", 3);
             Assert.Equal("settlers/Egyptian/3", mission.ToString());
             Assert.Equal(mission, MissionRef.Parse(mission.ToString()));
             Assert.Null(MissionRef.Parse(null));
-            Assert.Null(MissionRef.Parse("settlers/Martian/1"));
+            Assert.Null(MissionRef.Parse("settlers/Roman/x"));
+            Assert.Equal(new MissionRef("amazons", "peoples", 11), MissionRef.Parse("amazons/peoples/11"));
 
             // The header names the mission; one written before missions existed has none.
             var (world, catalogs, map) = NewGameWithMap();

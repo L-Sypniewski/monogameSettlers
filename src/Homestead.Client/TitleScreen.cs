@@ -16,6 +16,8 @@ public enum TitleAction
     None,
     /// <summary>Open the campaign (<see cref="CampaignScreen"/>).</summary>
     Campaign,
+    /// <summary>Open the Amazons' campaign.</summary>
+    AmazonCampaign,
     /// <summary>Open the map selection (<see cref="StartScreen"/>).</summary>
     SinglePlayer,
     /// <summary>Load the save game in <see cref="TitleScreen.ChosenSlot"/>.</summary>
@@ -28,8 +30,8 @@ public enum TitleAction
 /// <summary>
 /// The title screen: the Gold Edition's main menu picture (<c>titleScreen</c> in <c>data/ui.json</c>, scaled from
 /// 800 × 600 to the window, plain gold beside it) with a column of engraved buttons on its left side as in the
-/// original, "Beenden" set apart at the bottom. On top the campaigns ("Kampagne"; mission CD and Amazon campaign not yet,
-/// shown dimmed), then the free games. "Spiel laden" lists the save slots below its button, over the links (its button stays
+/// original, "Beenden" set apart at the bottom. On top the campaigns ("Kampagne", "Amazonen-Kampagne"; the mission CD not
+/// yet, shown dimmed), then the free games. "Spiel laden" lists the save slots below its button, over the links (its button stays
 /// pressed; clicking it again or Esc closes them, Esc on the main page quits); "Einstellungen" opens the settings screen. Set apart below, readme, contribution and licenses open a popup (the
 /// original's message box) offering to show <c>README.md</c>, <c>CONTRIBUTING.md</c> or <c>THIRD_PARTY_NOTICES.md</c> of the
 /// repository in the browser.
@@ -57,7 +59,7 @@ public sealed class TitleScreen : IDisposable
     [
         ("campaign", TitleAction.Campaign, Page.Main, null),
         ("missionCd", TitleAction.None, Page.Main, null),
-        ("amazonCampaign", TitleAction.None, Page.Main, null),
+        ("amazonCampaign", TitleAction.AmazonCampaign, Page.Main, null),
         ("singlePlayer", TitleAction.SinglePlayer, Page.Main, null),
         ("settings", TitleAction.Settings, Page.Main, null),
         ("load", TitleAction.None, Page.Load, null),
@@ -67,7 +69,7 @@ public sealed class TitleScreen : IDisposable
     ];
 
     /// <summary>Buttons shown dimmed, without effect: what is not there yet.</summary>
-    private static readonly HashSet<string> NotYet = ["missionCd", "amazonCampaign"];
+    private static readonly HashSet<string> NotYet = ["missionCd"];
 
     private static string Label(string key) => Lang.T("title.buttons." + key);
 

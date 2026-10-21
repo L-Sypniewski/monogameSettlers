@@ -52,10 +52,11 @@ public static class Lang
             ? T("start.randomMapName", random.Groups[1].Value, random.Groups[2].Value)
             : name;
 
-    /// <summary>A saved game's name in the lists: a campaign mission's people and number, otherwise its map.</summary>
+    /// <summary>A saved game's name in the lists: a campaign mission's side and number, otherwise its map.</summary>
     public static string SaveName(Homestead.Simulation.Persistence.SaveInfo info) =>
         Homestead.Simulation.Persistence.MissionRef.Parse(info.Mission) is { } mission
-            ? T("campaign.saveName", T("peoples." + mission.People), mission.Index + 1)
+        && CampaignConfig.Load().Campaigns.GetValueOrDefault(mission.Campaign)?.GetValueOrDefault(mission.Side) is { } side
+            ? T("campaign.saveName", T(side.Name), mission.Index + 1)
             : MapName(info.Map);
 
     /// <summary>The text of the key, or null where neither the language nor German has it.</summary>

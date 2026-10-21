@@ -4,7 +4,8 @@ public enum MissionOutcome { Open, Won, Lost }
 
 /// <summary>
 /// Victory and defeat of a campaign mission for the own player (player 0), checked once a second: lost without a
-/// building of its own (finished or under construction), won once no other player has one (destroyed or captured).
+/// building of its own (finished or under construction) once it had one, or without settlers too (some missions start
+/// with settlers only, who found the settlement first); won once no other player has one (destroyed or captured).
 /// Decided once, then it stays; the game goes on.
 /// </summary>
 public sealed class MissionGoals
@@ -15,6 +16,9 @@ public sealed class MissionGoals
 
     /// <summary>The tick the outcome was decided; −1 while open.</summary>
     public long DecidedAt { get; private set; } = -1;
+
+    /// <summary>The own player has had a building (so losing the last one loses the mission).</summary>
+    private bool _hadBuilding;
 
     public void Tick(World world)
     {
@@ -28,7 +32,8 @@ public sealed class MissionGoals
                 own = true;
             else
                 others = true;
-        if (!own)
+        _hadBuilding |= own;
+        if (!own && (_hadBuilding || !world.Settlers.Any(s => s.Player == Player)))
             Decide(MissionOutcome.Lost, world.Tick);
         else if (!others)
             Decide(MissionOutcome.Won, world.Tick);

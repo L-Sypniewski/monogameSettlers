@@ -60,4 +60,20 @@ public class MissionGoalsTests
         Seconds(world, 2);
         Assert.Null(world.Goals);
     }
+
+    [Fact]
+    public void A_mission_starting_without_buildings_is_lost_only_once_the_settlement_falls()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools) { Goals = new MissionGoals() };
+        Assert.NotNull(world.Spawn(new GridPoint(20, 20), Profession.Carrier, 0));
+        world.PlaceBuilding(Romans["sawmill"], 1, new GridPoint(50, 50), force: true);
+        Seconds(world, 2);
+        Assert.Equal(MissionOutcome.Open, world.Goals.Outcome);
+
+        var own = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(25, 30), force: true)!;
+        Seconds(world, 2);
+        world.RemoveBuilding(own);
+        Seconds(world, 2);
+        Assert.Equal(MissionOutcome.Lost, world.Goals.Outcome);
+    }
 }

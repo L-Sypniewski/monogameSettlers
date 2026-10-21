@@ -187,33 +187,38 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
 
 ### `src/Homestead.Client` – MonoGame-Spiel
 - **Titelbildschirm** (`TitleScreen`, zuerst ohne `--map`/`--capture`): Hauptmenü-Bild der Gold Edition (`titleScreen` in `ui.json`, Datei 61 GUI 1,
-  daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): Kampagne (→ Kampagne), Missions-CD und
-  Amazonen-Kampagne (noch ausgegraut), abgesetzt Einzelspieler (→ Startscreen), Einstellungen (→ Einstellungen), Spiel laden
+  daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): Kampagne, Amazonen-Kampagne (→ Kampagne),
+  Missions-CD (noch ausgegraut), abgesetzt Einzelspieler (→ Startscreen), Einstellungen (→ Einstellungen), Spiel laden
   (Slots darunter über den Links, Klick lädt; offen = gedrückter Knopf), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
   Original-Meldungsbox Datei 02 GUI 16, `popup` in `titleScreen`: „Im Browser öffnen“ → `README.md`/`CONTRIBUTING.md`/`THIRD_PARTY_NOTICES.md` auf GitHub, Enter/Esc),
   unten abgesetzt Beenden; Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher.
   Capture: `HOMESTEAD_CAPTURE_START=title` → `title.png` (`title:readme`/`title:contribution`/`title:licenses` mit Popup, `title:load` mit Slots, `title:loadError` mit Ladefehler).
-- **Kampagne** (`CampaignScreen`, über dem Titelbildschirm): Volkswahl auf Datei 02 GUI 7 (`campaignScreen` in `ui.json`: je Volk
-  Bild und Namensfeld, Überschrift; Klick wählt, „Zurück“/Esc → Titel – im Original ohne) → Intro-Video des Volks → (Ende oder Klick) Beschreibung der ersten Mission
+- **Kampagne** (`CampaignScreen`, über dem Titelbildschirm): Wahl der Seite je Kampagne (`campaignScreens` in `ui.json`: Bild und Namensfeld
+  je Seite, Überschrift; Klick wählt, „Zurück“/Esc → Titel – im Original ohne). Siedler (`settlers`): je Volk, Datei 02 GUI 7, Goldrahmen unter der
+  Maus. Amazonen (`amazons`): Datei 48 GUI 1, links die Amazonen (`amazons`), rechts das Heer der drei Völker (`peoples`); unter der Maus hellere
+  Figuren (Datei 48, Sequenz 2, per Korrelation platziert, `lit`). → Intro-Video der Seite → (Ende oder Klick) Beschreibung der ersten Mission
   (`BriefingScreen` auf dem Startscreen-Hintergrund GUI 8: Missionstext oben mit Bildlauf, Karte im schrägen Fenster mit Kürzeln
   der Spieler an ihren Startpunkten – eigener grün, sonst rot –, Hinweise rechts, Sprachansage dazu; „Zurück“/Esc → Volkswahl,
-  „Weiter“/Enter → Mission mit Völkern/Gebäuden der Karte). `data/campaign.json`: je Kampagne/Volk `intro`, `outro` (Sieg-Video) und `missions`
-  (`map`, `text`/`hint` = Einträge der Texttabelle in GFX-Datei 07, Deutsch/Englisch nach Sprache, `voice`, `labels` je Kartenspieler –
-  bisher nur Mission 1, aus dem Missionstext); Pfade in der Installation, `GameInstallation.FindPath` ohne Groß-/Kleinschreibung.
-  Fortschritt (globaler Spielstand): `CampaignProgress` (`campaign.json` bei den Spielständen, je Kampagne/Volk Zahl geschaffter Missionen);
+  „Weiter“/Enter → Mission mit Völkern/Gebäuden der Karte). `data/campaign.json`: je Kampagne `sides` mit `name` (Textschlüssel), `intro`,
+  `outro` (Sieg-Video) und `missions` (`map`, `text`/`hint` = Einträge der Texttabelle in GFX-Datei 07, Deutsch/Englisch nach Sprache, `voice`,
+  `labels` je Kartenspieler – bisher nur Mission 1, aus dem Missionstext – oder `preview` [Datei, Sequenz, Bild] eines fertigen Original-Vorschaubilds
+  statt der gerenderten Karte: Amazonen Datei 48 Sequenz 3, Z01–Z12 = 0–11, G01–G12 = 12–23, per Wassermaske zugeordnet); Pfade in der
+  Installation, `GameInstallation.FindPath` ohne Groß-/Kleinschreibung. Amazonen-Kampagne: `S3QOTA/MIS_M/Z` (Amazonen, Texte 48–59) und `G`
+  (die drei Völker, Spieler 1 wechselt, Texte 60–71), Hinweise +72, Videos `S3QOTA/ADD/1/DATAP0_N` (Zuordnung der Intros geraten).
+  Fortschritt (globaler Spielstand): `CampaignProgress` (`campaign.json` bei den Spielständen, je Kampagne/Seite Zahl geschaffter Missionen);
   Volkswahl mit Fortschritt → Missionsauswahl (`MissionSelectScreen`, Datei 02 GUI 18, `missionScreen` in `ui.json`: zuerst das Intro,
-  alle geschafften und die nächste, Namen aus den Missionstexten, nach allen acht der Abschluss; Klick → Beschreibung, deren „Zurück“ wieder
-  hierher, bzw. Video und danach zurück; Esc/„Zurück“ → Volkswahl). Videos über `MapGame.PlayVideo(pfad, danach)`. Laufende Mission `MissionRef` (`settlers/Roman/0`) steht im
+  alle geschafften und die nächste, Namen aus den Missionstexten, nach allen der Abschluss; längere Liste scrollt (Rad, Pfeile, Bildlaufleiste), öffnet bei der neuesten; Klick → Beschreibung, deren „Zurück“ wieder
+  hierher, bzw. Video und danach zurück; Esc/„Zurück“ → Volkswahl). Videos über `MapGame.PlayVideo(pfad, danach)`. Laufende Mission `MissionRef` (`settlers/Roman/0`, `amazons/peoples/3`) steht im
   Spielstand (Client-Wert `mission`, Kopf `SaveInfo.Mission` – Listen zeigen „Kampagne Römer, Mission 1“).
   Sieg/Niederlage: `World.Goals` (`MissionGoals`, nur in Missionen, mitgespeichert) prüft sekündlich für Spieler 1: kein eigenes Gebäude
-  (auch Baustellen) → verloren, kein fremdes mehr (zerstört/erobert) → gewonnen; einmal entschieden, bleibt es. Missionsspezifische Bedingungen
+  (auch Baustellen) mehr, nachdem es eins gab, oder keins und keine Siedler (G06 beginnt ohne Gebäude) → verloren, kein fremdes mehr (zerstört/erobert) → gewonnen; einmal entschieden, bleibt es. Missionsspezifische Bedingungen
   aus den Texten (Vorposten halten, Goldmengen …) noch nicht. Gewonnen: weiß oben „Spiel gewonnen“, Fortschritt sofort gespeichert, weiterspielen
   möglich; Spiel beenden/Esc → Statistik („Weiter“) → nächste Missionsbeschreibung über Missionsauswahl und Volkswahl (nach der letzten das Sieg-Video, dann die Auswahl).
   Verloren: „Spiel verloren“, keine Steuerung mehr außer Esc (F11/F3) → Statistik ohne Weiterspielen → dieselbe Missionsbeschreibung.
   Cheat-Menü: „Mission geschafft“/„Mission verloren“.
   `VideoPlayer`: `AviFile` (Homestead.Assets, `docs/formate/avi.md`) liefert Kopf und PCM-Ton, das Bild (Indeo 5) dekodiert ein
   installiertes ffmpeg im eigenen Prozess (`HOMESTEAD_FFMPEG`, neben dem Programm, PATH; sonst übersprungen); Bilder folgen der Uhr ab dem
-  ersten Bild/Tonstart, Lautstärke = Effekte; Esc/Leertaste/Enter/Klick bricht ab. Capture: `HOMESTEAD_CAPTURE_START=campaign` → `campaign.png`,
+  ersten Bild/Tonstart, Lautstärke = Effekte; Esc/Leertaste/Enter/Klick bricht ab. Capture: `HOMESTEAD_CAPTURE_START=campaign` (Amazonen: `amazons`, Seiten `amazons`/`peoples`; `HOMESTEAD_CAPTURE_HOVER=<seite>` wie unter der Maus) → `campaign.png`,
   `campaign:<volk>` → `video.png` (100. Bild), `campaign:<volk>:briefing` → `briefing.png`, `campaign:<volk>:choose` → Volk gewählt (mit Fortschritt
   `missions.png`), `campaign:<volk>:won|lost` → Mission 1 gestartet, sofort entschieden,
   Spiel läuft (Banner); `…:won:next`/`…:lost:next` → Statistik verlassen, `briefing.png` der zweiten bzw. wieder der ersten;
