@@ -10,7 +10,7 @@ namespace Homestead.Client;
 /// <summary>
 /// The campaign's first page: choosing the people on the original's background (<c>campaignScreen</c> in
 /// <c>data/ui.json</c>, scaled from 800 × 600, marble beside it). A click on a people's picture or name chooses it
-/// (<see cref="Chosen"/>), Esc goes back to the title screen.
+/// (<see cref="Chosen"/>), "Zurück" (Esc; the original has none) goes back to the title screen.
 /// </summary>
 public sealed class CampaignScreen : IDisposable
 {
@@ -18,6 +18,8 @@ public sealed class CampaignScreen : IDisposable
 
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Color Gold = new(232, 196, 92);
+
+    private static readonly Rectangle BackButton = new(680, 555, 97, 25);
 
     private readonly Texture2D _background, _marble;
     private readonly Rectangle _heading;
@@ -84,10 +86,11 @@ public sealed class CampaignScreen : IDisposable
         bool clicked = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
         _previousKeys = keys;
         _previousMouse = mouse;
-        Chosen = clicked ? At(ToLayout(mouse.Position)) : null;
+        var at = ToLayout(mouse.Position);
+        Chosen = clicked ? At(at) : null;
         if (Chosen is not null)
             UiSounds.Toggle();
-        return escape;
+        return escape || clicked && BackButton.Contains(at);
     }
 
     /// <summary>Back from the video: keys and buttons still held there do not count here.</summary>
@@ -114,6 +117,7 @@ public sealed class CampaignScreen : IDisposable
                 Outline(batch, pixel, ToScreen(new Rectangle(picture.X - 3, picture.Y - 3, picture.Width + 6, picture.Height + 6)), Gold);
             WriteCentered(batch, font, Lang.T("peoples." + people), name, lit ? Gold : Text, 16);
         }
+        TextButton.Draw(batch, pixel, font, ToScreen(BackButton), Lang.T("campaign.back"), Mouse.GetState().Position.ToVector2(), size: Px(13));
     }
 
     private void Outline(SpriteBatch batch, Texture2D pixel, Rectangle r, Color color)

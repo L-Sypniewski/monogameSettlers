@@ -9,12 +9,14 @@ namespace Homestead.Client;
 
 /// <summary>
 /// The campaign's missions of one people once one is accomplished, on the original's background (<c>missionScreen</c> in
-/// <c>data/ui.json</c>, scaled from 800 × 600, marble beside it): every accomplished one and the next, with their names
-/// from the mission texts, to play again or on. A click chooses (<see cref="Chosen"/>); "Zurück" (Esc) goes back to the
-/// choice of people.
+/// <c>data/ui.json</c>, scaled from 800 × 600, marble beside it): first the intro video, then every accomplished mission
+/// and the next, with their names from the mission texts, to play again or on, after the last one the outro video.
+/// A click chooses (<see cref="Chosen"/>, <see cref="ChosenVideo"/>); "Zurück" (Esc) goes back to the choice of people.
 /// </summary>
 public sealed class MissionSelectScreen : IDisposable
 {
+    /// <summary>A video of the list.</summary>
+    public enum Video { Intro, Outro }
     private const int Width = 800, Height = 600;
     private const int RowHeight = 34;
 
@@ -62,8 +64,21 @@ public sealed class MissionSelectScreen : IDisposable
     /// <summary>The mission (from 0) clicked in the last <see cref="Update"/>, if any.</summary>
     public int? Chosen { get; private set; }
 
+    /// <summary>The video clicked in the last <see cref="Update"/>, if any.</summary>
+    public Video? ChosenVideo { get; private set; }
+
     /// <summary>The missions to choose from: the accomplished ones and the next (all once every one is).</summary>
     private int Available => Math.Min(_names.Count, _accomplished + 1);
+
+    /// <summary>The rows in order: the intro, the missions to choose from, the outro once every mission is accomplished.</summary>
+    private IEnumerable<(int? Mission, Video? Video)> Rows()
+    {
+        yield return (null, Video.Intro);
+        for (int mission = 0; mission < Available; mission++)
+            yield return (mission, null);
+        if (_accomplished >= _names.Count)
+            yield return (null, Video.Outro);
+    }
 
     /// <summary>A mission's name from its text: the first line without its label ("MISSIONSNAME:", "MISSION NAME:").</summary>
     public static string NameOf(string text)
@@ -91,13 +106,15 @@ public sealed class MissionSelectScreen : IDisposable
 
     private int Px(float size) => Math.Max(8, (int)MathF.Round(size * _scale));
 
-    private Rectangle Row(int mission) => new(_list.X + 12, _list.Y + 14 + mission * RowHeight, _list.Width - 24, RowHeight - 4);
+    private Rectangle Row(int row) => new(_list.X + 12, _list.Y + 14 + row * RowHeight, _list.Width - 24, RowHeight - 4);
 
+    /// <summary>The row under the point (its index), if any.</summary>
     private int? At(Point layout)
     {
-        for (int mission = 0; mission < Available; mission++)
-            if (Row(mission).Contains(layout))
-                return mission;
+        int count = Rows().Count();
+        for (int row = 0; row < count; row++)
+            if (Row(row).Contains(layout))
+                return row;
         return null;
     }
 
@@ -112,7 +129,8 @@ public sealed class MissionSelectScreen : IDisposable
         _previousKeys = keys;
         _previousMouse = mouse;
         var at = ToLayout(mouse.Position);
-        Chosen = clicked ? At(at) : null;
+        var chosen = clicked && At(at) is { } row ? Rows().ElementAt(row) : ((int?)null, (Video?)null);
+        (Chosen, ChosenVideo) = chosen;
         return escape || clicked && BackButton.Contains(at);
     }
 
@@ -133,16 +151,18 @@ public sealed class MissionSelectScreen : IDisposable
 
         WriteCentered(batch, font, $"{Lang.T("peoples." + _people)} · {Lang.T("campaign.chooseMission")}", _heading, Gold, 13);
         var hover = At(ToLayout(Mouse.GetState().Position));
-        for (int mission = 0; mission < Available; mission++)
+        int index = 0;
+        foreach (var (mission, video) in Rows())
         {
-            var row = Row(mission);
-            bool lit = mission == hover;
+            var row = Row(index);
+            bool lit = index++ == hover;
             if (lit)
                 batch.Draw(pixel, ToScreen(row), Gold * 0.18f);
-            Write(batch, font, $"{mission + 1}.  {_names[mission]}", row.X + 8, row.Y + 7, lit ? Gold : Text, 14);
-            string state = Lang.T(mission < _accomplished ? "campaign.missionDone" : "campaign.missionNew");
+            string name = mission is { } m ? $"{m + 1}.  {_names[m]}" : Lang.T(video == Video.Intro ? "campaign.introVideo" : "campaign.outroVideo");
+            Write(batch, font, name, row.X + 8, row.Y + 7, lit ? Gold : Text, 14);
+            string state = Lang.T(mission is null ? "campaign.video" : mission < _accomplished ? "campaign.missionDone" : "campaign.missionNew");
             float width = font.Measure(state, Px(12)).X / _scale;
-            Write(batch, font, state, row.Right - 8 - width, row.Y + 9, mission < _accomplished ? Dim : Gold, 12);
+            Write(batch, font, state, row.Right - 8 - width, row.Y + 9, mission is null || mission < _accomplished ? Dim : Gold, 12);
         }
         TextButton.Draw(batch, pixel, font, ToScreen(BackButton), Lang.T("campaign.back"), Mouse.GetState().Position.ToVector2(), size: Px(13));
     }

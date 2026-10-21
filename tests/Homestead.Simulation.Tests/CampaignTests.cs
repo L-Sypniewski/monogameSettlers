@@ -43,6 +43,7 @@ public class CampaignTests(ITestOutputHelper output)
         foreach (var people in Missions(document).EnumerateObject())
         {
             Assert.NotNull(installation.FindPath(people.Value.GetProperty("intro").GetString()!));
+            Assert.NotNull(installation.FindPath(people.Value.GetProperty("outro").GetString()!));
             foreach (var mission in people.Value.GetProperty("missions").EnumerateArray())
             {
                 string map = mission.GetProperty("map").GetString()!;

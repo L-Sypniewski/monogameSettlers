@@ -57,8 +57,10 @@ public sealed class MapGame : Game
     private SettingsScreen? _settingsScreen;
     /// <summary>The campaign's choice of people, over the title screen while open.</summary>
     private CampaignScreen? _campaignScreen;
-    /// <summary>A video playing over the title screen (the campaign's intro).</summary>
+    /// <summary>A video playing over the title screen (a campaign's intro or outro).</summary>
     private VideoPlayer? _video;
+    /// <summary>What follows the video playing, after its end or a click.</summary>
+    private Action? _afterVideo;
     /// <summary>A campaign mission's description, over the campaign screen (and the choice of missions) while open.</summary>
     private BriefingScreen? _briefing;
     /// <summary>The choice of missions of a people with progress, over the campaign screen while open.</summary>
@@ -356,7 +358,8 @@ public sealed class MapGame : Game
             // =campaign:<people>:briefing: its first mission's description, briefing.png; =campaign:<people>:choose: the people
             // chosen (with progress the choice of missions, missions.png; otherwise the intro); =campaign:<people>:won|lost: its first
             // mission started and decided at once, the game goes on (the banner); with :next appended the statistics are left –
-            // the second one's or again the first one's description, briefing.png; with HOMESTEAD_SAVE_DIR temporary, it notes the progress).
+            // the second one's or again the first one's description, briefing.png; a number at the end takes that mission instead
+            // (won:next:8 – the outro, video.png); with HOMESTEAD_SAVE_DIR temporary, it notes the progress).
             string? captureStart = _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START");
             if (captureStart is null || captureStart.StartsWith("title") || captureStart.StartsWith("settings") || captureStart.StartsWith("campaign"))
             {
@@ -373,11 +376,11 @@ public sealed class MapGame : Game
                             ChoosePeople(_campaignPeople);
                         else if (parts is [_, _, "won" or "lost", ..])
                         {
-                            OpenBriefing(0);
+                            OpenBriefing(int.TryParse(parts[^1], out int number) ? number - 1 : 0);
                             StartMission();
                             _world.Goals!.Decide(parts[2] == "lost" ? MissionOutcome.Lost : MissionOutcome.Won, _world.Tick);
                             NoteOutcome();
-                            if (parts is [.., "next"])
+                            if (parts.Contains("next"))
                                 LeaveStatistics();
                         }
                         else
@@ -684,14 +687,26 @@ public sealed class MapGame : Game
     private void PlayIntro(Civilization people)
     {
         _campaignPeople = people;
-        if (!CampaignConfig.Load().Campaigns[Campaign].TryGetValue(people, out var campaign))
-            return;
-        if (_installation.FindPath(campaign.Intro) is not { } path)
-            Console.WriteLine($"Video skipped: {campaign.Intro} is not in the installation");
+        if (CampaignConfig.Load().Campaigns[Campaign].TryGetValue(people, out var campaign))
+            PlayVideo(campaign.Intro, () => OpenBriefing(0));
+    }
+
+    /// <summary>
+    /// Plays a video of the installation (<paramref name="relative"/>); <paramref name="after"/> follows its end or a click
+    /// (at once if it cannot be played).
+    /// </summary>
+    private void PlayVideo(string relative, Action after)
+    {
+        _video?.Dispose();
+        _video = null;
+        if (_installation.FindPath(relative) is not { } path)
+            Console.WriteLine($"Video skipped: {relative} is not in the installation");
         else
             _video = VideoPlayer.TryOpen(GraphicsDevice, path, _display.EffectsVolume / 100f);
         if (_video is null)
-            OpenBriefing(0);
+            after();
+        else
+            _afterVideo = after;
     }
 
     /// <summary>
@@ -769,8 +784,12 @@ public sealed class MapGame : Game
         _campaignPeople = mission.People;
         OpenMissionSelect();
         int next = outcome == MissionOutcome.Won ? mission.Index + 1 : mission.Index;
-        if (next < CampaignConfig.Load().Campaigns[mission.Campaign][mission.People].Missions.Count)
+        var campaign = CampaignConfig.Load().Campaigns[mission.Campaign][mission.People];
+        if (next < campaign.Missions.Count)
             OpenBriefing(next);
+        else
+            // The last mission won: the people's outro, then the list with every mission.
+            PlayVideo(campaign.Outro, () => _missionSelect?.Resume());
     }
 
     /// <summary>Opens the description of mission <paramref name="mission"/> (from 0) of the chosen people's campaign.</summary>
@@ -836,12 +855,14 @@ public sealed class MapGame : Game
         if (_video is not null)
         {
             _video.Update();
-            // A click (or its end) leads to the first mission's description.
+            // A click (or its end) leads on: after the intro to the first mission's description, from the list back to it.
             if (_video.Finished && _captureDirectory is null)
             {
                 _video.Dispose();
                 _video = null;
-                OpenBriefing(0);
+                var after = _afterVideo;
+                _afterVideo = null;
+                after?.Invoke();
             }
             _previousKeys = Keyboard.GetState();
             _previousMouse = Mouse.GetState();
@@ -857,6 +878,11 @@ public sealed class MapGame : Game
             }
             else if (_missionSelect.Chosen is { } mission)
                 OpenBriefing(mission);
+            else if (_missionSelect.ChosenVideo is { } video)
+            {
+                var campaign = CampaignConfig.Load().Campaigns[Campaign][_campaignPeople];
+                PlayVideo(video == MissionSelectScreen.Video.Intro ? campaign.Intro : campaign.Outro, () => _missionSelect?.Resume());
+            }
             _previousKeys = Keyboard.GetState();
             _previousMouse = Mouse.GetState();
             return;
@@ -3286,6 +3312,7 @@ public sealed class MapGame : Game
         _settingsScreen?.Dispose();
         _campaignScreen?.Dispose();
         _video?.Dispose();
+        _afterVideo = null;
         _briefing?.Dispose();
         _missionSelect?.Dispose();
         _cursor?.Dispose();

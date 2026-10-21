@@ -53,7 +53,10 @@
     "lostHint": "Esc: leave the game – the mission starts over.",
     "chooseMission": "Choose a mission",
     "missionDone": "accomplished",
-    "missionNew": "new"
+    "missionNew": "new",
+    "introVideo": "Intro",
+    "outroVideo": "Finale",
+    "video": "video"
   },
   "peoples": {
     "Roman": "Romans",

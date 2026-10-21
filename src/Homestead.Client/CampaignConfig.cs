@@ -9,8 +9,8 @@ namespace Homestead.Client;
 /// </summary>
 public sealed record CampaignMission(string Map, int Text, int Hint, string Voice, IReadOnlyList<string> Labels);
 
-/// <summary>One people's campaign: its intro video and its missions in order.</summary>
-public sealed record CampaignPeople(string Intro, IReadOnlyList<CampaignMission> Missions);
+/// <summary>One people's campaign: its intro video, its missions in order and the video after the last one.</summary>
+public sealed record CampaignPeople(string Intro, IReadOnlyList<CampaignMission> Missions, string Outro);
 
 /// <summary>The campaigns of the original installation (<c>data/campaign.json</c>).</summary>
 public sealed class CampaignConfig
@@ -29,7 +29,8 @@ public sealed class CampaignConfig
             c => (IReadOnlyDictionary<Civilization, CampaignPeople>)c.Value.GetProperty("peoples").EnumerateObject().ToDictionary(
                 p => Enum.Parse<Civilization>(p.Name),
                 p => new CampaignPeople(p.Value.GetProperty("intro").GetString()!,
-                    p.Value.GetProperty("missions").EnumerateArray().Select(Mission).ToArray()))));
+                    p.Value.GetProperty("missions").EnumerateArray().Select(Mission).ToArray(),
+                    p.Value.GetProperty("outro").GetString()!))));
     }
 
     private static CampaignMission Mission(JsonElement m) => new(

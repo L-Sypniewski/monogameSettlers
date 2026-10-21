@@ -53,7 +53,10 @@
     "lostHint": "Esc: Spiel verlassen – die Mission beginnt von vorn.",
     "chooseMission": "Mission wählen",
     "missionDone": "geschafft",
-    "missionNew": "neu"
+    "missionNew": "neu",
+    "introVideo": "Intro",
+    "outroVideo": "Abschluss",
+    "video": "Video"
   },
   "peoples": {
     "Roman": "Römer",
