@@ -132,11 +132,14 @@ public sealed record SoundConfig(
         var other => SimpleCues.FirstOrDefault(c => c.Kind == other).Key ?? "",
     });
 
-    /// <summary>The music for a people: its own pieces, or every piece if <paramref name="ownPeople"/> is off; none without a people.</summary>
+    /// <summary>
+    /// The music for a people: its own pieces, or with <paramref name="ownPeople"/> off every piece (its own first, so the
+    /// game still opens with its first); none without a people.
+    /// </summary>
     public int[] TracksFor(Civilization? people, bool ownPeople) =>
         people is not { } p ? []
         : ownPeople ? Music.GetValueOrDefault(p, [])
-        : Music.Values.SelectMany(t => t).Distinct().Order().ToArray();
+        : Music.GetValueOrDefault(p, []).Concat(Music.Values.SelectMany(t => t)).Distinct().ToArray();
 }
 
 /// <summary>

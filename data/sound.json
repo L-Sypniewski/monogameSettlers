@@ -33,13 +33,13 @@
     "ironmelt": { "sounds": [ 37, 38 ], "everySeconds": 5 },
     "goldmelt": { "sounds": [ 37, 38 ], "everySeconds": 5 }
   },
-  "_musicComment": "Background music: MUSIC/TrackNN.ogg (the former CD audio tracks), played shuffled from the own people's list (all tracks if the player turns that off), pauseSeconds (min, max) of silence between two pieces, fadeSeconds to fade out when the list changes. Which track belongs to which people is not documented anywhere; correct it here if it sounds wrong.",
+  "_musicComment": "Background music: MUSIC/TrackNN.ogg (the former CD audio tracks), starting with the first of the own people's list, then shuffled from it (all tracks if the player turns that off), pauseSeconds (min, max) of silence between two pieces, fadeSeconds to fade out when the list changes. Tracks per people assigned by ear by the project owner.",
   "music": {
     "tracks": {
-      "Roman": [ 2, 3, 4 ],
-      "Egyptian": [ 5, 6, 7 ],
-      "Asian": [ 8, 9, 10 ],
-      "Amazon": [ 11, 12, 13, 14 ]
+      "Roman": [ 3, 2, 7 ],
+      "Egyptian": [ 14, 6, 12],
+      "Asian": [ 4, 5, 13 ],
+      "Amazon": [ 9, 8, 10 ]
     },
     "volume": 0.7,
     "pauseSeconds": [ 4, 15 ],

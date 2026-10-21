@@ -29,6 +29,8 @@ public sealed class MusicPlayer : IDisposable
     private float _pause;
     private bool _broken;
     private int[] _tracks = [];
+    // A new list begins with its first piece.
+    private bool _opening;
 
     public MusicPlayer(string? directory, SoundConfig config)
     {
@@ -38,7 +40,10 @@ public sealed class MusicPlayer : IDisposable
             Console.WriteLine("Music off: no MUSIC folder in the installation");
     }
 
-    /// <summary>The pieces to choose from (track numbers); empty: none.</summary>
+    /// <summary>
+    /// The pieces to choose from (track numbers); empty: none. A new list starts with its first piece (unless the piece
+    /// playing is in it too and goes on), then shuffled.
+    /// </summary>
     public IReadOnlyList<int> Tracks
     {
         get => _tracks;
@@ -47,6 +52,7 @@ public sealed class MusicPlayer : IDisposable
             if (_tracks.SequenceEqual(value))
                 return;
             _tracks = value.ToArray();
+            _opening = _reader is null || !_tracks.Contains(_lastTrack);
             if (_reader is not null && !_tracks.Contains(_lastTrack))
                 _fadingOut = true;
             else if (_reader is null)
@@ -107,9 +113,10 @@ public sealed class MusicPlayer : IDisposable
 
     private void Start(int[] tracks)
     {
-        // Another piece than the last, if there is one.
+        // The list's first piece at its start, then another piece than the last, if there is one.
         var choices = tracks.Length > 1 ? tracks.Where(t => t != _lastTrack).ToArray() : tracks;
-        int track = choices[_random.Next(choices.Length)];
+        int track = _opening ? tracks[0] : choices[_random.Next(choices.Length)];
+        _opening = false;
         string? path = Directory.EnumerateFiles(_directory!)
             .FirstOrDefault(f => Path.GetFileName(f).Equals($"Track{track:00}.ogg", StringComparison.OrdinalIgnoreCase));
         _lastTrack = track;
