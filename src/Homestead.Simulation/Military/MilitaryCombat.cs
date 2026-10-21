@@ -570,7 +570,7 @@ public sealed partial class Military
                             Hit(soldier, guard);
                         else
                         {
-                            _world.Cue(new SoundCue(SoundCueKind.Strike, soldier.Position, soldier.Player, soldier.SoldierType));
+                            _world.Cue(new SoundCue(SoundCueKind.Strike, soldier.Position, soldier.Player, soldier.SoldierType, soldier.People ?? _world.PeopleOf(soldier.Player)));
                             g.DoorHealth = Math.Max(0, g.DoorHealth - _config.Damage(soldier.SoldierType!.Value, soldier.Level) * CombatStrengthOf(soldier));
                             g.LastThreat = _world.Tick;
                             _world.Events.Raise("buildingAttacked", g.Building.Player, g.Building.Position, building: g.Building);
@@ -870,7 +870,8 @@ public sealed partial class Military
             _arrows.Add(new Arrow(attacker, tower, enemy, from, enemy.Position, _world.Tick,
                 ArrowTicks(PathFinder.Distance(from, enemy.Position))));
         }
-        _world.Cue(new SoundCue(SoundCueKind.Strike, tower?.Position ?? attacker.Position, attacker.Player, attacker.SoldierType));
+        _world.Cue(new SoundCue(SoundCueKind.Strike, tower?.Position ?? attacker.Position, attacker.Player, attacker.SoldierType,
+            attacker.People ?? _world.PeopleOf(attacker.Player)));
         enemy.Health -= _config.Damage(attacker.SoldierType!.Value, attacker.Level) * CombatStrengthOf(attacker);
         var home = DefendedBy(enemy);
         if (home is not null)

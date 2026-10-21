@@ -5,7 +5,7 @@ namespace Homestead.Simulation;
 /// <summary>What made a sound (the client picks the recording).</summary>
 public enum SoundCueKind
 {
-    /// <summary>A soldier struck or shot (also at a door): <see cref="SoundCue.Soldier"/> says with what.</summary>
+    /// <summary>A soldier struck or shot (also at a door): <see cref="SoundCue.Soldier"/> says with what, <see cref="SoundCue.People"/> whose weapon.</summary>
     Strike,
 
     /// <summary>A settler died: <see cref="SoundCue.People"/> says whose voice.</summary>
@@ -13,6 +13,12 @@ public enum SoundCueKind
 
     /// <summary>A woodcutter felled a tree.</summary>
     TreeFalls,
+
+    /// <summary>A building came down (torn down, burnt, lost).</summary>
+    BuildingFalls,
+
+    /// <summary>A priest began a spell.</summary>
+    Spell,
 }
 
 /// <summary>Something audible happened at a point in this tick.</summary>

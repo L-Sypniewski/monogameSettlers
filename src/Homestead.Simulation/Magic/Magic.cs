@@ -340,6 +340,7 @@ public sealed class Magic
         priest.Facing = FacingTowards(priest.Position, order.Target);
         priest.Activity = Activity.Casting;
         priest.ActivityTicks = 0;
+        _world.Cue(new SoundCue(SoundCueKind.Spell, priest.Position, priest.Player));
         priest.IsWorking = true;
     }
 

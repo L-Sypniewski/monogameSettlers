@@ -16,10 +16,16 @@ public sealed record WorkshopSound(int Sound, float EverySeconds);
 /// <summary>The values of <c>data/sound.json</c>.</summary>
 public sealed record SoundConfig(
     IReadOnlyDictionary<SoldierType, int> Strike,
+    IReadOnlyDictionary<Civilization, IReadOnlyDictionary<SoldierType, int>> StrikeByPeople,
     int Death,
     IReadOnlyDictionary<Civilization, int> DeathByPeople,
     int TreeFalls,
+    int BuildingFalls,
+    int Spell,
     int Command,
+    IReadOnlyDictionary<string, int> Ui,
+    int CombatEvent,
+    int OtherEvent,
     IReadOnlyDictionary<string, float> Volumes,
     int MaxVoices,
     int PerFrame,
@@ -40,12 +46,23 @@ public sealed record SoundConfig(
         var music = root.GetProperty("music");
         var pause = music.GetProperty("pauseSeconds");
         var deaths = effects.GetProperty("death").EnumerateObject().ToArray();
+        var strikes = effects.GetProperty("strike").EnumerateObject().ToArray();
+        static Dictionary<SoldierType, int> Weapons(IEnumerable<JsonProperty> properties) =>
+            properties.Where(p => p.Value.ValueKind == JsonValueKind.Number).ToDictionary(p => Enum.Parse<SoldierType>(p.Name), p => p.Value.GetInt32());
+        var events = effects.GetProperty("events");
         return new SoundConfig(
-            effects.GetProperty("strike").EnumerateObject().ToDictionary(p => Enum.Parse<SoldierType>(p.Name), p => p.Value.GetInt32()),
+            Weapons(strikes),
+            strikes.Where(p => p.Value.ValueKind == JsonValueKind.Object).ToDictionary(
+                p => Enum.Parse<Civilization>(p.Name), p => (IReadOnlyDictionary<SoldierType, int>)Weapons(p.Value.EnumerateObject())),
             deaths.Single(p => p.Name == "default").Value.GetInt32(),
             deaths.Where(p => p.Name != "default").ToDictionary(p => Enum.Parse<Civilization>(p.Name), p => p.Value.GetInt32()),
             effects.GetProperty("treeFalls").GetInt32(),
+            effects.GetProperty("buildingFalls").GetInt32(),
+            effects.GetProperty("spell").GetInt32(),
             effects.GetProperty("command").GetInt32(),
+            effects.GetProperty("ui").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetInt32()),
+            events.GetProperty("combat").GetInt32(),
+            events.GetProperty("other").GetInt32(),
             root.GetProperty("volume").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetSingle()),
             root.GetProperty("maxVoices").GetInt32(),
             root.GetProperty("perFrame").GetInt32(),
@@ -65,13 +82,17 @@ public sealed record SoundConfig(
     /// <summary>The sound for a cue, or −1.</summary>
     public int SoundOf(SoundCue cue) => cue.Kind switch
     {
-        SoundCueKind.Strike => cue.Soldier is { } type ? Strike.GetValueOrDefault(type, -1) : -1,
+        SoundCueKind.Strike => cue.Soldier is not { } type ? -1
+            : cue.People is { } people && StrikeByPeople.TryGetValue(people, out var own) && own.TryGetValue(type, out int sound) ? sound
+            : Strike.GetValueOrDefault(type, -1),
         SoundCueKind.Death => cue.People is { } people ? DeathByPeople.GetValueOrDefault(people, Death) : Death,
         SoundCueKind.TreeFalls => TreeFalls,
+        SoundCueKind.BuildingFalls => BuildingFalls,
+        SoundCueKind.Spell => Spell,
         _ => -1,
     };
 
-    /// <summary>Loudness of a kind of sound (<c>volume</c>: strike, death, treeFalls, command, work), 1 if not given.</summary>
+    /// <summary>Loudness of a kind of sound (<c>volume</c>: strike, death, treeFalls, buildingFalls, spell, command, ui, events, work), 1 if not given.</summary>
     public float VolumeOf(string kind) => Volumes.GetValueOrDefault(kind, 1);
 
     public float VolumeOf(SoundCueKind kind) => VolumeOf(kind switch
@@ -79,6 +100,8 @@ public sealed record SoundConfig(
         SoundCueKind.Strike => "strike",
         SoundCueKind.Death => "death",
         SoundCueKind.TreeFalls => "treeFalls",
+        SoundCueKind.BuildingFalls => "buildingFalls",
+        SoundCueKind.Spell => "spell",
         _ => "",
     });
 

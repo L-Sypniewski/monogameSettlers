@@ -33,7 +33,9 @@ Die Tabelle endet, wo die erste Variantenliste beginnt: (erster Offset − 0x24)
 | 16 | Blockgröße 2 (`uint16`), Bits 16 (`uint16`) |
 | 20 | Samples, signed 16 bit; (Länge − 20) / 2 Stück (ungerade Längen: letztes Byte übrig) |
 
-## Belegung (aus JSettlers, teils geprüft)
+## Belegung
+Fett: im Spiel genutzt (`data/sound.json`). „Gehört“: vom Projektinhaber am Original erkannt, sonst aus JSettlers.
+
 | Nr. | Geräusch | Nr. | Geräusch |
 |-----|----------|-----|----------|
 | **0** | **Holzfäller** | **36** | **fallender Baum** |
@@ -42,22 +44,25 @@ Die Tabelle endet, wo die erste Variantenliste beginnt: (erster Offset − 0x24)
 | **3** | **Steinmetz** | 40/41 | Esel |
 | **5** | **Sägewerk** | 42 | Mühle |
 | **6/7** | **Schmied** (Werkzeug/Waffen) | 45 | Köhler hustet |
-| 8/9, 12 | Bauer | 62 | Klick |
-| 13 | Feuer | 67 | Wüste |
-| 14 | Schlachter | 68 | Meer |
-| 15–17 | Fischer (**16** genutzt) | 69/70 | Vögel |
-| 20 | Werft | 71 | Fluss |
-| 21 | Heiler | 72 | Sumpf |
-| 24 | Geologe | 73/74 | Wind |
-| 25, 33 | Bogenschütze | 75/76 | Donner, Regen |
-| **30** | **Schwertkämpfer** (Schlag) | 80 | „Ihr werdet angegriffen“ |
-| 31/32 | Soldat? (**31** vorerst als Befehl) | 85 | Pfeilschuss |
-| **33** | **Bogenschütze** (Schuss) | 93 | einstürzendes Gebäude |
-| **34** | **Pikenier** (Stoß) | 106 | Werkzeug fehlt |
-| **35** | **Tod** (9 Varianten) | **113** | **Tod einer Amazone** (4 Varianten) |
-| 117 | Bienen | | |
-
-Fett: im Spiel genutzt (`data/sound.json`).
+| 8/9, 12 | Bauer | **47/48** | **Auftrag/Anteil hoch/runter** (gehört) |
+| 13 | Feuer | **54** | **Schalter an/aus** (gehört) |
+| 14 | Schlachter | **57** | **Befehl an Soldaten** (gehört; 58/59 gleiche Aufnahme) |
+| 15–17 | Fischer (**16** genutzt) | 62 | Klick |
+| 20 | Werft | 67 | Wüste |
+| 21 | Heiler | 68 | Meer |
+| **22** | **Arbeitsbereich versetzt** (gehört) | 69/70 | Vögel |
+| 24 | Geologe | 71 | Fluss |
+| 25 | Bogenschütze | 72 | Sumpf |
+| **30** | **Schwertkämpfer** (Schlag) | 73/74 | Wind |
+| 31 | ? | **75** | **Zaubern** (gehört; JSettlers: Donner) |
+| **32** | **Bogenschuss der Ägypter** (gehört) | 76 | Regen |
+| **33** | **Bogenschütze** (Schuss) | 80 | „Ihr werdet angegriffen“ |
+| **34** | **Pikenier** (Stoß) | 85 | Pfeilschuss |
+| **35** | **Tod** (9 Varianten) | 86–90 | Kanone? (87: kurzes dumpfes „klonk“) |
+| **113** | **Tod einer Amazone** (4 Varianten) | **93** | **Gebäude abgerissen/zerstört** (gehört) |
+| 117 | Bienen | 106 | Werkzeug fehlt |
+| | | **109** | **Event: Angriff** (gehört) |
+| | | **110** | **Event: alle anderen** (gehört) |
 
 ## Musik
 `MUSIC/Track02.ogg` … `Track14.ogg` (Ogg Vorbis, die früheren CD-Audiospuren; nicht in jeder Ausgabe vorhanden).

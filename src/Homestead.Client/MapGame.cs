@@ -291,6 +291,7 @@ public sealed class MapGame : Game
         if (_captureDirectory is null)
         {
             _audio = new GameAudio(_installation, SoundConfig.Load());
+            UiSounds.Audio = _audio;
             ApplyVolumes(_display);
         }
         _atlas = TerrainAtlas.Build(GraphicsDevice, _gfx.Open(0));
@@ -847,8 +848,13 @@ public sealed class MapGame : Game
             cues.Clear();
             _workSounds.Update(_world, _settlerRenderer, _audio, _time.TotalSeconds);
         }
-        if (_eventButtons.Update(_world, 0, _now) is { } raised && _captureDirectory is not null && _captureEvent)
-            LookAt(raised);
+        if (_eventButtons.Update(_world, 0, _now) is { } raised)
+        {
+            if (_audio is not null)
+                _audio.Play(raised.Category == EventCategory.Combat ? _audio.Config.CombatEvent : _audio.Config.OtherEvent, _audio.Config.VolumeOf("events"));
+            if (_captureDirectory is not null && _captureEvent)
+                LookAt(raised);
+        }
 
         // Fog of war: what player 1 sees is checked once a second, the fog then fades to it.
         if (_time >= _nextVision)
@@ -1229,12 +1235,16 @@ public sealed class MapGame : Game
                     : delta > 0 ? $"{name}: no free place"
                     : _world.Military.Wanted(_selectedBuilding!, type) == 0 ? $"{name}: none wanted" : $"{name}: the building must not be left empty";
                 if (released && possible)
+                {
                     _world.Military.ChangeWanted(_selectedBuilding!, type, delta);
+                    UiSounds.Step(delta > 0);
+                }
             }
             // A production building's stop/restart button.
             if (onMenu && released && _buildingInfo.PauseAt(panelCursor, SidePanel.ContentHeight, _world, _selectedBuilding!, 0))
             {
                 _world.SetPaused(_selectedBuilding!, !_selectedBuilding!.IsPaused);
+                UiSounds.Toggle();
                 _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)} {(_selectedBuilding.IsPaused ? "stopped" : "restarted")}";
             }
             // A storehouse's goods: specialize it on one, or back to the general rule.
@@ -1804,9 +1814,12 @@ public sealed class MapGame : Game
         if (_selectedBuilding is { Exists: true, Player: 0, HasWorkArea: true } worksite)
         {
             if (_world.SetWorkCenter(worksite, clicked) is { } center)
+            {
+                UiSounds.WorkArea();
                 _message = worksite.HasGatheringPoint ? $"gathering point moved to {center.X},{center.Y}"
                     : center == clicked ? $"work area moved to {center.X},{center.Y}"
                     : $"work area moved to {center.X},{center.Y} (at most {World.MaxWorkCenterDistance} fields away)";
+            }
             return;
         }
         var priests = _group.Where(s => s.Profession == Profession.Priest && !_world.Magic.IsBusy(s)).ToList();
@@ -2971,6 +2984,7 @@ public sealed class MapGame : Game
         _font.Dispose();
         _atlas.Dispose();
         _effect.Dispose();
+        UiSounds.Audio = null;
         _audio?.Dispose();
         base.UnloadContent();
     }

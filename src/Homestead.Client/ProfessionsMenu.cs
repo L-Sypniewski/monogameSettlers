@@ -150,6 +150,7 @@ public sealed class ProfessionsMenu : IDisposable
                 var (share, _, name) = Shares[row];
                 bool up = panel.Y < Spinner(row).Center.Y;
                 world.Recruitment.SetShare(player, share, world.Recruitment.ShareOf(player, share) + (up ? Step : -Step));
+                UiSounds.Step(up);
                 return $"{name}: {world.Recruitment.ShareOf(player, share) * 100:0} %";
             }
         for (int e = 0; e < Entries.Length; e++)

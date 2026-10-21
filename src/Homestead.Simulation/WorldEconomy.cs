@@ -501,6 +501,7 @@ public sealed partial class World
                 DropGoods(building.Position, material);
 
         _dustClouds.Add(new DustCloud(building.Position, Tick));
+        Cue(new SoundCue(SoundCueKind.BuildingFalls, building.Position, building.Player));
     }
 
     /// <summary>How long the ghost rising from a fallen settler lasts.</summary>

@@ -24,7 +24,7 @@ public class SoundTests(ITestOutputHelper output)
         Assert.True(amazon.IsDead);
         var cues = world.SoundCues;
         Assert.Contains(cues, c => c is { Kind: SoundCueKind.Strike, Soldier: SoldierType.Swordsman, Player: 0 });
-        Assert.Contains(cues, c => c is { Kind: SoundCueKind.Strike, Soldier: SoldierType.Bowman, Player: 0 });
+        Assert.Contains(cues, c => c is { Kind: SoundCueKind.Strike, Soldier: SoldierType.Bowman, Player: 0, People: Civilization.Roman });
         var death = Assert.Single(cues, c => c.Kind == SoundCueKind.Death);
         Assert.Equal(Civilization.Amazon, death.People);
         Assert.Equal(1, death.Player);
@@ -45,6 +45,18 @@ public class SoundTests(ITestOutputHelper output)
 
         var fall = Assert.Single(world.SoundCues, c => c.Kind == SoundCueKind.TreeFalls);
         Assert.Equal(tree, fall.Position);
+    }
+
+    [Fact]
+    public void A_building_coming_down_cues_its_fall()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools) { SoundCues = new() };
+        var lumberjack = world.PlaceBuilding(BuildingCatalog.Load(Civilization.Roman)["lumberjack"], 0, new GridPoint(30, 30))!;
+
+        world.RemoveBuilding(lumberjack);
+
+        var fall = Assert.Single(world.SoundCues, c => c.Kind == SoundCueKind.BuildingFalls);
+        Assert.Equal(lumberjack.Position, fall.Position);
     }
 
     [Fact]
