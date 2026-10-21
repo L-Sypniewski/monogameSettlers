@@ -55,6 +55,9 @@ public sealed class MapGame : Game
     private TitleScreen? _title;
     /// <summary>The settings screen, over the title screen while open.</summary>
     private SettingsScreen? _settingsScreen;
+    private readonly GameInstallation _installation;
+    // Sound effects and music; none in capture runs.
+    private GameAudio? _audio;
     /// <summary>Hardware cursor, full screen, language (<c>display</c> in settings.json).</summary>
     private DisplaySettings _display = DisplaySettings.Load();
     /// <summary>The game's own pointer while the hardware cursor is off.</summary>
@@ -240,6 +243,7 @@ public sealed class MapGame : Game
         _showStartScreen = startScreen;
         _loadSlot = loadSlot;
         AddCheats();
+        _installation = installation;
         _mapDirectory = installation.MapDirectory;
         _gfx = gfx;
         _peoples = peoples;
@@ -283,6 +287,11 @@ public sealed class MapGame : Game
         _cursor = new SoftwareCursor(GraphicsDevice);
         if (_display.FullScreen && _captureDirectory is null)
             SetFullScreen(true);
+        if (_captureDirectory is null)
+        {
+            _audio = new GameAudio(_installation, SoundConfig.Load());
+            ApplyVolumes(_display);
+        }
         _atlas = TerrainAtlas.Build(GraphicsDevice, _gfx.Open(0));
         _effect = new BasicEffect(GraphicsDevice)
         {
@@ -441,6 +450,7 @@ public sealed class MapGame : Game
             production: GameSettings.Load(production).Apply(production));
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
+        _world.SoundCues = _audio is null ? null : new();
         _objects = new MapObjectLayer(_sprites, _map.Area, _terrain);
         _vision = new Vision(_gameMap.Size, player: 0);
         _vision.Update(_world);
@@ -488,6 +498,7 @@ public sealed class MapGame : Game
         _world = game.World;
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
+        _world.SoundCues = _audio is null ? null : new();
         _objects = new MapObjectLayer(_sprites, _map.Area, _terrain);
         for (int y = 0; y < _gameMap.Size; y++)
         for (int x = 0; x < _gameMap.Size; x++)
@@ -769,6 +780,12 @@ public sealed class MapGame : Game
     protected override void Update(GameTime gameTime)
     {
         _now = gameTime.TotalGameTime.TotalSeconds;
+        if (_audio is not null)
+        {
+            // The own people's music in the game (statistics included), silence in the menus before it.
+            _audio.Music.People = _title is null && _startScreen is null ? Own.Civilization : null;
+            _audio.Music.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
+        }
         if (_title is not null)
         {
             UpdateTitle();
@@ -822,6 +839,11 @@ public sealed class MapGame : Game
             _accumulator -= World.TickDuration;
         }
         _perf.EndSimulation();
+        if (_world.SoundCues is { } cues)
+        {
+            _audio?.Play(cues, Hearing);
+            cues.Clear();
+        }
         if (_eventButtons.Update(_world, 0, _now) is { } raised && _captureDirectory is not null && _captureEvent)
             LookAt(raised);
 
@@ -869,8 +891,30 @@ public sealed class MapGame : Game
         _display = display;
         Lang.Use(display.Language);
         IsMouseVisible = display.HardwareCursor;
+        ApplyVolumes(display);
         if (_captureDirectory is null && display.FullScreen != _graphics.IsFullScreen)
             SetFullScreen(display.FullScreen);
+    }
+
+    private void ApplyVolumes(DisplaySettings display)
+    {
+        if (_audio is null)
+            return;
+        _audio.EffectsVolume = display.EffectsVolume / 100f;
+        _audio.Music.Volume = display.MusicVolume / 100f;
+    }
+
+    /// <summary>
+    /// Where a sound at the point is heard: its distance from the view's center in half view sizes (−1…1 on screen);
+    /// null under the fog of war.
+    /// </summary>
+    private (float X, float Y)? Hearing(GridPoint p)
+    {
+        if (!_gameMap.Contains(p) || (_fogOn && !_vision.IsVisible(p)))
+            return null;
+        var viewport = GraphicsDevice.Viewport;
+        var at = ToWorld(p) - _camera;
+        return (at.X / (viewport.Width / 2f / _zoom), at.Y / (viewport.Height / 2f / _zoom));
     }
 
     private void SetFullScreen(bool on)
@@ -2919,6 +2963,7 @@ public sealed class MapGame : Game
         _font.Dispose();
         _atlas.Dispose();
         _effect.Dispose();
+        _audio?.Dispose();
         base.UnloadContent();
     }
 }

@@ -4,7 +4,7 @@
 
 ![Roman economy after one hour of play](docs/screenshots/economy.png)
 
-The graphics come from your own copy of the original game and are read at runtime. Game logic, rendering, AI and tools are
+The graphics, sounds and music come from your own copy of the original game and are read at runtime. Game logic, rendering, AI and tools are
 written from scratch – the [clean-room way](#clean-room-how-this-game-is-made). The original is full of bugs and hasn't been maintained for years; monoSettlers plays like the game you
 remember, minus the old annoyances.
 
@@ -21,10 +21,11 @@ remember, minus the old annoyances.
 - **Hospitals, priests and spells** per people: convert, samurai sword, freeze, scatter, summon goods
 - **Divine upgrades** for soldiers, paid with mana from wine, mead, beer or rice liquor
 - **Geologists, scouts and pioneers**: prospect for resources, steal goods, claim land without a tower
+- **Battle sounds** from the original: swords, spears and bows each sound their own, Amazons have their own death cry
 
 ## Economy
 
-- **Four peoples** (Romans, Egyptians, Asians, Amazons) with their own buildings, production chains and settlers
+- **Four peoples** (Romans, Egyptians, Asians, Amazons) with their own buildings, production chains, settlers and music
 - **Logistics without traffic jams**: carriers step aside, swap places and re-plan; a watchdog resolves every deadlock
 - **Trails**: well-used routes turn into footpaths you walk faster on
 - **Levelling** with real terrain changes, construction sites with diggers and builders
@@ -139,7 +140,7 @@ Internal project name and namespaces: *Homestead*.
 
 ## Roadmap to 1.0
 
-- Sound & music
+- More sounds (work, nature, buildings)
 - Single-player maps
 - All the original spells
 - More AI variation

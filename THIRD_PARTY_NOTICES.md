@@ -7,7 +7,7 @@ other projects and the libraries included in the release packages, with their li
 
 https://github.com/paulwedeck/settlers-remake
 
-Used as a reference for the original file formats (GFX images, maps) and terrain rendering.
+Used as a reference for the original file formats (GFX images, maps, sounds) and terrain rendering.
 The C# code was written independently; the following data tables and rules were ported:
 
 - Torso/shadow alignment rules (`src/Homestead.Assets/Gfx/GfxFile.cs`, from `AdvancedDatFileReader` and the
@@ -35,6 +35,8 @@ The C# code was written independently; the following data tables and rules were 
   (`EconomyRenderer.cs`, `WorldEconomy.cs`, `data/production.json`, from `MapObjectDrawer`, `Building`, `Constants`);
   the striking carrier's animation order (`SettlerRenderer.cs`, from `BearerMovable`'s homeless behaviour)
 - Build menu categories and their buildings (`data/ui.json`, from `EBuildingsCategory`)
+- Layout of the sound file and the numbers of the sounds for strikes, shots and deaths (`src/Homestead.Assets/Sound/SoundFile.cs`,
+  `docs/formate/snd.md`, `data/sound.json`, from `SoundManager` and `MapObjectDrawer`)
 - Original map object names (`docs/formate/map.md`, from `EOriginalMapObjectType`)
 - Terrain texture atlas layout, transition table and triangle texture orientation
   (`src/Homestead.Client/Terrain/TerrainAtlas.cs`, `TerrainMesh.cs`, from `Background` and `ETextureOrientation`)
