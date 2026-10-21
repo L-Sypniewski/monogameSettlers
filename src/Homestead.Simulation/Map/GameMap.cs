@@ -116,6 +116,8 @@ public sealed class GameMap
     /// <summary>The object as original object code; decides both rules and graphics.</summary>
     public byte ObjectCodeAt(GridPoint p) => _objects[Index(p)];
 
+    public byte ObjectCodeAt(int index) => _objects[index];
+
     /// <summary>The player owning the point, or null.</summary>
     public int? OwnerAt(GridPoint p) => _owner[Index(p)] is var o && o != NoOwner ? o : null;
 
@@ -136,6 +138,8 @@ public sealed class GameMap
 
     /// <summary>Resource under the point; amount 0 means there is nothing (left).</summary>
     public (ResourceType Type, int Amount) ResourceAt(GridPoint p) => (_resourceType[Index(p)], _resourceAmount[Index(p)]);
+
+    public (ResourceType Type, int Amount) ResourceAt(int index) => (_resourceType[index], _resourceAmount[index]);
 
     /// <summary>Amount of <paramref name="type"/> under the point, 0 if there is another or no resource.</summary>
     public int ResourceAmount(GridPoint p, ResourceType type) =>

@@ -63,14 +63,18 @@ public sealed class Construction
         _recruits.RemoveAll(r => r.State != RecruitState.FetchingTool);
         _missingDiggers.Clear();
         _missingBuilders.Clear();
+        // Workers per site, counted once: recruiting assigns no one.
+        var assigned = new Dictionary<Building, int>();
+        foreach (var assignment in _assignments.Values)
+            assigned[assignment.Site] = assigned.GetValueOrDefault(assignment.Site) + 1;
         foreach (var sites in _world.Buildings.Where(b => b.Exists && b.State != BuildingState.Finished).GroupBy(b => b.Player))
         {
             int player = sites.Key;
             _missingDiggers[player] = Recruit(Profession.Digger, DiggerTrade, player, sites.ToList(), site => site.State == BuildingState.Flattening
-                ? Math.Min(MaxDiggersPerSite, site.Unlevelled.Count) - _assignments.Values.Count(a => a.Site == site)
+                ? Math.Min(MaxDiggersPerSite, site.Unlevelled.Count) - assigned.GetValueOrDefault(site)
                 : 0);
             _missingBuilders[player] = Recruit(Profession.Builder, BuilderTrade, player, sites.ToList(), site => site.State == BuildingState.Constructing
-                ? site.Definition.BuilderSpots.Count - _assignments.Values.Count(a => a.Site == site)
+                ? site.Definition.BuilderSpots.Count - assigned.GetValueOrDefault(site)
                 : 0);
         }
     }
@@ -81,17 +85,24 @@ public sealed class Construction
         if (_world.Recruitment.ToolFor(trade) is null)
             return 0;
         int wanted = sites.Sum(s => Math.Max(0, freeSpots(s)));
-        int idle = _world.Settlers.Count(s => s.Profession == profession && s.Player == player && !_assignments.ContainsKey(s.Id));
+        int idle = 0, workers = 0;
+        foreach (var s in _world.Settlers)
+            if (s.Profession == profession && s.Player == player)
+            {
+                workers++;
+                if (!_assignments.ContainsKey(s.Id))
+                    idle++;
+            }
         int coming = _recruits.Count(r => r.Profession == profession && r.Settler.Player == player);
         int missing = wanted - idle - coming;
         // Never more diggers/builders than the player's share allows (Siedler › Berufe).
-        int existing = _world.Settlers.Count(s => s.Profession == profession && s.Player == player) + coming;
+        int existing = workers + coming;
         missing = Math.Min(missing, _world.Recruitment.MaxOf(player, profession == Profession.Digger ? Share.Diggers : Share.Builders) - existing);
         // Diggers and builders leave the carrier reserve's last conversions to the workers of the
         // buildings under way: otherwise they take them all and the finished buildings stay empty.
         // One of each is always allowed, else those buildings would never be built.
         int headroom = _world.Recruitment.Convertible(player) - _world.Production.AwaitingWorkers(player);
-        if (headroom <= 0 && !_world.Settlers.Any(s => s.Profession == profession && s.Player == player))
+        if (headroom <= 0 && workers == 0)
             headroom = 1;
         while (missing > 0 && headroom-- > 0)
         {

@@ -46,6 +46,12 @@ internal sealed class ThiefTrait : AiTrait
     private long _nextCheck;
     private long _nextScout;
 
+    /// <summary>Distance to the own land per map index (see <see cref="MeasureFromBorder"/>), valid where the stamp is current.</summary>
+    [NonSerialized] private int[]? _distance;
+    [NonSerialized] private int[]? _distanceStamp;
+    [NonSerialized] private int _stamp;
+    [NonSerialized] private Queue<int>? _queue;
+
     public ThiefTrait(JsonElement settings)
     {
         _scouts = (int)Setting(settings, "scouts", 2);
@@ -157,27 +163,80 @@ internal sealed class ThiefTrait : AiTrait
         foreach (var (pile, until) in _avoided.ToList())
             if (world.Tick >= until || !world.HasPile(pile))
                 _avoided.Remove(pile);
+        MeasureFromBorder(map, border, ai.Player);
+        // Cheapest checks first: there are hundreds of piles on a big map, and the edge check looks at
+        // hundreds of fields around each.
         return world.Piles
             .Where(p => p.Material is not null && p.Count - p.Reserved > 0 && !taken.Contains(p) && !_avoided.ContainsKey(p)
                         && map.OwnerAt(p.Position) is { } owner && owner != ai.Player
                         && (p.Owner is null || p.Owner.Player != ai.Player))
-            .Where(p => AtEdge(map, p.Position) && !guarded(p.Position))
-            .Select(p => (Pile: p, Distance: border.Count == 0 ? int.MaxValue : border.Min(q => PathFinder.Distance(q, p.Position))))
-            .Where(t => t.Distance <= _maxDistance)
+            .Select(p => (Pile: p, Distance: DistanceFromBorder(map, p.Position)))
+            .Where(t => t.Distance <= _maxDistance && !guarded(t.Pile.Position)
+                        && (t.Distance <= _edgeDepth || AtEdge(map, t.Pile.Position)))
             .OrderBy(t => RankOf(t.Pile.Material!.Value)).ThenBy(t => t.Distance).ThenBy(t => t.Pile.Id)
             .Select(t => t.Pile).ToList();
     }
+
+    /// <summary>
+    /// Distances from the own border up to <c>maxDistance</c> over the fields of other players and no one's,
+    /// breadth first (the nearest border field is always reached that way: a shorter way through the own
+    /// land would cross the border closer still).
+    /// </summary>
+    private void MeasureFromBorder(Map.GameMap map, List<GridPoint> border, int player)
+    {
+        if (_distance?.Length != map.PointCount)
+        {
+            _distance = new int[map.PointCount];
+            _distanceStamp = new int[map.PointCount];
+            _stamp = 0;
+        }
+        _stamp++;
+        var queue = _queue ??= new Queue<int>();
+        queue.Clear();
+        foreach (var p in border)
+        {
+            int index = map.Index(p);
+            _distance[index] = 0;
+            _distanceStamp![index] = _stamp;
+            queue.Enqueue(index);
+        }
+        while (queue.Count > 0)
+        {
+            int index = queue.Dequeue();
+            int next = _distance[index] + 1;
+            if (next > _maxDistance)
+                continue;
+            var p = map.Point(index);
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+            {
+                var n = p.Neighbor((Direction)d);
+                if (!map.Contains(n) || map.OwnerAt(n) == player)
+                    continue;
+                int ni = map.Index(n);
+                if (_distanceStamp![ni] == _stamp)
+                    continue;
+                _distanceStamp[ni] = _stamp;
+                _distance[ni] = next;
+                queue.Enqueue(ni);
+            }
+        }
+    }
+
+    /// <summary>The distance to the own land measured last, int.MaxValue beyond <c>maxDistance</c>.</summary>
+    private int DistanceFromBorder(Map.GameMap map, GridPoint p) =>
+        _distanceStamp![map.Index(p)] == _stamp ? _distance![map.Index(p)] : int.MaxValue;
 
     /// <summary>The fields of the player's land next to a field that is not.</summary>
     private static List<GridPoint> OwnBorder(Map.GameMap map, int player)
     {
         var border = new List<GridPoint>();
-        for (int y = 0; y < map.Size; y++)
-        for (int x = 0; x < map.Size; x++)
+        byte self = (byte)player;
+        for (int y = 0, i = 0; y < map.Size; y++)
+        for (int x = 0; x < map.Size; x++, i++)
         {
-            var p = new GridPoint(x, y);
-            if (map.OwnerAt(p) != player)
+            if (map.OwnerAt(i) != self)
                 continue;
+            var p = new GridPoint(x, y);
             for (int d = 0; d < 6; d++)
                 if (p.Neighbor((Direction)d) is var n && map.Contains(n) && map.OwnerAt(n) != player)
                 {
