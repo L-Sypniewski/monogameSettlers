@@ -204,7 +204,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   `labels` je Kartenspieler – bisher nur Mission 1, aus dem Missionstext – oder `preview` [Datei, Sequenz, Bild] eines fertigen Original-Vorschaubilds
   statt der gerenderten Karte: Amazonen Datei 48 Sequenz 3, Z01–Z12 = 0–11, G01–G12 = 12–23, per Wassermaske zugeordnet); Pfade in der
   Installation, `GameInstallation.FindPath` ohne Groß-/Kleinschreibung. Amazonen-Kampagne: `S3QOTA/MIS_M/Z` (Amazonen, Texte 48–59) und `G`
-  (die drei Völker, Spieler 1 wechselt, Texte 60–71), Hinweise +72, Videos `S3QOTA/ADD/1/DATAP0_N` (Zuordnung der Intros geraten).
+  (die drei Völker, Spieler 1 wechselt, Texte 60–71), Hinweise +72, Videos `S3QOTA/ADD/1/DATAP0_N` (Intro Amazonen 1, drei Völker 2; Sieg 3 bzw. 5).
   Fortschritt (globaler Spielstand): `CampaignProgress` (`campaign.json` bei den Spielständen, je Kampagne/Seite Zahl geschaffter Missionen);
   Volkswahl mit Fortschritt → Missionsauswahl (`MissionSelectScreen`, Datei 02 GUI 18, `missionScreen` in `ui.json`: zuerst das Intro,
   alle geschafften und die nächste, Namen aus den Missionstexten, nach allen der Abschluss; längere Liste scrollt (Rad, Pfeile, Bildlaufleiste), öffnet bei der neuesten; Klick → Beschreibung, deren „Zurück“ wieder
