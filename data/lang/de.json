@@ -13,6 +13,9 @@
   },
   "title": {
     "buttons": {
+      "campaign": "Kampagne",
+      "missionCd": "Missions-CD",
+      "amazonCampaign": "Amazonen-Kampagne",
       "singlePlayer": "Einzelspieler",
       "load": "Spiel laden",
       "settings": "Einstellungen",
@@ -37,6 +40,32 @@
       "willOpen": "Dafür wird diese Seite im Browser geöffnet:",
       "browserFailed": "Der Browser ließ sich nicht öffnen. Die Seite liegt hier:",
       "open": "Im Browser öffnen"
+    }
+  },
+  "campaign": {
+    "choosePeople": "Wähle dein Volk",
+    "back": "Zurück",
+    "next": "Weiter",
+    "saveName": "{0} {1}, Mission {2}",
+    "won": "Spiel gewonnen",
+    "lost": "Spiel verloren",
+    "wonHint": "Spiel beenden (oder Esc → Statistik) führt zur nächsten Mission.",
+    "lostHint": "Esc: Spiel verlassen – die Mission beginnt von vorn.",
+    "chooseMission": "Mission wählen",
+    "missionDone": "geschafft",
+    "missionNew": "neu",
+    "introVideo": "Intro",
+    "outroVideo": "Abschluss",
+    "video": "Video",
+    "chooseSide": "Wähle deine Seite",
+    "levels": {
+      "Roman": "Römer (für Einsteiger)",
+      "Egyptian": "Ägypter (für Profis)",
+      "Asian": "Asiaten (für Geübte)"
+    },
+    "sides": {
+      "amazons": "Amazonen",
+      "peoples": "Die drei Völker"
     }
   },
   "peoples": {
@@ -497,7 +526,9 @@
     "geologists": "Geologen",
     "scouts": "Späher",
     "pioneers": "Pioniere",
-    "carriers": "Träger"
+    "carriers": "Träger",
+    "missionWon": "Mission geschafft",
+    "missionLost": "Mission verloren"
   },
   "building": {
     "garrison": "Besatzung (da / Soll)",

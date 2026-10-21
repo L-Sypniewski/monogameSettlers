@@ -1,0 +1,142 @@
+{
+  "_comment": "Campaigns of the original installation, paths below the installation (any case). Per campaign its sides (the settlers' campaign: a people each; the Amazons': the Amazons and the three peoples) with name (a text key), intro and outro video (AVI, docs/formate/avi.md; the outro after the last mission) and the missions in order – map, text and hint (entries of the text table in GFX file 07, docs/formate/gfx.md), spoken briefing (WAV), labels: short names of the players (by map player) drawn at their start positions on the rendered map; or preview: [file, sequence, frame] of a finished picture of the original for the slanted window instead. The Mission CD has neither videos nor spoken briefings (left out); its previews: file 60 sequence 1, R1–R8, E1–E8, J1–J8 = 0–23 (matched by shape).",
+  "campaigns": {
+    "settlers": {
+      "name": "title.buttons.campaign",
+      "sides": {
+        "Roman": {
+          "name": "peoples.Roman",
+          "intro": "S3/ADD/001/02_03_01.DAT",
+          "outro": "S3/ADD/001/02_03_04.DAT",
+          "missions": [
+            { "map": "S3/MIS_M/R/R1.MAP", "text": 0, "hint": 72, "voice": "S3/MIS_V/R/SRGS01.WAV", "labels": ["S", "R"] },
+            { "map": "S3/MIS_M/R/R2.MAP", "text": 1, "hint": 73, "voice": "S3/MIS_V/R/SRGS02.WAV" },
+            { "map": "S3/MIS_M/R/R3.MAP", "text": 2, "hint": 74, "voice": "S3/MIS_V/R/SRGS03.WAV" },
+            { "map": "S3/MIS_M/R/R4.MAP", "text": 3, "hint": 75, "voice": "S3/MIS_V/R/SRGS04.WAV" },
+            { "map": "S3/MIS_M/R/R5.MAP", "text": 4, "hint": 76, "voice": "S3/MIS_V/R/SRGS05.WAV" },
+            { "map": "S3/MIS_M/R/R6.MAP", "text": 5, "hint": 77, "voice": "S3/MIS_V/R/SRGS06.WAV" },
+            { "map": "S3/MIS_M/R/R7.MAP", "text": 6, "hint": 78, "voice": "S3/MIS_V/R/SRGS07.WAV" },
+            { "map": "S3/MIS_M/R/R8.MAP", "text": 7, "hint": 79, "voice": "S3/MIS_V/R/SRGS08.WAV" }
+          ]
+        },
+        "Egyptian": {
+          "name": "peoples.Egyptian",
+          "intro": "S3/ADD/001/02_02_01.DAT",
+          "outro": "S3/ADD/001/02_02_04.DAT",
+          "missions": [
+            { "map": "S3/MIS_M/E/E1.MAP", "text": 8, "hint": 80, "voice": "S3/MIS_V/E/SRGR01.WAV", "labels": ["Ra", "E"] },
+            { "map": "S3/MIS_M/E/E2.MAP", "text": 9, "hint": 81, "voice": "S3/MIS_V/E/SRGR02.WAV" },
+            { "map": "S3/MIS_M/E/E3.MAP", "text": 10, "hint": 82, "voice": "S3/MIS_V/E/SRGR03.WAV" },
+            { "map": "S3/MIS_M/E/E4.MAP", "text": 11, "hint": 83, "voice": "S3/MIS_V/E/SRGR04.WAV" },
+            { "map": "S3/MIS_M/E/E5.MAP", "text": 12, "hint": 84, "voice": "S3/MIS_V/E/SRGR05.WAV" },
+            { "map": "S3/MIS_M/E/E6.MAP", "text": 13, "hint": 85, "voice": "S3/MIS_V/E/SRGR06.WAV" },
+            { "map": "S3/MIS_M/E/E7.MAP", "text": 14, "hint": 86, "voice": "S3/MIS_V/E/SRGR07.WAV" },
+            { "map": "S3/MIS_M/E/E8.MAP", "text": 15, "hint": 87, "voice": "S3/MIS_V/E/SRGR08.WAV" }
+          ]
+        },
+        "Asian": {
+          "name": "peoples.Asian",
+          "intro": "S3/ADD/001/02_01_01.DAT",
+          "outro": "S3/ADD/001/02_01_04.DAT",
+          "missions": [
+            { "map": "S3/MIS_M/A/J1.MAP", "text": 16, "hint": 88, "voice": "S3/MIS_V/A/SRGT01.WAV", "labels": ["TT", "A1", "A2"] },
+            { "map": "S3/MIS_M/A/J2.MAP", "text": 17, "hint": 89, "voice": "S3/MIS_V/A/SRGT02.WAV" },
+            { "map": "S3/MIS_M/A/J3.MAP", "text": 18, "hint": 90, "voice": "S3/MIS_V/A/SRGT03.WAV" },
+            { "map": "S3/MIS_M/A/J4.MAP", "text": 19, "hint": 91, "voice": "S3/MIS_V/A/SRGT04.WAV" },
+            { "map": "S3/MIS_M/A/J5.MAP", "text": 20, "hint": 92, "voice": "S3/MIS_V/A/SRGT05.WAV" },
+            { "map": "S3/MIS_M/A/J6.MAP", "text": 21, "hint": 93, "voice": "S3/MIS_V/A/SRGT06.WAV" },
+            { "map": "S3/MIS_M/A/J7.MAP", "text": 22, "hint": 94, "voice": "S3/MIS_V/A/SRGT07.WAV" },
+            { "map": "S3/MIS_M/A/J8.MAP", "text": 23, "hint": 95, "voice": "S3/MIS_V/A/SRGT08.WAV" }
+          ]
+        }
+      }
+    },
+    "missionCd": {
+      "name": "title.buttons.missionCd",
+      "sides": {
+        "Roman": {
+          "name": "peoples.Roman",
+          "missions": [
+            { "map": "S3MCD/MAP/MIS_M/R/R1.MAP", "text": 24, "hint": 96, "preview": [60, 1, 0] },
+            { "map": "S3MCD/MAP/MIS_M/R/R2.MAP", "text": 25, "hint": 97, "preview": [60, 1, 1] },
+            { "map": "S3MCD/MAP/MIS_M/R/R3.MAP", "text": 26, "hint": 98, "preview": [60, 1, 2] },
+            { "map": "S3MCD/MAP/MIS_M/R/R4.MAP", "text": 27, "hint": 99, "preview": [60, 1, 3] },
+            { "map": "S3MCD/MAP/MIS_M/R/R5.MAP", "text": 28, "hint": 100, "preview": [60, 1, 4] },
+            { "map": "S3MCD/MAP/MIS_M/R/R6.MAP", "text": 29, "hint": 101, "preview": [60, 1, 5] },
+            { "map": "S3MCD/MAP/MIS_M/R/R7.MAP", "text": 30, "hint": 102, "preview": [60, 1, 6] },
+            { "map": "S3MCD/MAP/MIS_M/R/R8.MAP", "text": 31, "hint": 103, "preview": [60, 1, 7] }
+          ]
+        },
+        "Egyptian": {
+          "name": "peoples.Egyptian",
+          "missions": [
+            { "map": "S3MCD/MAP/MIS_M/E/E1.MAP", "text": 32, "hint": 104, "preview": [60, 1, 8] },
+            { "map": "S3MCD/MAP/MIS_M/E/E2.MAP", "text": 33, "hint": 105, "preview": [60, 1, 9] },
+            { "map": "S3MCD/MAP/MIS_M/E/E3.MAP", "text": 34, "hint": 106, "preview": [60, 1, 10] },
+            { "map": "S3MCD/MAP/MIS_M/E/E4.MAP", "text": 35, "hint": 107, "preview": [60, 1, 11] },
+            { "map": "S3MCD/MAP/MIS_M/E/E5.MAP", "text": 36, "hint": 108, "preview": [60, 1, 12] },
+            { "map": "S3MCD/MAP/MIS_M/E/E6.MAP", "text": 37, "hint": 109, "preview": [60, 1, 13] },
+            { "map": "S3MCD/MAP/MIS_M/E/E7.MAP", "text": 38, "hint": 110, "preview": [60, 1, 14] },
+            { "map": "S3MCD/MAP/MIS_M/E/E8.MAP", "text": 39, "hint": 111, "preview": [60, 1, 15] }
+          ]
+        },
+        "Asian": {
+          "name": "peoples.Asian",
+          "missions": [
+            { "map": "S3MCD/MAP/MIS_M/A/J1.MAP", "text": 40, "hint": 112, "preview": [60, 1, 16] },
+            { "map": "S3MCD/MAP/MIS_M/A/J2.MAP", "text": 41, "hint": 113, "preview": [60, 1, 17] },
+            { "map": "S3MCD/MAP/MIS_M/A/J3.MAP", "text": 42, "hint": 114, "preview": [60, 1, 18] },
+            { "map": "S3MCD/MAP/MIS_M/A/J4.MAP", "text": 43, "hint": 115, "preview": [60, 1, 19] },
+            { "map": "S3MCD/MAP/MIS_M/A/J5.MAP", "text": 44, "hint": 116, "preview": [60, 1, 20] },
+            { "map": "S3MCD/MAP/MIS_M/A/J6.MAP", "text": 45, "hint": 117, "preview": [60, 1, 21] },
+            { "map": "S3MCD/MAP/MIS_M/A/J7.MAP", "text": 46, "hint": 118, "preview": [60, 1, 22] },
+            { "map": "S3MCD/MAP/MIS_M/A/J8.MAP", "text": 47, "hint": 119, "preview": [60, 1, 23] }
+          ]
+        }
+      }
+    },
+    "amazons": {
+      "name": "title.buttons.amazonCampaign",
+      "sides": {
+        "amazons": {
+          "name": "campaign.sides.amazons",
+          "intro": "S3QOTA/ADD/1/DATAP0_1.DAT",
+          "outro": "S3QOTA/ADD/1/DATAP0_3.DAT",
+          "missions": [
+            { "map": "S3QOTA/MIS_M/Z/Z01.MAP", "text": 48, "hint": 120, "voice": "S3QOTA/MIS_V/Z/SPZB01.WAV", "preview": [48, 3, 0] },
+            { "map": "S3QOTA/MIS_M/Z/Z02.MAP", "text": 49, "hint": 121, "voice": "S3QOTA/MIS_V/Z/SPZB02.WAV", "preview": [48, 3, 1] },
+            { "map": "S3QOTA/MIS_M/Z/Z03.MAP", "text": 50, "hint": 122, "voice": "S3QOTA/MIS_V/Z/SPZB03.WAV", "preview": [48, 3, 2] },
+            { "map": "S3QOTA/MIS_M/Z/Z04.MAP", "text": 51, "hint": 123, "voice": "S3QOTA/MIS_V/Z/SPZB04.WAV", "preview": [48, 3, 3] },
+            { "map": "S3QOTA/MIS_M/Z/Z05.MAP", "text": 52, "hint": 124, "voice": "S3QOTA/MIS_V/Z/SPZB05.WAV", "preview": [48, 3, 4] },
+            { "map": "S3QOTA/MIS_M/Z/Z06.MAP", "text": 53, "hint": 125, "voice": "S3QOTA/MIS_V/Z/SPZB06.WAV", "preview": [48, 3, 5] },
+            { "map": "S3QOTA/MIS_M/Z/Z07.MAP", "text": 54, "hint": 126, "voice": "S3QOTA/MIS_V/Z/SPZB07.WAV", "preview": [48, 3, 6] },
+            { "map": "S3QOTA/MIS_M/Z/Z08.MAP", "text": 55, "hint": 127, "voice": "S3QOTA/MIS_V/Z/SPZB08.WAV", "preview": [48, 3, 7] },
+            { "map": "S3QOTA/MIS_M/Z/Z09.MAP", "text": 56, "hint": 128, "voice": "S3QOTA/MIS_V/Z/SPZB09.WAV", "preview": [48, 3, 8] },
+            { "map": "S3QOTA/MIS_M/Z/Z10.MAP", "text": 57, "hint": 129, "voice": "S3QOTA/MIS_V/Z/SPZB10.WAV", "preview": [48, 3, 9] },
+            { "map": "S3QOTA/MIS_M/Z/Z11.MAP", "text": 58, "hint": 130, "voice": "S3QOTA/MIS_V/Z/SPZB11.WAV", "preview": [48, 3, 10] },
+            { "map": "S3QOTA/MIS_M/Z/Z12.MAP", "text": 59, "hint": 131, "voice": "S3QOTA/MIS_V/Z/SPZB12.WAV", "preview": [48, 3, 11] }
+          ]
+        },
+        "peoples": {
+          "name": "campaign.sides.peoples",
+          "intro": "S3QOTA/ADD/1/DATAP0_2.DAT",
+          "outro": "S3QOTA/ADD/1/DATAP0_5.DAT",
+          "missions": [
+            { "map": "S3QOTA/MIS_M/G/G01.MAP", "text": 60, "hint": 132, "voice": "S3QOTA/MIS_V/G/SPGB01.WAV", "preview": [48, 3, 12] },
+            { "map": "S3QOTA/MIS_M/G/G02.MAP", "text": 61, "hint": 133, "voice": "S3QOTA/MIS_V/G/SPGB02.WAV", "preview": [48, 3, 13] },
+            { "map": "S3QOTA/MIS_M/G/G03.MAP", "text": 62, "hint": 134, "voice": "S3QOTA/MIS_V/G/SPGB03.WAV", "preview": [48, 3, 14] },
+            { "map": "S3QOTA/MIS_M/G/G04.MAP", "text": 63, "hint": 135, "voice": "S3QOTA/MIS_V/G/SPGB04.WAV", "preview": [48, 3, 15] },
+            { "map": "S3QOTA/MIS_M/G/G05.MAP", "text": 64, "hint": 136, "voice": "S3QOTA/MIS_V/G/SPGB05.WAV", "preview": [48, 3, 16] },
+            { "map": "S3QOTA/MIS_M/G/G06.MAP", "text": 65, "hint": 137, "voice": "S3QOTA/MIS_V/G/SPGB06.WAV", "preview": [48, 3, 17] },
+            { "map": "S3QOTA/MIS_M/G/G07.MAP", "text": 66, "hint": 138, "voice": "S3QOTA/MIS_V/G/SPGB07.WAV", "preview": [48, 3, 18] },
+            { "map": "S3QOTA/MIS_M/G/G08.MAP", "text": 67, "hint": 139, "voice": "S3QOTA/MIS_V/G/SPGB08.WAV", "preview": [48, 3, 19] },
+            { "map": "S3QOTA/MIS_M/G/G09.MAP", "text": 68, "hint": 140, "voice": "S3QOTA/MIS_V/G/SPGB09.WAV", "preview": [48, 3, 20] },
+            { "map": "S3QOTA/MIS_M/G/G10.MAP", "text": 69, "hint": 141, "voice": "S3QOTA/MIS_V/G/SPGB10.WAV", "preview": [48, 3, 21] },
+            { "map": "S3QOTA/MIS_M/G/G11.MAP", "text": 70, "hint": 142, "voice": "S3QOTA/MIS_V/G/SPGB11.WAV", "preview": [48, 3, 22] },
+            { "map": "S3QOTA/MIS_M/G/G12.MAP", "text": 71, "hint": 143, "voice": "S3QOTA/MIS_V/G/SPGB12.WAV", "preview": [48, 3, 23] }
+          ]
+        }
+      }
+    }
+  }
+}

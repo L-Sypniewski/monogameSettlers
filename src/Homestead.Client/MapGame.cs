@@ -55,6 +55,31 @@ public sealed class MapGame : Game
     private TitleScreen? _title;
     /// <summary>The settings screen, over the title screen while open.</summary>
     private SettingsScreen? _settingsScreen;
+    /// <summary>The campaign's choice of people, over the title screen while open.</summary>
+    private CampaignScreen? _campaignScreen;
+    /// <summary>A video playing over the title screen (a campaign's intro or outro).</summary>
+    private VideoPlayer? _video;
+    /// <summary>What follows the video playing, after its end or a click.</summary>
+    private Action? _afterVideo;
+    /// <summary>A campaign mission's description, over the campaign screen (and the choice of missions) while open.</summary>
+    private BriefingScreen? _briefing;
+    /// <summary>The choice of missions of a people with progress, over the campaign screen while open.</summary>
+    private MissionSelectScreen? _missionSelect;
+    /// <summary>The list of saved games (title screen › "Spiel laden"), over the title screen.</summary>
+    private ListScreen? _loadList;
+    /// <summary>The campaign being played or chosen (<c>settlers</c>, <c>amazons</c>).</summary>
+    private string _campaign = "settlers";
+    /// <summary>The side chosen in the campaign (a people's id in the settlers' campaign, <c>amazons</c> or <c>peoples</c> in the Amazons').</summary>
+    private string _campaignSide = "";
+    /// <summary>The mission whose description is open (from 0).</summary>
+    private int _briefingIndex;
+    /// <summary>The campaign mission being played (saved with the game); null in free games.</summary>
+    private MissionRef? _mission;
+    /// <summary>The decided outcome already noted (progress saved, own selection dropped).</summary>
+    private MissionOutcome _outcomeNoted;
+
+    /// <summary>The chosen side of the campaign.</summary>
+    private CampaignSide Side => CampaignConfig.Load().Campaigns[_campaign][_campaignSide];
     private readonly GameInstallation _installation;
     // Sound effects and music; none in capture runs.
     private GameAudio? _audio;
@@ -333,19 +358,55 @@ public sealed class MapGame : Game
         if (_showStartScreen)
         {
             // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps);
-            // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the save slots, =title:loadError: with a message about one that did not load);
-            // =settings[:<tab>]: the settings screen's (tab: resources, economy, military, display)..
+            // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the list of saved games, load.png, =title:loadError: with a message about one that did not load);
+            // =settings[:<tab>]: the settings screen's (tab: resources, economy, military, display);
+            // =campaign: the campaign's choice of people (=campaign:<people>: a picture of its intro video, video.png;
+            // =campaign:<people>:briefing: its first mission's description, briefing.png; =campaign:<people>:choose: the people
+            // chosen (with progress the choice of missions, missions.png; otherwise the intro); =campaign:<people>:won|lost: its first
+            // mission started and decided at once, the game goes on (the banner); with :next appended the statistics are left –
+            // the second one's or again the first one's description, briefing.png; a number at the end takes that mission instead
+            // (won:next:8 – the outro, video.png); with HOMESTEAD_SAVE_DIR temporary, it notes the progress).
             string? captureStart = _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START");
-            if (captureStart is null || captureStart.StartsWith("title") || captureStart.StartsWith("settings"))
+            bool campaignCapture = captureStart?.StartsWith("campaign") == true || captureStart?.StartsWith("amazons") == true
+                || captureStart?.StartsWith("missionCd") == true;
+            if (captureStart is null || captureStart.StartsWith("title") || captureStart.StartsWith("settings") || campaignCapture)
             {
                 _title = new TitleScreen(GraphicsDevice, _gfx);
+                if (campaignCapture)
+                {
+                    var parts = captureStart!.Split(':');
+                    _campaign = parts[0] is "amazons" or "missionCd" ? parts[0] : "settlers";
+                    // HOMESTEAD_CAPTURE_HOVER=<side>: that side as if under the mouse.
+                    _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign) { Hovered = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_HOVER") };
+                    if (parts.Length > 1)
+                    {
+                        _campaignSide = CampaignConfig.Load().Campaigns[_campaign].Keys.First(k => k.Equals(parts[1], StringComparison.OrdinalIgnoreCase));
+                        if (parts is [_, _, "briefing"])
+                            OpenBriefing(0);
+                        else if (parts is [_, _, "choose"])
+                            ChooseSide(_campaignSide);
+                        else if (parts is [_, _, "won" or "lost", ..])
+                        {
+                            OpenBriefing(int.TryParse(parts[^1], out int number) ? number - 1 : 0);
+                            StartMission();
+                            _world.Goals!.Decide(parts[2] == "lost" ? MissionOutcome.Lost : MissionOutcome.Won, _world.Tick);
+                            NoteOutcome();
+                            if (parts.Contains("next"))
+                                LeaveStatistics();
+                        }
+                        else
+                            PlayIntro(_campaignSide);
+                    }
+                }
                 if (captureStart?.StartsWith("settings") == true)
                 {
                     _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
                     if (captureStart.StartsWith("settings:"))
                         _settingsScreen.Show(captureStart["settings:".Length..]);
                 }
-                if (captureStart?.StartsWith("title:") == true)
+                if (captureStart == "title:load")
+                    OpenLoadList();
+                else if (captureStart?.StartsWith("title:") == true)
                     _title.Show(captureStart["title:".Length..]);
             }
             else
@@ -442,6 +503,8 @@ public sealed class MapGame : Game
 
     private void LoadMap(OriginalMap map)
     {
+        _mission = null;
+        _outcomeNoted = MissionOutcome.Open;
         _terrain?.Dispose();
         _map = map;
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
@@ -515,6 +578,8 @@ public sealed class MapGame : Game
         _minimap.Update(_vision, all: !_fogOn);
         _nextVision = _time + VisionInterval;
         PlayerColors.Restore(game.Client.GetValueOrDefault("colors"));
+        _mission = MissionRef.Parse(game.Client.GetValueOrDefault("mission"));
+        _outcomeNoted = MissionOutcome.Open;
         _playerCatalogs = game.Catalogs;
         UsePeople(Own, force: true);
         // The computer players' notes go to the screen again; the own player's AI (I) goes on if it was on.
@@ -540,7 +605,7 @@ public sealed class MapGame : Game
     /// <summary>Saves the game into a slot (overwriting it); the list shows it right away.</summary>
     private void SaveGameTo(int slot)
     {
-        var info = new SaveInfo(_map.Name, Own.Civilization.ToString(), DateTime.Now, _world.Tick);
+        var info = new SaveInfo(_map.Name, Own.Civilization.ToString(), DateTime.Now, _world.Tick, _mission?.ToString());
         var game = new SaveGame
         {
             World = _world,
@@ -553,6 +618,8 @@ public sealed class MapGame : Game
                 ["colors"] = PlayerColors.Saved(),
             },
         };
+        if (_mission is not null)
+            game.Client["mission"] = _mission.ToString();
         try
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -575,8 +642,20 @@ public sealed class MapGame : Game
     {
         _placing = _aiming = false;
         _statistics?.Dispose();
-        _statistics = new StatisticsScreen(GraphicsDevice, _gfx, _world, _map.Name, _goodsGrid, _aiNames, canResume);
+        // A decided mission leads on ("Weiter"): won to the next one, lost to the same one again; lost there is no way back.
+        var outcome = Outcome;
+        string name = outcome switch
+        {
+            MissionOutcome.Won => $"{Lang.T("campaign.won")} · {_map.Name}",
+            MissionOutcome.Lost => $"{Lang.T("campaign.lost")} · {_map.Name}",
+            _ => _map.Name,
+        };
+        _statistics = new StatisticsScreen(GraphicsDevice, _gfx, _world, name, _goodsGrid, _aiNames, canResume && outcome != MissionOutcome.Lost,
+            outcome == MissionOutcome.Open ? null : Lang.T("campaign.next"));
     }
+
+    /// <summary>The campaign mission's outcome; open in free games.</summary>
+    private MissionOutcome Outcome => _mission is not null && _world.Goals is { } goals ? goals.Outcome : MissionOutcome.Open;
 
     /// <summary>The statistics screen; a capture run saves every page as <c>stats_N.png</c> and quits.</summary>
     private void DrawStatistics()
@@ -614,8 +693,272 @@ public sealed class MapGame : Game
         _title = new TitleScreen(GraphicsDevice, _gfx);
     }
 
+    /// <summary>
+    /// Plays the intro video of the campaign's <paramref name="side"/>; its first mission's description follows
+    /// (at once if the video cannot be played).
+    /// </summary>
+    private void PlayIntro(string side)
+    {
+        _campaignSide = side;
+        PlayVideo(Side.Intro, () => OpenBriefing(0));
+    }
+
+    /// <summary>
+    /// Plays a video of the installation (<paramref name="relative"/>); <paramref name="after"/> follows its end or a click
+    /// (at once if it cannot be played or there is none).
+    /// </summary>
+    private void PlayVideo(string? relative, Action after)
+    {
+        _video?.Dispose();
+        _video = null;
+        if (relative is not null && _installation.FindPath(relative) is { } path)
+            _video = VideoPlayer.TryOpen(GraphicsDevice, path, _display.EffectsVolume / 100f);
+        else if (relative is not null)
+            Console.WriteLine($"Video skipped: {relative} is not in the installation");
+        if (_video is null)
+            after();
+        else
+            _afterVideo = after;
+    }
+
+    /// <summary>
+    /// The chosen side of the campaign: the intro and the first mission at the start, otherwise the choice of every
+    /// accomplished mission and the next.
+    /// </summary>
+    private void ChooseSide(string side)
+    {
+        _campaignSide = side;
+        if (CampaignProgress.Load().Accomplished(_campaign, side) == 0)
+            PlayIntro(side);
+        else
+            OpenMissionSelect();
+    }
+
+    /// <summary>The list of saved games over the title screen: per slot the game's name, when it was saved and the people; empty ones faint.</summary>
+    private void OpenLoadList()
+    {
+        _loadList?.Dispose();
+        var rows = Enumerable.Range(0, SaveSlots.Count).Select(slot => SaveSlots.Info(slot) is { } info
+            ? new ListRow($"{slot + 1}.  {Lang.SaveName(info)}",
+                $"{info.SavedAt.ToString(Lang.T("formats.savedAt"), Lang.Culture)} · {Lang.T("peoples." + info.People)}")
+            : new ListRow($"{slot + 1}.  ------------", "", Enabled: false)).ToArray();
+        _loadList = new ListScreen(GraphicsDevice, _gfx, Lang.T("title.buttons.load"), rows);
+    }
+
+    /// <summary>Back from the list of saved games to the title screen.</summary>
+    private void CloseLoadList()
+    {
+        _loadList?.Dispose();
+        _loadList = null;
+        _title?.Resume();
+    }
+
+    /// <summary>The choice of missions of the chosen side (as far as its progress goes), over the campaign screen.</summary>
+    private void OpenMissionSelect()
+    {
+        _missionSelect?.Dispose();
+        var texts = _gfx.Open(7).ReadTexts(Lang.Current == Language.German ? 0 : 1);
+        var names = Side.Missions.Select(m => m.Text < texts.Count ? MissionSelectScreen.NameOf(texts[m.Text]) : $"{m.Text}").ToArray();
+        _missionSelect = new MissionSelectScreen(GraphicsDevice, _gfx, Lang.T(Side.Name), names,
+            CampaignProgress.Load().Accomplished(_campaign, _campaignSide), Side.Intro is not null, Side.Outro is not null);
+    }
+
+    /// <summary>
+    /// Once a frame: a newly decided mission. Won, it is noted in the campaign's progress (the global save game; again
+    /// after loading a won game, which changes nothing); lost, the own player loses all control.
+    /// </summary>
+    private void NoteOutcome()
+    {
+        var outcome = Outcome;
+        if (outcome == _outcomeNoted)
+            return;
+        _outcomeNoted = outcome;
+        if (outcome == MissionOutcome.Won && _mission is { } mission)
+        {
+            var progress = CampaignProgress.Load();
+            progress.Accomplish(mission);
+            try
+            {
+                progress.Save();
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                Console.WriteLine($"Campaign progress not saved: {e.Message}");
+            }
+        }
+        else if (outcome == MissionOutcome.Lost)
+        {
+            _placing = _aiming = false;
+            _selected = null;
+            _group.Clear();
+            _selectedBuilding = null;
+        }
+    }
+
+    /// <summary>
+    /// The statistics' last button: to the title screen; after a decided mission to the campaign's choice of people with the
+    /// next mission's description (won; none after the last) or the same one's again (lost) over it.
+    /// </summary>
+    private void LeaveStatistics()
+    {
+        var outcome = Outcome;
+        var mission = _mission;
+        _statistics?.Dispose();
+        _statistics = null;
+        QuitToTitle();
+        _mission = null;
+        _outcomeNoted = MissionOutcome.Open;
+        if (outcome == MissionOutcome.Open || mission is null)
+            return;
+        _campaign = mission.Campaign;
+        _campaignSide = mission.Side;
+        _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign);
+        OpenMissionSelect();
+        int next = outcome == MissionOutcome.Won ? mission.Index + 1 : mission.Index;
+        if (next < Side.Missions.Count)
+            OpenBriefing(next);
+        else
+            // The last mission won: the side's outro, then the list with every mission.
+            PlayVideo(Side.Outro, () => _missionSelect?.Resume());
+    }
+
+    /// <summary>Opens the description of mission <paramref name="mission"/> (from 0) of the chosen side of the campaign.</summary>
+    private void OpenBriefing(int mission)
+    {
+        _briefingIndex = mission;
+        try
+        {
+            _briefing = new BriefingScreen(GraphicsDevice, _gfx, _installation, Side.Missions[mission],
+                Lang.Current == Language.German ? 0 : 1, _display.EffectsVolume / 100f);
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException)
+        {
+            Console.WriteLine($"Mission {mission + 1} of {_campaign}/{_campaignSide} unavailable: {e.Message}");
+            _campaignScreen?.Resume();
+        }
+    }
+
+    /// <summary>Starts the mission whose description is open: its map with the peoples, buildings and settlers it gives.</summary>
+    private void StartMission()
+    {
+        var map = OriginalMap.Open(_briefing!.MapPath);
+        _briefing.Dispose();
+        _briefing = null;
+        _campaignScreen?.Dispose();
+        _campaignScreen = null;
+        _missionSelect?.Dispose();
+        _missionSelect = null;
+        _title?.Dispose();
+        _title = null;
+        PlayerColors.Assign(new int?[map.Players.Count], _peopleDraw);
+        _peoples = null;
+        _hardcore = new HashSet<int>();
+        _positions = null;
+        LoadMap(map);
+        _mission = new MissionRef(_campaign, _campaignSide, _briefingIndex);
+        _world.Goals = new MissionGoals();
+    }
+
     private void UpdateTitle()
     {
+        if (_briefing is not null)
+        {
+            switch (_briefing.Update(GraphicsDevice.Viewport.Bounds))
+            {
+                case BriefingAction.Back:
+                    _briefing.Dispose();
+                    _briefing = null;
+                    if (_missionSelect is not null)
+                        _missionSelect.Resume();
+                    else
+                        _campaignScreen?.Resume();
+                    break;
+                case BriefingAction.Start:
+                    StartMission();
+                    break;
+            }
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = Mouse.GetState();
+            return;
+        }
+        if (_video is not null)
+        {
+            _video.Update();
+            // A click (or its end) leads on: after the intro to the first mission's description, from the list back to it.
+            if (_video.Finished && _captureDirectory is null)
+            {
+                _video.Dispose();
+                _video = null;
+                var after = _afterVideo;
+                _afterVideo = null;
+                after?.Invoke();
+            }
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = Mouse.GetState();
+            return;
+        }
+        if (_missionSelect is not null)
+        {
+            if (_missionSelect.Update(GraphicsDevice.Viewport.Bounds))
+            {
+                _missionSelect.Dispose();
+                _missionSelect = null;
+                _campaignScreen?.Resume();
+            }
+            else if (_missionSelect.Chosen is { } mission)
+                OpenBriefing(mission);
+            else if (_missionSelect.ChosenVideo is { } video)
+            {
+                PlayVideo(video == MissionSelectScreen.Video.Intro ? Side.Intro : Side.Outro, () => _missionSelect?.Resume());
+            }
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = Mouse.GetState();
+            return;
+        }
+        if (_loadList is not null)
+        {
+            if (_loadList.Update(GraphicsDevice.Viewport.Bounds))
+                CloseLoadList();
+            else if (_loadList.Chosen is { } slot)
+            {
+                SaveGame game;
+                try
+                {
+                    game = SaveSlots.Load(slot);
+                }
+                catch (Exception exception)
+                {
+                    var failure = SaveLoadFailure.Of(exception);
+                    Console.Error.WriteLine($"Loading slot {slot + 1} failed ({failure.Code}): {exception}");
+                    CloseLoadList();
+                    _title!.ShowLoadFailure(failure);
+                    return;
+                }
+                _loadList.Dispose();
+                _loadList = null;
+                _title!.Dispose();
+                _title = null;
+                LoadGame(game);
+                return;
+            }
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = Mouse.GetState();
+            return;
+        }
+        if (_campaignScreen is not null)
+        {
+            if (_campaignScreen.Update(GraphicsDevice.Viewport.Bounds))
+            {
+                _campaignScreen.Dispose();
+                _campaignScreen = null;
+                _title!.Resume();
+            }
+            else if (_campaignScreen.Chosen is { } side)
+                ChooseSide(side);
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = Mouse.GetState();
+            return;
+        }
         if (_settingsScreen is not null)
         {
             if (_settingsScreen.Update(GraphicsDevice.Viewport.Bounds))
@@ -638,25 +981,14 @@ public sealed class MapGame : Game
         if (action == TitleAction.Quit)
             Exit();
         else if (action == TitleAction.Load)
-        {
-            SaveGame game;
-            try
-            {
-                game = SaveSlots.Load(_title.ChosenSlot);
-            }
-            catch (Exception exception)
-            {
-                var failure = SaveLoadFailure.Of(exception);
-                Console.Error.WriteLine($"Loading slot {_title.ChosenSlot + 1} failed ({failure.Code}): {exception}");
-                _title.ShowLoadFailure(failure);
-                return;
-            }
-            _title.Dispose();
-            _title = null;
-            LoadGame(game);
-        }
+            OpenLoadList();
         else if (action == TitleAction.Settings)
             _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
+        else if (action is TitleAction.Campaign or TitleAction.MissionCd or TitleAction.AmazonCampaign)
+        {
+            _campaign = action switch { TitleAction.Campaign => "settlers", TitleAction.MissionCd => "missionCd", _ => "amazons" };
+            _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign);
+        }
         else if (action == TitleAction.SinglePlayer)
         {
             _title.Dispose();
@@ -812,9 +1144,7 @@ public sealed class MapGame : Game
                     _previousMouse = Mouse.GetState();
                     break;
                 case StatisticsAction.Quit:
-                    _statistics.Dispose();
-                    _statistics = null;
-                    QuitToTitle();
+                    LeaveStatistics();
                     break;
             }
             base.Update(gameTime);
@@ -841,6 +1171,7 @@ public sealed class MapGame : Game
             _accumulator -= World.TickDuration;
         }
         _perf.EndSimulation();
+        NoteOutcome();
         if (_audio is not null && _world.SoundCues is { } cues)
         {
             _audio.BeginFrame(Hearing);
@@ -975,6 +1306,20 @@ public sealed class MapGame : Game
         var mouse = Mouse.GetState();
         bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
         var cursorScreen = mouse.Position.ToVector2();
+
+        // A lost mission leaves no control: only leaving (Esc → statistics) and the window keys.
+        if (Outcome == MissionOutcome.Lost)
+        {
+            if (Pressed(Keys.Escape))
+                OpenStatistics(canResume: false);
+            if (Pressed(Keys.F11))
+                ToggleFullScreen();
+            if (Pressed(Keys.F3))
+                _showPerf = !_showPerf;
+            _previousKeys = keys;
+            _previousMouse = mouse;
+            return;
+        }
 
         if (Pressed(Keys.Escape))
         {
@@ -1749,6 +2094,15 @@ public sealed class MapGame : Game
             _world.Magic.AddMana(0, 50);
             _message = $"cheat: mana {_world.Magic.Mana(0)}";
         });
+        void Decide(string key, MissionOutcome outcome) => _cheats.Add(Lang.T("cheats." + key), () =>
+        {
+            if (_mission is null || _world.Goals is null)
+                _message = "cheat: not a campaign mission";
+            else
+                _world.Goals.Decide(outcome, _world.Tick);
+        });
+        Decide("missionWon", MissionOutcome.Won);
+        Decide("missionLost", MissionOutcome.Lost);
     }
 
     /// <summary>The own buildings by name: finished, and under construction (for the build menu).</summary>
@@ -1979,12 +2333,23 @@ public sealed class MapGame : Game
     {
         if (_title is not null || _startScreen is not null)
         {
-            // Capture runs with HOMESTEAD_CAPTURE_START save one picture of the title or start screen and quit.
-            var startTarget = _captureDirectory is null ? null : NewCaptureTarget();
+            // Capture runs with HOMESTEAD_CAPTURE_START save one picture of the title or start screen and quit
+            // (a video's once it shows its 100th frame).
+            var startTarget = _captureDirectory is null || _video is { Shown: < 100 } ? null : NewCaptureTarget();
             GraphicsDevice.SetRenderTarget(startTarget);
             GraphicsDevice.Clear(new Color(12, 12, 16));
             _spriteBatch.Begin(samplerState: SamplerState.LinearClamp);
-            if (_settingsScreen is not null)
+            if (_briefing is not null)
+                _briefing.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            else if (_video is not null)
+                _video.Draw(_spriteBatch, _pixel, GraphicsDevice.Viewport.Bounds);
+            else if (_missionSelect is not null)
+                _missionSelect.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            else if (_loadList is not null)
+                _loadList.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            else if (_campaignScreen is not null)
+                _campaignScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            else if (_settingsScreen is not null)
                 _settingsScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
             else if (_title is not null)
                 _title.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
@@ -1994,7 +2359,9 @@ public sealed class MapGame : Game
             if (startTarget is not null)
             {
                 GraphicsDevice.SetRenderTarget(null);
-                using (var stream = File.Create(Path.Combine(_captureDirectory!, _settingsScreen is not null ? "settings.png" : _title is not null ? "title.png" : "start.png")))
+                string picture = _briefing is not null ? "briefing.png" : _video is not null ? "video.png" : _missionSelect is not null ? "missions.png" : _loadList is not null ? "load.png" : _campaignScreen is not null ? "campaign.png"
+                    : _settingsScreen is not null ? "settings.png" : _title is not null ? "title.png" : "start.png";
+                using (var stream = File.Create(Path.Combine(_captureDirectory!, picture)))
                     startTarget.SaveAsPng(stream, startTarget.Width, startTarget.Height);
                 startTarget.Dispose();
                 Exit();
@@ -2230,6 +2597,7 @@ public sealed class MapGame : Game
         _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, _font, _settlerRenderer, Own.Civilization, _group,
             Mouse.GetState().Position.ToVector2());
         _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, Mouse.GetState().Position.ToVector2());
+        DrawOutcome(viewport);
         // Bottom right, stacked upwards: performance (F3), then the game time (T).
         int bottom = viewport.Height;
         if (_showPerf)
@@ -2252,6 +2620,28 @@ public sealed class MapGame : Game
     private const float HitHeight = 10;
 
     /// <summary>A text box at the bottom right, ending at <paramref name="bottom"/>; returns its top.</summary>
+    /// <summary>A decided mission: "Spiel gewonnen" or "Spiel verloren" in white at the top of the map, how to go on below.</summary>
+    private void DrawOutcome(Viewport viewport)
+    {
+        var outcome = Outcome;
+        if (outcome == MissionOutcome.Open)
+            return;
+        float left = SidePanel.Width * SidePanel.Scale(viewport.Height);
+        float center = left + (viewport.Width - left) / 2;
+        int size = Math.Max(24, viewport.Height / 22);
+        string text = Lang.T(outcome == MissionOutcome.Won ? "campaign.won" : "campaign.lost");
+        var measured = _font.Measure(text, size);
+        var at = new Vector2(MathF.Round(center - measured.X / 2), MathF.Round(viewport.Height * 0.06f));
+        _font.Draw(_spriteBatch, text, at + new Vector2(2, 2), Color.Black * 0.8f, size);
+        _font.Draw(_spriteBatch, text, at, Color.White, size);
+        string hint = Lang.T(outcome == MissionOutcome.Won ? "campaign.wonHint" : "campaign.lostHint");
+        int small = Math.Max(13, size / 2);
+        var hintSize = _font.Measure(hint, small);
+        var hintAt = new Vector2(MathF.Round(center - hintSize.X / 2), MathF.Round(at.Y + measured.Y + 6));
+        _font.Draw(_spriteBatch, hint, hintAt + new Vector2(1, 1), Color.Black * 0.8f, small);
+        _font.Draw(_spriteBatch, hint, hintAt, Color.White, small);
+    }
+
     private int DrawCornerText(string text, int bottom)
     {
         var size = _font.Measure(text);
@@ -2967,6 +3357,12 @@ public sealed class MapGame : Game
         _eventButtons?.Dispose();
         _title?.Dispose();
         _settingsScreen?.Dispose();
+        _campaignScreen?.Dispose();
+        _video?.Dispose();
+        _afterVideo = null;
+        _briefing?.Dispose();
+        _missionSelect?.Dispose();
+        _loadList?.Dispose();
         _cursor?.Dispose();
         _startScreen?.Dispose();
         _statistics?.Dispose();

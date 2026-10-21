@@ -9,7 +9,7 @@ namespace Homestead.Simulation;
 public sealed record StartLevel(IReadOnlyList<(Material Material, int Count)> Goods, IReadOnlyDictionary<string, int> Settlers);
 
 /// <summary>
-/// Start conditions on multiplayer maps without start buildings: every player gets the same tower,
+/// Start conditions on maps without start buildings (multiplayer and some single player maps): every player gets the same tower,
 /// goods piles and settlers around its start point (equal conditions for the player and the AI).
 /// The tower's soldiers occupy it at once, so every player starts with land to build on.
 /// </summary>

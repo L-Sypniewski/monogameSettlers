@@ -1,5 +1,5 @@
 {
-  "_comment": "Start equipment on multiplayer maps without start buildings: per start level of the map (1 low, 2 medium, 3 high) a tower, goods piles and settlers around each player's start point. Lists from JSettlers' EMapStartResources (MIT), which follows the original, plus 2 smiths, 2 builders, 2 diggers, 1 stonecutter and 2 miners on every level. Specialists start with their trade and tool in hand (their tools are not in the piles); donkeys are left out.",
+  "_comment": "Start equipment on maps without start buildings (multiplayer and some single player maps): per start level of the map (1 low, 2 medium, 3 high) a tower, goods piles and settlers around each player's start point. Lists from JSettlers' EMapStartResources (MIT), which follows the original, plus 2 smiths, 2 builders, 2 diggers, 1 stonecutter and 2 miners on every level. Specialists start with their trade and tool in hand (their tools are not in the piles); donkeys are left out.",
   "building": "tower",
   "levels": {
     "1": {

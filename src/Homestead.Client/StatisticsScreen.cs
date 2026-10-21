@@ -36,6 +36,8 @@ public sealed class StatisticsScreen : IDisposable
     private readonly string _mapName;
     private readonly GoodsGrid? _goods;
     private readonly bool _canResume;
+    /// <summary>Text of the button that leaves the statistics (to the main menu, or on to the next mission).</summary>
+    private readonly string _quitLabel;
     private readonly List<(int Player, string Name, Color Color)> _players;
     private MouseState _previousMouse = Mouse.GetState();
     private KeyboardState _previousKeys = Keyboard.GetState();
@@ -44,8 +46,10 @@ public sealed class StatisticsScreen : IDisposable
     /// <summary>The page shown (index into <see cref="Pages"/>).</summary>
     public int Page { get; set; }
 
-    public StatisticsScreen(GraphicsDevice device, GfxDirectory gfx, World world, string mapName, GoodsGrid? goods, AiNames names, bool canResume)
+    public StatisticsScreen(GraphicsDevice device, GfxDirectory gfx, World world, string mapName, GoodsGrid? goods, AiNames names, bool canResume,
+        string? quitLabel = null)
     {
+        _quitLabel = quitLabel ?? Lang.T("statistics.mainMenu");
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
         var root = document.RootElement;
         var background = root.GetProperty("statisticsBackground");
@@ -166,7 +170,7 @@ public sealed class StatisticsScreen : IDisposable
         }
         if (_canResume)
             TextButton.Draw(batch, pixel, font, ResumeButton(bounds), Lang.T("statistics.resume"), cursor, size: 16);
-        TextButton.Draw(batch, pixel, font, QuitButton(bounds), Lang.T("statistics.mainMenu"), cursor, size: 16);
+        TextButton.Draw(batch, pixel, font, QuitButton(bounds), _quitLabel, cursor, size: 16);
     }
 
     /// <summary>A value of every player's samples as chart lines.</summary>

@@ -14,9 +14,15 @@ namespace Homestead.Client;
 public enum TitleAction
 {
     None,
+    /// <summary>Open the campaign (<see cref="CampaignScreen"/>).</summary>
+    Campaign,
+    /// <summary>Open the Mission CD's campaign.</summary>
+    MissionCd,
+    /// <summary>Open the Amazons' campaign.</summary>
+    AmazonCampaign,
     /// <summary>Open the map selection (<see cref="StartScreen"/>).</summary>
     SinglePlayer,
-    /// <summary>Load the save game in <see cref="TitleScreen.ChosenSlot"/>.</summary>
+    /// <summary>Open the list of saved games.</summary>
     Load,
     /// <summary>Open the settings (<see cref="SettingsScreen"/>).</summary>
     Settings,
@@ -26,16 +32,14 @@ public enum TitleAction
 /// <summary>
 /// The title screen: the Gold Edition's main menu picture (<c>titleScreen</c> in <c>data/ui.json</c>, scaled from
 /// 800 × 600 to the window, plain gold beside it) with a column of engraved buttons on its left side as in the
-/// original, "Beenden" set apart at the bottom. "Spiel laden" lists the save slots below the buttons (its button stays
-/// pressed; clicking it again or Esc closes them, Esc on the main page quits); "Einstellungen" opens the settings screen. Set apart below, readme, contribution and licenses open a popup (the
+/// original, "Beenden" set apart at the bottom. On top the campaigns ("Kampagne", "Missions-CD", "Amazonen-Kampagne"), then the
+/// free games; "Spiel laden" opens the list of saved games, "Einstellungen" the settings screen; Esc quits. Set apart below, readme, contribution and licenses open a popup (the
 /// original's message box) offering to show <c>README.md</c>, <c>CONTRIBUTING.md</c> or <c>THIRD_PARTY_NOTICES.md</c> of the
 /// repository in the browser.
 /// </summary>
 public sealed class TitleScreen : IDisposable
 {
     private const int Width = 800, Height = 600;
-
-    private enum Page { Main, Load }
 
     private const string Repository = "https://github.com/meue/monogameSettlers";
 
@@ -49,16 +53,22 @@ public sealed class TitleScreen : IDisposable
     private static readonly Link Contributing = new("contribution", Repository + "/blob/main/CONTRIBUTING.md");
     private static readonly Link Licenses = new("licenses", Repository + "/blob/main/THIRD_PARTY_NOTICES.md");
 
-    /// <summary>The buttons (label <c>title.buttons.&lt;key&gt;</c>): what they ask the game to do, the page they open, or the popup (<c>Link</c>).</summary>
-    private static readonly (string Key, TitleAction Action, Page Opens, Link? Link)[] Buttons =
+    /// <summary>The buttons (label <c>title.buttons.&lt;key&gt;</c>): what they ask the game to do, or the popup (<c>Link</c>).</summary>
+    private static readonly (string Key, TitleAction Action, Link? Link)[] Buttons =
     [
-        ("singlePlayer", TitleAction.SinglePlayer, Page.Main, null),
-        ("load", TitleAction.None, Page.Load, null),
-        ("settings", TitleAction.Settings, Page.Main, null),
-        ("readme", TitleAction.None, Page.Main, Readme),
-        ("contribution", TitleAction.None, Page.Main, Contributing),
-        ("licenses", TitleAction.None, Page.Main, Licenses),
+        ("campaign", TitleAction.Campaign, null),
+        ("missionCd", TitleAction.MissionCd, null),
+        ("amazonCampaign", TitleAction.AmazonCampaign, null),
+        ("singlePlayer", TitleAction.SinglePlayer, null),
+        ("settings", TitleAction.Settings, null),
+        ("load", TitleAction.Load, null),
+        ("readme", TitleAction.None, Readme),
+        ("contribution", TitleAction.None, Contributing),
+        ("licenses", TitleAction.None, Licenses),
     ];
+
+    /// <summary>Buttons shown dimmed, without effect: what is not there yet.</summary>
+    private static readonly HashSet<string> NotYet = [];
 
     private static string Label(string key) => Lang.T("title.buttons." + key);
 
@@ -76,8 +86,6 @@ public sealed class TitleScreen : IDisposable
     /// <summary>The main menu picture per language (the Gold Edition has a German and an English one).</summary>
     private readonly Dictionary<Language, Texture2D> _backgrounds = new();
     private readonly Rectangle _plainStrip;
-    private Page _page = Page.Main;
-    private SaveInfo?[] _slots = [];
     private Link? _popup;
     private bool _browserFailed;
     /// <summary>A saved game that did not load: told in the same message box, with an Ok.</summary>
@@ -87,9 +95,6 @@ public sealed class TitleScreen : IDisposable
     private Vector2 _origin;
     private KeyboardState _previousKeys = Keyboard.GetState();
     private MouseState _previousMouse = Mouse.GetState();
-
-    /// <summary>The slot to load after <see cref="TitleAction.Load"/>.</summary>
-    public int ChosenSlot { get; private set; }
 
     public TitleScreen(GraphicsDevice device, GfxDirectory gfx)
     {
@@ -116,8 +121,9 @@ public sealed class TitleScreen : IDisposable
     }
 
     // Layout in the 800 × 600 space of the picture, measured on the original menu.
-    // The links to the repository (from the first one on) sit a little apart from the game's buttons.
-    private const int FirstLink = 3, LinkGap = 16;
+    // The free games (from the first one on) sit a little apart from the campaigns, the links to the repository
+    // (from the first one on) from the game's buttons.
+    private const int FirstGame = 3, FirstLink = 6, GroupGap = 16;
 
     /// <summary>The version of this build (from the git tags, docs/VERSIONING.md), with the commit shortened.</summary>
     private static readonly string GameVersion = "v" + (typeof(TitleScreen).Assembly
@@ -126,12 +132,10 @@ public sealed class TitleScreen : IDisposable
         ? version.Split('+') is [var number, var commit] ? $"{number}+{commit[..Math.Min(7, commit.Length)]}" : version
         : "?");
 
-    private static Rectangle Button(int index) => new(74, 19 + index * 40 + (index >= FirstLink ? LinkGap : 0), 175, 31);
+    private static Rectangle Button(int index) =>
+        new(74, 19 + index * 40 + (index >= FirstGame ? GroupGap : 0) + (index >= FirstLink ? GroupGap : 0), 175, 31);
 
     private static readonly Rectangle QuitButton = new(74, 540, 175, 31);
-
-    /// <summary>The open page, below the buttons.</summary>
-    private static readonly Rectangle PagePanel = new(36, 274, 260, 260);
 
     /// <summary>The popup (its picture's size, centered), the dark text area in it and its two buttons on the marble below.</summary>
     private static readonly Rectangle Popup = new(200, 200, 401, 201);
@@ -139,8 +143,6 @@ public sealed class TitleScreen : IDisposable
     private static readonly Rectangle OpenButton = new(Popup.X + 24, Popup.Y + 149, 170, 30);
     private static readonly Rectangle CancelButton = new(Popup.Right - 24 - 170, Popup.Y + 149, 170, 30);
     private static readonly Rectangle OkButton = new(Popup.Center.X - 85, Popup.Y + 149, 170, 30);
-
-    private static Rectangle Slot(int slot) => new(PagePanel.X + 8, PagePanel.Y + 26 + slot * 29, PagePanel.Width - 16, 28);
 
     private void Fit(Rectangle view)
     {
@@ -186,39 +188,22 @@ public sealed class TitleScreen : IDisposable
             return TitleAction.None;
         }
         if (escape)
-        {
-            if (_page == Page.Main)
-                return TitleAction.Quit;
-            _page = Page.Main;
-        }
-        if (enter && _page == Page.Main)
+            return TitleAction.Quit;
+        if (enter)
             return TitleAction.SinglePlayer;
         if (!clicked)
             return TitleAction.None;
         if (QuitButton.Contains(at))
             return TitleAction.Quit;
         for (int index = 0; index < Buttons.Length; index++)
-            if (Button(index).Contains(at))
+            if (Button(index).Contains(at) && !NotYet.Contains(Buttons[index].Key))
             {
-                var (_, action, opens, link) = Buttons[index];
-                if (link is not null)
-                {
-                    ShowLink(link.Name);
-                    return TitleAction.None;
-                }
-                if (action != TitleAction.None)
+                var (_, action, link) = Buttons[index];
+                if (link is null)
                     return action;
-                _page = _page == opens ? Page.Main : opens;
-                if (_page == Page.Load)
-                    _slots = Enumerable.Range(0, SaveSlots.Count).Select(SaveSlots.Info).ToArray();
+                ShowLink(link.Name);
+                return TitleAction.None;
             }
-        if (_page == Page.Load)
-            for (int slot = 0; slot < _slots.Length; slot++)
-                if (_slots[slot] is not null && Slot(slot).Contains(at))
-                {
-                    ChosenSlot = slot;
-                    return TitleAction.Load;
-                }
         return TitleAction.None;
     }
 
@@ -230,23 +215,18 @@ public sealed class TitleScreen : IDisposable
     }
 
     /// <summary>
-    /// For capture runs: opens the popup of <c>readme</c>, <c>contribution</c> or <c>licenses</c>, the <c>load</c> page,
-    /// or that page with the message about a saved game that did not load (<c>loadError</c>).
+    /// For capture runs: opens the popup of <c>readme</c>, <c>contribution</c> or <c>licenses</c>, or the message about a
+    /// saved game that did not load (<c>loadError</c>).
     /// </summary>
     public void Show(string name)
     {
-        if (name is "load" or "loadError")
-        {
-            _page = Page.Load;
-            _slots = Enumerable.Range(0, SaveSlots.Count).Select(SaveSlots.Info).ToArray();
-            if (name == "loadError")
-                ShowLoadFailure(SaveLoadFailure.Of(new SaveIncompatibleException("A type of the saved game no longer exists: capture")));
-            return;
-        }
-        ShowLink(name);
+        if (name == "loadError")
+            ShowLoadFailure(SaveLoadFailure.Of(new SaveIncompatibleException("A type of the saved game no longer exists: capture")));
+        else
+            ShowLink(name);
     }
 
-    /// <summary>The chosen saved game did not load; the load page stays open behind the message.</summary>
+    /// <summary>The chosen saved game did not load: told over the title screen.</summary>
     public void ShowLoadFailure(SaveLoadFailure failure) => _failure = failure;
 
     private void ShowLink(string name)
@@ -280,17 +260,9 @@ public sealed class TitleScreen : IDisposable
 
         for (int index = 0; index < Buttons.Length; index++)
             Engraved(batch, pixel, font, Button(index), Label(Buttons[index].Key), hover, held,
-                _popup is not null ? Buttons[index].Link == _popup : _page != Page.Main && Buttons[index].Opens == _page);
+                _popup is not null && Buttons[index].Link == _popup, NotYet.Contains(Buttons[index].Key));
         Engraved(batch, pixel, font, QuitButton, Label("quit"), hover, held, false);
 
-        if (_page != Page.Main)
-        {
-            var panel = ToScreen(PagePanel);
-            batch.Draw(pixel, panel, PressedFill * 0.92f);
-            Frame(batch, pixel, PagePanel, Dark, Light);
-            Write(batch, font, Label(Buttons.First(b => b.Link is null && b.Opens == _page).Key), PagePanel.X + 10, PagePanel.Y + 7, Text, 14);
-            DrawSlots(batch, font, hover);
-        }
         Write(batch, font, Lang.T("title.disclaimer"), 27, 577, Version, 10);
         float width = font.Measure(GameVersion, Px(10)).X / _scale;
         Write(batch, font, GameVersion, 773 - width, 577, Version, 10);
@@ -341,43 +313,20 @@ public sealed class TitleScreen : IDisposable
         TextButton.Draw(batch, pixel, font, ToScreen(CancelButton), Lang.T("common.cancel"), cursor, size: Px(12));
     }
 
-    /// <summary>The save slots: map, date and people; empty ones dashed.</summary>
-    private void DrawSlots(SpriteBatch batch, UiFont font, Point hover)
+    /// <summary>
+    /// One of the original's engraved buttons: pressed (darker) while open or held, the text lit under the mouse;
+    /// <paramref name="dimmed"/>: faint text, never lit or pressed.
+    /// </summary>
+    private void Engraved(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle rect, string label, Point hover, bool held, bool open,
+        bool dimmed = false)
     {
-        for (int slot = 0; slot < _slots.Length; slot++)
-        {
-            var rect = Slot(slot);
-            if (_slots[slot] is not { } info)
-            {
-                Write(batch, font, $"{slot + 1}.  ------------", rect.X + 4, rect.Y + 7, Text * 0.6f, 11);
-                continue;
-            }
-            var color = rect.Contains(hover) ? HoverText : Text;
-            Write(batch, font, $"{slot + 1}.  {Shorten(font, Lang.MapName(info.Map), rect.Width - 24, 12)}", rect.X + 4, rect.Y + 1, color, 12);
-            string when = info.SavedAt.ToString(Lang.T("formats.savedAt"), Lang.Culture);
-            Write(batch, font, $"{when} · {Lang.T("peoples." + info.People)}", rect.X + 22, rect.Y + 15, color * 0.85f, 10);
-        }
-    }
-
-    private string Shorten(UiFont font, string text, int width, int size)
-    {
-        if (font.Measure(text, Px(size)).X <= width * _scale)
-            return text;
-        while (text.Length > 1 && font.Measure(text + "…", Px(size)).X > width * _scale)
-            text = text[..^1];
-        return text + "…";
-    }
-
-    /// <summary>One of the original's engraved buttons: pressed (darker) while open or held, the text lit under the mouse.</summary>
-    private void Engraved(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle rect, string label, Point hover, bool held, bool open)
-    {
-        bool over = rect.Contains(hover);
+        bool over = rect.Contains(hover) && !dimmed;
         bool down = open || over && held;
         batch.Draw(pixel, ToScreen(rect), down ? PressedFill : Fill);
         Frame(batch, pixel, rect, Dark, Light);
         var size = font.Measure(label, Px(12)) / _scale;
         Write(batch, font, label, rect.Center.X - size.X / 2 + (down ? 1 : 0), rect.Center.Y - size.Y / 2 + (down ? 1 : 0),
-            over || open ? HoverText : Text, 12);
+            dimmed ? Dark : over || open ? HoverText : Text, 12);
     }
 
     /// <summary>An engraved frame: the dark line on the edge, the light one a pixel outside to the lower right.</summary>

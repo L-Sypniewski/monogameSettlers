@@ -41,7 +41,25 @@
   "_settingsScreenComment": "Settings screen: a background of the original's menus (file 02, GUI 14, 800 × 600: four small boxes and a title field at the top, a large dark area, a note field at the bottom), marble beside it (GUI 29); tabs in the four boxes: icons of the original's statistics menus ([bright, dark] GUI images of tabs.file).",
   "settingsScreen": { "file": 2, "background": 14, "marble": 29,
     "tabs": { "file": 3, "resources": [ 239, 251 ], "economy": [ 245, 257 ], "military": [ 242, 254 ], "display": [ 290, 305 ] } },
-  "_startScreenComment": "Start screen on the original's map selection background: GUI images of file 02 – background (800 × 600, list, slanted preview window, panel), marble around it, rowBar (stone bar under the selected row), scroll bar groove (top, track, bottom); from the sheet (GUI image 0) the oval button up and pressed and the scroll handle – [x, y, width, height].",
+  "_campaignScreensComment": "Campaigns: choosing the side, per campaign on the original's background (800 × 600; background, marble: images of the screen's file or [file, image]) – heading field, per side its picture and name field [x, y, width, height], lit: [file, sequence, frame] of a brighter picture of the figures laid on the picture's rectangle under the mouse (without: a gold frame). Settlers: file 02, GUI 7 (the three helmets, a picture per people). Mission CD: file 60, GUI 4 (the three shipwrecked in the storm), the brighter figures in settler sequence 0; label: a text key for the name field instead of the side's name (with the level), wrapped; headingSize: the heading's text size (15). Amazons: file 48, GUI 1 (the Amazons on the cliff, the three peoples' army on the beach), the brighter figures in settler sequence 2, placed by correlation.",
+  "campaignScreens": {
+    "settlers": { "file": 2, "background": 7, "marble": 29, "heading": [ 298, 37, 210, 25 ],
+      "sides": {
+        "Egyptian": { "picture": [ 105, 188, 130, 157 ], "name": [ 105, 350, 130, 42 ] },
+        "Roman": { "picture": [ 321, 366, 151, 130 ], "name": [ 320, 502, 151, 38 ] },
+        "Asian": { "picture": [ 570, 216, 152, 130 ], "name": [ 568, 352, 154, 41 ] } } },
+    "missionCd": { "file": 60, "background": 4, "marble": [ 2, 29 ], "heading": [ 283, 532, 232, 36 ], "headingSize": 18,
+      "sides": {
+        "Egyptian": { "picture": [ 72, 281, 205, 166 ], "name": [ 46, 422, 109, 39 ], "lit": [ 60, 0, 1 ], "label": "campaign.levels.Egyptian" },
+        "Roman": { "picture": [ 639, 177, 111, 187 ], "name": [ 573, 387, 108, 38 ], "lit": [ 60, 0, 0 ], "label": "campaign.levels.Roman" },
+        "Asian": { "picture": [ 422, 40, 93, 194 ], "name": [ 518, 94, 108, 39 ], "lit": [ 60, 0, 2 ], "label": "campaign.levels.Asian" } } },
+    "amazons": { "file": 48, "background": 1, "marble": [ 2, 29 ], "heading": [ 292, 26, 216, 36 ],
+      "sides": {
+        "amazons": { "picture": [ 46, 104, 163, 283 ], "name": [ 62, 397, 108, 22 ], "lit": [ 48, 2, 1 ] },
+        "peoples": { "picture": [ 381, 416, 208, 181 ], "name": [ 614, 489, 108, 22 ], "lit": [ 48, 2, 0 ] } } } },
+  "_missionScreenComment": "Campaign: choosing a mission once one is accomplished, on the original's background (file 02, GUI 18, 800 × 600: a field for the heading, a large dark area for the list), marble beside it – [x, y, width, height].",
+  "missionScreen": { "file": 2, "background": 18, "marble": 29, "heading": [ 312, 28, 208, 24 ], "list": [ 200, 100, 402, 440 ] },
+  "_startScreenComment":"Start screen on the original's map selection background: GUI images of file 02 – background (800 × 600, list, slanted preview window, panel), marble around it, rowBar (stone bar under the selected row), scroll bar groove (top, track, bottom); from the sheet (GUI image 0) the oval button up and pressed and the scroll handle – [x, y, width, height].",
   "startScreen": { "file": 2, "background": 8, "marble": 29, "sheet": 0, "rowBar": 1, "scrollTop": 2, "scrollTrack": 3, "scrollBottom": 4,
     "oval": [ 182, 0, 83, 46 ], "ovalPressed": [ 285, 0, 83, 46 ], "handle": [ 0, 0, 20, 480 ] },
   "_professionsMenuComment": "Siedler > Berufe: GUI images of file 03 – the up/down spinner of the shares, the find buttons ([all on the map, all on the screen, the next one]) and the convert buttons ([5, 1]).",

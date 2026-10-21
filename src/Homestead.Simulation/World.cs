@@ -145,6 +145,9 @@ public sealed partial class World
     /// </summary>
     public Dictionary<string, (long Total, long Max)>? StepProfile { get; set; }
 
+    /// <summary>Victory and defeat of a campaign mission; null in free games.</summary>
+    public MissionGoals? Goals { get; set; }
+
     public void Step()
     {
         long mark = StepProfile is null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
@@ -193,6 +196,7 @@ public sealed partial class World
                 ai.Tick();
             Measure("ai", ref mark);
             History.Tick();
+            Goals?.Tick(this);
         }
         foreach (var settler in _settlers)
             if (settler.IsWorking || settler.IsStriking)

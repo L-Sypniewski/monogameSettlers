@@ -23,8 +23,8 @@ public sealed class SaveGame
     public Dictionary<string, string> Client { get; init; } = new();
 }
 
-/// <summary>What the list of saved games shows of one, read without loading the game.</summary>
-public sealed record SaveInfo(string Map, string People, DateTime SavedAt, long Tick);
+/// <summary>What the list of saved games shows of one, read without loading the game; <see cref="Mission"/>: a campaign mission's (as <see cref="MissionRef"/> text).</summary>
+public sealed record SaveInfo(string Map, string People, DateTime SavedAt, long Tick, string? Mission = null);
 
 /// <summary>
 /// The save slots: files <c>slot N.hsav</c> in <c>saves</c> next to the settings (<c>~/.config/homestead</c>,

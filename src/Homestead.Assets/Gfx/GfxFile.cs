@@ -148,6 +148,43 @@ public sealed class GfxFile
     }
 
     /// <summary>
+    /// The text table of files 07–09 (block <c>0x1904</c>, see <c>docs/formate/gfx.md</c>): per language (0 German,
+    /// 1 English, …) all its texts, null-terminated, Windows-1252. Empty if the file has none or the language is missing.
+    /// </summary>
+    public IReadOnlyList<string> ReadTexts(int language)
+    {
+        for (int i = 0; i < HeaderTableCount; i++)
+        {
+            int blockPos = (int)U32(HeaderTableOffset + i * 4);
+            if (blockPos + 12 > _data.Length || U32(blockPos) != TextTable)
+                continue;
+            int count = U16(blockPos + 8), languages = U16(blockPos + 10);
+            if (language < 0 || language >= languages || blockPos + 12 + count * languages * 4 > _data.Length)
+                return [];
+            var encoding = Windows1252;
+            var texts = new string[count];
+            for (int entry = 0; entry < count; entry++)
+            {
+                int start = (int)U32(blockPos + 12 + (language * count + entry) * 4);
+                int end = start < _data.Length ? Array.IndexOf(_data, (byte)0, start) : -1;
+                texts[entry] = end < 0 ? "" : encoding.GetString(_data, start, end - start);
+            }
+            return texts;
+        }
+        return [];
+    }
+
+    private const uint TextTable = 0x1904;
+
+    private static readonly System.Text.Encoding Windows1252 = CodePages();
+
+    private static System.Text.Encoding CodePages()
+    {
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+        return System.Text.Encoding.GetEncoding(1252);
+    }
+
+    /// <summary>
     /// Torso and shadow tables are often shorter than the settler table, and the entries are not
     /// matched by index. Rules (including the per-file special cases, recognized by table sizes)
     /// taken from JSettlers' AdvancedDatFileReader (MIT).

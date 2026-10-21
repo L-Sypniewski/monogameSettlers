@@ -13,6 +13,9 @@
   },
   "title": {
     "buttons": {
+      "campaign": "Campaign",
+      "missionCd": "Mission CD",
+      "amazonCampaign": "Amazon campaign",
       "singlePlayer": "Single player",
       "load": "Load game",
       "settings": "Settings",
@@ -37,6 +40,32 @@
       "willOpen": "This page will open in your browser:",
       "browserFailed": "The browser could not be opened. The page is here:",
       "open": "Open in browser"
+    }
+  },
+  "campaign": {
+    "choosePeople": "Choose your people",
+    "back": "Back",
+    "next": "Next",
+    "saveName": "{0}: {1}, mission {2}",
+    "won": "Game won",
+    "lost": "Game lost",
+    "wonHint": "Quit the game (or Esc → statistics) to go on to the next mission.",
+    "lostHint": "Esc: leave the game – the mission starts over.",
+    "chooseMission": "Choose a mission",
+    "missionDone": "accomplished",
+    "missionNew": "new",
+    "introVideo": "Intro",
+    "outroVideo": "Finale",
+    "video": "video",
+    "chooseSide": "Choose your side",
+    "levels": {
+      "Roman": "Romans (for beginners)",
+      "Egyptian": "Egyptians (for experts)",
+      "Asian": "Asians (for the practised)"
+    },
+    "sides": {
+      "amazons": "Amazons",
+      "peoples": "The three peoples"
     }
   },
   "peoples": {
@@ -497,7 +526,9 @@
     "geologists": "geologists",
     "scouts": "scouts",
     "pioneers": "pioneers",
-    "carriers": "carriers"
+    "carriers": "carriers",
+    "missionWon": "Mission accomplished",
+    "missionLost": "Mission lost"
   },
   "building": {
     "garrison": "Garrison (present / wanted)",

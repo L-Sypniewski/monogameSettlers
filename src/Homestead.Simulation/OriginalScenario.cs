@@ -20,8 +20,9 @@ public static class OriginalScenario
 
     /// <summary>
     /// Settler types of chunk 7 that we place as something other than a carrier (order from JSettlers'
-    /// EOriginalMapSettlersType, MIT). Other specialists come as carriers: they become specialists
-    /// again by taking up a tool.
+    /// EOriginalMapSettlersType, MIT; 23, the thief, from the campaigns: scattered over the map where the story
+    /// speaks of scouts, 57 of them in the Amazon campaign's stealing mission). Other specialists come as carriers:
+    /// they become specialists again by taking up a tool.
     /// </summary>
     private static (Profession Profession, SoldierType? Soldier, int Level) SettlerOf(int type) => type switch
     {
@@ -30,6 +31,7 @@ public static class OriginalScenario
         5 => (Profession.Soldier, SoldierType.Swordsman, 1),
         8 => (Profession.Soldier, SoldierType.Bowman, 1),
         15 => (Profession.Soldier, SoldierType.Pikeman, 1),
+        23 => (Profession.Scout, null, 1),
         30 => (Profession.Soldier, SoldierType.Bowman, 2),
         31 => (Profession.Soldier, SoldierType.Pikeman, 2),
         32 => (Profession.Soldier, SoldierType.Swordsman, 2),
@@ -130,8 +132,9 @@ public static class OriginalScenario
                 settlers++;
         }
 
-        // Multiplayer maps without start buildings: equal start equipment for every player.
-        if (!original.IsSinglePlayer && original.Buildings.Count == 0)
+        // Maps without start buildings (multiplayer, also some single player maps like the beginner missions):
+        // equal start equipment for every player.
+        if (original.Buildings.Count == 0)
         {
             var setup = StartSetup.Load(dataDirectory);
             for (int player = 0; player < count; player++)
