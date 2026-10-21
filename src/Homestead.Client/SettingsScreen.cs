@@ -54,6 +54,10 @@ public sealed class SettingsScreen : IDisposable
 
     private static readonly (string, int)[] DepletionValues = [("100 %", 100), ("75 %", 75), ("50 %", 50), ("25 %", 25), ("10 %", 10), ("∞", 0)];
 
+    private static readonly (string, int)[] VolumeValues = [("100 %", 100), ("75 %", 75), ("50 %", 50), ("25 %", 25), ("common.off", 0)];
+
+    private static readonly (string, int)[] YesNo = [("common.yes", 1), ("common.no", 0)];
+
     private static readonly (string, int)[] OnOff = [("common.on", 1), ("common.off", 0)];
 
     private static Choice Depletion(string key, Func<Depletion, int> get, Func<Depletion, int, Depletion> set) =>
@@ -80,6 +84,9 @@ public sealed class SettingsScreen : IDisposable
             // Each language by its own name.
             Display("language", [("Deutsch", (int)Language.German), ("English", (int)Language.English)],
                 d => (int)d.Language, (d, v) => d with { Language = (Language)v }),
+            Display("music", VolumeValues, d => d.MusicVolume, (d, v) => d with { MusicVolume = v }),
+            Display("peopleMusic", YesNo, d => d.PeopleMusic ? 1 : 0, (d, v) => d with { PeopleMusic = v == 1 }),
+            Display("effects", VolumeValues, d => d.EffectsVolume, (d, v) => d with { EffectsVolume = v }),
         ], "settings.notes.immediately"),
     ];
 

@@ -156,6 +156,9 @@ public sealed partial class Production
         return Math.Min(1.0, (double)left / full);
     }
 
+    /// <summary>Whether the workshop's worker is at work inside (for its sound).</summary>
+    public bool IsProducing(Building building) => _workplaces.GetValueOrDefault(building.Id)?.Phase == Phase.Producing;
+
     /// <summary>Whether the production building waits for a worker nobody brings yet.</summary>
     public bool NeedsWorker(Building building) => _workplaces.GetValueOrDefault(building.Id)?.Phase == Phase.NeedsWorker;
 
@@ -489,6 +492,8 @@ public sealed partial class Production
                     worker!.Facing = w.Facing;
                     BeginHandling(w, ActivityAt(w), Phase.Gathering);
                     w.TicksLeft = WorkTicks(w, w.Gatherer!.WorkTicks);
+                    if (worker.Activity == Activity.Sowing)
+                        _world.Cue(new SoundCue(SoundCueKind.Sowing, worker.Position, worker.Player, Trade: worker.Trade));
                 }
                 else if (stalledSpot)
                 {
@@ -771,6 +776,7 @@ public sealed partial class Production
                 map.SetObjectCode(w.Target, MapObjectCodes.TreeStump);
                 _growing[map.Index(w.Target)] = _world.Tick + _config.StumpTicks; // the stump rots away
                 TreesCut++;
+                _world.Cue(new SoundCue(SoundCueKind.TreeFalls, w.Target, w.Building.Player));
                 if (w.Gatherer.PickupTicks > 0)
                 {
                     // The tree has fallen: a moment before the trunk is picked up.

@@ -28,6 +28,13 @@ public sealed class GameInstallation
 
     public string MapDirectory => FindSubdirectory("Map");
 
+    /// <summary>
+    /// The background music (<c>MUSIC/TrackNN.ogg</c>, the former CD audio tracks), if the installation has it –
+    /// releases playing them from the CD do not.
+    /// </summary>
+    public string? MusicDirectory =>
+        Directory.EnumerateDirectories(Root).FirstOrDefault(d => Path.GetFileName(d).Equals("MUSIC", StringComparison.OrdinalIgnoreCase));
+
     /// <summary>All map files below the map folder (single player, multiplayer, user maps).</summary>
     public IEnumerable<string> MapFiles =>
         Directory.EnumerateFiles(MapDirectory, "*", SearchOption.AllDirectories)

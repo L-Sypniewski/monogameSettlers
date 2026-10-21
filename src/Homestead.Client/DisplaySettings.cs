@@ -24,6 +24,15 @@ public sealed record DisplaySettings
     public Language Language { get; init; } =
         System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de" ? Language.German : Language.English;
 
+    /// <summary>Loudness of the background music in percent (0 = off).</summary>
+    public int MusicVolume { get; init; } = 75;
+
+    /// <summary>Music of the own people only; otherwise all pieces.</summary>
+    public bool PeopleMusic { get; init; } = true;
+
+    /// <summary>Loudness of the sound effects in percent (0 = off).</summary>
+    public int EffectsVolume { get; init; } = 100;
+
     /// <summary>The settings in the file (default: the user's); missing or unreadable values keep their default.</summary>
     public static DisplaySettings Load(string? path = null)
     {
@@ -32,8 +41,15 @@ public sealed record DisplaySettings
             return settings;
         bool Flag(string name, bool fallback) =>
             display.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : fallback;
+        int Percent(string name, int fallback) =>
+            display.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int percent)
+                ? Math.Clamp(percent, 0, 100)
+                : fallback;
         return settings with
         {
+            MusicVolume = Percent("musicVolume", settings.MusicVolume),
+            PeopleMusic = Flag("peopleMusic", settings.PeopleMusic),
+            EffectsVolume = Percent("effectsVolume", settings.EffectsVolume),
             HardwareCursor = Flag("hardwareCursor", settings.HardwareCursor),
             FullScreen = Flag("fullScreen", settings.FullScreen),
             Language = display.TryGetProperty("language", out var language) && language.ValueKind == JsonValueKind.String
@@ -49,5 +65,8 @@ public sealed record DisplaySettings
             ["hardwareCursor"] = HardwareCursor,
             ["fullScreen"] = FullScreen,
             ["language"] = Language == Language.English ? "en" : "de",
+            ["musicVolume"] = MusicVolume,
+            ["peopleMusic"] = PeopleMusic,
+            ["effectsVolume"] = EffectsVolume,
         }, path);
 }

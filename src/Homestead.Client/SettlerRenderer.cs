@@ -15,7 +15,7 @@ namespace Homestead.Client;
 /// </summary>
 public sealed class SettlerRenderer
 {
-    private const float WorkFramesPerTick = 0.5f;
+    public const float WorkFramesPerTick = 0.5f;
 
     /// <summary>The frame of a bowman's shooting animation in which the arrow leaves the bow.</summary>
     private const int ReleaseFrame = 17;
@@ -238,6 +238,10 @@ public sealed class SettlerRenderer
             return (Sprites(animation), animation.Cycle(step - from));
         return Own("HOMELESS_IDLE") is { } idle ? (Sprites(idle), idle.Start) : null;
     }
+
+    /// <summary>Frames in one round of the settler's work animation, if it has one (sounds keep time with it).</summary>
+    public int? WorkRoundFrames(Settler settler) =>
+        WorkAction(settler.Activity) is { } action && Find(settler, action, settler.Facing) is { } animation ? Math.Abs(animation.Duration) : null;
 
     /// <summary>The action of an activity in the animation tables.</summary>
     private static string? WorkAction(Activity activity) => activity switch

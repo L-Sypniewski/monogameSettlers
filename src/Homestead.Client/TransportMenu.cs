@@ -127,6 +127,7 @@ public sealed class TransportMenu : IDisposable
                 case 0:
                 case 1:
                     world.Logistics.SetStored(player, chosen, i == 0);
+                    UiSounds.Toggle();
                     return i == 0 ? $"{name} goes to storehouses" : $"{name} stays with its producer";
                 case 2:
                     world.Logistics.MoveInTransportOrder(player, chosen, int.MinValue);
@@ -141,6 +142,8 @@ public sealed class TransportMenu : IDisposable
                     world.Logistics.MoveInTransportOrder(player, chosen, int.MaxValue);
                     break;
             }
+            if (i is >= 2 and <= 5)
+                UiSounds.Step(i <= 3);
             int now = Ordered(world, player).FindIndex(g => g.Material == chosen);
             return $"{name}: place {now + 1} in the transport order";
         }

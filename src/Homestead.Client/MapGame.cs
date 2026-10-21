@@ -55,6 +55,10 @@ public sealed class MapGame : Game
     private TitleScreen? _title;
     /// <summary>The settings screen, over the title screen while open.</summary>
     private SettingsScreen? _settingsScreen;
+    private readonly GameInstallation _installation;
+    // Sound effects and music; none in capture runs.
+    private GameAudio? _audio;
+    private readonly WorkSounds _workSounds = new();
     /// <summary>Hardware cursor, full screen, language (<c>display</c> in settings.json).</summary>
     private DisplaySettings _display = DisplaySettings.Load();
     /// <summary>The game's own pointer while the hardware cursor is off.</summary>
@@ -240,6 +244,7 @@ public sealed class MapGame : Game
         _showStartScreen = startScreen;
         _loadSlot = loadSlot;
         AddCheats();
+        _installation = installation;
         _mapDirectory = installation.MapDirectory;
         _gfx = gfx;
         _peoples = peoples;
@@ -283,6 +288,12 @@ public sealed class MapGame : Game
         _cursor = new SoftwareCursor(GraphicsDevice);
         if (_display.FullScreen && _captureDirectory is null)
             SetFullScreen(true);
+        if (_captureDirectory is null)
+        {
+            _audio = new GameAudio(_installation, SoundConfig.Load());
+            UiSounds.Audio = _audio;
+            ApplyVolumes(_display);
+        }
         _atlas = TerrainAtlas.Build(GraphicsDevice, _gfx.Open(0));
         _effect = new BasicEffect(GraphicsDevice)
         {
@@ -441,6 +452,7 @@ public sealed class MapGame : Game
             production: GameSettings.Load(production).Apply(production));
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
+        _world.SoundCues = _audio is null ? null : new();
         _objects = new MapObjectLayer(_sprites, _map.Area, _terrain);
         _vision = new Vision(_gameMap.Size, player: 0);
         _vision.Update(_world);
@@ -488,6 +500,7 @@ public sealed class MapGame : Game
         _world = game.World;
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
+        _world.SoundCues = _audio is null ? null : new();
         _objects = new MapObjectLayer(_sprites, _map.Area, _terrain);
         for (int y = 0; y < _gameMap.Size; y++)
         for (int x = 0; x < _gameMap.Size; x++)
@@ -769,6 +782,12 @@ public sealed class MapGame : Game
     protected override void Update(GameTime gameTime)
     {
         _now = gameTime.TotalGameTime.TotalSeconds;
+        if (_audio is not null)
+        {
+            // The own people's music in the game (statistics included), silence in the menus before it.
+            _audio.Music.Tracks = _audio.Config.TracksFor(_title is null && _startScreen is null ? Own.Civilization : null, _display.PeopleMusic);
+            _audio.Music.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
+        }
         if (_title is not null)
         {
             UpdateTitle();
@@ -822,8 +841,20 @@ public sealed class MapGame : Game
             _accumulator -= World.TickDuration;
         }
         _perf.EndSimulation();
-        if (_eventButtons.Update(_world, 0, _now) is { } raised && _captureDirectory is not null && _captureEvent)
-            LookAt(raised);
+        if (_audio is not null && _world.SoundCues is { } cues)
+        {
+            _audio.BeginFrame(Hearing);
+            _audio.Play(cues);
+            cues.Clear();
+            _workSounds.Update(_world, _settlerRenderer, _audio, _time.TotalSeconds);
+        }
+        if (_eventButtons.Update(_world, 0, _now) is { } raised)
+        {
+            if (_audio is not null)
+                _audio.Play(raised.Category == EventCategory.Combat ? _audio.Config.CombatEvent : _audio.Config.OtherEvent, _audio.Config.VolumeOf("events"));
+            if (_captureDirectory is not null && _captureEvent)
+                LookAt(raised);
+        }
 
         // Fog of war: what player 1 sees is checked once a second, the fog then fades to it.
         if (_time >= _nextVision)
@@ -869,8 +900,33 @@ public sealed class MapGame : Game
         _display = display;
         Lang.Use(display.Language);
         IsMouseVisible = display.HardwareCursor;
+        ApplyVolumes(display);
         if (_captureDirectory is null && display.FullScreen != _graphics.IsFullScreen)
             SetFullScreen(display.FullScreen);
+    }
+
+    /// <summary>The soldiers' answer to an order.</summary>
+    private void PlayCommand() => _audio?.Play(_audio.Config.Command, _audio.Config.VolumeOf("command"));
+
+    private void ApplyVolumes(DisplaySettings display)
+    {
+        if (_audio is null)
+            return;
+        _audio.EffectsVolume = display.EffectsVolume / 100f;
+        _audio.Music.Volume = display.MusicVolume / 100f;
+    }
+
+    /// <summary>
+    /// Where a sound at the point is heard: its distance from the view's center in half view sizes (−1…1 on screen);
+    /// null under the fog of war.
+    /// </summary>
+    private (float X, float Y)? Hearing(GridPoint p)
+    {
+        if (!_gameMap.Contains(p) || (_fogOn && !_vision.IsVisible(p)))
+            return null;
+        var viewport = GraphicsDevice.Viewport;
+        var at = ToWorld(p) - _camera;
+        return (at.X / (viewport.Width / 2f / _zoom), at.Y / (viewport.Height / 2f / _zoom));
     }
 
     private void SetFullScreen(bool on)
@@ -1179,12 +1235,16 @@ public sealed class MapGame : Game
                     : delta > 0 ? $"{name}: no free place"
                     : _world.Military.Wanted(_selectedBuilding!, type) == 0 ? $"{name}: none wanted" : $"{name}: the building must not be left empty";
                 if (released && possible)
+                {
                     _world.Military.ChangeWanted(_selectedBuilding!, type, delta);
+                    UiSounds.Step(delta > 0);
+                }
             }
             // A production building's stop/restart button.
             if (onMenu && released && _buildingInfo.PauseAt(panelCursor, SidePanel.ContentHeight, _world, _selectedBuilding!, 0))
             {
                 _world.SetPaused(_selectedBuilding!, !_selectedBuilding!.IsPaused);
+                UiSounds.Toggle();
                 _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)} {(_selectedBuilding.IsPaused ? "stopped" : "restarted")}";
             }
             // A storehouse's goods: specialize it on one, or back to the general rule.
@@ -1754,9 +1814,12 @@ public sealed class MapGame : Game
         if (_selectedBuilding is { Exists: true, Player: 0, HasWorkArea: true } worksite)
         {
             if (_world.SetWorkCenter(worksite, clicked) is { } center)
+            {
+                UiSounds.WorkArea();
                 _message = worksite.HasGatheringPoint ? $"gathering point moved to {center.X},{center.Y}"
                     : center == clicked ? $"work area moved to {center.X},{center.Y}"
                     : $"work area moved to {center.X},{center.Y} (at most {World.MaxWorkCenterDistance} fields away)";
+            }
             return;
         }
         var priests = _group.Where(s => s.Profession == Profession.Priest && !_world.Magic.IsBusy(s)).ToList();
@@ -1795,6 +1858,7 @@ public sealed class MapGame : Game
         bool control = Keyboard.GetState().IsKeyDown(Keys.LeftControl) || Keyboard.GetState().IsKeyDown(Keys.RightControl);
         if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) > 0)
         {
+            PlayCommand();
             _message = $"{soldiers.Count} soldiers attack {attacked.Definition.Name}";
             return;
         }
@@ -1802,6 +1866,7 @@ public sealed class MapGame : Game
         var keys = Keyboard.GetState();
         bool forced = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
         _world.Military.Move(soldiers, clicked, forced);
+        PlayCommand();
         _message = $"{soldiers.Count} soldiers to {clicked.X},{clicked.Y}{(forced ? " (forced)" : "")}";
     }
 
@@ -2919,6 +2984,8 @@ public sealed class MapGame : Game
         _font.Dispose();
         _atlas.Dispose();
         _effect.Dispose();
+        UiSounds.Audio = null;
+        _audio?.Dispose();
         base.UnloadContent();
     }
 }

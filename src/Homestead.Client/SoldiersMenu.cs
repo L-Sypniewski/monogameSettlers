@@ -151,6 +151,7 @@ public sealed class SoldiersMenu : IDisposable
         if (SwitchButton.Contains(panel))
         {
             military.SetManualRecruitment(player, !military.IsManualRecruitment(player));
+            UiSounds.Toggle();
             return military.IsManualRecruitment(player) ? "manual recruitment: barracks train only the soldiers planned" : "automatic recruitment";
         }
         if (!military.IsManualRecruitment(player))
@@ -160,6 +161,7 @@ public sealed class SoldiersMenu : IDisposable
                 if (Arrow(row, i).Contains(panel))
                 {
                     military.ChangePlanned(player, Types[row], ArrowSteps[i]);
+                    UiSounds.Step(ArrowSteps[i] > 0);
                     return $"{names.SoldierName(Types[row])}: {military.Planned(player, Types[row])} planned";
                 }
         return null;

@@ -349,7 +349,7 @@
       "military": "Militär",
       "militarySubtitle": "Soldaten, Kampf und Gebiete",
       "display": "Darstellung",
-      "displaySubtitle": "Grafik und Bedienung"
+      "displaySubtitle": "Grafik, Ton und Bedienung"
     },
     "resources": {
       "stone": "Steinbrüche",
@@ -365,7 +365,13 @@
       "fullScreen": "Vollbild",
       "fullScreenHint": "Beim Start im Vollbild. F11 wechselt jederzeit, nur bis zum Beenden.",
       "language": "Sprache",
-      "languageHint": "Sprache der Texte."
+      "languageHint": "Sprache der Texte.",
+      "music": "Musik",
+      "musicHint": "Lautstärke der Hintergrundmusik – je Volk eigene Stücke.",
+      "peopleMusic": "Musik je Volk",
+      "peopleMusicHint": "Ja: nur die Stücke des eigenen Volks. Nein: alle Stücke gemischt.",
+      "effects": "Effekte",
+      "effectsHint": "Lautstärke der Geräusche, etwa im Kampf."
     }
   },
   "install": {

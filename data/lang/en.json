@@ -349,7 +349,7 @@
       "military": "Military",
       "militarySubtitle": "Soldiers, combat and territory",
       "display": "Display",
-      "displaySubtitle": "Graphics and controls"
+      "displaySubtitle": "Graphics, sound and controls"
     },
     "resources": {
       "stone": "Quarries",
@@ -365,7 +365,13 @@
       "fullScreen": "Full screen",
       "fullScreenHint": "Start in full screen. F11 switches at any time, until quitting.",
       "language": "Language",
-      "languageHint": "Language of the texts."
+      "languageHint": "Language of the texts.",
+      "music": "Music",
+      "musicHint": "Volume of the background music – each people has its own pieces.",
+      "peopleMusic": "Music per people",
+      "peopleMusicHint": "Yes: only the pieces of the own people. No: all pieces shuffled.",
+      "effects": "Effects",
+      "effectsHint": "Volume of the sounds, e.g. in battle."
     }
   },
   "install": {

@@ -96,6 +96,7 @@ public sealed class ManufactureMenu : IDisposable
                 if (spinner.Contains(panel))
                 {
                     world.Production.ChangeOrdered(player, product, panel.Y < spinner.Center.Y ? 1 : -1);
+                    UiSounds.Step(panel.Y < spinner.Center.Y);
                     return $"{NameOf(product)}: {world.Production.Ordered(player, product)} ordered";
                 }
                 if (Bar(y).Contains(panel))

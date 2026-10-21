@@ -300,6 +300,7 @@ public sealed partial class BuildingInfo
             return null;
         bool clear = world.Logistics.SpecializationOf(building) == good.Material;
         world.Logistics.SetSpecialization(building, clear ? null : good.Material);
+        UiSounds.Toggle();
         return clear ? "storehouse: the general rule again (Waren › Warentransport)" : $"storehouse: only {good.Name}";
     }
 
