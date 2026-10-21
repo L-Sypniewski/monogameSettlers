@@ -26,6 +26,7 @@ remember, minus the old annoyances.
 ## Economy
 
 - **Four peoples** (Romans, Egyptians, Asians, Amazons) with their own buildings, production chains, settlers and music
+- **Sounds of work** in time with the animations: chopping, sawing, smithing, levelling, building, fishing
 - **Logistics without traffic jams**: carriers step aside, swap places and re-plan; a watchdog resolves every deadlock
 - **Trails**: well-used routes turn into footpaths you walk faster on
 - **Levelling** with real terrain changes, construction sites with diggers and builders
@@ -140,7 +141,7 @@ Internal project name and namespaces: *Homestead*.
 
 ## Roadmap to 1.0
 
-- More sounds (work, nature, buildings)
+- More sounds (nature, more trades)
 - Single-player maps
 - All the original spells
 - More AI variation

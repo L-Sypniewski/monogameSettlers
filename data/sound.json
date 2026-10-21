@@ -1,14 +1,29 @@
 {
-  "_comment": "Sound effects and music from the user's installation. effects: sound numbers in SND/Siedler3_00.dat (docs/formate/snd.md; one of the sound's variants is picked at random), strike per soldier type, death per people (default for the others). volume: loudness per kind (0-1, times the player's setting). maxVoices: effects playing at once; perFrame: the same sound started at most this often in one frame (a big battle would otherwise be one roar). hearing: sounds outside the view fade out until this many half view widths/heights from its center.",
+  "_comment": "Sound effects and music from the user's installation. effects: sound numbers in SND/Siedler3_00.dat (docs/formate/snd.md; one of the sound's variants is picked at random), strike per soldier type, death per people (default for the others), treeFalls when a tree is felled, command when the player gives soldiers an order (heard as from the middle of the screen). volume: loudness per kind (0-1, times the player's setting). maxVoices: effects playing at once; perFrame: the same sound started at most this often in one frame (a big battle would otherwise be one roar). hearing: sounds outside the view fade out until this many half view widths/heights from its center.",
   "effects": {
     "strike": { "Swordsman": 30, "Pikeman": 34, "Bowman": 33 },
-    "death": { "default": 35, "Amazon": 113 }
+    "death": { "default": 35, "Amazon": 113 },
+    "treeFalls": 36,
+    "command": 31
   },
-  "volume": { "strike": 0.55, "death": 0.8 },
+  "volume": { "strike": 0.55, "death": 0.8, "treeFalls": 0.6, "command": 0.7, "work": 0.45 },
   "maxVoices": 24,
   "perFrame": 2,
   "hearing": 1.6,
-  "_musicComment": "Background music: MUSIC/TrackNN.ogg (the former CD audio tracks), played shuffled from the own people's list, pauseSeconds (min, max) of silence between two pieces, fadeSeconds to fade out when the people changes. Which track belongs to which people is not documented anywhere; correct it here if it sounds wrong.",
+  "_workComment": "Working outside, per activity: the sound plays when the work animation reaches 'at' (0-1) of each of its rounds, so it keeps time with the picture. workshops: while the worker works inside, the building sounds every 'everySeconds' (a little at random).",
+  "work": {
+    "Chopping": { "sound": 0, "at": 0.8 },
+    "Digging": { "sound": 2, "at": 0.6 },
+    "Building": { "sound": 1, "at": 0.7 },
+    "Mining": { "sound": 3, "at": 0.8 },
+    "Fishing": { "sound": 16, "at": 0.8 }
+  },
+  "workshops": {
+    "sawmill": { "sound": 5, "everySeconds": 1.6 },
+    "toolsmith": { "sound": 6, "everySeconds": 1.8 },
+    "weaponsmith": { "sound": 7, "everySeconds": 1.8 }
+  },
+  "_musicComment": "Background music: MUSIC/TrackNN.ogg (the former CD audio tracks), played shuffled from the own people's list (all tracks if the player turns that off), pauseSeconds (min, max) of silence between two pieces, fadeSeconds to fade out when the list changes. Which track belongs to which people is not documented anywhere; correct it here if it sounds wrong.",
   "music": {
     "tracks": {
       "Roman": [ 2, 3, 4 ],

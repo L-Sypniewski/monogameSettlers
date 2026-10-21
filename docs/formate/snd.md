@@ -36,22 +36,22 @@ Die Tabelle endet, wo die erste Variantenliste beginnt: (erster Offset − 0x24)
 ## Belegung (aus JSettlers, teils geprüft)
 | Nr. | Geräusch | Nr. | Geräusch |
 |-----|----------|-----|----------|
-| 0 | Holzfäller | 36 | fallender Baum |
-| 1 | Bauarbeiter | 37/38 | flüssiges Metall |
-| 2 | Planierer | 39 | Schweine |
-| 3 | Steinmetz | 40/41 | Esel |
-| 5 | Sägewerk | 42 | Mühle |
-| 6/7 | Schmied | 45 | Köhler hustet |
+| **0** | **Holzfäller** | **36** | **fallender Baum** |
+| **1** | **Bauarbeiter** | 37/38 | flüssiges Metall |
+| **2** | **Planierer** | 39 | Schweine |
+| **3** | **Steinmetz** | 40/41 | Esel |
+| **5** | **Sägewerk** | 42 | Mühle |
+| **6/7** | **Schmied** (Werkzeug/Waffen) | 45 | Köhler hustet |
 | 8/9, 12 | Bauer | 62 | Klick |
 | 13 | Feuer | 67 | Wüste |
 | 14 | Schlachter | 68 | Meer |
-| 15–17 | Fischer | 69/70 | Vögel |
+| 15–17 | Fischer (**16** genutzt) | 69/70 | Vögel |
 | 20 | Werft | 71 | Fluss |
 | 21 | Heiler | 72 | Sumpf |
 | 24 | Geologe | 73/74 | Wind |
 | 25, 33 | Bogenschütze | 75/76 | Donner, Regen |
 | **30** | **Schwertkämpfer** (Schlag) | 80 | „Ihr werdet angegriffen“ |
-| 31/32 | Soldat? | 85 | Pfeilschuss |
+| 31/32 | Soldat? (**31** vorerst als Befehl) | 85 | Pfeilschuss |
 | **33** | **Bogenschütze** (Schuss) | 93 | einstürzendes Gebäude |
 | **34** | **Pikenier** (Stoß) | 106 | Werkzeug fehlt |
 | **35** | **Tod** (9 Varianten) | **113** | **Tod einer Amazone** (4 Varianten) |

@@ -1,13 +1,13 @@
-using Homestead.Simulation.Buildings;
 using Microsoft.Xna.Framework.Audio;
 using NVorbis;
 
 namespace Homestead.Client;
 
 /// <summary>
-/// Background music: the installation's <c>MUSIC/TrackNN.ogg</c>, shuffled from the list of the <see cref="People"/>
-/// (<c>music</c> in <c>sound.json</c>) with a pause between two pieces, decoded while playing. Another people fades
-/// the piece out and goes on with theirs; none is silence. Fed from <see cref="Update"/>, once a frame.
+/// Background music: the installation's <c>MUSIC/TrackNN.ogg</c>, shuffled from the <see cref="Tracks"/> (the own people's
+/// from <c>music</c> in <c>sound.json</c>, see <see cref="SoundConfig.TracksFor"/>) with a pause between two pieces,
+/// decoded while playing. A new list without the piece playing fades it out; an empty one is silence. Fed from
+/// <see cref="Update"/>, once a frame.
 /// </summary>
 public sealed class MusicPlayer : IDisposable
 {
@@ -28,7 +28,7 @@ public sealed class MusicPlayer : IDisposable
     private bool _fadingOut;
     private float _pause;
     private bool _broken;
-    private Civilization? _people;
+    private int[] _tracks = [];
 
     public MusicPlayer(string? directory, SoundConfig config)
     {
@@ -38,19 +38,19 @@ public sealed class MusicPlayer : IDisposable
             Console.WriteLine("Music off: no MUSIC folder in the installation");
     }
 
-    /// <summary>Whose music plays; null: none.</summary>
-    public Civilization? People
+    /// <summary>The pieces to choose from (track numbers); empty: none.</summary>
+    public IReadOnlyList<int> Tracks
     {
-        get => _people;
+        get => _tracks;
         set
         {
-            if (_people == value)
+            if (_tracks.SequenceEqual(value))
                 return;
-            _people = value;
-            if (_reader is not null)
+            _tracks = value.ToArray();
+            if (_reader is not null && !_tracks.Contains(_lastTrack))
                 _fadingOut = true;
-            else
-                _pause = 0.5f;
+            else if (_reader is null)
+                _pause = Math.Min(_pause, 0.5f);
         }
     }
 
@@ -68,12 +68,12 @@ public sealed class MusicPlayer : IDisposable
             Stop();
         if (_reader is null)
         {
-            if (Volume <= 0 || People is not { } people || !_config.Music.TryGetValue(people, out var tracks) || tracks.Length == 0)
+            if (Volume <= 0 || _tracks.Length == 0)
                 return;
             _pause -= seconds;
             if (_pause > 0)
                 return;
-            Start(tracks);
+            Start(_tracks);
             return;
         }
         if (_fadingOut)
@@ -136,7 +136,7 @@ public sealed class MusicPlayer : IDisposable
             while (_output.PendingBufferCount < BuffersAhead && !_ending)
                 Feed();
             _output.Play();
-            Console.WriteLine($"Music: Track{track:00} ({People})");
+            Console.WriteLine($"Music: Track{track:00}");
         }
         catch (Exception e) when (e is NoAudioHardwareException or InvalidOperationException or IOException or InvalidDataException or ArgumentException)
         {

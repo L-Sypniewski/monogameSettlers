@@ -27,6 +27,9 @@ public sealed record DisplaySettings
     /// <summary>Loudness of the background music in percent (0 = off).</summary>
     public int MusicVolume { get; init; } = 75;
 
+    /// <summary>Music of the own people only; otherwise all pieces.</summary>
+    public bool PeopleMusic { get; init; } = true;
+
     /// <summary>Loudness of the sound effects in percent (0 = off).</summary>
     public int EffectsVolume { get; init; } = 100;
 
@@ -45,6 +48,7 @@ public sealed record DisplaySettings
         return settings with
         {
             MusicVolume = Percent("musicVolume", settings.MusicVolume),
+            PeopleMusic = Flag("peopleMusic", settings.PeopleMusic),
             EffectsVolume = Percent("effectsVolume", settings.EffectsVolume),
             HardwareCursor = Flag("hardwareCursor", settings.HardwareCursor),
             FullScreen = Flag("fullScreen", settings.FullScreen),
@@ -62,6 +66,7 @@ public sealed record DisplaySettings
             ["fullScreen"] = FullScreen,
             ["language"] = Language == Language.English ? "en" : "de",
             ["musicVolume"] = MusicVolume,
+            ["peopleMusic"] = PeopleMusic,
             ["effectsVolume"] = EffectsVolume,
         }, path);
 }

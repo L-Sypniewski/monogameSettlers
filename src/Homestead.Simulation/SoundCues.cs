@@ -10,6 +10,9 @@ public enum SoundCueKind
 
     /// <summary>A settler died: <see cref="SoundCue.People"/> says whose voice.</summary>
     Death,
+
+    /// <summary>A woodcutter felled a tree.</summary>
+    TreeFalls,
 }
 
 /// <summary>Something audible happened at a point in this tick.</summary>

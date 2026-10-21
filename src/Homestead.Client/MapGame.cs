@@ -58,6 +58,7 @@ public sealed class MapGame : Game
     private readonly GameInstallation _installation;
     // Sound effects and music; none in capture runs.
     private GameAudio? _audio;
+    private readonly WorkSounds _workSounds = new();
     /// <summary>Hardware cursor, full screen, language (<c>display</c> in settings.json).</summary>
     private DisplaySettings _display = DisplaySettings.Load();
     /// <summary>The game's own pointer while the hardware cursor is off.</summary>
@@ -783,7 +784,7 @@ public sealed class MapGame : Game
         if (_audio is not null)
         {
             // The own people's music in the game (statistics included), silence in the menus before it.
-            _audio.Music.People = _title is null && _startScreen is null ? Own.Civilization : null;
+            _audio.Music.Tracks = _audio.Config.TracksFor(_title is null && _startScreen is null ? Own.Civilization : null, _display.PeopleMusic);
             _audio.Music.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
         }
         if (_title is not null)
@@ -839,10 +840,12 @@ public sealed class MapGame : Game
             _accumulator -= World.TickDuration;
         }
         _perf.EndSimulation();
-        if (_world.SoundCues is { } cues)
+        if (_audio is not null && _world.SoundCues is { } cues)
         {
-            _audio?.Play(cues, Hearing);
+            _audio.BeginFrame(Hearing);
+            _audio.Play(cues);
             cues.Clear();
+            _workSounds.Update(_world, _settlerRenderer, _audio, _time.TotalSeconds);
         }
         if (_eventButtons.Update(_world, 0, _now) is { } raised && _captureDirectory is not null && _captureEvent)
             LookAt(raised);
@@ -895,6 +898,9 @@ public sealed class MapGame : Game
         if (_captureDirectory is null && display.FullScreen != _graphics.IsFullScreen)
             SetFullScreen(display.FullScreen);
     }
+
+    /// <summary>The soldiers' answer to an order.</summary>
+    private void PlayCommand() => _audio?.Play(_audio.Config.Command, _audio.Config.VolumeOf("command"));
 
     private void ApplyVolumes(DisplaySettings display)
     {
@@ -1839,6 +1845,7 @@ public sealed class MapGame : Game
         bool control = Keyboard.GetState().IsKeyDown(Keys.LeftControl) || Keyboard.GetState().IsKeyDown(Keys.RightControl);
         if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) > 0)
         {
+            PlayCommand();
             _message = $"{soldiers.Count} soldiers attack {attacked.Definition.Name}";
             return;
         }
@@ -1846,6 +1853,7 @@ public sealed class MapGame : Game
         var keys = Keyboard.GetState();
         bool forced = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
         _world.Military.Move(soldiers, clicked, forced);
+        PlayCommand();
         _message = $"{soldiers.Count} soldiers to {clicked.X},{clicked.Y}{(forced ? " (forced)" : "")}";
     }
 

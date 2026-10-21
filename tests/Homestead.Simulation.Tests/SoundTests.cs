@@ -31,6 +31,23 @@ public class SoundTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_felled_tree_cues_its_fall_where_it_stood()
+    {
+        var map = new GameMap(60);
+        var tree = new GridPoint(34, 36);
+        map.SetObject(tree, MapObjectKind.Tree);
+        var world = new World(map, TestConfig.NoTools) { SoundCues = new() };
+        Assert.NotNull(world.PlaceBuilding(BuildingCatalog.Load(Civilization.Roman)["lumberjack"], 0, new GridPoint(30, 30)));
+        Assert.NotNull(world.Spawn(new GridPoint(40, 35), Profession.Carrier));
+
+        for (int t = 0; t < 20_000 && world.Production.TreesCut == 0; t++)
+            world.Step();
+
+        var fall = Assert.Single(world.SoundCues, c => c.Kind == SoundCueKind.TreeFalls);
+        Assert.Equal(tree, fall.Position);
+    }
+
+    [Fact]
     public void Without_a_list_nothing_is_collected()
     {
         var world = new World(new GameMap(40), TestConfig.NoTools);

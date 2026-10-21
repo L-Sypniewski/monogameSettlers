@@ -171,7 +171,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   Kampf: `attacked`, `buildingAttacked` (Tür/Wächter), `buildingLost`/`buildingCaptured`. Zustände fertiger Gebäude prüft `Tick` sekündlich,
   meldet nach `afterSeconds` einmal bis Ende: `noStaff`, `noTool`, `noResources`, `mineExhausted` (Chance ≤ `maxChance` %). `Announce`: ohne Ort.
 - `SoundCues` (`World.SoundCues`, nicht gespeichert): nur gesammelt, wenn der Client eine Liste setzt (leert sie je Frame); `Strike` bei jedem
-  Treffer/Schuss (auch an der Tür, mit Soldatentyp), `Death` in `MilitaryCombat.Kill` (mit Volk des Toten).
+  Treffer/Schuss (auch an der Tür, mit Soldatentyp), `Death` in `MilitaryCombat.Kill` (mit Volk des Toten), `TreeFalls` beim Fällen.
 - `GameHistory` (`World.History`): alle 30 s (`SampleTicks`) je Spieler eine `HistorySample` (Land, Siedler nach Art, Soldaten nach Typ,
   Gebäude, Baustellen, Militärgebäude, Wohnraum, Streikende, Lagerbestand, Produziertes, Kampfkraft, Mana) plus laufende Summen
   (getötet/gefallen, Gebäude erobert/verloren, fertiggestellt/zerstört); für den Statistik-Bildschirm.
@@ -193,7 +193,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
 - **Einstellungen** (`SettingsScreen`): Hintergrund Datei 02 GUI 14 (`settingsScreen` in `ui.json`, Marmor daneben); oben in den vier
   Kästchen Reiter mit Icons der Original-Statistikmenüs (Datei 03, hell gewählt/unter der Maus, sonst dunkel; Tab/Shift+Tab): Rohstoffe,
   Wirtschaft, Militär (beide noch leer), Darstellung; je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch
-  100/75/50/25/10 %/∞; Darstellung: Hardware-Cursor, Vollbild, Sprache Deutsch/English, Musik/Effekte 100/75/50/25 %/aus – ohne Wahl nach Systemsprache; `Lang.Use` setzt auch die Kultur;
+  100/75/50/25/10 %/∞; Darstellung: Hardware-Cursor, Vollbild, Sprache Deutsch/English, Musik/Effekte 100/75/50/25 %/aus, Musik je Volk – ohne Wahl nach Systemsprache; `Lang.Use` setzt auch die Kultur;
 Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGUAGE=de|en` überstimmt, z. B. für Captures).
   Ok/Enter speichert `GameSettings` (Abschnitt `game`) und `DisplaySettings` (Client, Abschnitt `display`, sofort angewandt) in
   `~/.config/homestead/settings.json` (`SettingsFile`: je Abschnitt, Rest der Datei bleibt); Abbrechen/Esc verwirft, Standard setzt den offenen
@@ -274,10 +274,14 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   `--map <name>` (Standard: erste Mehrspieler-Karte; `random[:spieler[:none|mirror|repeat[:seed]]]`); `--peoples amazon,roman,…` (offene Völker,
   Spieler i: Eintrag i mod n; sonst zufällig; Kartenvorgaben 0–3 gelten); `--characters ,general` (KI-Charakter je Spieler, Eintrag i → Spieler i+1, leer = gelost).
 - **Ton** (`GameAudio`, nicht in Captures): Effekte aus `SND/Siedler3_00.dat` je `SoundCue` (Nummern in `data/sound.json`: Schwert 30, Bogen 33,
-  Speer 34, Tod 35, Amazone 113), Variante zufällig, nur in Sicht (Fog), im Bild voll, außerhalb bis `hearing` halbe Bildbreiten leiser, links/rechts
-  gepannt, höchstens `maxVoices` gleichzeitig und `perFrame` je Geräusch und Frame. `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis gestreamt) gemischt aus
-  der Liste des eigenen Volks (`music.tracks`, Zuordnung geraten), Pause dazwischen, Volkswechsel blendet aus; in Menüs vor dem Spiel still.
-  Lautstärken Musik/Effekte in den Einstellungen (Darstellung, `DisplaySettings`).
+  Speer 34, Tod 35, Amazone 113, Baum fällt 36), Variante zufällig, nur in Sicht (Fog), im Bild voll, außerhalb bis `hearing` halbe Bildbreiten leiser,
+  links/rechts gepannt, höchstens `maxVoices` gleichzeitig und `perFrame` je Geräusch und Frame. Befehl an Soldaten (Laufen/Angriff): `command`
+  (Nummer noch unsicher), aus der Bildmitte. `WorkSounds`: Arbeit draußen je `Activity` (`work`: Fällen 0, Planieren 2, Bauen 1, Steinmetz 3,
+  Angeln 16) im Takt der Arbeitsanimation (Moment `at` je Runde, `SettlerRenderer.WorkRoundFrames`); Werkstätten (`workshops`: Sägewerk 5,
+  Werkzeug-/Waffenschmied 6/7) etwa alle `everySeconds`, solange `Production.IsProducing`. `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis gestreamt)
+  gemischt aus `Tracks` (`SoundConfig.TracksFor`: Liste des eigenen Volks, `music.tracks`, Zuordnung geraten; „Musik je Volk“ aus: alle), Pause
+  dazwischen, neue Liste ohne das laufende Stück blendet aus; in Menüs vor dem Spiel still. Musik/Musik je Volk/Effekte in den Einstellungen
+  (Darstellung, `DisplaySettings`).
 - **Darstellung**: Figuren nach Volk; Tote: Geist in Spielerfarbe (Datei 12 Seq. 27, `World.Ghosts`); Stehende ohne Aufgabe wechseln alle 2–30 s
   die Blickrichtung (nur Darstellung); Turm-Bogenschützen mit Schussanimation im Takt, Infanterie im Turm als Fensterbild; Pfeile im flachen Bogen
   (`docs/formate/gfx.md`). `SettlerAnimations` löst Typ/Aktion/Ware/Richtung über `data/settlers.json` (generiert mit

@@ -368,6 +368,8 @@
       "languageHint": "Sprache der Texte.",
       "music": "Musik",
       "musicHint": "Lautstärke der Hintergrundmusik – je Volk eigene Stücke.",
+      "peopleMusic": "Musik je Volk",
+      "peopleMusicHint": "Ja: nur die Stücke des eigenen Volks. Nein: alle Stücke gemischt.",
       "effects": "Effekte",
       "effectsHint": "Lautstärke der Geräusche, etwa im Kampf."
     }
