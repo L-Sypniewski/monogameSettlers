@@ -366,7 +366,7 @@ public sealed class TitleScreen : IDisposable
                 continue;
             }
             var color = rect.Contains(hover) ? HoverText : Text;
-            Write(batch, font, $"{slot + 1}.  {Shorten(font, Lang.MapName(info.Map), rect.Width - 24, 12)}", rect.X + 4, rect.Y + 1, color, 12);
+            Write(batch, font, $"{slot + 1}.  {Shorten(font, Lang.SaveName(info), rect.Width - 24, 12)}", rect.X + 4, rect.Y + 1, color, 12);
             string when = info.SavedAt.ToString(Lang.T("formats.savedAt"), Lang.Culture);
             Write(batch, font, $"{when} · {Lang.T("peoples." + info.People)}", rect.X + 22, rect.Y + 15, color * 0.85f, 10);
         }

@@ -45,7 +45,15 @@
   "campaign": {
     "choosePeople": "Wähle dein Volk",
     "back": "Zurück",
-    "next": "Weiter"
+    "next": "Weiter",
+    "saveName": "Kampagne {0}, Mission {1}",
+    "won": "Spiel gewonnen",
+    "lost": "Spiel verloren",
+    "wonHint": "Spiel beenden (oder Esc → Statistik) führt zur nächsten Mission.",
+    "lostHint": "Esc: Spiel verlassen – die Mission beginnt von vorn.",
+    "chooseMission": "Mission wählen",
+    "missionDone": "geschafft",
+    "missionNew": "neu"
   },
   "peoples": {
     "Roman": "Römer",
@@ -505,7 +513,9 @@
     "geologists": "Geologen",
     "scouts": "Späher",
     "pioneers": "Pioniere",
-    "carriers": "Träger"
+    "carriers": "Träger",
+    "missionWon": "Mission geschafft",
+    "missionLost": "Mission verloren"
   },
   "building": {
     "garrison": "Besatzung (da / Soll)",

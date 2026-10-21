@@ -47,6 +47,8 @@
       "Egyptian": { "picture": [ 105, 188, 130, 157 ], "name": [ 105, 350, 130, 42 ] },
       "Roman": { "picture": [ 321, 366, 151, 130 ], "name": [ 320, 502, 151, 38 ] },
       "Asian": { "picture": [ 570, 216, 152, 130 ], "name": [ 568, 352, 154, 41 ] } } },
+  "_missionScreenComment": "Campaign: choosing a mission once one is accomplished, on the original's background (file 02, GUI 18, 800 × 600: a field for the heading, a large dark area for the list), marble beside it – [x, y, width, height].",
+  "missionScreen": { "file": 2, "background": 18, "marble": 29, "heading": [ 312, 28, 208, 24 ], "list": [ 200, 100, 402, 440 ] },
   "_startScreenComment":"Start screen on the original's map selection background: GUI images of file 02 – background (800 × 600, list, slanted preview window, panel), marble around it, rowBar (stone bar under the selected row), scroll bar groove (top, track, bottom); from the sheet (GUI image 0) the oval button up and pressed and the scroll handle – [x, y, width, height].",
   "startScreen": { "file": 2, "background": 8, "marble": 29, "sheet": 0, "rowBar": 1, "scrollTop": 2, "scrollTrack": 3, "scrollBottom": 4,
     "oval": [ 182, 0, 83, 46 ], "ovalPressed": [ 285, 0, 83, 46 ], "handle": [ 0, 0, 20, 480 ] },

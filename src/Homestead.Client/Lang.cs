@@ -52,6 +52,12 @@ public static class Lang
             ? T("start.randomMapName", random.Groups[1].Value, random.Groups[2].Value)
             : name;
 
+    /// <summary>A saved game's name in the lists: a campaign mission's people and number, otherwise its map.</summary>
+    public static string SaveName(Homestead.Simulation.Persistence.SaveInfo info) =>
+        Homestead.Simulation.Persistence.MissionRef.Parse(info.Mission) is { } mission
+            ? T("campaign.saveName", T("peoples." + mission.People), mission.Index + 1)
+            : MapName(info.Map);
+
     /// <summary>The text of the key, or null where neither the language nor German has it.</summary>
     public static string? Find(string key) =>
         Table(Current).GetValueOrDefault(key) ?? (Current == Language.German ? null : Table(Language.German).GetValueOrDefault(key));

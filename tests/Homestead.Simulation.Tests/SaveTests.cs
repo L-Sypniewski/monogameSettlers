@@ -1,5 +1,6 @@
 using System.Text;
 using Homestead.Simulation.Ai;
+using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Map.Generation;
 using Homestead.Simulation.Persistence;
 
@@ -119,5 +120,44 @@ public class SaveTests
         for (int player = 0; player < 2; player++)
             text.Append(world.Magic.Mana(player)).Append(',');
         return text.ToString();
+    }
+
+    [Fact]
+    public void The_campaign_progress_and_the_mission_of_a_saved_game_are_kept()
+    {
+        SaveSlots.Directory = Path.Combine(Path.GetTempPath(), "homestead-save-test-" + Guid.NewGuid());
+        try
+        {
+            Assert.Equal(0, CampaignProgress.Load().Accomplished("settlers", Civilization.Roman));
+            var progress = CampaignProgress.Load();
+            progress.Accomplish(new MissionRef("settlers", Civilization.Roman, 1));
+            progress.Accomplish(new MissionRef("settlers", Civilization.Roman, 0));
+            progress.Accomplish(new MissionRef("settlers", Civilization.Asian, 0));
+            progress.Save();
+            var loaded = CampaignProgress.Load();
+            Assert.Equal(2, loaded.Accomplished("settlers", Civilization.Roman));
+            Assert.Equal(1, loaded.Accomplished("settlers", Civilization.Asian));
+            Assert.Equal(0, loaded.Accomplished("settlers", Civilization.Egyptian));
+            Assert.Equal(0, loaded.Accomplished("amazons", Civilization.Roman));
+
+            var mission = new MissionRef("settlers", Civilization.Egyptian, 3);
+            Assert.Equal("settlers/Egyptian/3", mission.ToString());
+            Assert.Equal(mission, MissionRef.Parse(mission.ToString()));
+            Assert.Null(MissionRef.Parse(null));
+            Assert.Null(MissionRef.Parse("settlers/Martian/1"));
+
+            // The header names the mission; one written before missions existed has none.
+            var (world, catalogs, map) = NewGameWithMap();
+            var info = new SaveInfo(map.Name, "Egyptian", new DateTime(2026, 10, 21, 18, 0, 0), world.Tick, mission.ToString());
+            SaveSlots.Save(0, info, new SaveGame { World = world, Catalogs = catalogs, Map = map, Client = { ["mission"] = mission.ToString() } });
+            Assert.Equal(info, SaveSlots.Info(0));
+            Assert.Equal(mission, MissionRef.Parse(SaveSlots.Load(0).Client["mission"]));
+            Assert.Null(System.Text.Json.JsonSerializer.Deserialize<SaveInfo>(
+                """{"Map":"x","People":"Roman","SavedAt":"2026-10-16T22:30:00","Tick":5}""")!.Mission);
+        }
+        finally
+        {
+            Directory.Delete(SaveSlots.Directory, recursive: true);
+        }
     }
 }

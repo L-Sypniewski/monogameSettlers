@@ -45,7 +45,15 @@
   "campaign": {
     "choosePeople": "Choose your people",
     "back": "Back",
-    "next": "Next"
+    "next": "Next",
+    "saveName": "{0} campaign, mission {1}",
+    "won": "Game won",
+    "lost": "Game lost",
+    "wonHint": "Quit the game (or Esc → statistics) to go on to the next mission.",
+    "lostHint": "Esc: leave the game – the mission starts over.",
+    "chooseMission": "Choose a mission",
+    "missionDone": "accomplished",
+    "missionNew": "new"
   },
   "peoples": {
     "Roman": "Romans",
@@ -505,7 +513,9 @@
     "geologists": "geologists",
     "scouts": "scouts",
     "pioneers": "pioneers",
-    "carriers": "carriers"
+    "carriers": "carriers",
+    "missionWon": "Mission accomplished",
+    "missionLost": "Mission lost"
   },
   "building": {
     "garrison": "Garrison (present / wanted)",

@@ -200,11 +200,23 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   „Weiter“/Enter → Mission mit Völkern/Gebäuden der Karte). `data/campaign.json`: je Kampagne/Volk `intro` und `missions`
   (`map`, `text`/`hint` = Einträge der Texttabelle in GFX-Datei 07, Deutsch/Englisch nach Sprache, `voice`, `labels` je Kartenspieler –
   bisher nur Mission 1, aus dem Missionstext); Pfade in der Installation, `GameInstallation.FindPath` ohne Groß-/Kleinschreibung.
-  Noch offen: Sieg-/Niederlagebedingungen, Fortschritt, weitere Missionen.
+  Fortschritt (globaler Spielstand): `CampaignProgress` (`campaign.json` bei den Spielständen, je Kampagne/Volk Zahl geschaffter Missionen);
+  Volkswahl mit Fortschritt → Missionsauswahl (`MissionSelectScreen`, Datei 02 GUI 18, `missionScreen` in `ui.json`: alle geschafften
+  und die nächste, Namen aus den Missionstexten; Klick → Beschreibung, deren „Zurück“ wieder hierher; Esc/„Zurück“ → Volkswahl). Laufende Mission `MissionRef` (`settlers/Roman/0`) steht im
+  Spielstand (Client-Wert `mission`, Kopf `SaveInfo.Mission` – Listen zeigen „Kampagne Römer, Mission 1“).
+  Sieg/Niederlage: `World.Goals` (`MissionGoals`, nur in Missionen, mitgespeichert) prüft sekündlich für Spieler 1: kein eigenes Gebäude
+  (auch Baustellen) → verloren, kein fremdes mehr (zerstört/erobert) → gewonnen; einmal entschieden, bleibt es. Missionsspezifische Bedingungen
+  aus den Texten (Vorposten halten, Goldmengen …) noch nicht. Gewonnen: weiß oben „Spiel gewonnen“, Fortschritt sofort gespeichert, weiterspielen
+  möglich; Spiel beenden/Esc → Statistik („Weiter“) → nächste Missionsbeschreibung über Missionsauswahl und Volkswahl (nach der letzten nur die Auswahl).
+  Verloren: „Spiel verloren“, keine Steuerung mehr außer Esc (F11/F3) → Statistik ohne Weiterspielen → dieselbe Missionsbeschreibung.
+  Cheat-Menü: „Mission geschafft“/„Mission verloren“.
   `VideoPlayer`: `AviFile` (Homestead.Assets, `docs/formate/avi.md`) liefert Kopf und PCM-Ton, das Bild (Indeo 5) dekodiert ein
   installiertes ffmpeg im eigenen Prozess (`HOMESTEAD_FFMPEG`, neben dem Programm, PATH; sonst übersprungen); Bilder folgen der Uhr ab dem
   ersten Bild/Tonstart, Lautstärke = Effekte; Esc/Leertaste/Enter/Klick bricht ab. Capture: `HOMESTEAD_CAPTURE_START=campaign` → `campaign.png`,
-  `campaign:<volk>` → `video.png` (100. Bild), `campaign:<volk>:briefing` → `briefing.png`.
+  `campaign:<volk>` → `video.png` (100. Bild), `campaign:<volk>:briefing` → `briefing.png`, `campaign:<volk>:choose` → Volk gewählt (mit Fortschritt
+  `missions.png`), `campaign:<volk>:won|lost` → Mission 1 gestartet, sofort entschieden,
+  Spiel läuft (Banner); `…:won:next`/`…:lost:next` → Statistik verlassen, `briefing.png` der zweiten bzw. wieder der ersten
+  (mit `HOMESTEAD_SAVE_DIR` temporär!).
 - **Einstellungen** (`SettingsScreen`): Hintergrund Datei 02 GUI 14 (`settingsScreen` in `ui.json`, Marmor daneben); oben in den vier
   Kästchen Reiter mit Icons der Original-Statistikmenüs (Datei 03, hell gewählt/unter der Maus, sonst dunkel; Tab/Shift+Tab): Rohstoffe,
   Wirtschaft, Militär (beide noch leer), Darstellung; je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch
