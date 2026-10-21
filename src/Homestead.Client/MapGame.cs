@@ -1109,6 +1109,25 @@ public sealed class MapGame : Game
         }
     }
 
+    private readonly List<(GridPoint At, Color Color)> _minimapDots = [];
+
+    /// <summary>
+    /// Soldiers on the minimap: player 1's white, everyone else's red (under the fog only where player 1 sees now),
+    /// red drawn last so enemies stay visible in a crowd. Garrisons inside buildings are left out.
+    /// </summary>
+    private List<(GridPoint At, Color Color)> MinimapDots()
+    {
+        _minimapDots.Clear();
+        foreach (var settler in _world.Settlers)
+            if (settler.Profession == Profession.Soldier && settler.Player == 0 && !settler.IsDead && !settler.IsInside)
+                _minimapDots.Add((settler.Position, Color.White));
+        foreach (var settler in _world.Settlers)
+            if (settler.Profession == Profession.Soldier && settler.Player != 0 && !settler.IsDead && !settler.IsInside
+                && (!_fogOn || _vision.IsVisible(settler.Position)))
+                _minimapDots.Add((settler.Position, Color.Red));
+        return _minimapDots;
+    }
+
     private Vector2 ToWorld(GridPoint p) => ScreenProjection.ToWorld(p.X, p.Y, _terrain.HeightAt(p.X, p.Y));
 
     protected override void Update(GameTime gameTime)
@@ -2536,7 +2555,7 @@ public sealed class MapGame : Game
         _spriteBatch.End();
 
         // Side panel: minimap and blue panel scaled to the window height, the menus inside in panel space.
-        _sidePanel.Draw(_spriteBatch, _pixel, _minimap?.Texture, _gameMap.Size, visible);
+        _sidePanel.Draw(_spriteBatch, _pixel, _minimap?.Texture, _gameMap.Size, visible, MinimapDots());
         SidePanel.Begin(_spriteBatch, viewport.Height);
         var panelMouse = SidePanel.ToPanel(Mouse.GetState().Position.ToVector2(), viewport.Height);
         if (ShowsBuildingInfo)

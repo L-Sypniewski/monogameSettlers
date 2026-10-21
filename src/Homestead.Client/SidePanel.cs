@@ -111,9 +111,10 @@ public sealed class SidePanel : IDisposable
     /// <summary>
     /// Draws the frame with the minimap (<paramref name="minimap"/>: one texel per grid point of a map of
     /// <paramref name="mapSize"/>), the part of the world on screen (<paramref name="view"/>) as a frame on it,
-    /// and the empty panel.
+    /// soldiers as dots (<paramref name="dots"/>) and the empty panel.
     /// </summary>
-    public void Draw(SpriteBatch batch, Texture2D pixel, Texture2D? minimap, int mapSize, RectangleF view)
+    public void Draw(SpriteBatch batch, Texture2D pixel, Texture2D? minimap, int mapSize, RectangleF view,
+        IReadOnlyList<(GridPoint At, Color Color)>? dots = null)
     {
         var viewport = _device.Viewport;
         float scale = Scale(viewport.Height);
@@ -122,12 +123,28 @@ public sealed class SidePanel : IDisposable
         batch.Begin(samplerState: SamplerState.LinearClamp, transformMatrix: Matrix.CreateScale(scale));
         // Before the frame: where the view reaches beyond the map, the frame covers it.
         if (minimap is not null)
+        {
+            if (dots is not null)
+                DrawDots(batch, pixel, mapSize, dots);
             DrawViewFrame(batch, pixel, mapSize, view);
+        }
         batch.Draw(_frame, Vector2.Zero, Color.White);
         batch.Draw(_frameRight, new Vector2(Width, 0), Color.White);
         batch.Draw(_panel, new Vector2(0, Top), Color.White);
         batch.Draw(_panelRight, new Vector2(Width, Top), Color.White);
         batch.End();
+    }
+
+    /// <summary>Unscaled size of a dot on the minimap.</summary>
+    private const float DotSize = 2;
+
+    private static void DrawDots(SpriteBatch batch, Texture2D pixel, int mapSize, IReadOnlyList<(GridPoint At, Color Color)> dots)
+    {
+        foreach (var (at, color) in dots)
+        {
+            var p = OnMinimap(ScreenProjection.ToWorld(at), mapSize) - new Vector2(DotSize / 2);
+            batch.Draw(pixel, p, null, color, 0, Vector2.Zero, new Vector2(DotSize), SpriteEffects.None, 0);
+        }
     }
 
     private static void DrawViewFrame(SpriteBatch batch, Texture2D pixel, int mapSize, RectangleF view)
