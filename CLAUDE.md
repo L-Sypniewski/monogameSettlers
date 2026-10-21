@@ -282,7 +282,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   Event-Meldung (`events`: Kampf 109, sonst 110), Panel über `UiSounds` (`ui`: Auftrag/Anteil/Besatzung/Transportreihenfolge hoch 47/runter 48,
   Schalter wie Rekrutierung, Anhalten, Einlagern, Lager-Spezialisierung 54, Arbeitsbereich versetzt 22). `WorkSounds`: Arbeit draußen je `Activity` (`work`: Fällen 0, Planieren 2, Bauen 1, Steinmetz 3,
   Angeln 16) im Takt der Arbeitsanimation (Moment `at` je Runde, `SettlerRenderer.WorkRoundFrames`); Werkstätten (`workshops`: Sägewerk 5,
-  Werkzeug-/Waffenschmied 6/7, Eisenschmelze 37/38) etwa alle `everySeconds`, solange `Production.IsProducing`. `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis gestreamt)
+  Werkzeug-/Waffenschmied 6/7, Eisen-/Goldschmelze 37/38) etwa alle `everySeconds`, solange `Production.IsProducing`. `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis gestreamt)
   gemischt aus `Tracks` (`SoundConfig.TracksFor`: Liste des eigenen Volks, `music.tracks`, Zuordnung geraten; „Musik je Volk“ aus: alle), Pause
   dazwischen, neue Liste ohne das laufende Stück blendet aus; in Menüs vor dem Spiel still. Musik/Musik je Volk/Effekte in den Einstellungen
   (Darstellung, `DisplaySettings`).

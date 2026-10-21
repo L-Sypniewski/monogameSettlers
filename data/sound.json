@@ -30,7 +30,8 @@
     "sawmill": { "sound": 5, "everySeconds": 1.6 },
     "toolsmith": { "sound": 6, "everySeconds": 1.8 },
     "weaponsmith": { "sound": 7, "everySeconds": 1.8 },
-    "ironmelt": { "sounds": [ 37, 38 ], "everySeconds": 5 }
+    "ironmelt": { "sounds": [ 37, 38 ], "everySeconds": 5 },
+    "goldmelt": { "sounds": [ 37, 38 ], "everySeconds": 5 }
   },
   "_musicComment": "Background music: MUSIC/TrackNN.ogg (the former CD audio tracks), played shuffled from the own people's list (all tracks if the player turns that off), pauseSeconds (min, max) of silence between two pieces, fadeSeconds to fade out when the list changes. Which track belongs to which people is not documented anywhere; correct it here if it sounds wrong.",
   "music": {

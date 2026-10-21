@@ -39,7 +39,7 @@ Fett: im Spiel genutzt (`data/sound.json`). „Gehört“: vom Projektinhaber am
 | Nr. | Geräusch | Nr. | Geräusch |
 |-----|----------|-----|----------|
 | **0** | **Holzfäller** | **36** | **fallender Baum** |
-| **1** | **Bauarbeiter** | **37/38** | **Eisenschmelze** (gehört) |
+| **1** | **Bauarbeiter** | **37/38** | **Eisenschmelze** (gehört), auch Goldschmelze |
 | **2** | **Planierer** | 39 | Schweine |
 | **3** | **Steinmetz** | 40/41 | Esel |
 | **5** | **Sägewerk** | 42 | Mühle |
