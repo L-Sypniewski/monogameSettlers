@@ -80,4 +80,27 @@ public class StartSetupTests(ITestOutputHelper output)
         }
         Assert.Throws<ArgumentException>(() => OriginalScenario.Load(original, positions: Enumerable.Repeat(0, count).ToArray()));
     }
+
+    [Fact]
+    public void Single_player_maps_without_buildings_get_the_start_equipment()
+    {
+        GameInstallation installation;
+        try { installation = GameInstallation.Locate(); }
+        catch (Exception) { output.WriteLine("No installation found, skipped."); return; }
+
+        // E.g. Beginner I and III: no buildings or settlers in the map, the player would start with nothing.
+        var maps = installation.MapFiles.Select(OriginalMap.Open).Where(m => m.IsSinglePlayer && m.Buildings.Count == 0).ToList();
+        foreach (var original in maps)
+        {
+            var (world, _) = OriginalScenario.Load(original);
+            for (int player = 0; player < original.Players.Count; player++)
+            {
+                var home = original.Players[player];
+                var tower = world.Buildings.Single(b => b.Player == player && b.Definition.Name == "tower");
+                Assert.True(PathFinder.Distance(tower.Position, new GridPoint(home.StartX, home.StartY)) <= 2,
+                    $"{original.Name}: player {player + 1} starts at its start position");
+                Assert.True(world.Settlers.Count(s => s.Player == player) > 10, $"{original.Name}: player {player + 1} has settlers");
+            }
+        }
+    }
 }

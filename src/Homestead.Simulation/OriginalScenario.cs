@@ -130,8 +130,9 @@ public static class OriginalScenario
                 settlers++;
         }
 
-        // Multiplayer maps without start buildings: equal start equipment for every player.
-        if (!original.IsSinglePlayer && original.Buildings.Count == 0)
+        // Maps without start buildings (multiplayer, also some single player maps like the beginner missions):
+        // equal start equipment for every player.
+        if (original.Buildings.Count == 0)
         {
             var setup = StartSetup.Load(dataDirectory);
             for (int player = 0; player < count; player++)
