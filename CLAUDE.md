@@ -177,7 +177,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
 - `GameHistory` (`World.History`): alle 30 s (`SampleTicks`) je Spieler eine `HistorySample` (Land, Siedler nach Art, Soldaten nach Typ,
   Gebäude, Baustellen, Militärgebäude, Wohnraum, Streikende, Lagerbestand, Produziertes, Kampfkraft, Mana) plus laufende Summen
   (getötet/gefallen, Gebäude erobert/verloren, fertiggestellt/zerstört); für den Statistik-Bildschirm.
-- `OriginalScenario`: Karte → Welt (Gebäude, Stapel, Siedler). Mehrspieler-Karten ohne Gebäude: `StartSetup` gibt jedem Spieler die Ausstattung aus `data/start.json`.
+- `OriginalScenario`: Karte → Welt (Gebäude, Stapel, Siedler). Karten ohne Gebäude (Mehrspieler, auch Einzelspieler wie Beginner I/III): `StartSetup` gibt jedem Spieler die Ausstattung aus `data/start.json`.
 - `Map/Generation/RandomMapGenerator`: Zufallskarten als `OriginalMap` (`OriginalMap.Create`), gleiche `RandomMapSettings` + Seed = gleiche Karte,
   Werte `data/randommap.json`, Größe nach Spielerzahl. Insel in der Mitte (in Rastergeometrie ein Kreis). Jeder Start gleich: flache Startfläche,
   Berg mit Kohle/Eisen/Gold, Teich mit Bach (Wasserwerke brauchen Flüsse), Wald, Steine. Dazu Gebirge, Seen, Flüsse zum Meer, Sümpfe (mind. einer),
@@ -187,11 +187,24 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
 
 ### `src/Homestead.Client` – MonoGame-Spiel
 - **Titelbildschirm** (`TitleScreen`, zuerst ohne `--map`/`--capture`): Hauptmenü-Bild der Gold Edition (`titleScreen` in `ui.json`, Datei 61 GUI 1,
-  daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): Einzelspieler (→ Startscreen), Spiel laden
-  (Slots darunter, Klick lädt; offen = gedrückter Knopf), Einstellungen (→ Einstellungen), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
+  daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): Kampagne (→ Kampagne), Missions-CD und
+  Amazonen-Kampagne (noch ausgegraut), abgesetzt Einzelspieler (→ Startscreen), Einstellungen (→ Einstellungen), Spiel laden
+  (Slots darunter über den Links, Klick lädt; offen = gedrückter Knopf), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
   Original-Meldungsbox Datei 02 GUI 16, `popup` in `titleScreen`: „Im Browser öffnen“ → `README.md`/`CONTRIBUTING.md`/`THIRD_PARTY_NOTICES.md` auf GitHub, Enter/Esc),
   unten abgesetzt Beenden; Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher.
   Capture: `HOMESTEAD_CAPTURE_START=title` → `title.png` (`title:readme`/`title:contribution`/`title:licenses` mit Popup, `title:load` mit Slots, `title:loadError` mit Ladefehler).
+- **Kampagne** (`CampaignScreen`, über dem Titelbildschirm): Volkswahl auf Datei 02 GUI 7 (`campaignScreen` in `ui.json`: je Volk
+  Bild und Namensfeld, Überschrift; Klick wählt, Esc zurück) → Intro-Video des Volks → (Ende oder Klick) Beschreibung der ersten Mission
+  (`BriefingScreen` auf dem Startscreen-Hintergrund GUI 8: Missionstext oben mit Bildlauf, Karte im schrägen Fenster mit Kürzeln
+  der Spieler an ihren Startpunkten – eigener grün, sonst rot –, Hinweise rechts, Sprachansage dazu; „Zurück“/Esc → Volkswahl,
+  „Weiter“/Enter → Mission mit Völkern/Gebäuden der Karte). `data/campaign.json`: je Kampagne/Volk `intro` und `missions`
+  (`map`, `text`/`hint` = Einträge der Texttabelle in GFX-Datei 07, Deutsch/Englisch nach Sprache, `voice`, `labels` je Kartenspieler –
+  bisher nur Mission 1, aus dem Missionstext); Pfade in der Installation, `GameInstallation.FindPath` ohne Groß-/Kleinschreibung.
+  Noch offen: Sieg-/Niederlagebedingungen, Fortschritt, weitere Missionen.
+  `VideoPlayer`: `AviFile` (Homestead.Assets, `docs/formate/avi.md`) liefert Kopf und PCM-Ton, das Bild (Indeo 5) dekodiert ein
+  installiertes ffmpeg im eigenen Prozess (`HOMESTEAD_FFMPEG`, neben dem Programm, PATH; sonst übersprungen); Bilder folgen der Uhr ab dem
+  ersten Bild/Tonstart, Lautstärke = Effekte; Esc/Leertaste/Enter/Klick bricht ab. Capture: `HOMESTEAD_CAPTURE_START=campaign` → `campaign.png`,
+  `campaign:<volk>` → `video.png` (100. Bild), `campaign:<volk>:briefing` → `briefing.png`.
 - **Einstellungen** (`SettingsScreen`): Hintergrund Datei 02 GUI 14 (`settingsScreen` in `ui.json`, Marmor daneben); oben in den vier
   Kästchen Reiter mit Icons der Original-Statistikmenüs (Datei 03, hell gewählt/unter der Maus, sonst dunkel; Tab/Shift+Tab): Rohstoffe,
   Wirtschaft, Militär (beide noch leer), Darstellung; je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch

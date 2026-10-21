@@ -13,6 +13,9 @@
   },
   "title": {
     "buttons": {
+      "campaign": "Campaign",
+      "missionCd": "Mission CD",
+      "amazonCampaign": "Amazon campaign",
       "singlePlayer": "Single player",
       "load": "Load game",
       "settings": "Settings",
@@ -38,6 +41,11 @@
       "browserFailed": "The browser could not be opened. The page is here:",
       "open": "Open in browser"
     }
+  },
+  "campaign": {
+    "choosePeople": "Choose your people",
+    "back": "Back",
+    "next": "Next"
   },
   "peoples": {
     "Roman": "Romans",

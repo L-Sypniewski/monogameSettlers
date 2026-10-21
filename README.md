@@ -124,6 +124,9 @@ the installations it finds in the usual places (GOG, Steam, Wine prefixes, Lutri
 `gameDirectory` in `~/.config/homestead/settings.json` (Windows: `%APPDATA%\homestead`) and checked on every start;
 if it fails, the dialog comes back. `HOMESTEAD_GAME_DIR` overrides it.
 
+The campaign videos (Indeo 5) are decoded by [ffmpeg](https://ffmpeg.org), if it is installed (on the `PATH`, next to
+the program or set with `HOMESTEAD_FFMPEG`); without it they are skipped.
+
 Tests: `dotnet test`.
 
 ## Project layout

@@ -8,8 +8,7 @@ Stand: an der GOG Ultimate Collection verifiziert, abgeglichen mit JSettlers
   (Suffix = Farbmasken R/G/B). Inhalt sonst gleich. Wir nutzen 565.
 - Groß-/Kleinschreibung der Namen ist uneinheitlich (`Siedler3_` vs. `siedler3_`).
 - **Nr. 18 ist keine Grafik**, sondern eine Windows-DLL (`MZ`). Wird übersprungen, nicht analysiert.
-- **Nr. 07/08/09** haben keine Bilder, aber einen großen Block `0x1904` direkt hinter dem Header
-  (z. B. 399 × 8 Einträge) – vermutlich Texttabellen in 8 Sprachen. Noch nicht untersucht.
+- **Nr. 07/08/09** haben keine Bilder, aber eine Texttabelle (Block `0x1904` direkt hinter dem Header), siehe unten.
 
 Grobe Belegung (visuell bestätigt: 00, 12, 13; Rest Vermutung anhand der Tabellengrößen und JSettlers):
 
@@ -91,3 +90,14 @@ Zeilenweise, pro Zeile eine Folge von Runs mit u16-Steuerwort:
 Pixel: Farbe = u16 (555/565), Torso = u8 (untere 5 Bit = Helligkeit, mit Spielerfarbe multipliziert),
 Schatten = keine Daten (halbtransparentes Schwarz).
 Kleine Landschaftskacheln nutzen Cyan als Hintergrund/Schlüsselfarbe.
+
+## Texttabellen (Dateien 07–09, Block `0x1904`)
+`u32 0x1904, u16 byteCount, u16 0, u16 anzahl, u16 sprachen (8)`, dann `sprachen × anzahl` u32-Offsets (absolut in der
+Datei, Sprache für Sprache), dahinter die Texte nullterminiert in Windows-1252 (Polnisch 1250, Koreanisch 949).
+Sprachen: 0 Deutsch, 1 Englisch, 2 Italienisch, 3 Französisch, 4 Polnisch, 5 Spanisch, 6 Koreanisch, 7 unbekannt.
+Lesen: `GfxFile.ReadTexts(sprache)`.
+
+Datei 07 (204 Texte): 0–23 Missionsbeschreibungen der Kampagne (je 8: Römer, Ägypter, Asiaten; Missionsname,
+Sieg-/Niederlagebedingung, Situation, Tagebuch), 24–47 Missions-CD, 48–71 Amazonen, 72–95 Hinweise zur Kampagne
+(gleiche Reihenfolge), 96–143 „Tips & Tricks“ der Missions-CD und Amazonen, 144–202 Tutorial. Dateien 08 (399) und
+09 (374): noch nicht untersucht.

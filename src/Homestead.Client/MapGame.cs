@@ -55,6 +55,14 @@ public sealed class MapGame : Game
     private TitleScreen? _title;
     /// <summary>The settings screen, over the title screen while open.</summary>
     private SettingsScreen? _settingsScreen;
+    /// <summary>The campaign's choice of people, over the title screen while open.</summary>
+    private CampaignScreen? _campaignScreen;
+    /// <summary>A video playing over the title screen (the campaign's intro).</summary>
+    private VideoPlayer? _video;
+    /// <summary>A campaign mission's description, over the campaign screen while open.</summary>
+    private BriefingScreen? _briefing;
+    /// <summary>The people chosen for the campaign.</summary>
+    private Civilization _campaignPeople;
     private readonly GameInstallation _installation;
     // Sound effects and music; none in capture runs.
     private GameAudio? _audio;
@@ -334,11 +342,25 @@ public sealed class MapGame : Game
         {
             // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps);
             // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the save slots, =title:loadError: with a message about one that did not load);
-            // =settings[:<tab>]: the settings screen's (tab: resources, economy, military, display)..
+            // =settings[:<tab>]: the settings screen's (tab: resources, economy, military, display);
+            // =campaign: the campaign's choice of people (=campaign:<people>: a picture of its intro video, video.png;
+            // =campaign:<people>:briefing: its first mission's description, briefing.png).
             string? captureStart = _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START");
-            if (captureStart is null || captureStart.StartsWith("title") || captureStart.StartsWith("settings"))
+            if (captureStart is null || captureStart.StartsWith("title") || captureStart.StartsWith("settings") || captureStart.StartsWith("campaign"))
             {
                 _title = new TitleScreen(GraphicsDevice, _gfx);
+                if (captureStart?.StartsWith("campaign") == true)
+                {
+                    _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx);
+                    if (captureStart.Split(':') is [_, var people, ..] parts)
+                    {
+                        _campaignPeople = Enum.Parse<Civilization>(people, ignoreCase: true);
+                        if (parts is [_, _, "briefing"])
+                            OpenBriefing(0);
+                        else
+                            PlayIntro(_campaignPeople);
+                    }
+                }
                 if (captureStart?.StartsWith("settings") == true)
                 {
                     _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
@@ -614,8 +636,103 @@ public sealed class MapGame : Game
         _title = new TitleScreen(GraphicsDevice, _gfx);
     }
 
+    /// <summary>
+    /// Plays the campaign's intro video of <paramref name="people"/>; its first mission's description follows
+    /// (at once if the video cannot be played).
+    /// </summary>
+    private void PlayIntro(Civilization people)
+    {
+        _campaignPeople = people;
+        if (!CampaignConfig.Load().Campaigns["settlers"].TryGetValue(people, out var campaign))
+            return;
+        if (_installation.FindPath(campaign.Intro) is not { } path)
+            Console.WriteLine($"Video skipped: {campaign.Intro} is not in the installation");
+        else
+            _video = VideoPlayer.TryOpen(GraphicsDevice, path, _display.EffectsVolume / 100f);
+        if (_video is null)
+            OpenBriefing(0);
+    }
+
+    /// <summary>Opens the description of mission <paramref name="mission"/> (from 0) of the chosen people's campaign.</summary>
+    private void OpenBriefing(int mission)
+    {
+        var campaign = CampaignConfig.Load().Campaigns["settlers"][_campaignPeople];
+        try
+        {
+            _briefing = new BriefingScreen(GraphicsDevice, _gfx, _installation, campaign.Missions[mission],
+                Lang.Current == Language.German ? 0 : 1, _display.EffectsVolume / 100f);
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException)
+        {
+            Console.WriteLine($"Mission {mission + 1} of the {_campaignPeople} campaign unavailable: {e.Message}");
+            _campaignScreen?.Resume();
+        }
+    }
+
+    /// <summary>Starts the mission whose description is open: its map with the peoples, buildings and settlers it gives.</summary>
+    private void StartMission()
+    {
+        var map = OriginalMap.Open(_briefing!.MapPath);
+        _briefing.Dispose();
+        _briefing = null;
+        _campaignScreen?.Dispose();
+        _campaignScreen = null;
+        _title?.Dispose();
+        _title = null;
+        PlayerColors.Assign(new int?[map.Players.Count], _peopleDraw);
+        _peoples = null;
+        _hardcore = new HashSet<int>();
+        _positions = null;
+        LoadMap(map);
+    }
+
     private void UpdateTitle()
     {
+        if (_briefing is not null)
+        {
+            switch (_briefing.Update(GraphicsDevice.Viewport.Bounds))
+            {
+                case BriefingAction.Back:
+                    _briefing.Dispose();
+                    _briefing = null;
+                    _campaignScreen?.Resume();
+                    break;
+                case BriefingAction.Start:
+                    StartMission();
+                    break;
+            }
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = Mouse.GetState();
+            return;
+        }
+        if (_video is not null)
+        {
+            _video.Update();
+            // A click (or its end) leads to the first mission's description.
+            if (_video.Finished && _captureDirectory is null)
+            {
+                _video.Dispose();
+                _video = null;
+                OpenBriefing(0);
+            }
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = Mouse.GetState();
+            return;
+        }
+        if (_campaignScreen is not null)
+        {
+            if (_campaignScreen.Update(GraphicsDevice.Viewport.Bounds))
+            {
+                _campaignScreen.Dispose();
+                _campaignScreen = null;
+                _title!.Resume();
+            }
+            else if (_campaignScreen.Chosen is { } people)
+                PlayIntro(people);
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = Mouse.GetState();
+            return;
+        }
         if (_settingsScreen is not null)
         {
             if (_settingsScreen.Update(GraphicsDevice.Viewport.Bounds))
@@ -657,6 +774,8 @@ public sealed class MapGame : Game
         }
         else if (action == TitleAction.Settings)
             _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
+        else if (action == TitleAction.Campaign)
+            _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx);
         else if (action == TitleAction.SinglePlayer)
         {
             _title.Dispose();
@@ -1979,12 +2098,19 @@ public sealed class MapGame : Game
     {
         if (_title is not null || _startScreen is not null)
         {
-            // Capture runs with HOMESTEAD_CAPTURE_START save one picture of the title or start screen and quit.
-            var startTarget = _captureDirectory is null ? null : NewCaptureTarget();
+            // Capture runs with HOMESTEAD_CAPTURE_START save one picture of the title or start screen and quit
+            // (a video's once it shows its 100th frame).
+            var startTarget = _captureDirectory is null || _video is { Shown: < 100 } ? null : NewCaptureTarget();
             GraphicsDevice.SetRenderTarget(startTarget);
             GraphicsDevice.Clear(new Color(12, 12, 16));
             _spriteBatch.Begin(samplerState: SamplerState.LinearClamp);
-            if (_settingsScreen is not null)
+            if (_briefing is not null)
+                _briefing.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            else if (_video is not null)
+                _video.Draw(_spriteBatch, _pixel, GraphicsDevice.Viewport.Bounds);
+            else if (_campaignScreen is not null)
+                _campaignScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            else if (_settingsScreen is not null)
                 _settingsScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
             else if (_title is not null)
                 _title.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
@@ -1994,7 +2120,9 @@ public sealed class MapGame : Game
             if (startTarget is not null)
             {
                 GraphicsDevice.SetRenderTarget(null);
-                using (var stream = File.Create(Path.Combine(_captureDirectory!, _settingsScreen is not null ? "settings.png" : _title is not null ? "title.png" : "start.png")))
+                string picture = _briefing is not null ? "briefing.png" : _video is not null ? "video.png" : _campaignScreen is not null ? "campaign.png"
+                    : _settingsScreen is not null ? "settings.png" : _title is not null ? "title.png" : "start.png";
+                using (var stream = File.Create(Path.Combine(_captureDirectory!, picture)))
                     startTarget.SaveAsPng(stream, startTarget.Width, startTarget.Height);
                 startTarget.Dispose();
                 Exit();
@@ -2967,6 +3095,9 @@ public sealed class MapGame : Game
         _eventButtons?.Dispose();
         _title?.Dispose();
         _settingsScreen?.Dispose();
+        _campaignScreen?.Dispose();
+        _video?.Dispose();
+        _briefing?.Dispose();
         _cursor?.Dispose();
         _startScreen?.Dispose();
         _statistics?.Dispose();

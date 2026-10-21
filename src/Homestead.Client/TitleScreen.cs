@@ -14,6 +14,8 @@ namespace Homestead.Client;
 public enum TitleAction
 {
     None,
+    /// <summary>Open the campaign (<see cref="CampaignScreen"/>).</summary>
+    Campaign,
     /// <summary>Open the map selection (<see cref="StartScreen"/>).</summary>
     SinglePlayer,
     /// <summary>Load the save game in <see cref="TitleScreen.ChosenSlot"/>.</summary>
@@ -26,7 +28,8 @@ public enum TitleAction
 /// <summary>
 /// The title screen: the Gold Edition's main menu picture (<c>titleScreen</c> in <c>data/ui.json</c>, scaled from
 /// 800 × 600 to the window, plain gold beside it) with a column of engraved buttons on its left side as in the
-/// original, "Beenden" set apart at the bottom. "Spiel laden" lists the save slots below the buttons (its button stays
+/// original, "Beenden" set apart at the bottom. On top the campaigns ("Kampagne"; mission CD and Amazon campaign not yet,
+/// shown dimmed), then the free games. "Spiel laden" lists the save slots below its button, over the links (its button stays
 /// pressed; clicking it again or Esc closes them, Esc on the main page quits); "Einstellungen" opens the settings screen. Set apart below, readme, contribution and licenses open a popup (the
 /// original's message box) offering to show <c>README.md</c>, <c>CONTRIBUTING.md</c> or <c>THIRD_PARTY_NOTICES.md</c> of the
 /// repository in the browser.
@@ -52,13 +55,19 @@ public sealed class TitleScreen : IDisposable
     /// <summary>The buttons (label <c>title.buttons.&lt;key&gt;</c>): what they ask the game to do, the page they open, or the popup (<c>Link</c>).</summary>
     private static readonly (string Key, TitleAction Action, Page Opens, Link? Link)[] Buttons =
     [
+        ("campaign", TitleAction.Campaign, Page.Main, null),
+        ("missionCd", TitleAction.None, Page.Main, null),
+        ("amazonCampaign", TitleAction.None, Page.Main, null),
         ("singlePlayer", TitleAction.SinglePlayer, Page.Main, null),
-        ("load", TitleAction.None, Page.Load, null),
         ("settings", TitleAction.Settings, Page.Main, null),
+        ("load", TitleAction.None, Page.Load, null),
         ("readme", TitleAction.None, Page.Main, Readme),
         ("contribution", TitleAction.None, Page.Main, Contributing),
         ("licenses", TitleAction.None, Page.Main, Licenses),
     ];
+
+    /// <summary>Buttons shown dimmed, without effect: what is not there yet.</summary>
+    private static readonly HashSet<string> NotYet = ["missionCd", "amazonCampaign"];
 
     private static string Label(string key) => Lang.T("title.buttons." + key);
 
@@ -116,8 +125,9 @@ public sealed class TitleScreen : IDisposable
     }
 
     // Layout in the 800 × 600 space of the picture, measured on the original menu.
-    // The links to the repository (from the first one on) sit a little apart from the game's buttons.
-    private const int FirstLink = 3, LinkGap = 16;
+    // The free games (from the first one on) sit a little apart from the campaigns, the links to the repository
+    // (from the first one on) from the game's buttons.
+    private const int FirstGame = 3, FirstLink = 6, GroupGap = 16;
 
     /// <summary>The version of this build (from the git tags, docs/VERSIONING.md), with the commit shortened.</summary>
     private static readonly string GameVersion = "v" + (typeof(TitleScreen).Assembly
@@ -126,7 +136,8 @@ public sealed class TitleScreen : IDisposable
         ? version.Split('+') is [var number, var commit] ? $"{number}+{commit[..Math.Min(7, commit.Length)]}" : version
         : "?");
 
-    private static Rectangle Button(int index) => new(74, 19 + index * 40 + (index >= FirstLink ? LinkGap : 0), 175, 31);
+    private static Rectangle Button(int index) =>
+        new(74, 19 + index * 40 + (index >= FirstGame ? GroupGap : 0) + (index >= FirstLink ? GroupGap : 0), 175, 31);
 
     private static readonly Rectangle QuitButton = new(74, 540, 175, 31);
 
@@ -198,7 +209,7 @@ public sealed class TitleScreen : IDisposable
         if (QuitButton.Contains(at))
             return TitleAction.Quit;
         for (int index = 0; index < Buttons.Length; index++)
-            if (Button(index).Contains(at))
+            if (Button(index).Contains(at) && !NotYet.Contains(Buttons[index].Key) && !(index >= FirstLink && _page != Page.Main))
             {
                 var (_, action, opens, link) = Buttons[index];
                 if (link is not null)
@@ -278,9 +289,11 @@ public sealed class TitleScreen : IDisposable
         batch.Draw(_plain, view, _plainStrip, Color.White);
         batch.Draw(_backgrounds[Lang.Current], ToScreen(new Rectangle(0, 0, Width, Height)), Color.White);
 
-        for (int index = 0; index < Buttons.Length; index++)
+        // An open page lies over the links.
+        for (int index = 0; index < (_page == Page.Main ? Buttons.Length : FirstLink); index++)
             Engraved(batch, pixel, font, Button(index), Label(Buttons[index].Key), hover, held,
-                _popup is not null ? Buttons[index].Link == _popup : _page != Page.Main && Buttons[index].Opens == _page);
+                _popup is not null ? Buttons[index].Link == _popup : _page != Page.Main && Buttons[index].Opens == _page,
+                NotYet.Contains(Buttons[index].Key));
         Engraved(batch, pixel, font, QuitButton, Label("quit"), hover, held, false);
 
         if (_page != Page.Main)
@@ -368,16 +381,20 @@ public sealed class TitleScreen : IDisposable
         return text + "…";
     }
 
-    /// <summary>One of the original's engraved buttons: pressed (darker) while open or held, the text lit under the mouse.</summary>
-    private void Engraved(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle rect, string label, Point hover, bool held, bool open)
+    /// <summary>
+    /// One of the original's engraved buttons: pressed (darker) while open or held, the text lit under the mouse;
+    /// <paramref name="dimmed"/>: faint text, never lit or pressed.
+    /// </summary>
+    private void Engraved(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle rect, string label, Point hover, bool held, bool open,
+        bool dimmed = false)
     {
-        bool over = rect.Contains(hover);
+        bool over = rect.Contains(hover) && !dimmed;
         bool down = open || over && held;
         batch.Draw(pixel, ToScreen(rect), down ? PressedFill : Fill);
         Frame(batch, pixel, rect, Dark, Light);
         var size = font.Measure(label, Px(12)) / _scale;
         Write(batch, font, label, rect.Center.X - size.X / 2 + (down ? 1 : 0), rect.Center.Y - size.Y / 2 + (down ? 1 : 0),
-            over || open ? HoverText : Text, 12);
+            dimmed ? Dark : over || open ? HoverText : Text, 12);
     }
 
     /// <summary>An engraved frame: the dark line on the edge, the light one a pixel outside to the lower right.</summary>

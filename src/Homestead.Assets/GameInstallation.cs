@@ -90,6 +90,26 @@ public sealed class GameInstallation
     }
 
     // Installations differ in upper/lower case of folder names; Linux file systems care.
+    /// <summary>
+    /// A file or folder below the installation (<c>/</c>-separated, e.g. <c>S3/ADD/001/02_03_01.DAT</c>), whatever the case
+    /// of its names (CD releases spell them in capitals, others not); null if it is missing.
+    /// </summary>
+    public string? FindPath(string relative)
+    {
+        string current = Root;
+        foreach (string name in relative.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!Directory.Exists(current))
+                return null;
+            string? next = Directory.EnumerateFileSystemEntries(current)
+                .FirstOrDefault(e => Path.GetFileName(e).Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (next is null)
+                return null;
+            current = next;
+        }
+        return current;
+    }
+
     private string FindSubdirectory(string name) =>
         Directory.EnumerateDirectories(Root)
             .FirstOrDefault(d => Path.GetFileName(d).Equals(name, StringComparison.OrdinalIgnoreCase))

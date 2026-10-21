@@ -13,6 +13,9 @@
   },
   "title": {
     "buttons": {
+      "campaign": "Kampagne",
+      "missionCd": "Missions-CD",
+      "amazonCampaign": "Amazonen-Kampagne",
       "singlePlayer": "Einzelspieler",
       "load": "Spiel laden",
       "settings": "Einstellungen",
@@ -38,6 +41,11 @@
       "browserFailed": "Der Browser ließ sich nicht öffnen. Die Seite liegt hier:",
       "open": "Im Browser öffnen"
     }
+  },
+  "campaign": {
+    "choosePeople": "Wähle dein Volk",
+    "back": "Zurück",
+    "next": "Weiter"
   },
   "peoples": {
     "Roman": "Römer",
