@@ -45,16 +45,19 @@ public class CampaignTests(ITestOutputHelper output)
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "campaign.json")));
         foreach (var (campaign, side) in Sides(document))
         {
-            Assert.NotNull(installation.FindPath(side.Value.GetProperty("intro").GetString()!));
-            Assert.NotNull(installation.FindPath(side.Value.GetProperty("outro").GetString()!));
+            // Videos and spoken briefings where there are (not on the Mission CD).
+            foreach (var video in new[] { "intro", "outro" })
+                if (side.Value.TryGetProperty(video, out var path))
+                    Assert.NotNull(installation.FindPath(path.GetString()!));
             foreach (var mission in side.Value.GetProperty("missions").EnumerateArray())
             {
                 string map = mission.GetProperty("map").GetString()!;
                 string? path = installation.FindPath(map);
                 Assert.True(path is not null, $"{map} exists");
-                Assert.NotNull(installation.FindPath(mission.GetProperty("voice").GetString()!));
+                if (mission.TryGetProperty("voice", out var voice))
+                    Assert.NotNull(installation.FindPath(voice.GetString()!));
                 Assert.StartsWith("MISSIONSNAME", texts[mission.GetProperty("text").GetInt32()]);
-                // The settlers' hints are a list, the Amazons' campaign headed "TIPS & TRICKS".
+                // The settlers' hints are a list, the Mission CD's and the Amazons' campaign's headed "TIPS & TRICKS".
                 Assert.Matches("^(-|TIPS & TRICKS)", texts[mission.GetProperty("hint").GetInt32()]);
 
                 if (mission.TryGetProperty("preview", out var preview))
@@ -70,6 +73,9 @@ public class CampaignTests(ITestOutputHelper output)
                 else
                     Assert.Equal(side.Name == "amazons", own == Civilization.Amazon);
                 Assert.True(world.Buildings.Any(b => b.Player == 0) || world.Settlers.Any(s => s.Player == 0), $"{original.Name}: player 1 has something");
+                // The map's thieves (settler type 23) come as scouts.
+                Assert.Equal(original.Settlers.Count(s => s.Player == 0 && s.Type == 23),
+                    world.Settlers.Count(s => s.Player == 0 && s.Profession == Profession.Scout));
                 output.WriteLine($"{campaign}/{side.Name} {original.Name}: {report.Buildings} buildings, {report.Settlers} settlers, skipped {report.Skipped.Count}");
             }
         }

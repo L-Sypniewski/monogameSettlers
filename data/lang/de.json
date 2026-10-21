@@ -46,7 +46,7 @@
     "choosePeople": "Wähle dein Volk",
     "back": "Zurück",
     "next": "Weiter",
-    "saveName": "Kampagne {0}, Mission {1}",
+    "saveName": "{0} {1}, Mission {2}",
     "won": "Spiel gewonnen",
     "lost": "Spiel verloren",
     "wonHint": "Spiel beenden (oder Esc → Statistik) führt zur nächsten Mission.",
@@ -58,6 +58,11 @@
     "outroVideo": "Abschluss",
     "video": "Video",
     "chooseSide": "Wähle deine Seite",
+    "levels": {
+      "Roman": "Römer (für Einsteiger)",
+      "Egyptian": "Ägypter (für Profis)",
+      "Asian": "Asiaten (für Geübte)"
+    },
     "sides": {
       "amazons": "Amazonen",
       "peoples": "Die drei Völker"

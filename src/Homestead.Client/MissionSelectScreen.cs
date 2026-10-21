@@ -10,7 +10,8 @@ namespace Homestead.Client;
 /// <summary>
 /// The campaign's missions of one people once one is accomplished, on the original's background (<c>missionScreen</c> in
 /// <c>data/ui.json</c>, scaled from 800 × 600, marble beside it): first the intro video, then every accomplished mission
-/// and the next, with their names from the mission texts, to play again or on, after the last one the outro video.
+/// and the next, with their names from the mission texts, to play again or on, after the last one the outro video
+/// (the videos only where the side has them).
 /// A click chooses (<see cref="Chosen"/>, <see cref="ChosenVideo"/>); "Zurück" (Esc) goes back to the choice of people.
 /// A longer list scrolls (wheel, arrow keys, the start screen's scroll bar), opening at the newest mission.
 /// </summary>
@@ -32,6 +33,7 @@ public sealed class MissionSelectScreen : IDisposable
     private readonly string _side;
     private readonly IReadOnlyList<string> _names;
     private readonly int _accomplished;
+    private readonly bool _intro, _outro;
     /// <summary>The first row shown.</summary>
     private int _scroll;
 
@@ -43,7 +45,9 @@ public sealed class MissionSelectScreen : IDisposable
     /// <param name="names">The names of all the campaign's missions in order.</param>
     /// <param name="accomplished">Missions accomplished so far: those and the next one can be chosen.</param>
     /// <param name="side">The side's name for the heading.</param>
-    public MissionSelectScreen(GraphicsDevice device, GfxDirectory gfx, string side, IReadOnlyList<string> names, int accomplished)
+    /// <param name="intro">Whether the side has an intro video, <paramref name="outro"/> an outro.</param>
+    public MissionSelectScreen(GraphicsDevice device, GfxDirectory gfx, string side, IReadOnlyList<string> names, int accomplished,
+        bool intro = true, bool outro = true)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
         var look = document.RootElement.GetProperty("missionScreen");
@@ -70,6 +74,8 @@ public sealed class MissionSelectScreen : IDisposable
         _side = side;
         _names = names;
         _accomplished = accomplished;
+        _intro = intro;
+        _outro = outro;
         // The newest mission (the outro once every one is accomplished) at the bottom.
         _scroll = Math.Clamp(RowCount - VisibleRows, 0, MaxScroll);
     }
@@ -86,10 +92,11 @@ public sealed class MissionSelectScreen : IDisposable
     /// <summary>The rows in order: the intro, the missions to choose from, the outro once every mission is accomplished.</summary>
     private IEnumerable<(int? Mission, Video? Video)> Rows()
     {
-        yield return (null, Video.Intro);
+        if (_intro)
+            yield return (null, Video.Intro);
         for (int mission = 0; mission < Available; mission++)
             yield return (mission, null);
-        if (_accomplished >= _names.Count)
+        if (_outro && _accomplished >= _names.Count)
             yield return (null, Video.Outro);
     }
 

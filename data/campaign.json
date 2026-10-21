@@ -1,7 +1,8 @@
 {
-  "_comment": "Campaigns of the original installation, paths below the installation (any case). Per campaign its sides (the settlers' campaign: a people each; the Amazons': the Amazons and the three peoples) with name (a text key), intro and outro video (AVI, docs/formate/avi.md; the outro after the last mission) and the missions in order – map, text and hint (entries of the text table in GFX file 07, docs/formate/gfx.md), spoken briefing (WAV), labels: short names of the players (by map player) drawn at their start positions on the rendered map; or preview: [file, sequence, frame] of a finished picture of the original for the slanted window instead.",
+  "_comment": "Campaigns of the original installation, paths below the installation (any case). Per campaign its sides (the settlers' campaign: a people each; the Amazons': the Amazons and the three peoples) with name (a text key), intro and outro video (AVI, docs/formate/avi.md; the outro after the last mission) and the missions in order – map, text and hint (entries of the text table in GFX file 07, docs/formate/gfx.md), spoken briefing (WAV), labels: short names of the players (by map player) drawn at their start positions on the rendered map; or preview: [file, sequence, frame] of a finished picture of the original for the slanted window instead. The Mission CD has neither videos nor spoken briefings (left out); its previews: file 60 sequence 1, R1–R8, E1–E8, J1–J8 = 0–23 (matched by shape).",
   "campaigns": {
     "settlers": {
+      "name": "title.buttons.campaign",
       "sides": {
         "Roman": {
           "name": "peoples.Roman",
@@ -50,7 +51,52 @@
         }
       }
     },
+    "missionCd": {
+      "name": "title.buttons.missionCd",
+      "sides": {
+        "Roman": {
+          "name": "peoples.Roman",
+          "missions": [
+            { "map": "S3MCD/MAP/MIS_M/R/R1.MAP", "text": 24, "hint": 96, "preview": [60, 1, 0] },
+            { "map": "S3MCD/MAP/MIS_M/R/R2.MAP", "text": 25, "hint": 97, "preview": [60, 1, 1] },
+            { "map": "S3MCD/MAP/MIS_M/R/R3.MAP", "text": 26, "hint": 98, "preview": [60, 1, 2] },
+            { "map": "S3MCD/MAP/MIS_M/R/R4.MAP", "text": 27, "hint": 99, "preview": [60, 1, 3] },
+            { "map": "S3MCD/MAP/MIS_M/R/R5.MAP", "text": 28, "hint": 100, "preview": [60, 1, 4] },
+            { "map": "S3MCD/MAP/MIS_M/R/R6.MAP", "text": 29, "hint": 101, "preview": [60, 1, 5] },
+            { "map": "S3MCD/MAP/MIS_M/R/R7.MAP", "text": 30, "hint": 102, "preview": [60, 1, 6] },
+            { "map": "S3MCD/MAP/MIS_M/R/R8.MAP", "text": 31, "hint": 103, "preview": [60, 1, 7] }
+          ]
+        },
+        "Egyptian": {
+          "name": "peoples.Egyptian",
+          "missions": [
+            { "map": "S3MCD/MAP/MIS_M/E/E1.MAP", "text": 32, "hint": 104, "preview": [60, 1, 8] },
+            { "map": "S3MCD/MAP/MIS_M/E/E2.MAP", "text": 33, "hint": 105, "preview": [60, 1, 9] },
+            { "map": "S3MCD/MAP/MIS_M/E/E3.MAP", "text": 34, "hint": 106, "preview": [60, 1, 10] },
+            { "map": "S3MCD/MAP/MIS_M/E/E4.MAP", "text": 35, "hint": 107, "preview": [60, 1, 11] },
+            { "map": "S3MCD/MAP/MIS_M/E/E5.MAP", "text": 36, "hint": 108, "preview": [60, 1, 12] },
+            { "map": "S3MCD/MAP/MIS_M/E/E6.MAP", "text": 37, "hint": 109, "preview": [60, 1, 13] },
+            { "map": "S3MCD/MAP/MIS_M/E/E7.MAP", "text": 38, "hint": 110, "preview": [60, 1, 14] },
+            { "map": "S3MCD/MAP/MIS_M/E/E8.MAP", "text": 39, "hint": 111, "preview": [60, 1, 15] }
+          ]
+        },
+        "Asian": {
+          "name": "peoples.Asian",
+          "missions": [
+            { "map": "S3MCD/MAP/MIS_M/A/J1.MAP", "text": 40, "hint": 112, "preview": [60, 1, 16] },
+            { "map": "S3MCD/MAP/MIS_M/A/J2.MAP", "text": 41, "hint": 113, "preview": [60, 1, 17] },
+            { "map": "S3MCD/MAP/MIS_M/A/J3.MAP", "text": 42, "hint": 114, "preview": [60, 1, 18] },
+            { "map": "S3MCD/MAP/MIS_M/A/J4.MAP", "text": 43, "hint": 115, "preview": [60, 1, 19] },
+            { "map": "S3MCD/MAP/MIS_M/A/J5.MAP", "text": 44, "hint": 116, "preview": [60, 1, 20] },
+            { "map": "S3MCD/MAP/MIS_M/A/J6.MAP", "text": 45, "hint": 117, "preview": [60, 1, 21] },
+            { "map": "S3MCD/MAP/MIS_M/A/J7.MAP", "text": 46, "hint": 118, "preview": [60, 1, 22] },
+            { "map": "S3MCD/MAP/MIS_M/A/J8.MAP", "text": 47, "hint": 119, "preview": [60, 1, 23] }
+          ]
+        }
+      }
+    },
     "amazons": {
+      "name": "title.buttons.amazonCampaign",
       "sides": {
         "amazons": {
           "name": "campaign.sides.amazons",

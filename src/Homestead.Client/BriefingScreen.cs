@@ -94,7 +94,7 @@ public sealed class BriefingScreen : IDisposable
         }
         MapPath = _map.Path;
 
-        if (volume > 0 && installation.FindPath(mission.Voice) is { } voice)
+        if (volume > 0 && mission.Voice is not null && installation.FindPath(mission.Voice) is { } voice)
         {
             try
             {

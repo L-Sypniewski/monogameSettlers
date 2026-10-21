@@ -10,8 +10,8 @@ namespace Homestead.Client;
 /// <summary>
 /// A campaign's first page: choosing the side on the original's background (<c>campaignScreens</c> in
 /// <c>data/ui.json</c> by campaign, scaled from 800 × 600, marble beside it) – a people in the settlers' campaign (its
-/// picture framed in gold under the mouse), the Amazons or the three peoples in theirs (a brighter picture of the
-/// figures laid over them). A click on a side's picture or name chooses it (<see cref="Chosen"/>), "Zurück" (Esc; the
+/// picture framed in gold under the mouse; on the Mission CD's a brighter picture of the figure), the Amazons or the
+/// three peoples in theirs (a brighter picture of the figures laid over them). A click on a side's picture or name chooses it (<see cref="Chosen"/>), "Zurück" (Esc; the
 /// original has none) goes back to the title screen.
 /// </summary>
 public sealed class CampaignScreen : IDisposable
@@ -25,8 +25,12 @@ public sealed class CampaignScreen : IDisposable
 
     private readonly Texture2D _background, _marble;
     private readonly Rectangle _heading;
-    /// <summary>Per side: its id, picture and name field, the brighter picture laid over it under the mouse (if any).</summary>
-    private readonly (string Side, Rectangle Picture, Rectangle Name, Texture2D? Lit)[] _sides;
+    private readonly int _headingSize;
+    /// <summary>
+    /// Per side: its id, picture and name field, the brighter picture laid over it under the mouse (if any), the text
+    /// key for the name field (if not the side's name).
+    /// </summary>
+    private readonly (string Side, Rectangle Picture, Rectangle Name, Texture2D? Lit, string? Label)[] _sides;
     private readonly IReadOnlyDictionary<string, CampaignSide> _config;
 
     private float _scale = 1;
@@ -34,7 +38,7 @@ public sealed class CampaignScreen : IDisposable
     private KeyboardState _previousKeys = Keyboard.GetState();
     private MouseState _previousMouse = Mouse.GetState();
 
-    /// <param name="campaign">The campaign (<c>settlers</c>, <c>amazons</c>).</param>
+    /// <param name="campaign">The campaign (<c>settlers</c>, <c>missionCd</c>, <c>amazons</c>).</param>
     public CampaignScreen(GraphicsDevice device, GfxDirectory gfx, string campaign)
     {
         Campaign = campaign;
@@ -56,10 +60,12 @@ public sealed class CampaignScreen : IDisposable
         _background = Image(look.GetProperty("background"));
         _marble = Image(look.GetProperty("marble"));
         _heading = Box(look.GetProperty("heading"));
+        _headingSize = look.TryGetProperty("headingSize", out var headingSize) ? headingSize.GetInt32() : 15;
         // The brighter picture: [file, sequence, frame] of a settler sequence, placed on the picture's rectangle.
         _sides = look.GetProperty("sides").EnumerateObject()
             .Select(s => (s.Name, Box(s.Value.GetProperty("picture")), Box(s.Value.GetProperty("name")),
-                s.Value.TryGetProperty("lit", out var lit) ? Texture(gfx.Open(lit[0].GetInt32()).ReadSettler(lit[1].GetInt32(), lit[2].GetInt32())) : null))
+                s.Value.TryGetProperty("lit", out var lit) ? Texture(gfx.Open(lit[0].GetInt32()).ReadSettler(lit[1].GetInt32(), lit[2].GetInt32())) : null,
+                s.Value.TryGetProperty("label", out var label) ? label.GetString() : null))
             .ToArray();
     }
 
@@ -126,18 +132,29 @@ public sealed class CampaignScreen : IDisposable
             batch.Draw(_marble, view, new Rectangle(14, 0, _marble.Width - 28, _marble.Height), Color.White);
         batch.Draw(_background, page, Color.White);
 
-        WriteCentered(batch, font, Lang.T(Campaign == "settlers" ? "campaign.choosePeople" : "campaign.chooseSide"), _heading, Gold, 15);
+        WriteCentered(batch, font, Lang.T(Campaign == "amazons" ? "campaign.chooseSide" : "campaign.choosePeople"), _heading, Gold, _headingSize);
         var hover = Hovered ?? At(ToLayout(Mouse.GetState().Position));
-        foreach (var (side, picture, name, brighter) in _sides)
+        foreach (var (side, picture, name, brighter, key) in _sides)
         {
             bool lit = side == hover;
             if (lit && brighter is not null)
                 batch.Draw(brighter, ToScreen(picture), Color.White);
             else if (lit)
                 Outline(batch, pixel, ToScreen(new Rectangle(picture.X - 3, picture.Y - 3, picture.Width + 6, picture.Height + 6)), Gold);
-            string label = Lang.T(_config[side].Name);
-            int size = font.Measure(label, Px(16)).X / _scale > name.Width - 6 ? 12 : 16;
-            WriteCentered(batch, font, label, name, lit ? Gold : Text, size);
+            string label = Lang.T(key ?? _config[side].Name);
+            bool Fits(string text, int size) => font.Measure(text, Px(size)).X / _scale <= name.Width - 6;
+            int size = Fits(label, 16) ? 16 : Fits(label, 14) ? 14 : 12;
+            // Too wide even small: two lines, broken at the space nearest the middle.
+            int space = label.Length / 2;
+            while (!Fits(label, size) && space > 0 && label[space] != ' ')
+                space--;
+            if (!Fits(label, size) && space > 0)
+            {
+                WriteCentered(batch, font, label[..space], name with { Height = name.Height / 2 + 2 }, lit ? Gold : Text, size);
+                WriteCentered(batch, font, label[(space + 1)..], name with { Y = name.Center.Y - 2, Height = name.Height / 2 + 2 }, lit ? Gold : Text, size);
+            }
+            else
+                WriteCentered(batch, font, label, name, lit ? Gold : Text, size);
         }
         TextButton.Draw(batch, pixel, font, ToScreen(BackButton), Lang.T("campaign.back"), Mouse.GetState().Position.ToVector2(), size: Px(13));
     }

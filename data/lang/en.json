@@ -46,7 +46,7 @@
     "choosePeople": "Choose your people",
     "back": "Back",
     "next": "Next",
-    "saveName": "{0} campaign, mission {1}",
+    "saveName": "{0}: {1}, mission {2}",
     "won": "Game won",
     "lost": "Game lost",
     "wonHint": "Quit the game (or Esc → statistics) to go on to the next mission.",
@@ -58,6 +58,11 @@
     "outroVideo": "Finale",
     "video": "video",
     "chooseSide": "Choose your side",
+    "levels": {
+      "Roman": "Romans (for beginners)",
+      "Egyptian": "Egyptians (for experts)",
+      "Asian": "Asians (for the practised)"
+    },
     "sides": {
       "amazons": "Amazons",
       "peoples": "The three peoples"

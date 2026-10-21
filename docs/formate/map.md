@@ -42,7 +42,8 @@ Besitzer-Byte (Index 3): Spielernummer ab 0, 255 = niemand. Der Rand des Landes 
 gemessen über alle Karten; manche Karten vergeben zusätzlich Land ohne Militärgebäude (Editor).
 
 Siedlertypen (Chunk 7) nach JSettlers' `EOriginalMapSettlersType`: 0 Träger, 1 Planierer, 2 Bauarbeiter,
-5/32/35 Schwertkämpfer Stufe 1/2/3, 8/30/33 Bogenschütze, 15/31/34 Pikenier.
+5/32/35 Schwertkämpfer Stufe 1/2/3, 8/30/33 Bogenschütze, 15/31/34 Pikenier, 23 Dieb/Späher (aus den Kampagnen:
+Missions-CD J1 vier einzeln über die Karte verteilt – „Unsere Kundschafter“ –, Amazonen-Kampagne G11 57 zum Stehlen).
 Reihenfolge zeilenweise, `index = y * größe + x`, y = 0 ist der obere Kartenrand.
 
 Landschaftswerte (Gruppe = oberes Nibble): 0–7 Wasser (Tiefen), 16 Gras, 17 Gebirgsrand außen,

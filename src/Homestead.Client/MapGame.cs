@@ -365,14 +365,15 @@ public sealed class MapGame : Game
             // the second one's or again the first one's description, briefing.png; a number at the end takes that mission instead
             // (won:next:8 – the outro, video.png); with HOMESTEAD_SAVE_DIR temporary, it notes the progress).
             string? captureStart = _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START");
-            bool campaignCapture = captureStart?.StartsWith("campaign") == true || captureStart?.StartsWith("amazons") == true;
+            bool campaignCapture = captureStart?.StartsWith("campaign") == true || captureStart?.StartsWith("amazons") == true
+                || captureStart?.StartsWith("missionCd") == true;
             if (captureStart is null || captureStart.StartsWith("title") || captureStart.StartsWith("settings") || campaignCapture)
             {
                 _title = new TitleScreen(GraphicsDevice, _gfx);
                 if (campaignCapture)
                 {
                     var parts = captureStart!.Split(':');
-                    _campaign = parts[0] == "amazons" ? "amazons" : "settlers";
+                    _campaign = parts[0] is "amazons" or "missionCd" ? parts[0] : "settlers";
                     // HOMESTEAD_CAPTURE_HOVER=<side>: that side as if under the mouse.
                     _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign) { Hovered = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_HOVER") };
                     if (parts.Length > 1)
@@ -700,16 +701,16 @@ public sealed class MapGame : Game
 
     /// <summary>
     /// Plays a video of the installation (<paramref name="relative"/>); <paramref name="after"/> follows its end or a click
-    /// (at once if it cannot be played).
+    /// (at once if it cannot be played or there is none).
     /// </summary>
-    private void PlayVideo(string relative, Action after)
+    private void PlayVideo(string? relative, Action after)
     {
         _video?.Dispose();
         _video = null;
-        if (_installation.FindPath(relative) is not { } path)
-            Console.WriteLine($"Video skipped: {relative} is not in the installation");
-        else
+        if (relative is not null && _installation.FindPath(relative) is { } path)
             _video = VideoPlayer.TryOpen(GraphicsDevice, path, _display.EffectsVolume / 100f);
+        else if (relative is not null)
+            Console.WriteLine($"Video skipped: {relative} is not in the installation");
         if (_video is null)
             after();
         else
@@ -736,7 +737,7 @@ public sealed class MapGame : Game
         var texts = _gfx.Open(7).ReadTexts(Lang.Current == Language.German ? 0 : 1);
         var names = Side.Missions.Select(m => m.Text < texts.Count ? MissionSelectScreen.NameOf(texts[m.Text]) : $"{m.Text}").ToArray();
         _missionSelect = new MissionSelectScreen(GraphicsDevice, _gfx, Lang.T(Side.Name), names,
-            CampaignProgress.Load().Accomplished(_campaign, _campaignSide));
+            CampaignProgress.Load().Accomplished(_campaign, _campaignSide), Side.Intro is not null, Side.Outro is not null);
     }
 
     /// <summary>
@@ -946,9 +947,9 @@ public sealed class MapGame : Game
         }
         else if (action == TitleAction.Settings)
             _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
-        else if (action is TitleAction.Campaign or TitleAction.AmazonCampaign)
+        else if (action is TitleAction.Campaign or TitleAction.MissionCd or TitleAction.AmazonCampaign)
         {
-            _campaign = action == TitleAction.Campaign ? "settlers" : "amazons";
+            _campaign = action switch { TitleAction.Campaign => "settlers", TitleAction.MissionCd => "missionCd", _ => "amazons" };
             _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign);
         }
         else if (action == TitleAction.SinglePlayer)

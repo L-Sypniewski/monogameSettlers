@@ -16,6 +16,8 @@ public enum TitleAction
     None,
     /// <summary>Open the campaign (<see cref="CampaignScreen"/>).</summary>
     Campaign,
+    /// <summary>Open the Mission CD's campaign.</summary>
+    MissionCd,
     /// <summary>Open the Amazons' campaign.</summary>
     AmazonCampaign,
     /// <summary>Open the map selection (<see cref="StartScreen"/>).</summary>
@@ -58,7 +60,7 @@ public sealed class TitleScreen : IDisposable
     private static readonly (string Key, TitleAction Action, Page Opens, Link? Link)[] Buttons =
     [
         ("campaign", TitleAction.Campaign, Page.Main, null),
-        ("missionCd", TitleAction.None, Page.Main, null),
+        ("missionCd", TitleAction.MissionCd, Page.Main, null),
         ("amazonCampaign", TitleAction.AmazonCampaign, Page.Main, null),
         ("singlePlayer", TitleAction.SinglePlayer, Page.Main, null),
         ("settings", TitleAction.Settings, Page.Main, null),
@@ -69,7 +71,7 @@ public sealed class TitleScreen : IDisposable
     ];
 
     /// <summary>Buttons shown dimmed, without effect: what is not there yet.</summary>
-    private static readonly HashSet<string> NotYet = ["missionCd"];
+    private static readonly HashSet<string> NotYet = [];
 
     private static string Label(string key) => Lang.T("title.buttons." + key);
 

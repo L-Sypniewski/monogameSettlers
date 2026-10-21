@@ -56,7 +56,7 @@ public static class Lang
     public static string SaveName(Homestead.Simulation.Persistence.SaveInfo info) =>
         Homestead.Simulation.Persistence.MissionRef.Parse(info.Mission) is { } mission
         && CampaignConfig.Load().Campaigns.GetValueOrDefault(mission.Campaign)?.GetValueOrDefault(mission.Side) is { } side
-            ? T("campaign.saveName", T(side.Name), mission.Index + 1)
+            ? T("campaign.saveName", T(CampaignConfig.Load().Names[mission.Campaign]), T(side.Name), mission.Index + 1)
             : MapName(info.Map);
 
     /// <summary>The text of the key, or null where neither the language nor German has it.</summary>
