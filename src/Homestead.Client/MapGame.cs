@@ -65,6 +65,8 @@ public sealed class MapGame : Game
     private BriefingScreen? _briefing;
     /// <summary>The choice of missions of a people with progress, over the campaign screen while open.</summary>
     private MissionSelectScreen? _missionSelect;
+    /// <summary>The list of saved games (title screen › "Spiel laden"), over the title screen.</summary>
+    private ListScreen? _loadList;
     /// <summary>The campaign being played or chosen (<c>settlers</c>, <c>amazons</c>).</summary>
     private string _campaign = "settlers";
     /// <summary>The side chosen in the campaign (a people's id in the settlers' campaign, <c>amazons</c> or <c>peoples</c> in the Amazons').</summary>
@@ -356,7 +358,7 @@ public sealed class MapGame : Game
         if (_showStartScreen)
         {
             // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps);
-            // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the save slots, =title:loadError: with a message about one that did not load);
+            // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the list of saved games, load.png, =title:loadError: with a message about one that did not load);
             // =settings[:<tab>]: the settings screen's (tab: resources, economy, military, display);
             // =campaign: the campaign's choice of people (=campaign:<people>: a picture of its intro video, video.png;
             // =campaign:<people>:briefing: its first mission's description, briefing.png; =campaign:<people>:choose: the people
@@ -402,7 +404,9 @@ public sealed class MapGame : Game
                     if (captureStart.StartsWith("settings:"))
                         _settingsScreen.Show(captureStart["settings:".Length..]);
                 }
-                if (captureStart?.StartsWith("title:") == true)
+                if (captureStart == "title:load")
+                    OpenLoadList();
+                else if (captureStart?.StartsWith("title:") == true)
                     _title.Show(captureStart["title:".Length..]);
             }
             else
@@ -730,6 +734,25 @@ public sealed class MapGame : Game
             OpenMissionSelect();
     }
 
+    /// <summary>The list of saved games over the title screen: per slot the game's name, when it was saved and the people; empty ones faint.</summary>
+    private void OpenLoadList()
+    {
+        _loadList?.Dispose();
+        var rows = Enumerable.Range(0, SaveSlots.Count).Select(slot => SaveSlots.Info(slot) is { } info
+            ? new ListRow($"{slot + 1}.  {Lang.SaveName(info)}",
+                $"{info.SavedAt.ToString(Lang.T("formats.savedAt"), Lang.Culture)} · {Lang.T("peoples." + info.People)}")
+            : new ListRow($"{slot + 1}.  ------------", "", Enabled: false)).ToArray();
+        _loadList = new ListScreen(GraphicsDevice, _gfx, Lang.T("title.buttons.load"), rows);
+    }
+
+    /// <summary>Back from the list of saved games to the title screen.</summary>
+    private void CloseLoadList()
+    {
+        _loadList?.Dispose();
+        _loadList = null;
+        _title?.Resume();
+    }
+
     /// <summary>The choice of missions of the chosen side (as far as its progress goes), over the campaign screen.</summary>
     private void OpenMissionSelect()
     {
@@ -892,6 +915,36 @@ public sealed class MapGame : Game
             _previousMouse = Mouse.GetState();
             return;
         }
+        if (_loadList is not null)
+        {
+            if (_loadList.Update(GraphicsDevice.Viewport.Bounds))
+                CloseLoadList();
+            else if (_loadList.Chosen is { } slot)
+            {
+                SaveGame game;
+                try
+                {
+                    game = SaveSlots.Load(slot);
+                }
+                catch (Exception exception)
+                {
+                    var failure = SaveLoadFailure.Of(exception);
+                    Console.Error.WriteLine($"Loading slot {slot + 1} failed ({failure.Code}): {exception}");
+                    CloseLoadList();
+                    _title!.ShowLoadFailure(failure);
+                    return;
+                }
+                _loadList.Dispose();
+                _loadList = null;
+                _title!.Dispose();
+                _title = null;
+                LoadGame(game);
+                return;
+            }
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = Mouse.GetState();
+            return;
+        }
         if (_campaignScreen is not null)
         {
             if (_campaignScreen.Update(GraphicsDevice.Viewport.Bounds))
@@ -928,23 +981,7 @@ public sealed class MapGame : Game
         if (action == TitleAction.Quit)
             Exit();
         else if (action == TitleAction.Load)
-        {
-            SaveGame game;
-            try
-            {
-                game = SaveSlots.Load(_title.ChosenSlot);
-            }
-            catch (Exception exception)
-            {
-                var failure = SaveLoadFailure.Of(exception);
-                Console.Error.WriteLine($"Loading slot {_title.ChosenSlot + 1} failed ({failure.Code}): {exception}");
-                _title.ShowLoadFailure(failure);
-                return;
-            }
-            _title.Dispose();
-            _title = null;
-            LoadGame(game);
-        }
+            OpenLoadList();
         else if (action == TitleAction.Settings)
             _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
         else if (action is TitleAction.Campaign or TitleAction.MissionCd or TitleAction.AmazonCampaign)
@@ -2308,6 +2345,8 @@ public sealed class MapGame : Game
                 _video.Draw(_spriteBatch, _pixel, GraphicsDevice.Viewport.Bounds);
             else if (_missionSelect is not null)
                 _missionSelect.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            else if (_loadList is not null)
+                _loadList.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
             else if (_campaignScreen is not null)
                 _campaignScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
             else if (_settingsScreen is not null)
@@ -2320,7 +2359,7 @@ public sealed class MapGame : Game
             if (startTarget is not null)
             {
                 GraphicsDevice.SetRenderTarget(null);
-                string picture = _briefing is not null ? "briefing.png" : _video is not null ? "video.png" : _missionSelect is not null ? "missions.png" : _campaignScreen is not null ? "campaign.png"
+                string picture = _briefing is not null ? "briefing.png" : _video is not null ? "video.png" : _missionSelect is not null ? "missions.png" : _loadList is not null ? "load.png" : _campaignScreen is not null ? "campaign.png"
                     : _settingsScreen is not null ? "settings.png" : _title is not null ? "title.png" : "start.png";
                 using (var stream = File.Create(Path.Combine(_captureDirectory!, picture)))
                     startTarget.SaveAsPng(stream, startTarget.Width, startTarget.Height);
@@ -3323,6 +3362,7 @@ public sealed class MapGame : Game
         _afterVideo = null;
         _briefing?.Dispose();
         _missionSelect?.Dispose();
+        _loadList?.Dispose();
         _cursor?.Dispose();
         _startScreen?.Dispose();
         _statistics?.Dispose();

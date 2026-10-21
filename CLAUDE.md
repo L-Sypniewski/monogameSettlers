@@ -189,10 +189,10 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
 - **Titelbildschirm** (`TitleScreen`, zuerst ohne `--map`/`--capture`): Hauptmenü-Bild der Gold Edition (`titleScreen` in `ui.json`, Datei 61 GUI 1,
   daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): Kampagne, Missions-CD, Amazonen-Kampagne (je → Kampagne),
   abgesetzt Einzelspieler (→ Startscreen), Einstellungen (→ Einstellungen), Spiel laden
-  (Slots darunter über den Links, Klick lädt; offen = gedrückter Knopf), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
+  (Liste der 8 Slots als `ListScreen`: Name, Datum, Volk; leere blass; Klick lädt, Ladefehler über dem Titel), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
   Original-Meldungsbox Datei 02 GUI 16, `popup` in `titleScreen`: „Im Browser öffnen“ → `README.md`/`CONTRIBUTING.md`/`THIRD_PARTY_NOTICES.md` auf GitHub, Enter/Esc),
   unten abgesetzt Beenden; Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher.
-  Capture: `HOMESTEAD_CAPTURE_START=title` → `title.png` (`title:readme`/`title:contribution`/`title:licenses` mit Popup, `title:load` mit Slots, `title:loadError` mit Ladefehler).
+  Capture: `HOMESTEAD_CAPTURE_START=title` → `title.png` (`title:readme`/`title:contribution`/`title:licenses` mit Popup, `title:load` → `load.png` (Liste der Spielstände), `title:loadError` mit Ladefehler).
 - **Kampagne** (`CampaignScreen`, über dem Titelbildschirm): Wahl der Seite je Kampagne (`campaignScreens` in `ui.json`: Bild und Namensfeld
   je Seite, Überschrift; Klick wählt, „Zurück“/Esc → Titel – im Original ohne). Siedler (`settlers`): je Volk, Datei 02 GUI 7, Goldrahmen unter der
   Maus. Missions-CD (`missionCd`): Datei 60 GUI 4 (Schiffbrüchige im Sturm), Namensfelder mit Schwierigkeit (`label`, umbrochen),
@@ -208,7 +208,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   (`intro`/`outro`/`voice` weggelassen: übersprungen, nicht in der Missionsauswahl). Amazonen-Kampagne: `S3QOTA/MIS_M/Z` (Amazonen, Texte 48–59) und `G`
   (die drei Völker, Spieler 1 wechselt, Texte 60–71), Hinweise +72, Videos `S3QOTA/ADD/1/DATAP0_N` (Intro Amazonen 1, drei Völker 2; Sieg 3 bzw. 5).
   Fortschritt (globaler Spielstand): `CampaignProgress` (`campaign.json` bei den Spielständen, je Kampagne/Seite Zahl geschaffter Missionen);
-  Volkswahl mit Fortschritt → Missionsauswahl (`MissionSelectScreen`, Datei 02 GUI 18, `missionScreen` in `ui.json`: zuerst das Intro,
+  Volkswahl mit Fortschritt → Missionsauswahl (`MissionSelectScreen` über `ListScreen` – gemeinsame Liste mit „Spiel laden“ –, Datei 02 GUI 18, `missionScreen` in `ui.json`: zuerst das Intro,
   alle geschafften und die nächste, Namen aus den Missionstexten, nach allen der Abschluss; längere Liste scrollt (Rad, Pfeile, Bildlaufleiste), öffnet bei der neuesten; Klick → Beschreibung, deren „Zurück“ wieder
   hierher, bzw. Video und danach zurück; Esc/„Zurück“ → Volkswahl). Videos über `MapGame.PlayVideo(pfad, danach)`. Laufende Mission `MissionRef` (`settlers/Roman/0`, `amazons/peoples/3`) steht im
   Spielstand (Client-Wert `mission`, Kopf `SaveInfo.Mission` – Listen zeigen „Kampagne Römer, Mission 1“).
