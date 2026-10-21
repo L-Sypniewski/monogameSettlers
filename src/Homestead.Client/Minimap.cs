@@ -6,7 +6,8 @@ namespace Homestead.Client;
 
 /// <summary>
 /// The minimap's picture: one texel per grid point, landscape colors (<see cref="MapOverview"/>) where
-/// player 1 has explored, black elsewhere. No settlers or buildings yet.
+/// player 1 has explored, black elsewhere; territory borders in the player colors. Units and military
+/// buildings are dots on top (<see cref="SidePanel"/>).
 /// </summary>
 public sealed class Minimap : IDisposable
 {
@@ -22,12 +23,45 @@ public sealed class Minimap : IDisposable
 
     public Texture2D Texture { get; }
 
-    /// <summary>Shows what <paramref name="vision"/> has explored (everything with <paramref name="all"/>).</summary>
-    public void Update(Vision vision, bool all)
+    /// <summary>
+    /// Shows what <paramref name="vision"/> has explored (everything with <paramref name="all"/>), with the borders
+    /// of <paramref name="map"/>'s territories: both fields of every neighbor pair with different owners (two
+    /// texels, one is lost when the map is scaled down), in the color of the owned one.
+    /// </summary>
+    public void Update(Vision vision, bool all, GameMap map)
     {
         for (int i = 0; i < _pixels.Length; i++)
             _pixels[i] = all || vision.IsExplored(i) ? _landscape[i] : 0xff000000;
+        int size = map.Size;
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                int i = y * size + x;
+                byte owner = map.OwnerAt(i);
+                // Three of the six neighbors: the other three see this field as their neighbor.
+                if (x + 1 < size)
+                    Border(i, owner, i + 1);
+                if (y + 1 < size)
+                    Border(i, owner, i + size);
+                if (x + 1 < size && y + 1 < size)
+                    Border(i, owner, i + size + 1);
+            }
         Texture.SetData(_pixels);
+
+        void Border(int a, byte ownerA, int b)
+        {
+            byte ownerB = map.OwnerAt(b);
+            if (ownerA == ownerB)
+                return;
+            Mark(a, ownerA != GameMap.NoOwner ? ownerA : ownerB);
+            Mark(b, ownerB != GameMap.NoOwner ? ownerB : ownerA);
+        }
+
+        void Mark(int i, int player)
+        {
+            if (all || vision.IsExplored(i))
+                _pixels[i] = PlayerColors.Of(player).PackedValue;
+        }
     }
 
     public void Dispose() => Texture.Dispose();

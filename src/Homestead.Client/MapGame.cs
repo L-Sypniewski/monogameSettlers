@@ -524,7 +524,7 @@ public sealed class MapGame : Game
         _fog.SetTargets(_vision);
         _minimap?.Dispose();
         _minimap = new Minimap(GraphicsDevice, _map.Area);
-        _minimap.Update(_vision, all: !_fogOn);
+        _minimap.Update(_vision, all: !_fogOn, _gameMap);
         _nextVision = _time + VisionInterval;
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         // Every other player is a computer player.
@@ -575,7 +575,7 @@ public sealed class MapGame : Game
         _fog.SetTargets(_vision);
         _minimap?.Dispose();
         _minimap = new Minimap(GraphicsDevice, _map.Area);
-        _minimap.Update(_vision, all: !_fogOn);
+        _minimap.Update(_vision, all: !_fogOn, _gameMap);
         _nextVision = _time + VisionInterval;
         PlayerColors.Restore(game.Client.GetValueOrDefault("colors"));
         _mission = MissionRef.Parse(game.Client.GetValueOrDefault("mission"));
@@ -1109,24 +1109,30 @@ public sealed class MapGame : Game
         }
     }
 
-    private readonly List<(GridPoint At, Color Color)> _minimapDots = [];
+    private readonly List<MinimapDot> _minimapDots = [];
 
     /// <summary>
-    /// Soldiers on the minimap: player 1's white, everyone else's red (under the fog only where player 1 sees now),
-    /// red drawn last so enemies stay visible in a crowd. Garrisons inside buildings are left out.
+    /// Dots on the minimap: occupied military buildings (where player 1 has explored) and units outside – soldiers,
+    /// priests, geologists, pioneers and scouts (others' only where player 1 sees now, scouts once revealed);
+    /// player 1's white, everyone else's red, red drawn last so enemies stay visible in a crowd.
     /// </summary>
-    private List<(GridPoint At, Color Color)> MinimapDots()
+    private List<MinimapDot> MinimapDots()
     {
         _minimapDots.Clear();
-        foreach (var settler in _world.Settlers)
-            if (settler.Profession == Profession.Soldier && settler.Player == 0 && !settler.IsDead && !settler.IsInside)
-                _minimapDots.Add((settler.Position, Color.White));
-        foreach (var settler in _world.Settlers)
-            if (settler.Profession == Profession.Soldier && settler.Player != 0 && !settler.IsDead && !settler.IsInside
-                && (!_fogOn || _vision.IsVisible(settler.Position)))
-                _minimapDots.Add((settler.Position, Color.Red));
+        foreach (var building in _world.Buildings)
+            if (building.Exists && _world.Military.IsOccupied(building) && (!_fogOn || _vision.IsExplored(building.Position.Y * _gameMap.Size + building.Position.X)))
+                _minimapDots.Add(new MinimapDot(building.Position, building.Player == 0 ? Color.White : Color.Red, Building: true));
+        foreach (var own in new[] { true, false })
+            foreach (var settler in _world.Settlers)
+                if (settler.Player == 0 == own && OnMinimap(settler))
+                    _minimapDots.Add(new MinimapDot(settler.Position, own ? Color.White : Color.Red));
         return _minimapDots;
     }
+
+    private bool OnMinimap(Settler settler) =>
+        settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Pioneer or Profession.Scout
+        && !settler.IsDead && !settler.IsInside
+        && (settler.Player == 0 || (settler.IsRevealedTo(0) && (!_fogOn || _vision.IsVisible(settler.Position))));
 
     private Vector2 ToWorld(GridPoint p) => ScreenProjection.ToWorld(p.X, p.Y, _terrain.HeightAt(p.X, p.Y));
 
@@ -1211,7 +1217,7 @@ public sealed class MapGame : Game
         {
             _vision.Update(_world);
             _fog!.SetTargets(_vision);
-            _minimap!.Update(_vision, all: !_fogOn);
+            _minimap!.Update(_vision, all: !_fogOn, _gameMap);
             _nextVision = _time + VisionInterval;
         }
         _fog!.Advance((float)elapsed.TotalSeconds);
@@ -1389,7 +1395,7 @@ public sealed class MapGame : Game
         if (Pressed(Keys.V))
         {
             _fogOn = !_fogOn;
-            _minimap!.Update(_vision, all: !_fogOn);
+            _minimap!.Update(_vision, all: !_fogOn, _gameMap);
             _message = _fogOn ? "fog of war on (V)" : "fog of war off (V)";
         }
         if (Pressed(Keys.O))
@@ -3092,7 +3098,7 @@ public sealed class MapGame : Game
                 _world.Step();
         _vision.Update(_world);
         _fog!.SetTargets(_vision);
-        _minimap!.Update(_vision, all: !_fogOn);
+        _minimap!.Update(_vision, all: !_fogOn, _gameMap);
         Console.WriteLine($"benchmark: {_world.Tick / World.TicksPerSecond / 60} min played in {clock.Elapsed.TotalSeconds:F0} s, {_world.Settlers.Count} settlers, " +
                           $"{_world.Buildings.Count(b => b.Exists)} buildings");
         // HOMESTEAD_CAPTURE_VIEW=economy: the camera stays on player 1's home; battle: it follows the biggest fight.
