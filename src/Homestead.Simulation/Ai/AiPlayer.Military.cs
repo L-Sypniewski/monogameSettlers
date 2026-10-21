@@ -254,6 +254,17 @@ public sealed partial class AiPlayer
     internal bool Threatened(List<Building> military) =>
         EnemyGroups.Any(g => g.Armed && military.Any(b => PathFinder.Distance(b.Position, g.Center) <= _config.Military.ThreatRange));
 
+    [NonSerialized] private List<Building>? _enemyMilitary;
+    [NonSerialized] private long _enemyMilitaryTick = -1;
+
+    /// <summary><see cref="EnemyMilitary"/> once per tick: tower fire is weighed for many groups and ways.</summary>
+    private List<Building> EnemyMilitaryNow()
+    {
+        if (_enemyMilitary is null || _enemyMilitaryTick != _world.Tick)
+            (_enemyMilitary, _enemyMilitaryTick) = (EnemyMilitary(), _world.Tick);
+        return _enemyMilitary;
+    }
+
     /// <summary>Occupied military buildings of other players (where the enemy is).</summary>
     internal List<Building> EnemyMilitary() =>
         _world.Buildings.Where(b => b.Exists && b.Player != Player && IsMilitary(b) && b.State == BuildingState.Finished).ToList();
@@ -305,9 +316,11 @@ public sealed partial class AiPlayer
     {
         int clearance = _config.Attack.PathClearance;
         var way = Way(from, group.Center);
-        var onTheWay = EnemyGroups.Where(g => !g.Soldiers.Any(group.Soldiers.Contains) && way.Any(p => PathFinder.Distance(g.Center, p) <= clearance)).ToList();
+        var members = group.Soldiers.ToHashSet();
+        bool other(EnemyGroup g) => g != group && !g.Soldiers.Any(members.Contains);
+        var onTheWay = EnemyGroups.Where(g => other(g) && way.Any(p => PathFinder.Distance(g.Center, p) <= clearance)).ToList();
         int reinforce = _config.Military.ReinforceRadius;
-        double helpers = EnemyGroups.Except(onTheWay).Where(g => g != group && !g.Soldiers.Any(group.Soldiers.Contains))
+        double helpers = EnemyGroups.Except(onTheWay).Where(other)
             .SelectMany(g => g.Soldiers)
             .Where(s => s.Profession == Profession.Soldier && PathFinder.Distance(s.Position, group.Center) <= reinforce)
             .Sum(s => Strength(s, group.Center));
@@ -346,7 +359,7 @@ public sealed partial class AiPlayer
     internal double TowerFire(IReadOnlyCollection<GridPoint> points, Building? except = null)
     {
         int range = _world.Military.Config.Soldiers[SoldierType.Bowman].Range;
-        return EnemyMilitary().Where(b => b != except && points.Any(p => PathFinder.Distance(b.Position, p) <= range))
+        return EnemyMilitaryNow().Where(b => b != except && points.Any(p => PathFinder.Distance(b.Position, p) <= range))
             .Sum(b => _world.Military.Occupants(b).Where(s => s is { SoldierType: SoldierType.Bowman }).Sum(s => Strength(s!, b.Position)));
     }
 
@@ -469,18 +482,40 @@ public sealed partial class AiPlayer
         var enemies = _world.Settlers.Where(s => s.Profession is Profession.Soldier or Profession.Geologist or Profession.Scout or Profession.Pioneer && s.Player != Player
                                                  && !s.IsInside && !s.IsDead && s.IsRevealedTo(Player)).ToList();
         var groups = new List<EnemyGroup>();
-        var left = new HashSet<Settler>(enemies);
-        while (left.Count > 0)
+        // Neighbours are looked for in squares of the radius (the 3 × 3 around): with a big army a search
+        // through all enemies for every member took long. Groups and their order as found in list order.
+        int side = Math.Max(1, radius);
+        var squares = new Dictionary<(int, int), List<int>>();
+        for (int i = 0; i < enemies.Count; i++)
         {
-            var first = left.First();
-            var members = new List<Settler> { first };
-            left.Remove(first);
-            for (int i = 0; i < members.Count; i++)
-                foreach (var other in left.Where(o => PathFinder.Distance(o.Position, members[i].Position) <= radius).ToList())
+            var key = (enemies[i].Position.X / side, enemies[i].Position.Y / side);
+            (squares.TryGetValue(key, out var list) ? list : squares[key] = new List<int>()).Add(i);
+        }
+        var grouped = new bool[enemies.Count];
+        var found = new List<int>();
+        for (int first = 0; first < enemies.Count; first++)
+        {
+            if (grouped[first])
+                continue;
+            grouped[first] = true;
+            var members = new List<Settler> { enemies[first] };
+            for (int m = 0; m < members.Count; m++)
+            {
+                var at = members[m].Position;
+                found.Clear();
+                for (int sy = at.Y / side - 1; sy <= at.Y / side + 1; sy++)
+                for (int sx = at.X / side - 1; sx <= at.X / side + 1; sx++)
+                    if (squares.TryGetValue((sx, sy), out var square))
+                        foreach (int j in square)
+                            if (!grouped[j] && PathFinder.Distance(enemies[j].Position, at) <= radius)
+                                found.Add(j);
+                found.Sort();
+                foreach (int j in found)
                 {
-                    members.Add(other);
-                    left.Remove(other);
+                    grouped[j] = true;
+                    members.Add(enemies[j]);
                 }
+            }
             var center = new GridPoint((int)members.Average(m => m.Position.X), (int)members.Average(m => m.Position.Y));
             groups.Add(new EnemyGroup(center, members, members.Sum(m => Strength(m, center))));
         }

@@ -37,13 +37,14 @@ public sealed partial class AiPlayer
             return;
         var pathFinder = _world.PathFinder!;
         // The own army fights on foreign land, the enemy's at home.
-        double ownArmy = Army(Player) * _world.Military.CombatStrength(Player);
+        var armies = Armies();
+        double ownArmy = armies.GetValueOrDefault(Player) * _world.Military.CombatStrength(Player);
         (Building Target, Building Rally, List<Settler> Force, double Score)? best = null;
         foreach (var target in _world.Buildings.Where(b => b.Exists && b.Player != Player && IsMilitary(b)
                                                            && b.State == BuildingState.Finished && _world.Military.IsOccupied(b)))
         {
             // Clearly stronger than that enemy as a whole.
-            if (ownArmy < Army(target.Player) * rules.ArmyRatio)
+            if (ownArmy < armies.GetValueOrDefault(target.Player) * rules.ArmyRatio)
                 continue;
             // An outpost far away could not be held. Measured from the own land: the own military buildings stand
             // some 30 fields behind its edge, as the enemy's do behind theirs.
@@ -156,19 +157,57 @@ public sealed partial class AiPlayer
     private bool OwnLandWithin(GridPoint at, int range)
     {
         var map = _world.Map!;
+        var counts = OwnLandByRow();
+        int size = map.Size;
+        // Row by row: the own points in the row's stretch of the hexagon, from running counts.
         for (int dy = -range; dy <= range; dy++)
-        for (int dx = Math.Max(-range, dy - range); dx <= Math.Min(range, dy + range); dx++)
         {
-            var p = new GridPoint(at.X + dx, at.Y + dy);
-            if (map.Contains(p) && map.OwnerAt(p) == Player)
+            int y = at.Y + dy;
+            if (y < 0 || y >= size)
+                continue;
+            int from = Math.Max(0, at.X + Math.Max(-range, dy - range)), to = Math.Min(size - 1, at.X + Math.Min(range, dy + range));
+            if (from <= to && counts[y * (size + 1) + to + 1] > counts[y * (size + 1) + from])
                 return true;
         }
         return false;
     }
 
-    /// <summary>All soldiers of a player, in buildings and outside, without the combat strength.</summary>
-    private double Army(int player) =>
-        _world.Settlers.Where(s => s.Player == player && s.Profession == Profession.Soldier && !s.IsDead).Sum(Power);
+    /// <summary>Own points per row up to each column (row y, column x: index y * (size + 1) + x), redone when land changes hands.</summary>
+    [NonSerialized] private int[]? _ownByRow;
+    [NonSerialized] private int _ownByRowVersion = -1;
+
+    private int[] OwnLandByRow()
+    {
+        var map = _world.Map!;
+        if (_ownByRow is not null && _ownByRowVersion == map.OwnerVersion)
+            return _ownByRow;
+        int size = map.Size;
+        var counts = _ownByRow ??= new int[size * (size + 1)];
+        byte self = (byte)Player;
+        for (int y = 0, i = 0; y < size; y++)
+        {
+            int row = y * (size + 1), count = 0;
+            counts[row] = 0;
+            for (int x = 0; x < size; x++, i++)
+            {
+                if (map.OwnerAt(i) == self)
+                    count++;
+                counts[row + x + 1] = count;
+            }
+        }
+        _ownByRowVersion = map.OwnerVersion;
+        return counts;
+    }
+
+    /// <summary>All soldiers of each player, in buildings and outside, without the combat strength; by player.</summary>
+    private Dictionary<int, double> Armies()
+    {
+        var armies = new Dictionary<int, double>();
+        foreach (var s in _world.Settlers)
+            if (s.Profession == Profession.Soldier && !s.IsDead)
+                armies[s.Player] = armies.GetValueOrDefault(s.Player) + Power(s);
+        return armies;
+    }
 
     /// <summary>No enemy group near the way (groups at the target count as its defence).</summary>
     internal bool WayIsClear(GridPoint from, Building target)

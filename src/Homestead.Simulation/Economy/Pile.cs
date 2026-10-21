@@ -75,6 +75,17 @@ public sealed class Pile
 
     public bool Accepts(Material material) => Receives && Space > 0 && (Material ?? _accepted ?? material) == material;
 
+    /// <summary>
+    /// Whether the pile may accept the material at any time during one dispatch of the carriers: a storehouse
+    /// pile that is empty may take it again once a job to it is called off (<see cref="ResetMaterialIfEmpty"/>).
+    /// </summary>
+    internal bool MayAccept(Material material) => Role switch
+    {
+        PileRole.Request => (_accepted ?? material) == material,
+        PileRole.Storage => Material is null || Material == material || Count == 0,
+        _ => false,
+    };
+
     /// <summary>A storehouse pile that ran empty takes any material again.</summary>
     internal void ResetMaterialIfEmpty()
     {

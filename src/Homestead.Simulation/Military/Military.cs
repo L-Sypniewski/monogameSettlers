@@ -144,8 +144,11 @@ public sealed partial class Military
             // soldier (and claims its land) before any building fills up.
             foreach (var garrison in _garrisons.Values.ToList())
                 ReleaseUnwanted(garrison);
+            // The soldiers outside, by player (in settler order), looked through for every place to fill.
+            var outside = _world.Settlers.Where(s => s.Profession == Profession.Soldier && !s.IsInside)
+                .GroupBy(s => s.Player).ToDictionary(group => group.Key, group => group.ToList());
             foreach (var garrison in _garrisons.Values.OrderBy(g => g.Places.Count(p => p is not null) + g.Coming.Count).ToList())
-                CallSoldier(garrison);
+                CallSoldier(garrison, outside.GetValueOrDefault(garrison.Building.Player) ?? []);
         }
         foreach (var barrack in _barracks.Values.ToList())
             AdvanceBarrack(barrack);
@@ -298,7 +301,7 @@ public sealed partial class Military
 
     // ---- military buildings ----
 
-    private void CallSoldier(Garrison g)
+    private void CallSoldier(Garrison g, List<Settler> outside)
     {
         if (!g.Building.Exists)
             return;
@@ -314,7 +317,7 @@ public sealed partial class Military
             var missing = Enum.GetValues<SoldierType>().Where(t => place.Accepts(t) && g.Wanted[(int)t] > Assigned(g, t)).ToList();
             if (missing.Count == 0)
                 continue;
-            var soldier = _world.Settlers
+            var soldier = outside
                 .Where(s => s.Profession == Profession.Soldier && !s.HasTask && !s.IsInside && s.Player == g.Building.Player
                             && s.SoldierType is { } type && missing.Contains(type) && pathFinder.AreConnected(s.Position, door))
                 .MinBy(s => PathFinder.Distance(s.Position, door));

@@ -73,6 +73,19 @@ public sealed partial class World
         return !_footprints.ContainsKey(index) && !_protected.ContainsKey(index) && !_pilesByPoint.ContainsKey(index);
     }
 
+    /// <summary>The points that are not free ground (<see cref="IsFreeGround"/>), each once, by map index.</summary>
+    internal IEnumerable<int> OccupiedPoints()
+    {
+        foreach (int index in _footprints.Keys)
+            yield return index;
+        foreach (int index in _protected.Keys)
+            if (!_footprints.ContainsKey(index))
+                yield return index;
+        foreach (int index in _pilesByPoint.Keys)
+            if (!_footprints.ContainsKey(index) && !_protected.ContainsKey(index))
+                yield return index;
+    }
+
     /// <summary>The building or construction site whose footprint covers the point.</summary>
     public Building? BuildingAt(GridPoint p) =>
         RequireMap().Contains(p) && _footprints.TryGetValue(RequireMap().Index(p), out var building) && building.Exists ? building : null;

@@ -15,15 +15,14 @@ internal sealed class MapSurvey
     private readonly GameMap _map;
     private readonly int _player;
 
-    /// <summary>Ground rice grows on (see the crops in production.json).</summary>
-    private readonly IReadOnlySet<TerrainType> _swamp;
+    /// <summary>Ground rice grows on (see the crops in production.json), by terrain type; built when first needed (saved games).</summary>
+    [NonSerialized] private bool[]? _swamp;
 
     public MapSurvey(World world, int player)
     {
         _world = world;
         var map = _map = world.Map!;
         _player = player;
-        _swamp = world.Production.Config.Crops.TryGetValue("rice", out var rice) ? rice.Ground : new HashSet<TerrainType>();
         CellsPerSide = (map.Size + CellSize - 1) / CellSize;
         Cells = new Cell[CellsPerSide * CellsPerSide];
         for (int i = 0; i < Cells.Length; i++)
@@ -48,34 +47,45 @@ internal sealed class MapSurvey
             cell.Clear();
             cell.OwnPart!.Clear();
         }
-        for (int y = 0; y < _map.Size; y++)
-        for (int x = 0; x < _map.Size; x++)
+        // By index, and free ground looked up for the few occupied points afterwards rather than for every
+        // point: a 640 map has 409600 of them, surveyed by every AI.
+        byte self = (byte)_player;
+        var swamp = _swamp ??= SwampGround();
+        for (int i = 0, y = 0; y < _map.Size; y++)
+        for (int x = 0; x < _map.Size; x++, i++)
         {
-            var p = new GridPoint(x, y);
             var cell = Cells[y / CellSize * CellsPerSide + x / CellSize];
-            int? owner = _map.OwnerAt(p);
-            bool mine = owner == _player;
+            byte owner = _map.OwnerAt(i);
+            bool mine = owner == self;
             if (mine)
             {
                 cell.Own++;
                 own.Own++;
             }
-            else if (owner is not null)
+            else if (owner != GameMap.NoOwner)
                 cell.Foreign++;
 
-            byte code = _map.ObjectCodeAt(p);
-            var terrain = _map.TerrainAt(p);
+            byte code = _map.ObjectCodeAt(i);
+            var terrain = _map.TerrainAt(i);
             bool water = terrain is TerrainType.Water or TerrainType.River;
-            bool swamp = _swamp.Contains(terrain);
-            var (type, amount) = _map.ResourceAt(p);
+            var (type, amount) = _map.ResourceAt(i);
             int trees = MapObjectCodes.IsAdultTree(code) ? 1 : 0;
             int stone = MapObjectCodes.StoneLeft(code);
             int fish = water && type == ResourceType.Fish ? amount : 0;
             int ore = !water && type != ResourceType.Fish ? amount : 0;
-            // Free building land: grass without anything on it or a building around.
-            bool buildable = terrain == TerrainType.Grass && code == MapObjectCodes.None && _world.IsFreeGround(p);
+            bool land = !water && _map.IsWalkable(i);
+            // Free building land: grass without anything on it (buildings around: taken off below).
+            bool buildable = land && IsBuildable(terrain, code);
+            bool freeSwamp = swamp[(int)terrain] && code == MapObjectCodes.None;
 
-            foreach (var target in mine ? [cell, cell.OwnPart!, own] : new[] { cell })
+            Add(cell);
+            if (mine)
+            {
+                Add(cell.OwnPart!);
+                Add(own);
+            }
+
+            void Add(Cell target)
             {
                 target.Trees += trees;
                 target.StoneUnits += stone;
@@ -84,21 +94,45 @@ internal sealed class MapSurvey
                     target.Water++;
                 if (terrain == TerrainType.River)
                     target.River++;
-                if (swamp && code == MapObjectCodes.None)
+                if (freeSwamp)
                     target.Swamp++;
                 if (ore > 0)
                     target.Ore[(int)type] += ore;
-                if (_map.IsWalkable(p) && !water)
+                if (land)
                 {
                     target.Walkable++;
-                    target.Anchor ??= p;
+                    target.Anchor ??= new GridPoint(x, y);
                     if (buildable)
                         target.Buildable++;
                 }
             }
         }
+        foreach (int i in _world.OccupiedPoints())
+        {
+            if (!_map.IsWalkable(i) || !IsBuildable(_map.TerrainAt(i), _map.ObjectCodeAt(i)))
+                continue;
+            var p = _map.Point(i);
+            var cell = Cells[p.Y / CellSize * CellsPerSide + p.X / CellSize];
+            cell.Buildable--;
+            if (_map.OwnerAt(i) == self)
+            {
+                cell.OwnPart!.Buildable--;
+                own.Buildable--;
+            }
+        }
         Own = own;
     }
+
+    private bool[] SwampGround()
+    {
+        var swamp = new bool[256];
+        if (_world.Production.Config.Crops.TryGetValue("rice", out var rice))
+            foreach (var terrain in rice.Ground)
+                swamp[(int)terrain] = true;
+        return swamp;
+    }
+
+    private static bool IsBuildable(TerrainType terrain, byte code) => terrain == TerrainType.Grass && code == MapObjectCodes.None;
 
     public sealed class Cell(GridPoint center)
     {

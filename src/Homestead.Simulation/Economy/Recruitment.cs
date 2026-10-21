@@ -62,11 +62,12 @@ public sealed class Recruitment
     public int Convertible(int player)
     {
         int carriers = 0, specialists = 0;
+        var recruited = _active.Count == 0 ? null : _active.Select(r => r.Settler).ToHashSet();
         foreach (var s in _world.Settlers)
         {
             if (s.Player != player || s.Profession is Profession.Soldier or Profession.Priest)
                 continue;
-            if (s.IsCarrier && !_active.Any(r => r.Settler == s))
+            if (s.IsCarrier && recruited?.Contains(s) != true)
                 carriers++;
             else
                 specialists++;

@@ -89,16 +89,24 @@ public sealed class Logistics
             return;
 
         var pathFinder = _world.PathFinder!;
+        // Kept up to date as carriers are given jobs, and the requests by material: with hundreds of piles
+        // and carriers, working them out anew for every offer took long.
+        var idleOf = new Dictionary<int, int>();
+        foreach (var carrier in idleCarriers)
+            idleOf[carrier.Player] = idleOf.GetValueOrDefault(carrier.Player) + 1;
+        var players = idleOf.Keys.ToHashSet();
+        var requestsFor = new Dictionary<Material, List<Pile>>();
         foreach (var offer in offers)
         {
+            var material = offer.Material!.Value;
+            if (!requestsFor.TryGetValue(material, out var wanting))
+                requestsFor[material] = wanting = requests.Where(r => r.MayAccept(material)).ToList();
             while (offer.Available > 0 && idleCarriers.Count > 0)
             {
-                var players = idleCarriers.Select(c => c.Player).ToHashSet();
-                if (ChooseTarget(offer, requests, players) is not { } target)
+                if (ChooseTarget(offer, wanting, players) is not { } target)
                     break;
                 int player = target.Owner!.Player;
                 // The target is chosen; the goods come from the pile of that material nearest to it.
-                var material = offer.Material!.Value;
                 var source = offers
                     .Where(o => o.Available > 0 && o.Material == material && o.Owner != target.Owner && _world.BelongsTo(o, player)
                                 && Allowed(o, target, material))
@@ -110,6 +118,8 @@ public sealed class Logistics
                 if (carrier is null)
                     break;
                 idleCarriers.Remove(carrier);
+                if (--idleOf[player] == 0)
+                    players.Remove(player);
                 Start(carrier, source, target);
             }
             if (idleCarriers.Count == 0)
