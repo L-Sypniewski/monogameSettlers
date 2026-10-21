@@ -123,6 +123,7 @@ public sealed class Pioneering
                     pioneer.IsWorking = true;
                     pioneer.Activity = Activity.Claiming;
                     pioneer.ActivityTicks = 0;
+                    _world.Cue(new SoundCue(SoundCueKind.Claiming, pioneer.Position, pioneer.Player));
                 }
                 else if (!Next(job))
                     End(job);

@@ -19,10 +19,22 @@ public enum SoundCueKind
 
     /// <summary>A priest began a spell.</summary>
     Spell,
+
+    /// <summary>A geologist put up a sign over a find: <see cref="SoundCue.Amount"/> says how much.</summary>
+    GeologistFinds,
+
+    /// <summary>A healer began healing a soldier.</summary>
+    Healing,
+
+    /// <summary>A pioneer began setting a border post.</summary>
+    Claiming,
+
+    /// <summary>A worker began sowing or planting: <see cref="SoundCue.Trade"/> says who.</summary>
+    Sowing,
 }
 
 /// <summary>Something audible happened at a point in this tick.</summary>
-public sealed record SoundCue(SoundCueKind Kind, GridPoint Position, int Player, SoldierType? Soldier = null, Civilization? People = null);
+public sealed record SoundCue(SoundCueKind Kind, GridPoint Position, int Player, SoldierType? Soldier = null, Civilization? People = null, int Amount = 0, string? Trade = null);
 
 public sealed partial class World
 {

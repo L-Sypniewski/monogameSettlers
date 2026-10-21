@@ -47,7 +47,7 @@ public sealed class WorkSounds
                 next = now + _random.NextDouble() * workshop.EverySeconds * 0.5;
             if (now >= next)
             {
-                audio.Play(workshop.Sound, building.Position, volume);
+                audio.Play(workshop.Sounds[_random.Next(workshop.Sounds.Length)], building.Position, volume);
                 next = now + workshop.EverySeconds * (0.85 + 0.3 * _random.NextDouble());
             }
             _workshopNext[building.Id] = next;

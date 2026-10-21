@@ -492,6 +492,8 @@ public sealed partial class Production
                     worker!.Facing = w.Facing;
                     BeginHandling(w, ActivityAt(w), Phase.Gathering);
                     w.TicksLeft = WorkTicks(w, w.Gatherer!.WorkTicks);
+                    if (worker.Activity == Activity.Sowing)
+                        _world.Cue(new SoundCue(SoundCueKind.Sowing, worker.Position, worker.Player, Trade: worker.Trade));
                 }
                 else if (stalledSpot)
                 {

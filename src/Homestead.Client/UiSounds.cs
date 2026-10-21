@@ -18,7 +18,7 @@ public static class UiSounds
 
     private static void Play(string name)
     {
-        if (Audio is { } audio && audio.Config.Ui.TryGetValue(name, out int sound))
+        if (Audio is { } audio && audio.Config.Ui.TryGetValue(name, out var sound))
             audio.Play(sound, audio.Config.VolumeOf("ui"));
     }
 }

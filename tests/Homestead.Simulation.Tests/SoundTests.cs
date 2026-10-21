@@ -60,6 +60,40 @@ public class SoundTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_geologist_cues_each_find_with_its_amount()
+    {
+        var map = new GameMap(60);
+        for (int y = 35; y <= 45; y++)
+        for (int x = 35; x <= 45; x++)
+        {
+            map.SetTerrain(new GridPoint(x, y), TerrainType.Mountain);
+            map.SetResource(new GridPoint(x, y), ResourceType.Coal, 12);
+        }
+        var world = new World(map, TestConfig.NoTools) { SoundCues = new() };
+        var geologist = world.Spawn(new GridPoint(10, 10), Profession.Geologist)!;
+        world.Geology.Send([geologist], new GridPoint(40, 40));
+
+        for (int t = 0; t < 3_000 && world.Geology.Signs.Count == 0; t++)
+            world.Step();
+
+        var find = Assert.Single(world.SoundCues, c => c.Kind == SoundCueKind.GeologistFinds);
+        Assert.Equal(12, find.Amount);
+    }
+
+    [Fact]
+    public void A_farmer_cues_sowing_with_his_trade()
+    {
+        var world = new World(new GameMap(70), TestConfig.NoTools) { SoundCues = new() };
+        world.PlaceBuilding(BuildingCatalog.Load(Civilization.Roman)["farm"], 0, new GridPoint(30, 20));
+        world.Spawn(new GridPoint(45, 40), Profession.Carrier);
+
+        for (int t = 0; t < 20_000 && world.Production.FieldsSown < 1; t++)
+            world.Step();
+
+        Assert.Contains(world.SoundCues, c => c is { Kind: SoundCueKind.Sowing, Trade: "FARMER" });
+    }
+
+    [Fact]
     public void Without_a_list_nothing_is_collected()
     {
         var world = new World(new GameMap(40), TestConfig.NoTools);

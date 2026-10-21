@@ -172,7 +172,8 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   meldet nach `afterSeconds` einmal bis Ende: `noStaff`, `noTool`, `noResources`, `mineExhausted` (Chance ≤ `maxChance` %). `Announce`: ohne Ort.
 - `SoundCues` (`World.SoundCues`, nicht gespeichert): nur gesammelt, wenn der Client eine Liste setzt (leert sie je Frame); `Strike` bei jedem
   Treffer/Schuss (auch an der Tür, mit Soldatentyp), `Death` in `MilitaryCombat.Kill` (mit Volk des Toten), `TreeFalls` beim Fällen, `BuildingFalls` in
-  `RemoveBuilding`, `Spell` bei Zauberbeginn; `Strike` trägt das Volk (Ägypter-Bogen klingt anders).
+  `RemoveBuilding`, `Spell` bei Zauberbeginn, `Healing` (Lazarett), `Claiming` (Pionier-Pfosten), `GeologistFinds` (mit Menge),
+  `Sowing` (mit `Trade`); `Strike` trägt das Volk (Ägypter-Bogen klingt anders).
 - `GameHistory` (`World.History`): alle 30 s (`SampleTicks`) je Spieler eine `HistorySample` (Land, Siedler nach Art, Soldaten nach Typ,
   Gebäude, Baustellen, Militärgebäude, Wohnraum, Streikende, Lagerbestand, Produziertes, Kampfkraft, Mana) plus laufende Summen
   (getötet/gefallen, Gebäude erobert/verloren, fertiggestellt/zerstört); für den Statistik-Bildschirm.
@@ -275,12 +276,13 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   `--map <name>` (Standard: erste Mehrspieler-Karte; `random[:spieler[:none|mirror|repeat[:seed]]]`); `--peoples amazon,roman,…` (offene Völker,
   Spieler i: Eintrag i mod n; sonst zufällig; Kartenvorgaben 0–3 gelten); `--characters ,general` (KI-Charakter je Spieler, Eintrag i → Spieler i+1, leer = gelost).
 - **Ton** (`GameAudio`, nicht in Captures): Effekte aus `SND/Siedler3_00.dat` je `SoundCue` (Nummern in `data/sound.json`, am Original erkannt:
-  Schwert 30, Bogen 33 – Ägypter 32 –, Speer 34, Tod 35, Amazone 113, Baum fällt 36, Gebäude fällt 93, Zaubern 75; Tabelle `docs/formate/snd.md`), Variante zufällig, nur in Sicht (Fog), im Bild voll, außerhalb bis `hearing` halbe Bildbreiten leiser,
+  Schwert 30, Bogen 33 – Ägypter 32 –, Speer 34, Tod 35, Amazone 113, Baum fällt 36, Gebäude fällt 93, Zaubern 75, Heilen 21, Pionier 25/1, Geologe ab
+  `minAmount` 24/1–3, Aussaat Bauer 8; Tabelle `docs/formate/snd.md`; `SoundRef`: Nummer oder `{sound, variants}`), Variante zufällig, nur in Sicht (Fog), im Bild voll, außerhalb bis `hearing` halbe Bildbreiten leiser,
   links/rechts gepannt, höchstens `maxVoices` gleichzeitig und `perFrame` je Geräusch und Frame. Aus der Bildmitte: Befehl an Soldaten (Laufen/Angriff, `command` 57),
   Event-Meldung (`events`: Kampf 109, sonst 110), Panel über `UiSounds` (`ui`: Auftrag/Anteil/Besatzung/Transportreihenfolge hoch 47/runter 48,
   Schalter wie Rekrutierung, Anhalten, Einlagern, Lager-Spezialisierung 54, Arbeitsbereich versetzt 22). `WorkSounds`: Arbeit draußen je `Activity` (`work`: Fällen 0, Planieren 2, Bauen 1, Steinmetz 3,
   Angeln 16) im Takt der Arbeitsanimation (Moment `at` je Runde, `SettlerRenderer.WorkRoundFrames`); Werkstätten (`workshops`: Sägewerk 5,
-  Werkzeug-/Waffenschmied 6/7) etwa alle `everySeconds`, solange `Production.IsProducing`. `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis gestreamt)
+  Werkzeug-/Waffenschmied 6/7, Eisenschmelze 37/38) etwa alle `everySeconds`, solange `Production.IsProducing`. `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis gestreamt)
   gemischt aus `Tracks` (`SoundConfig.TracksFor`: Liste des eigenen Volks, `music.tracks`, Zuordnung geraten; „Musik je Volk“ aus: alle), Pause
   dazwischen, neue Liste ohne das laufende Stück blendet aus; in Menüs vor dem Spiel still. Musik/Musik je Volk/Effekte in den Einstellungen
   (Darstellung, `DisplaySettings`).

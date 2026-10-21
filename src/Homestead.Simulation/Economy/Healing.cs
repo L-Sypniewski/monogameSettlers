@@ -139,6 +139,7 @@ public sealed partial class Production
         healer.IsWorking = true;
         healer.Activity = Activity.Healing;
         healer.ActivityTicks = 0;
+        _world.Cue(new SoundCue(SoundCueKind.Healing, healer.Position, healer.Player));
         w.Phase = Phase.Healing;
         w.TicksLeft = _world.Military.Config.HealTicks;
     }

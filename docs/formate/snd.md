@@ -39,24 +39,24 @@ Fett: im Spiel genutzt (`data/sound.json`). „Gehört“: vom Projektinhaber am
 | Nr. | Geräusch | Nr. | Geräusch |
 |-----|----------|-----|----------|
 | **0** | **Holzfäller** | **36** | **fallender Baum** |
-| **1** | **Bauarbeiter** | 37/38 | flüssiges Metall |
+| **1** | **Bauarbeiter** | **37/38** | **Eisenschmelze** (gehört) |
 | **2** | **Planierer** | 39 | Schweine |
 | **3** | **Steinmetz** | 40/41 | Esel |
 | **5** | **Sägewerk** | 42 | Mühle |
 | **6/7** | **Schmied** (Werkzeug/Waffen) | 45 | Köhler hustet |
-| 8/9, 12 | Bauer | **47/48** | **Auftrag/Anteil hoch/runter** (gehört) |
+| **8** | **Aussaat des Bauern** (gehört); 9, 12 Bauer | **47/48** | **Auftrag/Anteil hoch/runter** (gehört) |
 | 13 | Feuer | **54** | **Schalter an/aus** (gehört) |
 | 14 | Schlachter | **57** | **Befehl an Soldaten** (gehört; 58/59 gleiche Aufnahme) |
 | 15–17 | Fischer (**16** genutzt) | 62 | Klick |
 | 20 | Werft | 67 | Wüste |
-| 21 | Heiler | 68 | Meer |
+| **21** | **Lazarett: Heilen** (gehört) | 68 | Meer |
 | **22** | **Arbeitsbereich versetzt** (gehört) | 69/70 | Vögel |
-| 24 | Geologe | 71 | Fluss |
-| 25 | Bogenschütze | 72 | Sumpf |
+| **24** | Geologe; **Varianten 1–3: großes Vorkommen** (gehört) | 71 | Fluss |
+| **25** | **Variante 1: Pionier setzt Grenzpfosten** (gehört; JSettlers: Bogenschütze) | 72 | Sumpf |
 | **30** | **Schwertkämpfer** (Schlag) | 73/74 | Wind |
 | 31 | ? | **75** | **Zaubern** (gehört; JSettlers: Donner) |
 | **32** | **Bogenschuss der Ägypter** (gehört) | 76 | Regen |
-| **33** | **Bogenschütze** (Schuss) | 80 | „Ihr werdet angegriffen“ |
+| **33** | **Bogenschütze** (Schuss, außer Ägypter; gehört) | 80 | „Ihr werdet angegriffen“ |
 | **34** | **Pikenier** (Stoß) | 85 | Pfeilschuss |
 | **35** | **Tod** (9 Varianten) | 86–90 | Kanone? (87: kurzes dumpfes „klonk“) |
 | **113** | **Tod einer Amazone** (4 Varianten) | **93** | **Gebäude abgerissen/zerstört** (gehört) |

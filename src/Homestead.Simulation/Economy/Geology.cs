@@ -277,6 +277,8 @@ public sealed class Geology
         bool found = type != ResourceType.Fish && amount > 0;
         long lifetime = _rules.SignMinTicks + (long)(_random.NextDouble() * Math.Max(0, _rules.SignMaxTicks - _rules.SignMinTicks));
         _signs[p] = new ResourceSign(player, found ? type : null, found ? amount : 0, _world.Tick + lifetime);
+        if (found)
+            _world.Cue(new SoundCue(SoundCueKind.GeologistFinds, p, player, Amount: amount));
     }
 
     /// <summary>
