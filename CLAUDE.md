@@ -41,7 +41,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   `Settler.StepProgress` in `World.StepUnits`; Tempo je Zielfeld: Gebirge ×0,8, Trampelpfad ×1,2 (`walking` in `production.json`);
   dazu Soldaten je Typ `speed` in `military.json` (Schwertkämpfer ×1,1, Pikeniere ×1,05, Bogenschützen ×1).
   Siedler und Gebäude haben einen Spieler; Logistik/Rekrutierung nur für den eigenen. `World.TerritoryRules` erzwingt eigenes Land
-  (Bauplatz samt Tür, Stapel, Bauarbeiterplätze, Wege – außer Soldaten, Priester, Geologen, Späher, Pioniere); Gestrandete fliehen (`Idling`).
+  (Bauplatz samt Tür, Stapel, Bauarbeiterplätze, Wege – außer Soldaten, Priester, Geologen, Späher, Pioniere); Gestrandete fliehen (`Idling`); wer mit Auftrag Land unter den Füßen verliert (`World.IsStranded`), bricht ab, lässt Getragenes fallen und nimmt erst auf eigenem Land Neues an.
 - `Trails`: Träger mit Auftrag treten auf Gras Trampelpfade (`GroundCover.Trail`, nach `trailSteps`), verschwinden nach `trailFadeSeconds` (300).
   Ackerland und Pfade halten ein Feld Abstand zu allem außer Gras/planiertem Boden und zueinander (`GameMap.CoverFits`, sonst brechen
   Original-Übergänge). Getreide wird auch auf Pfade gesät und kürzt Pfade ringsum (`Trails.CutAround`); Säen macht Gras im Umkreis
@@ -322,7 +322,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   Strg+Klick alle eigenen dieses Berufs im Bild (Soldaten: alle), Alt+Klick dieses Typs im Bild (Soldaten: Typ, Rang egal). Ausgewählte wie im Original: zwei weiße Eckklammern über dem Kopf, dazwischen
   runder Punkt mit schwarzem Rand grün→gelb→rot nach LP (`DrawSelectionMarker`).
   `SelectionPanel` je Art (Typ/Stufe und Volk – Bekehrte zeigen ihres) Porträt (`Portraits`, `ui.json` `portraits`; andere Völker `MapGame.PortraitsOf`) + Anzahl (zu viele: gestaucht, mehr Spalten oder kleiner), unten Kampfkraft – wie Zaubermenü
-  im Inhaltsbereich (`BuildMenu.Content`). Strg+1–9 speichert Gruppe (jede Figur in höchstens einer – sie verlässt ihre alte; Porträt des ersten Mitglieds wie im `SelectionPanel`, gleich groß, oben rechts, gewählte gelb gerahmt; Klick oder 1–9 wählt, zweimal binnen 0,5 s: Kameraflug zum Mittelpunkt; Tote, Gebäude Betretende, Bekehrte fallen raus).
+  im Inhaltsbereich (`BuildMenu.Content`). Strg+1–9 speichert Gruppe (jede Figur in höchstens einer – sie verlässt ihre alte; Porträt des ersten Mitglieds wie im `SelectionPanel`, gleich groß, oben rechts, gewählte gelb gerahmt; Klick oder 1–9 wählt, zweimal binnen 0,5 s: Kameraflug zum Mittelpunkt; Tote, Gebäude Betretende, Bekehrte fallen raus; im Spielstand als Client-Wert `groups`).
   Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungen ohne Kampf. Geologen: Rechtsklick hin, auf Gebirge suchen.
   Priester: Zaubermenü (Name, Kosten, Mana), Zauber wählen, dann Ziel (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
   Träger umwandeln nur über Siedler › Berufe. Linksklick abwählen; rechts ziehen verschiebt die Karte.

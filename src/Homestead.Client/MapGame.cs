@@ -692,7 +692,7 @@ public sealed class MapGame : Game
         _selected = null;
         ClearSelection();
         _paused = false;
-        _controlGroups = new ControlGroups();
+        _controlGroups = ControlGroups.Restore(game.Client.GetValueOrDefault("groups"), _world.Settlers);
         _selectedBuilding = null;
         _placing = _aiming = false;
         _tabs.Current = PanelTab.Build;
@@ -754,6 +754,7 @@ public sealed class MapGame : Game
             {
                 ["camera"] = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{_camera.X},{_camera.Y}"),
                 ["colors"] = PlayerColors.Saved(),
+                ["groups"] = _controlGroups.Saved(),
             },
         };
         if (_mission is not null)

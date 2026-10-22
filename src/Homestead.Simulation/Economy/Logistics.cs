@@ -302,6 +302,11 @@ public sealed class Logistics
     private void Advance(TransportJob job)
     {
         var carrier = job.Carrier;
+        if (_world.IsStranded(carrier))
+        {
+            Fail(job, "land lost");
+            return;
+        }
         // Walking phases only: picking up and dropping are short and bounded anyway.
         if (job.Phase is TransportPhase.ToSource or TransportPhase.ToTarget && Stalled(job))
         {

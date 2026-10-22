@@ -55,6 +55,43 @@ public class IdlingTests
     }
 
     [Fact]
+    public void A_carrier_whose_land_is_lost_drops_its_load_and_flees_instead_of_crossing_foreign_land()
+    {
+        // Own land all over; the carrier walks the trunk east. Halfway the middle becomes player 1's land.
+        var map = new GameMap(90);
+        var all = Enumerable.Range(0, 90).SelectMany(y => Enumerable.Range(0, 90).Select(x => new GridPoint(x, y))).ToList();
+        foreach (var p in all)
+            map.SetOwner(p, 0);
+        var world = new World(map, ProductionConfig.None) { TerritoryRules = true };
+        var sawmill = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(75, 45))!;
+        world.AddLooseGoods(new GridPoint(10, 45), Material.Trunk, 1);
+        var carrier = world.Spawn(new GridPoint(10, 40), Profession.Carrier)!;
+        Run(world, 120 * World.TicksPerSecond, () => carrier.Carrying is not null && carrier.Position.X >= 38);
+        Assert.Equal(Material.Trunk, carrier.Carrying);
+
+        bool Middle(GridPoint p) => p.X - p.Y / 2 is >= 15 and < 65;
+        foreach (var p in all.Where(Middle))
+            map.SetOwner(p, 1);
+        Run(world, 2);
+
+        Assert.Null(carrier.Carrying);
+        Assert.False(carrier.HasTask);
+        Assert.Equal(1, world.Piles.Where(p => p.Owner is null && p.Material == Material.Trunk).Sum(p => p.Count));
+
+        int deepest = 0;
+        Run(world, 60 * World.TicksPerSecond, () =>
+        {
+            if (map.OwnerAt(carrier.Position) == 1)
+                deepest = Math.Max(deepest, Math.Min(carrier.Position.X - carrier.Position.Y / 2 - 15, 65 - (carrier.Position.X - carrier.Position.Y / 2)));
+            return map.OwnerAt(carrier.Position) == 0 && carrier.Destination is null;
+        });
+        Assert.Equal(0, map.OwnerAt(carrier.Position));
+        Assert.False(carrier.IsDead);
+        Assert.Equal(0, sawmill.Piles.Single(p => p.Role == PileRole.Request).Count);
+        Assert.True(deepest < 15, $"walked {deepest} fields deep into the foreign land");
+    }
+
+    [Fact]
     public void A_carrier_with_no_own_land_wanders_and_dies_within_a_minute()
     {
         var map = new GameMap(80);

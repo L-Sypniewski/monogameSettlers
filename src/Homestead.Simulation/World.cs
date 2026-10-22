@@ -266,8 +266,23 @@ public sealed partial class World
     internal static bool RoamsFreely(Settler settler) =>
         settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer;
 
-    /// <summary>Whether the settler can walk to <paramref name="target"/> (see <see cref="LandOf"/>).</summary>
-    internal bool Reachable(Settler settler, GridPoint target) => PathFinder!.AreConnected(settler.Position, target, LandOf(settler));
+    /// <summary>
+    /// Whether the settler can walk to <paramref name="target"/> (see <see cref="LandOf"/>). Never for a
+    /// stranded one: it takes no new task before it is back on the own land.
+    /// </summary>
+    internal bool Reachable(Settler settler, GridPoint target) =>
+        !IsStranded(settler) && PathFinder!.AreConnected(settler.Position, target, LandOf(settler));
+
+    /// <summary>Whether a stranded settler can get from where it stands to <paramref name="target"/> (over any land).</summary>
+    internal bool CanFleeTo(Settler settler, GridPoint target) => PathFinder!.AreConnected(settler.Position, target, null);
+
+    /// <summary>
+    /// Outside on foreign or free land without being allowed there (with territory rules): its land was
+    /// lost under its feet. It gives up its task, drops what it carries and flees home (<c>Idling</c>) —
+    /// otherwise it would walk to its target straight across the foreign land.
+    /// </summary>
+    internal bool IsStranded(Settler settler) =>
+        TerritoryRules && !RoamsFreely(settler) && !settler.IsInside && Map!.OwnerAt(settler.StepTarget) != settler.Player;
 
     /// <summary>
     /// Everyone but soldiers and geologists walks on the own land only (with territory rules). Somebody

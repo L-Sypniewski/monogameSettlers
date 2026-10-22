@@ -35,6 +35,25 @@ public sealed class ControlGroups
     /// <summary>The living members of a group.</summary>
     public IReadOnlyList<Settler> Members(int index) => _groups[index];
 
+    /// <summary>The groups for a saved game: the members' ids, groups separated by ';' (empty ones too).</summary>
+    public string Saved() => string.Join(';', _groups.Select(g => string.Join(',', g.Select(s => s.Id))));
+
+    /// <summary>The groups of a saved game (<see cref="Saved"/>); members no longer there are left out.</summary>
+    public static ControlGroups Restore(string? saved, IEnumerable<Settler> settlers)
+    {
+        var groups = new ControlGroups();
+        if (string.IsNullOrEmpty(saved))
+            return groups;
+        var byId = settlers.ToDictionary(s => s.Id);
+        var parts = saved.Split(';');
+        for (int i = 0; i < Math.Min(parts.Length, Count); i++)
+            foreach (var id in parts[i].Split(',', StringSplitOptions.RemoveEmptyEntries))
+                if (int.TryParse(id, out int n) && byId.TryGetValue(n, out var settler))
+                    groups._groups[i].Add(settler);
+        groups.Update();
+        return groups;
+    }
+
     /// <summary>The dead, soldiers who enter a building and those won over by a spell leave their groups.</summary>
     public void Update()
     {

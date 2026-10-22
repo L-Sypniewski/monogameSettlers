@@ -142,7 +142,7 @@ public sealed class Recruitment
     {
         var settler = r.Settler;
         var pile = r.ToolPile!;
-        if (!_world.HasPile(pile) || pile.Material != r.Tool)
+        if (!_world.HasPile(pile) || pile.Material != r.Tool || _world.IsStranded(settler))
         {
             Fail(r);
             return;
@@ -214,6 +214,8 @@ public sealed class Recruitment
         settler.HasTask = false;
         settler.IsWorking = false;
         settler.Activity = Activity.None;
+        if (settler.Destination is not null)
+            _world.WalkTo(settler, settler.StepTarget);
         r.State = RecruitState.Failed;
     }
 }

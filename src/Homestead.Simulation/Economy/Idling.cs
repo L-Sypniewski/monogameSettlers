@@ -133,9 +133,9 @@ public sealed class Idling
                 fields.Add((p, PathFinder.Distance(from, p)));
         }
         foreach (var (p, _) in fields.OrderBy(f => f.Distance))
-            if (_world.Reachable(settler, p))
+            if (_world.CanFleeTo(settler, p))
                 return p;
-        return _world.Buildings.Where(b => b.Exists && b.Player == settler.Player && map.OwnerAt(b.Door) == settler.Player && _world.Reachable(settler, b.Door))
+        return _world.Buildings.Where(b => b.Exists && b.Player == settler.Player && map.OwnerAt(b.Door) == settler.Player && _world.CanFleeTo(settler, b.Door))
             .MinBy(b => PathFinder.Distance(b.Door, from))?.Door;
     }
 

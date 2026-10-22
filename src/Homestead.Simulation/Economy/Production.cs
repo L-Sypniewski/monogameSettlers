@@ -342,6 +342,12 @@ public sealed partial class Production
             Dismiss(w);
             return;
         }
+        if (w.Worker is { } stranded && _world.IsStranded(stranded))
+        {
+            Report("worker lost its land");
+            ReleaseWorker(w);
+            return;
+        }
 
         var worker = w.Worker;
         switch (w.Phase)

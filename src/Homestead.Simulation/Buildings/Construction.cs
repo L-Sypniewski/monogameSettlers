@@ -165,6 +165,13 @@ public sealed class Construction
             Release(a);
             return;
         }
+        if (_world.IsStranded(worker))
+        {
+            Release(a);
+            if (worker.Destination is not null)
+                _world.WalkTo(worker, worker.StepTarget);
+            return;
+        }
 
         if (!a.Working)
         {
