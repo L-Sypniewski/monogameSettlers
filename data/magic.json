@@ -8,7 +8,8 @@
   "priestHealth": 60,
   "radius": 5,
   "_rangeComment": "rangeFactor: spells are cast from up to this many times the bowmen's range (data/military.json).",
-  "rangeFactor": 1.5,
+  "rangeFactor": 2.25,
+  "_castComment": "castSeconds: how long the priest stands casting; the spell takes effect at once when it begins.",
   "castSeconds": 1.5,
   "_spellsComment": "name: shown in the menu. Convert: up to count enemy soldiers change sides (they keep their people, only the color changes). Haste: own soldiers strike factor times as fast for seconds. Freeze: every enemy soldier and priest stands still for seconds (neither walks nor fights). Scatter: up to count enemy soldiers are put on random free points of the map.",
   "spells": {

@@ -37,8 +37,6 @@ public sealed record MilitaryConfig
     /// <summary>Which soldier a weapon makes in the barracks.</summary>
     public required IReadOnlyDictionary<Material, SoldierType> Weapons { get; init; }
 
-    public required int TrainingTicks { get; init; }
-
     public required IReadOnlyDictionary<SoldierType, SoldierStats> Soldiers { get; init; }
 
     /// <summary>Health and damage factor per level (index 0 = level 1).</summary>
@@ -134,7 +132,6 @@ public sealed record MilitaryConfig
             Territory = root.GetProperty("territory").EnumerateObject().ToDictionary(t => t.Name, t => t.Value.GetDouble()),
             Weapons = root.GetProperty("weapons").EnumerateObject()
                 .ToDictionary(w => Materials.Parse(w.Name)!.Value, w => Enum.Parse<SoldierType>(w.Value.GetString()!)),
-            TrainingTicks = (int)Math.Round(root.GetProperty("trainingSeconds").GetDouble() * World.TicksPerSecond),
             Soldiers = soldiers,
             DoorHealth = door.ValueKind == JsonValueKind.Object
                 ? soldiers[Enum.Parse<SoldierType>(door.GetProperty("healthOf").GetString()!)].Health

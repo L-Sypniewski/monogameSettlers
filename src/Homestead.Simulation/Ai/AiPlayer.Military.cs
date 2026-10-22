@@ -1,4 +1,5 @@
 using Homestead.Simulation.Buildings;
+using Homestead.Simulation.Magic;
 using Homestead.Simulation.Pathfinding;
 
 namespace Homestead.Simulation.Ai;
@@ -476,7 +477,7 @@ public sealed partial class AiPlayer
                     strike.Soldiers.AddRange(joining);
                     Note($"sends {joining.Count} more against {group.Soldiers.Count} enemies at {group.Center.X},{group.Center.Y}");
                 }
-                else
+                else if (!TurnWithSpell(group.Center, strength, opposition * config.RetreatRatio))
                 {
                     _world.Military.Move(strike.Soldiers, RetreatDoor(from, group.Center), forced: true);
                     Note($"calls off the strike at {group.Center.X},{group.Center.Y}: {group.Soldiers.Count} enemies are too strong");
@@ -553,9 +554,21 @@ public sealed partial class AiPlayer
     /// <summary>
     /// Fighting value of a soldier (own or enemy) fighting at <paramref name="at"/>: health times damage
     /// per second times its player's combat strength there – full on its own land, reduced on neutral
-    /// and foreign land. The AI knows every player's combat strength.
+    /// and foreign land. The AI knows every player's combat strength. A frozen soldier neither strikes nor
+    /// gets away while it is struck: freshly frozen it counts nothing, then more as it thaws.
     /// </summary>
-    internal double Strength(Settler soldier, GridPoint at) => Power(soldier) * _world.Military.CombatStrengthAt(soldier.Player, at);
+    internal double Strength(Settler soldier, GridPoint at) =>
+        Power(soldier) * _world.Military.CombatStrengthAt(soldier.Player, at) * Thawed(soldier);
+
+    /// <summary>0 for a soldier frozen just now, rising to 1 as the freeze wears off (1 if not frozen).</summary>
+    private double Thawed(Settler soldier)
+    {
+        long left = soldier.FrozenUntil - _world.Tick;
+        if (left <= 0)
+            return 1;
+        int lasts = _world.Magic.Config.Spells.Values.SelectMany(s => s).FirstOrDefault(s => s.Kind == SpellKind.Freeze)?.Ticks ?? 0;
+        return lasts <= 0 ? 0 : Math.Clamp(1 - (double)left / lasts, 0, 1);
+    }
 
     /// <summary>
     /// Health (as much more as its armour makes it last) times damage per second, without the combat strength

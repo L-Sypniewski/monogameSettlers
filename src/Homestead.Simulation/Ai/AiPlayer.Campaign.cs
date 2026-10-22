@@ -30,6 +30,15 @@ public sealed partial class AiPlayer
         public HashSet<Settler> Resting { get; } = new();
     }
 
+    /// <summary>While gathering, a campaign is given up only below this share of the abort ratio (it started with just enough).</summary>
+    private const double GatherSlack = 0.85;
+
+    /// <summary>A target given up or retreated from is left alone this long (otherwise the next think gathers against it again).</summary>
+    private const int GiveUpTicks = 60 * World.TicksPerSecond;
+
+    /// <summary>Per target building id: no campaign against it before this tick.</summary>
+    private readonly Dictionary<int, long> _givenUp = new();
+
     private void StartCampaign(List<Building> military, List<Settler> spare)
     {
         var rules = _config.Attack;
@@ -45,8 +54,12 @@ public sealed partial class AiPlayer
         var armies = Armies();
         double ownArmy = armies.GetValueOrDefault(Player) * _world.Military.CombatStrength(Player);
         (Building Target, Building Rally, List<Settler> Force, double Score)? best = null;
+        foreach (var (id, until) in _givenUp.ToList())
+            if (_world.Tick >= until)
+                _givenUp.Remove(id);
         foreach (var target in _world.Buildings.Where(b => b.Exists && b.Player != Player && IsMilitary(b)
-                                                           && b.State == BuildingState.Finished && _world.Military.IsOccupied(b)))
+                                                           && b.State == BuildingState.Finished && _world.Military.IsOccupied(b)
+                                                           && !_givenUp.ContainsKey(b.Id)))
         {
             // Clearly stronger than that enemy as a whole.
             if (ownArmy < armies.GetValueOrDefault(target.Player) * rules.ArmyRatio)
@@ -127,10 +140,12 @@ public sealed partial class AiPlayer
         {
             // Weighed again every think, also on the way to the gathering point.
             bool gathered = c.Soldiers.All(s => PathFinder.Distance(s.Position, c.Rally) <= _config.Military.GuardDistance);
-            if (strength < defense * rules.AbortRatio)
+            // A little below the start's ratio: a defender stepping into range must not call it off at once.
+            if (strength < defense * rules.AbortRatio * GatherSlack && !TurnWithSpell(target.Position, strength, defense * rules.AbortRatio))
             {
                 Note($"gives up the campaign against {target.Position.X},{target.Position.Y}: the defence got stronger");
                 _world.Military.Move(c.Soldiers, HomeDoor());
+                _givenUp[target.Id] = _world.Tick + GiveUpTicks;
                 _campaign = null;
                 return;
             }
@@ -141,10 +156,11 @@ public sealed partial class AiPlayer
             Note($"attacks the {target.Definition.Name} at {target.Position.X},{target.Position.Y} with {c.Soldiers.Count} soldiers");
             return;
         }
-        if (strength < defense * _config.Military.RetreatRatio)
+        if (strength < defense * _config.Military.RetreatRatio && !TurnWithSpell(target.Door, strength, defense * _config.Military.RetreatRatio))
         {
             Note($"retreats from {target.Position.X},{target.Position.Y}");
             _world.Military.Move(c.Soldiers, RetreatDoor(CenterOf(c.Soldiers), target.Door), forced: true);
+            _givenUp[target.Id] = _world.Tick + GiveUpTicks;
             _campaign = null;
         }
     }

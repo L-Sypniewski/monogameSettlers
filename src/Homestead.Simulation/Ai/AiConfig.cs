@@ -73,6 +73,19 @@ public sealed record AiConfig
         public int EarlySoldiers => LateSoldiers * 3 / 4;
     }
 
+    /// <summary>Growth beyond the build order (see <c>growth</c> in ai.json); null in games saved before: <see cref="GrowthRules.Default"/>.</summary>
+    public GrowthRules? Growth { get; init; }
+
+    /// <param name="WindowTicks">How long the waiting is measured before deciding (0: no growth).</param>
+    /// <param name="Starved">A good gets one more producer when its consumers waited for it this share of the time …</param>
+    /// <param name="InStock">… and fewer than this many units of it are in stock (otherwise the carriers are short, not the good).</param>
+    /// <param name="Busy">Weaponsmiths (barracks) busy this share of the time get one more.</param>
+    /// <param name="WeaponsInStock">A further barrack only while at least this many weapons wait in stock.</param>
+    public sealed record GrowthRules(int WindowTicks, double Starved, int InStock, double Busy, int WeaponsInStock)
+    {
+        public static readonly GrowthRules Default = new(120 * World.TicksPerSecond, 0.5, 4, 0.8, 8);
+    }
+
     /// <summary>Priests (see <c>magic</c> in ai.json).</summary>
     public MagicRules Magic { get; init; } = new(6, 3, DefaultUpgradeOrder);
 
@@ -81,7 +94,11 @@ public sealed record AiConfig
     /// <param name="PriestDistance">How far behind the soldiers (towards home) priests stay.</param>
     /// <param name="MinTargets">A spell is cast where it hits at least this many soldiers.</param>
     /// <param name="UpgradeOrder">Soldier types in the order they are upgraded (to level 2, then the same to level 3).</param>
-    public sealed record MagicRules(int PriestDistance, int MinTargets, IReadOnlyList<SoldierType> UpgradeOrder);
+    /// <param name="TurnRatio">
+    /// A fight about to be given up is turned with the people's spell instead while the own soldiers still have this
+    /// share of what they need (0: never; null in games saved before: 0.6).
+    /// </param>
+    public sealed record MagicRules(int PriestDistance, int MinTargets, IReadOnlyList<SoldierType> UpgradeOrder, double? TurnRatio = null);
 
     /// <summary>Campaigns against enemy military buildings (see <c>attack</c> in ai.json).</summary>
     /// <param name="ArmyRatio">A campaign needs this times the target owner's whole army (0: any army).</param>
@@ -235,11 +252,16 @@ public sealed record AiConfig
                         .ToDictionary(p => Materials.Parse(p.Name) ?? throw new InvalidDataException($"unknown good '{p.Name}' in army.lateShares"),
                             p => p.Value.GetDouble()))
                 : null,
+            Growth = root.TryGetProperty("growth", out var growth)
+                ? new GrowthRules(growth.GetProperty("windowSeconds").GetInt32() * World.TicksPerSecond, growth.GetProperty("starved").GetDouble(),
+                    growth.GetProperty("inStock").GetInt32(), growth.GetProperty("busy").GetDouble(), growth.GetProperty("weaponsInStock").GetInt32())
+                : GrowthRules.Default,
             Magic = root.TryGetProperty("magic", out var magic)
                 ? new MagicRules(magic.GetProperty("priestDistance").GetInt32(), magic.GetProperty("minTargets").GetInt32(),
                     magic.TryGetProperty("upgradeOrder", out var order)
                         ? order.EnumerateArray().Select(t => Enum.Parse<SoldierType>(t.GetString()!)).ToArray()
-                        : DefaultUpgradeOrder)
+                        : DefaultUpgradeOrder,
+                    magic.TryGetProperty("turnRatio", out var turn) ? turn.GetDouble() : null)
                 : new MagicRules(6, 3, DefaultUpgradeOrder),
             MaxTowerSites = root.GetProperty("maxTowerSites").GetInt32(),
             FreeCarriers = root.GetProperty("freeCarriers").GetInt32(),

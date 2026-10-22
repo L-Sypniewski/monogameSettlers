@@ -26,6 +26,9 @@ public sealed partial class AiPlayer
             }
     }
 
+    /// <summary>Own soldiers this close to an enemy count as engaged with it: the spell goes where they meet.</summary>
+    private const int EngagedDistance = 12;
+
     private void LeadPriests()
     {
         var priests = _world.Settlers
@@ -33,9 +36,8 @@ public sealed partial class AiPlayer
             .ToList();
         if (priests.Count == 0)
             return;
-        // One spell at a time: a second priest would only hit the same fight again.
-        bool casting = _world.Settlers.Any(s => s.Player == Player && s.Profession == Profession.Priest && _world.Magic.IsBusy(s));
-        if (!casting && BestSpellTarget() is { } target && _world.Magic.Cast(priests, target) == CastResult.Started)
+        // Several priests at once, each on a part of the fight the others' spells do not reach.
+        while (priests.Count > 0 && BestSpellTarget() is { } target && _world.Magic.Cast(priests, target) == CastResult.Started)
         {
             Note($"casts {_world.Magic.SpellOf(Player)!.Name} at {target.X},{target.Y}");
             priests.RemoveAll(_world.Magic.IsBusy);
@@ -44,28 +46,71 @@ public sealed partial class AiPlayer
     }
 
     /// <summary>
-    /// Where the spell hits the most soldiers (enemies, or own ones for a haste spell) next to own
-    /// fighting soldiers, if there are at least minTargets and the mana is there.
+    /// Where the spell hits the most soldiers it has not hit yet (enemies near own soldiers that fight or are
+    /// out on a strike or campaign – their bowmen and reinforcements too –, or own fighting ones for a haste
+    /// spell), if there are at least minTargets, the mana is there and no other spell is on its way there.
+    /// <paramref name="near"/>: only targets this close to the point.
     /// </summary>
-    private GridPoint? BestSpellTarget()
+    private GridPoint? BestSpellTarget(GridPoint? near = null, int nearDistance = 0)
     {
-        if (_world.Magic.SpellOf(Player) is not { } spell || _world.Magic.Mana(Player) < spell.Cost)
-            return null;
-        var fighters = _world.Settlers
-            .Where(s => s.Player == Player && s.Profession == Profession.Soldier && !s.IsInside && !s.IsDead
-                        && s.Activity is Activity.Fighting or Activity.Shooting)
-            .Take(30).ToList();
-        if (fighters.Count == 0)
+        if (_world.Magic.SpellOf(Player) is not { } spell || spell.Kind == SpellKind.SummonGoods)
             return null;
         int radius = _world.Magic.Config.Radius;
+        var coming = _world.Settlers.Where(s => s.Player == Player && s.Profession == Profession.Priest && _world.Magic.IsBusy(s))
+            .Select(s => _world.Magic.TargetOf(s)).OfType<GridPoint>().ToList();
+        // The spells on their way pay first.
+        if (_world.Magic.Mana(Player) - coming.Count * spell.Cost < spell.Cost)
+            return null;
+        var engaged = _world.Settlers
+            .Where(s => s.Player == Player && s.Profession == Profession.Soldier && !s.IsInside && !s.IsDead
+                        && (s.Activity is Activity.Fighting or Activity.Shooting || InStrikeOrCampaign(s)))
+            .Take(60).ToList();
+        if (engaged.Count == 0)
+            return null;
+        // Frozen ones thawing before the spell could land count as not hit.
+        long thawing = _world.Tick + _world.Magic.Config.CastTicks + World.TicksPerSecond;
         var hit = _world.Settlers
-            .Where(s => s.Profession == Profession.Soldier && !s.IsInside && !s.IsDead
-                        && (spell.Kind == SpellKind.Haste ? s.Player == Player : s.Player != Player))
+            .Where(s => !s.IsInside && !s.IsDead && spell.Kind switch
+            {
+                SpellKind.Haste => s.Player == Player && s.Profession == Profession.Soldier,
+                SpellKind.Freeze => s.Player != Player && s.Profession is Profession.Soldier or Profession.Priest && s.FrozenUntil <= thawing,
+                _ => s.Player != Player && s.Profession == Profession.Soldier,
+            })
             .ToList();
-        var best = fighters
-            .Select(f => (Point: f.Position, Count: hit.Count(s => PathFinder.InCircle(f.Position, s.Position, radius))))
-            .MaxBy(x => x.Count);
-        return best.Count >= _config.Magic.MinTargets && _world.Magic.IsFight(best.Point) ? best.Point : null;
+        var candidates = spell.Kind == SpellKind.Haste
+            ? engaged.Where(f => f.Activity is Activity.Fighting or Activity.Shooting).Select(f => f.Position)
+            : hit.Where(e => engaged.Any(f => PathFinder.Distance(f.Position, e.Position) <= EngagedDistance)).Select(e => e.Position);
+        var best = candidates
+            .Where(p => (near is null || PathFinder.Distance(p, near.Value) <= nearDistance)
+                        && coming.All(c => PathFinder.Distance(c, p) > 2 * radius))
+            .Select(p => (Point: p, Count: hit.Count(s => PathFinder.InCircle(p, s.Position, radius))))
+            .DefaultIfEmpty().MaxBy(x => x.Count);
+        return best.Count >= _config.Magic.MinTargets ? best.Point : null;
+    }
+
+    private bool InStrikeOrCampaign(Settler soldier) =>
+        _campaign?.Soldiers.Contains(soldier) == true || _strikes.Any(k => k.Soldiers.Contains(soldier));
+
+    /// <summary>
+    /// Turning the fight with a spell instead of giving it up (decided at <paramref name="at"/>): while the own
+    /// soldiers still have <c>magic.turnRatio</c> of what they would need, a priest casts the people's spell
+    /// (freeze, convert, scatter) on the enemies there – frozen ones count nothing, so the balance tips. True
+    /// while such a spell is cast or on its way there: the fight goes on for now.
+    /// </summary>
+    private bool TurnWithSpell(GridPoint at, double strength, double needed)
+    {
+        double ratio = _config.Magic.TurnRatio ?? 0.6;
+        if (ratio <= 0 || strength < needed * ratio || _world.Magic.SpellOf(Player) is not { Kind: not (SpellKind.Haste or SpellKind.SummonGoods) } spell)
+            return false;
+        int reach = _world.Magic.Range + EngagedDistance;
+        var priests = _world.Settlers.Where(s => s.Player == Player && s.Profession == Profession.Priest && !s.IsDead && !s.IsInside).ToList();
+        if (priests.Any(p => _world.Magic.TargetOf(p) is { } t && PathFinder.Distance(t, at) <= EngagedDistance))
+            return true;
+        var free = priests.Where(p => !_world.Magic.IsBusy(p) && PathFinder.Distance(p.Position, at) <= reach).ToList();
+        if (free.Count == 0 || BestSpellTarget(at, EngagedDistance) is not { } target || _world.Magic.Cast(free, target) != CastResult.Started)
+            return false;
+        Note($"casts {spell.Name} at {target.X},{target.Y} to turn the fight");
+        return true;
     }
 
     /// <summary>Priests stay behind the soldiers out in the field, otherwise at home.</summary>

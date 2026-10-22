@@ -101,7 +101,8 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     `claimSeconds` (2) Pfosten, dann gehört ihm das Feld samt unbegehbaren Nachbarn (`Military.TakeLand`, ungeschützte fremde Gebäude fallen).
     Im geschützten Feindland Richtung freies Land, sonst Ende. Vollständig umschlossenes freies Land (nicht Kartenrand/fremdes Land) wird
     auf einmal genommen (bis 4096 Felder). Land ungeschützt.
-- `Military/`: Kaserne bildet an der Tür aus (Träger nimmt dort `trainingSeconds` lang die Waffe auf, geht nicht hinein), Rekruten laufen zum Sammelpunkt. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
+- `Military/`: Kaserne bildet an der Tür aus (Träger wird dort im selben Moment Soldat, geht nicht hinein), Rekruten laufen zum Sammelpunkt.
+  Je Waffe ein Träger zugleich (soweit die Träger-Reserve reicht, Laufende aller Kasernen zählen), jeder wird an der Tür oder direkt daneben ausgebildet. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
   nie über Infanterie-/Bogenplätze; „+“ bei vollen Infanterieplätzen ersetzt die andere Infanterieart; Überzählige kehren um oder kommen
   heraus, nie der letzte – Ersatz tauscht an der Tür). Besetzte beanspruchen Land; immer ihren eigenen Grund (sonst fiele ein eroberter Turm gleich wieder).
   - `MilitaryCombat`: Untätige Soldaten und solche mit nicht erzwungenem Laufbefehl greifen feindliche Soldaten und besetzte Militärgebäude
@@ -123,6 +124,10 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   - Bauen nach `data/ai.json` und Bedarf: Wohnhaus, solange Träger ≤ 3 × Produktionsgebäude (Größe nach fertigen Sägewerken/Steinmetzen
     je Volk); kein Material für Türme zurückhalten; kein weiteres Gebäude einer Art, solange eins auf Arbeiter wartet; Rohstoffgebäude ohne
     Platz probieren weitere Zellen; Wasserwerk ohne Platz → Expansion zum Fluss. Gebäude ohne Platz am Anker → geräumigste eigene Zelle.
+  - Wachstum nach der Build-Order (`AiPlayer.Growth`, `growth` in `ai.json`): je Fenster (120 s) gemessen, worauf fertige, besetzte Gebäude
+    warten; Ware, auf die eine Abnehmerart ≥ `starved` (25 %) der Zeit wartet (je Art, nicht gemittelt), ohne Lagerbestand → ein Erzeuger mehr (Werkstatt/Mine nur, wenn die
+    vorhandenen ≥ `busy` (70 %) arbeiten – sonst liegt der Engpass weiter vorn); ausgelastete Waffenschmiede/Kasernen (bei Waffen im Lager)/kleine Tempel → noch einer.
+    Je Art einer zugleich; nicht, wenn im Fenster einer fertig wurde.
   - Minen nur ab Erfolgschance `mines.minChance` (0,3), Abriss unter `mines.abandonChance` (0,1); kein Platz → Erz fehlt → Expansion.
     Schmelzen erst mit eigener Mine ihres Erzes.
   - Vor dem Abriss erschöpfter Steinmetze/Fischer: Arbeitsbereich (bis `MaxWorkCenterDistance`) dorthin versetzen, wo mehr in Reichweite ist (`BetterWorkCenter`).
@@ -142,6 +147,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     (ohne: stehen bleiben); ohne Bedrohung Turmverteilung: `frontTowers` (Plänklerin), `everyOtherTower` (Feldherr, Legion),
     `rotatingTowers` (Unbeugsamer: 30 %, minütlich neu), Hitzkopf: ein Haufen.
   - `AiPlayer.Campaign`: sammelt Soldaten, erobert feindliche Militärgebäude bei 1,5:1 (Besatzung gewichtet `attack.garrisonWeight`, Burg doppelt).
+    Beim Sammeln Aufgabe erst unter 85 % der Abbruchschwelle; aufgegebenes/geräumtes Ziel 60 s in Ruhe.
     Werte: `attack.armyRatio` (0 = egal), `attack.commit` (Anteil freier Soldaten, 1 = alle), `attack.abortRatio` (0 = nie aufgeben),
     `attack.maxDistance` (0 = egal), `military.retreatRatio` (0 = nie zurück).
   - `AiPlayer.Tactics`: in kleinen Gefechten (Strike/Feldzug ≤ `military.wounded.maxSoldiers` 10) ziehen sich Kämpfende unter `withdrawHealth` (35 %)
@@ -154,7 +160,11 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     Late Game = große Armee (`army.lateSoldiers` 20 Soldaten außerhalb der Gebäude; zu groß, um Einzelne zurückzuziehen): Waffenschmied-Anteile
     `lateShares` (Speer 100 %, Bogen 80 %, Schwert 15 %); unter ¾ davon die Anteile von vorher.
     Strikes verfolgen alle Teile zerfallener Zielgruppen (nächster zuerst).
-  - `AiPlayer.Magic`: Priester folgen Angriffen mit Abstand, zaubern ab `magic.minTargets` Getroffenen; Aufwertungen sofort bei genug Mana
+  - `AiPlayer.Magic`: Priester folgen Angriffen mit Abstand, zaubern ab `magic.minTargets` noch nicht Getroffenen (Feinde nahe eigenen
+    Kämpfenden/Strike-/Feldzug-Soldaten, auch Bogenschützen und Verstärkung; Eingefrorene kurz vor dem Auftauen zählen wieder), mehrere zugleich
+    auf verschiedene Stellen, Mana laufender Zauber reserviert. Eingefrorene zählen im Kräftevergleich nichts, mit dem Auftauen wieder mehr (`Strength`).
+    Blatt wenden (`TurnWithSpell`): statt Strike-Abbruch, Feldzug-Aufgabe oder -Rückzug erst der Volkszauber (nicht Eile), solange noch
+    `magic.turnRatio` (0,6) des Nötigen da ist. Aufwertungen sofort bei genug Mana
     (`magic.upgradeOrder`: Schwertkämpfer, Bogenschützen, Pikeniere). KI zaubert nur den Volkszauber.
   - Charaktere/Charakterzüge (Konzept: `docs/KI-TACTICS.md`; Kennungen englisch, deutsche Namen in `ui.json` `aiCharacters`/`aiTraits`):
     Charakter (`AiCharacter`, `characters` in `ai.json`) nennt Züge (`AiTrait`, `Ai/Traits/<Kennung>Trait`; Vorgaben unter `traits`,
@@ -180,8 +190,8 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     Notizen eines Zugs beginnen mit seiner Kennung, erscheinen live (`AiPlayer.Noted`, `TraitOfNote`).
     Werte in `ai.json`, je Volk überschreibbar (`civilizations`, dort auch die Build-Order).
 - `Magic/`: Mana je Spieler. Kleiner Tempel: Wein/Met/Bier/Schnaps → Mana; großer Tempel schickt sofort und alle `priestSeconds` einen Priester.
-  `Cast`: Priester läuft auf Bogenreichweite × `rangeFactor` (1,5), zaubert nur, wo jemand Betroffenes steht (`Magic.HasTargets`:
-  feindliche Soldaten; Einfrieren auch Priester; Samuraischwert eigene Soldaten), kein Kampf nötig, Kosten konstant.
+  `Cast`: Priester läuft auf Bogenreichweite × `rangeFactor` (2,25), zaubert nur, wo jemand Betroffenes steht (`Magic.HasTargets`:
+  feindliche Soldaten; Einfrieren auch Priester; Samuraischwert eigene Soldaten), kein Kampf nötig, Kosten konstant; wirkt sofort bei Zauberbeginn (`castSeconds` nur die Geste).
   Volkszauber: Bekehren (Seite wechseln, Volk bleibt – `Settler.People`), Samuraischwert, Einfrieren, Zerstreuen. Für alle (`commonSpells`):
   „Waren herbeirufen“ (`SummonGoods`: 3–4 Stapel à 4–8 aus Nahrung, Waffen, Werkzeug, Gold, Eisen, Kohle, Erz; Ägypter 50 % zusätzlich Steine;
   Flammen zeitversetzt). Priester angreifbar. Zwei Konten: Zauber verbrauchen `Mana`, Aufwertungen prüfen `ManaEarned`

@@ -3,6 +3,7 @@ using Homestead.Assets.Maps;
 using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
+using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Pathfinding;
 using Xunit.Abstractions;
@@ -858,5 +859,135 @@ public class AiTests(ITestOutputHelper output)
 
         Assert.DoesNotContain(ai.Log, l => l.Contains("summoner:"));
         Assert.Equal(100, world.Magic.Mana(0));
+    }
+
+    /// <summary>An AI whose build order is done (only what the test places), measuring growth every 20 seconds.</summary>
+    private static AiPlayer GrowingAi(World world, params (string, int)[] buildOrder) =>
+        new(world, Romans, 0, AiConfig.Load(civilization: Civilization.Roman) with
+        {
+            BuildOrder = buildOrder,
+            Growth = new AiConfig.GrowthRules(20 * World.TicksPerSecond, 0.25, 4, 0.7, 8),
+        });
+
+    [Fact]
+    public void A_busy_weaponsmith_gets_another_one()
+    {
+        var map = new GameMap(120);
+        var world = new World(map, TestConfig.NoTools);
+        world.PlaceBuilding(Romans["weaponsmith"], 0, new GridPoint(50, 60));
+        world.PlaceBuilding(Romans["stock"], 0, new GridPoint(30, 40));
+        for (int i = 0; i < 20; i++)
+            world.Spawn(new GridPoint(44, 66), Profession.Carrier);
+        for (int i = 0; i < 4; i++)
+        {
+            world.AddLooseGoods(new GridPoint(56 + 2 * i, 70), Material.Iron, 8);
+            world.AddLooseGoods(new GridPoint(56 + 2 * i, 74), Material.Coal, 8);
+        }
+        var ai = GrowingAi(world, ("weaponsmith", 1));
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 2 * 60 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("grows:")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(ai.Log, l => l.Contains("grows: wants weaponsmith 2: weaponsmiths busy"));
+    }
+
+    [Fact]
+    public void Iron_short_while_the_melt_waits_for_ore_brings_a_mine_not_a_melt()
+    {
+        var map = new GameMap(120);
+        var world = new World(map, TestConfig.NoTools);
+        world.PlaceBuilding(Romans["weaponsmith"], 0, new GridPoint(50, 60));
+        world.PlaceBuilding(Romans["ironmelt"], 0, new GridPoint(70, 60));
+        world.PlaceBuilding(Romans["stock"], 0, new GridPoint(30, 40));
+        for (int i = 0; i < 12; i++)
+            world.Spawn(new GridPoint(44, 66), Profession.Carrier);
+        for (int i = 0; i < 4; i++)
+            world.AddLooseGoods(new GridPoint(56 + 2 * i, 74), Material.Coal, 8);
+        var ai = GrowingAi(world, ("weaponsmith", 1), ("ironmelt", 1), ("ironmine", 0));
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 90 * World.TicksPerSecond; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(ai.Log, l => l.Contains("grows: wants ironmine 1: IronOre short"));
+        Assert.DoesNotContain(ai.Log, l => l.Contains("grows: wants ironmelt"));
+        Assert.DoesNotContain(ai.Log, l => l.Contains("grows: wants weaponsmith"));
+    }
+
+    private static readonly BuildingCatalog Amazons = BuildingCatalog.Load(Civilization.Amazon);
+
+    /// <summary>Player 0 (Amazons: Freeze) owns the land left of x = 80 with a staffed tower.</summary>
+    private static World FreezeSetup()
+    {
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2, Peoples = [Civilization.Amazon, Civilization.Roman] };
+        var tower = world.PlaceBuilding(Amazons["tower"], 0, new GridPoint(40, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        world.Step();
+        for (int y = 0; y < 160; y++)
+        for (int x = 0; x < 160; x++)
+            map.SetOwner(new GridPoint(x, y), x < 80 ? 0 : 1);
+        return world;
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Frozen_enemies_count_nothing_in_the_balance(bool frozen)
+    {
+        var world = FreezeSetup();
+        for (int i = 0; i < 3; i++)
+            world.SpawnSoldier(new GridPoint(60 + i, 84), SoldierType.Swordsman);
+        var enemies = Enumerable.Range(0, 4).Select(i => world.SpawnSoldier(new GridPoint(96 + i, 84), SoldierType.Swordsman, player: 1)).ToList();
+        if (frozen)
+        {
+            var priest = world.Magic.SpawnPriest(new GridPoint(86, 84), 0)!;
+            world.Magic.AddMana(0, 30);
+            Assert.Equal(CastResult.Started, world.Magic.Cast([priest], new GridPoint(97, 84)));
+            for (int t = 0; t < 5 * World.TicksPerSecond && enemies.Any(e => e.FrozenUntil <= world.Tick); t++)
+                world.Step();
+            Assert.All(enemies, e => Assert.True(e.FrozenUntil > world.Tick));
+        }
+        var ai = new AiPlayer(world, Amazons, 0, character: "standard");
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 3 * World.TicksPerSecond && !ai.Log.Any(l => l.Contains("strikes")); t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Equal(frozen, ai.Log.Any(l => l.Contains("strikes 4 enemies")));
+    }
+
+    [Fact]
+    public void Priests_freeze_two_fights_at_once()
+    {
+        var world = FreezeSetup();
+        // Two fights 30 fields apart, each three against three.
+        foreach (int y in new[] { 60, 100 })
+            for (int i = 0; i < 3; i++)
+            {
+                world.SpawnSoldier(new GridPoint(70 + i, y), SoldierType.Swordsman);
+                world.SpawnSoldier(new GridPoint(70 + i, y + 2), SoldierType.Swordsman, player: 1);
+            }
+        world.Magic.SpawnPriest(new GridPoint(60, 60), 0);
+        world.Magic.SpawnPriest(new GridPoint(60, 100), 0);
+        world.Magic.AddMana(0, 60);
+        var ai = new AiPlayer(world, Amazons, 0, character: "standard");
+        world.AiPlayers.Add(ai);
+
+        for (int t = 0; t < 10 * World.TicksPerSecond && ai.Log.Count(l => l.Contains("casts Freeze")) < 2; t++)
+            world.Step();
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        var targets = ai.Log.Where(l => l.Contains("casts Freeze")).Select(l => int.Parse(l.Split(',')[^1].Split(' ')[0])).ToList();
+        Assert.Equal(2, targets.Count);
+        Assert.True(Math.Abs(targets[0] - targets[1]) >= 20, string.Join(", ", targets));
     }
 }

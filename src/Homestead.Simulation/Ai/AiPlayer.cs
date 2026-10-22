@@ -140,6 +140,7 @@ public sealed partial class AiPlayer
             Command(mine);
             _nextMilitary = _world.Tick + _config.Military.ThinkTicks;
         }
+        SampleGrowth(mine);
         Expand(mine);
         BuildEconomy(mine);
     }
@@ -319,6 +320,8 @@ public sealed partial class AiPlayer
             yield return ("farm", farms + 1);
         }
         foreach (var wish in _config.BuildOrder)
+            yield return wish;
+        foreach (var wish in _growth)
             yield return wish;
     }
 

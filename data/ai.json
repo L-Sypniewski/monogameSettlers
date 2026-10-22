@@ -67,6 +67,14 @@
     ["pig_farm", 2],
     ["slaughterhouse", 2]
   ],
+  "growth": {
+    "_comment": "After the build order the economy keeps growing where it is short. Every think the AI notes what each finished, staffed building does; after windowSeconds a good that one kind of its consumers waited for at least starved of the time (per kind: weaponsmiths waiting for iron say nothing about the coal the iron melts lack), with fewer than inStock units in stock, gets one more producer (the kind the player has most of, else the first in the build order) - a workshop or mine only while the ones there are busy at least busy of the time, otherwise the shortage lies further up the chain. So the chain grows by itself: weaponsmith waiting for iron - iron melt, the melts waiting for ore - iron mine, the mines waiting for food - food. Weaponsmiths busy at least busy of the time get one more, barracks too while weaponsInStock weapons wait. One of a kind at a time: none while one is a site, nor when one was finished during the window. What the build order brings anyway is left to it. windowSeconds 0: no growth.",
+    "windowSeconds": 120,
+    "starved": 0.25,
+    "inStock": 4,
+    "busy": 0.7,
+    "weaponsInStock": 8
+  },
   "_expansionComment": "Towers towards what the own land lacks, in this order: quarry stone below minStoneUnits, none of the listed ores, free building land below minFreeLand, stone below wantedStoneUnits, trees below minTrees, no river (waterworks draw from rivers only); towards free land when a building found no room; with spareSoldiersForLand idle soldiers and landStock planks and stones beyond the tower's cost simply towards the nearest free land. The tower goes to the own-land spot nearest the target. While a needed tower cannot be afforded, the economy keeps its planks and stones back.",
   "expansion": {
     "building": "tower",
@@ -86,12 +94,14 @@
     "_maxWaterShareComment": "Largest share of water (sea, lakes, rivers) among the unclaimed points a tower would take. Spots with more are passed over; towards a needed resource (stone, ore, trees, water) the spot with the least water is taken if none is below.",
     "maxWaterShare": 0.4
   },
-  "_magicComment": "Priests follow the soldiers out on a strike or campaign and stay priestDistance fields behind them (towards home); otherwise they wait at home. A priest casts its spell where own soldiers fight once the mana is there and at least minTargets soldiers would be hit (own ones for a haste spell).",
+  "_magicComment": "Priests follow the soldiers out on a strike or campaign and stay priestDistance fields behind them (towards home); otherwise they wait at home. A priest casts its spell where own soldiers fight or are out on a strike or campaign once the mana is there and at least minTargets soldiers not yet hit would be (own ones for a haste spell).",
   "magic": {
     "priestDistance": 6,
     "minTargets": 3,
     "_upgradeComment": "Soldier upgrades (magic.json, upgrades) are made as soon as enough mana has been earned in all (they spend none), in upgradeOrder (all to level 2, then the same order to level 3).",
-    "upgradeOrder": [ "Swordsman", "Bowman", "Pikeman" ]
+    "upgradeOrder": [ "Swordsman", "Bowman", "Pikeman" ],
+    "_turnComment": "A strike or campaign about to be given up (too weak) is turned with the people's spell first while its soldiers still have turnRatio of what they would need: a priest freezes (converts, scatters) the enemies there, and frozen soldiers count nothing in the balance. Several priests cast at once on different parts of a fight, each where most soldiers not yet hit stand (enemy bowmen and reinforcements near the own soldiers too); frozen ones are frozen again just before they thaw. 0: never.",
+    "turnRatio": 0.6
   },
   "military": {
     "_comment": "Idle soldiers outside buildings, weighed every thinkSeconds; soldiers walking on a plain move order of the AI (to a post, home) count as idle, so their order is weighed again as well. The AI knows where every enemy soldier and geologist is. Enemies within groupRadius of each other form a group (geologists do not fight: one soldier is enough against them). Guerilla comes before holding soldiers back: a group within strikeRange of an own military building is attacked by the nearest idle soldiers once they have strikeRatio times its strength (health x damage per second), also by those that would otherwise stay back against it; only soldiers needed against the other groups within threatRange (strikeRatio times their strength) are kept out. An attack on the land (enemies walking or fighting) is met anywhere; enemies just standing around only if they stand at most hinterlandDepth fields deep in their own land (0: anywhere). The other idle soldiers are placed by the character's traits (guarding): guardByThreat shares them out by how strong and close the enemy groups within threatRange are, without any threat they gather at home; frontTowers, everyOtherTower and rotatingTowers spread them over the towers while there is no threat. A soldier within guardDistance of its post stays. reinforceRadius: enemy soldiers outside within this distance of a strike's target count as its defence too (scattered soldiers come to help; checked at the start and every think while it runs). towerFireRatio: guerilla (not defence) only where the bowmen of enemy military buildings reaching the target or the way are at most this times the enemies' strength – they cannot be struck back, losses to them win nothing (a lone soldier next to a full castle is left alone); a running guerilla strike whose enemies retreat under such fire is called off (0: no limit). Without such a trait they stay where they are.",

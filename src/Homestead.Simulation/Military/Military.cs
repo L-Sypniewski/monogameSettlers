@@ -123,8 +123,8 @@ public sealed partial class Military
     public string? Status(Building building)
     {
         if (_barracks.TryGetValue(building.Id, out var barrack))
-            return barrack.Trainee is null ? "barracks: waiting for weapons and carriers"
-                : barrack.Training ? "training a soldier" : "a recruit is on the way";
+            return barrack.Recruits.Count == 0 ? "barracks: waiting for weapons and carriers"
+                : "a recruit is on the way";
         if (!_garrisons.TryGetValue(building.Id, out var g))
             return null;
         int inside = g.Places.Count(p => p is not null);
@@ -139,7 +139,7 @@ public sealed partial class Military
         {
             Discover();
             foreach (var barrack in _barracks.Values.ToList())
-                CallTrainee(barrack);
+                CallTrainees(barrack);
             // One soldier per building and round, emptiest first: every building gets its first
             // soldier (and claims its land) before any building fills up.
             foreach (var garrison in _garrisons.Values.ToList())
@@ -173,23 +173,38 @@ public sealed partial class Military
 
     // ---- barracks ----
 
-    private void CallTrainee(Barrack b)
+    /// <summary>
+    /// As many carriers as there are weapons to take up (manual recruitment: of the types planned) walk to the
+    /// barracks at once, as far as the carrier reserve allows; each becomes a soldier the moment it gets there.
+    /// </summary>
+    private void CallTrainees(Barrack b)
     {
-        if (!b.Building.Exists || b.Trainee is not null || !HasWeapon(b.Building) || !_world.Recruitment.MayConvert(b.Building.Player))
+        if (!b.Building.Exists)
+            return;
+        int player = b.Building.Player;
+        // Recruits on their way are carriers yet: they count against the reserve, at every barracks of the player.
+        int walking = _barracks.Values.Where(o => o.Building.Player == player).Sum(o => o.Recruits.Count);
+        int wanted = Math.Min(Recruitable(b.Building) - b.Recruits.Count, _world.Recruitment.Convertible(player) - walking);
+        if (wanted <= 0)
             return;
         var door = b.Building.Door;
-        var pathFinder = _world.PathFinder!;
-        var trainee = _world.Settlers
-            .Where(s => s.IsAvailableCarrier && s.Player == b.Building.Player && _world.Reachable(s, door))
-            .MinBy(s => PathFinder.Distance(s.Position, door));
-        if (trainee is null)
-            return;
-        b.Trainee = trainee;
-        b.Walk = new WalkWatch(_world.Tick);
-        trainee.HasTask = true;
-        if (!_world.WalkTo(trainee, door))
-            ReleaseTrainee(b);
+        var trainees = _world.Settlers
+            .Where(s => s.IsAvailableCarrier && s.Player == player && _world.Reachable(s, door))
+            .OrderBy(s => PathFinder.Distance(s.Position, door)).Take(wanted).ToList();
+        foreach (var trainee in trainees)
+        {
+            var recruit = new Recruit(trainee, new WalkWatch(_world.Tick));
+            b.Recruits.Add(recruit);
+            trainee.HasTask = true;
+            if (!_world.WalkTo(trainee, door))
+                Release(b, recruit);
+        }
     }
+
+    /// <summary>Soldiers the barracks may train from the weapons it has now (manual recruitment: no more of a type than planned).</summary>
+    private int Recruitable(Building barrack) =>
+        RecruitablePiles(barrack).GroupBy(p => _config.Weapons[p.Material!.Value])
+            .Sum(g => IsManualRecruitment(barrack.Player) ? Math.Min(g.Sum(p => p.Count), Planned(barrack.Player, g.Key)) : g.Sum(p => p.Count));
 
     private bool HasWeapon(Building barrack) => RecruitablePiles(barrack).Any();
 
@@ -238,71 +253,71 @@ public sealed partial class Military
     {
         if (!b.Building.Exists)
         {
-            ReleaseTrainee(b);
+            foreach (var recruit in b.Recruits.ToList())
+                Release(b, recruit);
             _barracks.Remove(b.Building.Id);
             return;
         }
-        if (b.Trainee is not { } trainee)
-            return;
+        foreach (var recruit in b.Recruits.ToList())
+            AdvanceRecruit(b, recruit);
+    }
 
-        if (b.Training)
-        {
-            if (--b.TicksLeft > 0)
-                return;
-            trainee.IsWorking = false;
-            trainee.Activity = Activity.None;
-            trainee.Profession = Profession.Soldier;
-            trainee.SoldierType = b.Becomes;
-            // The level the player's upgrades (small temple) give newly trained soldiers of the type.
-            trainee.Level = _world.Magic.SoldierLevel(b.Building.Player, b.Becomes);
-            trainee.Health = _world.MaxHealth(trainee.Player, b.Becomes, trainee.Level);
-            trainee.HasTask = false;
-            SoldiersTrained++;
-            b.Trainee = null;
-            b.Training = false;
-            // The barracks' work area serves as the rally point of its new soldiers.
-            Move([trainee], b.Building.WorkCenter);
-            return;
-        }
-
-        if (!Arrived(trainee, b.Building.Door, b.Walk!, out bool stalled))
+    private void AdvanceRecruit(Barrack b, Recruit recruit)
+    {
+        var trainee = recruit.Settler;
+        // At the door or next to it: several recruits arrive at once, only one fits on the door.
+        var door = b.Building.Door;
+        bool there = trainee.State != SettlerState.Stepping && PathFinder.Distance(trainee.Position, door) <= 1;
+        if (!there && !Arrived(trainee, door, recruit.Walk, out bool stalled))
         {
             if (stalled)
-                ReleaseTrainee(b);
+                Release(b, recruit);
             return;
         }
+        trainee.Path.Clear();
+        trainee.Destination = null;
         // The weapon with the most units in stock (manual recruitment: of a type planned).
         var pile = RecruitablePiles(b.Building).MaxBy(p => p.Count);
         if (pile is null)
         {
-            ReleaseTrainee(b);
+            Release(b, recruit);
             return;
         }
+        var type = _config.Weapons[pile.Material!.Value];
         pile.Count--;
-        b.Becomes = _config.Weapons[pile.Material!.Value];
-        if (IsManualRecruitment(b.Building.Player))
-            ChangePlanned(b.Building.Player, b.Becomes, -1);
         pile.ResetMaterialIfEmpty();
-        // Trained at the door: the carrier takes up the weapon there and comes out as a soldier, without going in.
-        trainee.IsWorking = true;
-        trainee.Activity = Activity.PickingUp;
-        trainee.ActivityTicks = 0;
-        b.Training = true;
-        b.TicksLeft = _config.TrainingTicks;
+        if (IsManualRecruitment(b.Building.Player))
+            ChangePlanned(b.Building.Player, type, -1);
+        // A soldier the moment the carrier gets to the door, without going in.
+        Train(b, recruit, type);
     }
 
-    private void ReleaseTrainee(Barrack b)
+    private void Train(Barrack b, Recruit recruit, SoldierType type)
     {
-        if (b.Trainee is { } trainee)
-        {
-            if (trainee.IsInside)
-                _world.LeaveBuilding(trainee);
-            trainee.IsWorking = false;
-            trainee.Activity = Activity.None;
-            trainee.HasTask = false;
-        }
-        b.Trainee = null;
-        b.Training = false;
+        var trainee = recruit.Settler;
+        trainee.IsWorking = false;
+        trainee.Activity = Activity.None;
+        trainee.Profession = Profession.Soldier;
+        trainee.SoldierType = type;
+        // The level the player's upgrades (small temple) give newly trained soldiers of the type.
+        trainee.Level = _world.Magic.SoldierLevel(b.Building.Player, type);
+        trainee.Health = _world.MaxHealth(trainee.Player, type, trainee.Level);
+        trainee.HasTask = false;
+        SoldiersTrained++;
+        b.Recruits.Remove(recruit);
+        // The barracks' work area serves as the rally point of its new soldiers.
+        Move([trainee], b.Building.WorkCenter);
+    }
+
+    private void Release(Barrack b, Recruit recruit)
+    {
+        var trainee = recruit.Settler;
+        if (trainee.IsInside)
+            _world.LeaveBuilding(trainee);
+        trainee.IsWorking = false;
+        trainee.Activity = Activity.None;
+        trainee.HasTask = false;
+        b.Recruits.Remove(recruit);
     }
 
     // ---- military buildings ----
@@ -627,10 +642,14 @@ public sealed partial class Military
     private sealed class Barrack(Building building)
     {
         public Building Building { get; } = building;
-        public Settler? Trainee { get; set; }
-        public WalkWatch? Walk { get; set; }
-        public bool Training { get; set; }
-        public int TicksLeft { get; set; }
-        public SoldierType Becomes { get; set; }
+
+        /// <summary>The carriers on their way to the door.</summary>
+        public List<Recruit> Recruits { get; } = new();
+    }
+
+    private sealed class Recruit(Settler settler, WalkWatch walk)
+    {
+        public Settler Settler { get; } = settler;
+        public WalkWatch Walk { get; } = walk;
     }
 }

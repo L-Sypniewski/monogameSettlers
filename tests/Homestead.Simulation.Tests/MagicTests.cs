@@ -118,10 +118,10 @@ public class MagicTests
     }
 
     [Fact]
-    public void Spells_reach_half_as_far_again_as_bowmen()
+    public void Spells_reach_more_than_twice_as_far_as_bowmen()
     {
         var world = TwoPeoples(out _, Romans);
-        Assert.Equal((int)Math.Round(world.Military.Config.Soldiers[SoldierType.Bowman].Range * 1.5), world.Magic.Range);
+        Assert.Equal((int)Math.Round(world.Military.Config.Soldiers[SoldierType.Bowman].Range * 2.25), world.Magic.Range);
     }
 
     [Fact]

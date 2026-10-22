@@ -161,6 +161,9 @@ public sealed class Magic
     /// <summary>Whether a priest is casting or on the way to.</summary>
     public bool IsBusy(Settler priest) => _orders.ContainsKey(priest.Id);
 
+    /// <summary>Where a busy priest is going to cast its spell; null for a free one.</summary>
+    public GridPoint? TargetOf(Settler priest) => _orders.TryGetValue(priest.Id, out var order) ? order.Target : null;
+
     /// <summary>
     /// A fight is going on at the point: soldiers of at least two players within the spell radius (fighters
     /// switch between striking and stepping up all the time, so their activity alone would flicker).
@@ -303,10 +306,9 @@ public sealed class Magic
         }
         if (order.CastingUntil is { } until)
         {
-            if (_world.Tick < until)
-                return;
-            Apply(order.Spell, priest.Player, order.Target);
-            Finish(order);
+            // The spell took effect when the casting began; the priest only finishes the gesture.
+            if (_world.Tick >= until)
+                Finish(order);
             return;
         }
         if (priest.FrozenUntil > _world.Tick)
@@ -336,6 +338,8 @@ public sealed class Magic
             return;
         }
         AddMana(priest.Player, -order.Spell.Cost);
+        // At once: nobody walks out of the area while the priest raises its hands.
+        Apply(order.Spell, priest.Player, order.Target);
         order.CastingUntil = _world.Tick + _config.CastTicks;
         priest.Facing = FacingTowards(priest.Position, order.Target);
         priest.Activity = Activity.Casting;

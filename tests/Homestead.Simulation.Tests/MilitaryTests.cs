@@ -22,21 +22,47 @@ public class MilitaryTests(ITestOutputHelper output)
         world.AddLooseGoods(new GridPoint(52, 50), Material.Bow, 1);
         Spawn(world, 5, new GridPoint(40, 45));
 
-        // Trained at the door: nobody goes in.
-        bool atDoor = false;
+        // Trained at the door, the moment the carrier gets there: nobody goes in.
+        bool atDoor = true;
+        int trained = 0;
         Run(world, 10_000, stopWhen: () =>
         {
             Assert.DoesNotContain(world.Settlers, s => s.IsInside);
-            atDoor |= world.Settlers.Any(s => s.Position == barrack.Door && s.Activity == Activity.PickingUp);
+            if (world.Military.SoldiersTrained > trained)
+            {
+                trained = world.Military.SoldiersTrained;
+                atDoor &= world.Settlers.Any(s => s.Profession == Profession.Soldier && PathFinder.Distance(s.Position, barrack.Door) <= 1);
+            }
             return world.Military.SoldiersTrained == 3;
         });
-        Assert.True(atDoor, "the recruit takes up its weapon at the door");
+        Assert.True(atDoor, "the recruit becomes a soldier at the door");
 
         var soldiers = world.Settlers.Where(s => s.Profession == Profession.Soldier).ToList();
         Assert.Equal(3, soldiers.Count);
         Assert.Equal(2, soldiers.Count(s => s.SoldierType == SoldierType.Swordsman));
         Assert.Equal(1, soldiers.Count(s => s.SoldierType == SoldierType.Bowman));
         Assert.DoesNotContain(world.Piles, p => p.Material is Material.Sword or Material.Bow && p.Count > 0);
+    }
+
+    [Fact]
+    public void Barracks_call_a_carrier_for_every_weapon_at_once()
+    {
+        var world = new World(new GameMap(70), TestConfig.NoTools);
+        var barrack = world.PlaceBuilding(Romans["barrack"], 0, new GridPoint(30, 30))!;
+        world.AddLooseGoods(new GridPoint(36, 36), Material.Sword, 8);
+        Spawn(world, 20, new GridPoint(40, 45));
+
+        int walking = 0;
+        Run(world, 10_000, stopWhen: () =>
+        {
+            walking = Math.Max(walking, world.Settlers.Count(s => s.IsCarrier && s.Destination == barrack.Door));
+            return world.Military.SoldiersTrained == 8;
+        });
+
+        output.WriteLine($"at most {walking} recruits on the way at the same time");
+        Assert.Equal(8, world.Military.SoldiersTrained);
+        Assert.True(walking >= 4, "one per weapon, not one after the other");
+        Assert.Equal(12, world.Settlers.Count(s => s.IsCarrier));
     }
 
     [Fact]
