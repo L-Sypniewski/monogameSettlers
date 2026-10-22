@@ -135,7 +135,7 @@ public sealed class SidePanel : IDisposable
         batch.End();
     }
 
-    /// <summary>Unscaled size of a unit's dot on the minimap; a military building's is a bigger square with a black edge.</summary>
+    /// <summary>Unscaled size of a unit's dot on the minimap; a building's is a bigger black square (an occupied military building's with its color inside).</summary>
     private const float DotSize = 2, BuildingDotSize = 4;
 
     private static void DrawDots(SpriteBatch batch, Texture2D pixel, int mapSize, IReadOnlyList<MinimapDot> dots)
@@ -146,7 +146,8 @@ public sealed class SidePanel : IDisposable
             if (dot.Building)
             {
                 Square(at, BuildingDotSize + 1, Color.Black);
-                Square(at, BuildingDotSize - 1, dot.Color);
+                if (dot.Color != Color.Black)
+                    Square(at, BuildingDotSize - 1, dot.Color);
             }
             else
                 Square(at, DotSize, dot.Color);
@@ -220,5 +221,5 @@ public sealed class SidePanel : IDisposable
     }
 }
 
-/// <summary>A dot on the minimap: a unit or (<paramref name="Building"/>) an occupied military building.</summary>
+/// <summary>A dot on the minimap: a unit or (<paramref name="Building"/>) a building, black unless an occupied military building.</summary>
 public readonly record struct MinimapDot(GridPoint At, Color Color, bool Building = false);

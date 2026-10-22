@@ -1112,16 +1112,20 @@ public sealed class MapGame : Game
     private readonly List<MinimapDot> _minimapDots = [];
 
     /// <summary>
-    /// Dots on the minimap: occupied military buildings (where player 1 has explored) and units outside – soldiers,
-    /// priests, geologists, pioneers and scouts (others' only where player 1 sees now, scouts once revealed);
-    /// player 1's white, everyone else's red, red drawn last so enemies stay visible in a crowd.
+    /// Dots on the minimap (where player 1 has explored): buildings and construction sites black, occupied military
+    /// buildings on top in white for player 1 and red for everyone else; then units outside – soldiers, priests,
+    /// geologists, pioneers and scouts (others' only where player 1 sees now, scouts once revealed), white and red
+    /// alike, red drawn last so enemies stay visible in a crowd.
     /// </summary>
     private List<MinimapDot> MinimapDots()
     {
         _minimapDots.Clear();
-        foreach (var building in _world.Buildings)
-            if (building.Exists && _world.Military.IsOccupied(building) && (!_fogOn || _vision.IsExplored(building.Position.Y * _gameMap.Size + building.Position.X)))
-                _minimapDots.Add(new MinimapDot(building.Position, building.Player == 0 ? Color.White : Color.Red, Building: true));
+        foreach (var occupied in new[] { false, true })
+            foreach (var building in _world.Buildings)
+                if (building.Exists && _world.Military.IsOccupied(building) == occupied
+                    && (!_fogOn || _vision.IsExplored(building.Position.Y * _gameMap.Size + building.Position.X)))
+                    _minimapDots.Add(new MinimapDot(building.Position,
+                        !occupied ? Color.Black : building.Player == 0 ? Color.White : Color.Red, Building: true));
         foreach (var own in new[] { true, false })
             foreach (var settler in _world.Settlers)
                 if (settler.Player == 0 == own && OnMinimap(settler))

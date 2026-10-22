@@ -248,7 +248,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
 - **Seitenpanel** (`SidePanel`, große Variante, auf Fensterhöhe skaliert; Menüs zeichnen/prüfen Klicks im Panelraum, `SidePanel.ToPanel`):
   - Minimap oben im Originalrahmen (dahinter Schwarz; rechts schmaler Goldrand mit Ranke, Datei 4 Sequenz 3): nur erkundetes Gelände (`Minimap`),
     eigenes immer weiß, Gegner immer rot – Gebietsgrenzen und Punkte (`MinimapDot`):
-    Soldaten, Priester, Geologen, Pioniere, Späher draußen (fremde unter Fog nur in Sicht, Späher erst enttarnt), besetzte Militärgebäude als Quadrat mit schwarzem Rand, sichtbarer Ausschnitt als weißer Rahmen. Klick: Kameraflug 0,35 s; Ziehen verschiebt den Rahmen; Scrollen bricht den Flug ab;
+    Soldaten, Priester, Geologen, Pioniere, Späher draußen (fremde unter Fog nur in Sicht, Späher erst enttarnt), Gebäude/Baustellen als größere schwarze Quadrate (besetzte Militärgebäude innen weiß/rot), sichtbarer Ausschnitt als weißer Rahmen. Klick: Kameraflug 0,35 s; Ziehen verschiebt den Rahmen; Scrollen bricht den Flug ab;
     Rechtsklick/Alt+Rechtsklick mit Auswahl: Befehl dorthin wie auf der Karte.
   - Event-Buttons rechts neben dem Computer-Button (`EventButtons`: Info, Kampf, Rohstoffe, Handel; Platz/Bilder in `events.json` `categories`):
     neues Event → Button blinkt `blinkSeconds` mit 1 Hz, leuchtet dann bis gesehen. Klick (neuestes ungesehenes der Art, sonst neuestes) bzw.
