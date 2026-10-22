@@ -271,6 +271,24 @@ public class PathFinderTests
     }
 
     [Fact]
+    public void Route_survives_a_cell_merging_its_parts_next_to_a_known_one()
+    {
+        // A short wall splits the cell at 32..47 × 0..15 in two parts; the cell east of it knows the second.
+        var map = new GameMap(300);
+        for (int y = 0; y < 16; y++)
+            map.SetTerrain(new GridPoint(40, y), TerrainType.Water);
+        var finder = new PathFinder(map);
+        var start = new GridPoint(60, 8);
+        for (int i = 0; i < 2; i++) // the second time all cells are labelled and their neighbours kept
+            Assert.NotNull(finder.FindRoute(start, new GridPoint(280, 8), out _));
+
+        for (int y = 0; y < 16; y++)
+            map.SetTerrain(new GridPoint(40, y), TerrainType.Grass); // one part now
+
+        Assert.NotNull(WalkRoute(map, finder, start, new GridPoint(10, 200), maxLegExpanded: 20_000));
+    }
+
+    [Fact]
     public void A_settler_walks_a_far_way_leg_by_leg_to_its_destination()
     {
         var map = new GameMap(300);
