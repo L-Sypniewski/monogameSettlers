@@ -285,6 +285,8 @@
   "system": {
     "save": "Save game",
     "quit": "Quit game",
+    "paused": "Paused",
+    "pausedHint": "P: resume",
     "quitQuestion": "Really quit the game?"
   },
   "start": {
@@ -395,6 +397,14 @@
       "fullScreenHint": "Start in full screen. F11 switches at any time, until quitting.",
       "language": "Language",
       "languageHint": "Language of the texts.",
+      "theme": "Theme",
+      "themeHint": "Title and loading screen. Normal: Gold Edition, while loading the campaign's colour.",
+      "themes": {
+        "normal": "Normal",
+        "gold": "Gold",
+        "classic": "Classic",
+        "amazons": "Amazons"
+      },
       "music": "Music",
       "musicHint": "Volume of the background music – each people has its own pieces.",
       "peopleMusic": "Music per people",

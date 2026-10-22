@@ -36,8 +36,19 @@
   "_textButtonComment": "Wide text buttons (Abreißen, Ja/Nein, the statistics screen …): the stone buttons of the original's menus before the game, GUI image 0 of file 02 (a sheet) – source rectangles [x, y, width, height] of the button up and pressed; border: the frame kept unstretched. statisticsBackground: the blue marble (GUI image of file 02).",
   "textButton": { "file": 2, "gui": 0, "normal": [ 180, 416, 83, 40 ], "pressed": [ 282, 416, 86, 40 ], "border": 9 },
   "statisticsBackground": { "file": 2, "gui": 29 },
-  "_titleScreenComment": "Title screen: the Gold Edition's main menu picture per language (file 61, GUI 1 German, 2 English; 800 × 600), beside it a plain gold strip [x, y, width, height] of GUI image 0; popup: the message box of the menus before the game ([file, GUI image], 401 × 201: text area, marble for the buttons below).",
-  "titleScreen": { "file": 61, "background": { "de": 1, "en": 2 }, "plain": 0, "plainStrip": [ 10, 0, 120, 768 ], "popup": [ 2, 16 ] },
+  "_loadingScreenComment": "Loading screen (the three helmets, 1024 × 768) shown while a game loads, [file, GUI image] per campaign: settlers orange, Mission CD green, Amazons purple (the Amazons' torso behind), game (free games) gold. Themes other than normal take gold (game), classic (settlers) or amazons always.",
+  "loadingScreen": { "game": [ 61, 0 ], "settlers": [ 2, 28 ], "missionCd": [ 60, 0 ], "amazons": [ 48, 0 ] },
+  "_titleScreenComment": "Title screen per theme (normal: gold): the main menu picture per language (800 × 600; gold: the Gold Edition's, file 61, GUI 1 German, 2 English; classic: the original's orange, file 02; amazons: file 48), beside it a plain strip [x, y, width, height] of GUI image plain (the loading screen); the engraved buttons' colours [r, g, b] measured on the gold one, the others matched to their background; versionRight: where the version ends (default 773; classic: left of the picture's slogan under the logo). popup: the message box of the menus before the game ([file, GUI image], 401 × 201: text area, marble for the buttons below).",
+  "titleScreen": {
+    "themes": {
+      "gold": { "file": 61, "background": { "de": 1, "en": 2 }, "plain": 0, "plainStrip": [ 10, 0, 120, 768 ],
+        "fill": [ 146, 132, 58 ], "pressed": [ 128, 116, 46 ], "dark": [ 100, 90, 26 ], "light": [ 186, 170, 108 ], "shadow": [ 60, 52, 12 ] },
+      "classic": { "file": 2, "background": { "de": 6, "en": 5 }, "plain": 28, "plainStrip": [ 10, 0, 120, 768 ], "versionRight": 640,
+        "fill": [ 226, 80, 16 ], "pressed": [ 200, 68, 10 ], "dark": [ 150, 44, 4 ], "light": [ 255, 140, 90 ], "shadow": [ 90, 26, 2 ] },
+      "amazons": { "file": 48, "background": { "de": 2, "en": 3 }, "plain": 0, "plainStrip": [ 10, 0, 120, 768 ],
+        "fill": [ 122, 90, 226 ], "pressed": [ 106, 76, 202 ], "dark": [ 70, 48, 150 ], "light": [ 180, 160, 255 ], "shadow": [ 34, 22, 84 ] }
+    },
+    "popup": [ 2, 16 ] },
   "_settingsScreenComment": "Settings screen: a background of the original's menus (file 02, GUI 14, 800 × 600: four small boxes and a title field at the top, a large dark area, a note field at the bottom), marble beside it (GUI 29); tabs in the four boxes: icons of the original's statistics menus ([bright, dark] GUI images of tabs.file).",
   "settingsScreen": { "file": 2, "background": 14, "marble": 29,
     "tabs": { "file": 3, "resources": [ 239, 251 ], "economy": [ 245, 257 ], "military": [ 242, 254 ], "display": [ 290, 305 ] } },

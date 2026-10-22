@@ -12,7 +12,7 @@ namespace Homestead.Client;
 /// <summary>
 /// The settings screen from the title screen, on a background of the original's menus (<c>settingsScreen</c> in
 /// <c>data/ui.json</c>, scaled from 800 × 600, marble beside it). The square boxes at the top hold one tab per topic
-/// with an icon of the original's statistics menus (bright while chosen or under the mouse, dark otherwise; Tab and
+/// with an icon of the original's statistics menus (dark – pressed in – while chosen, bright otherwise; Tab and
 /// Shift+Tab switch); the chosen topic's settings fill the large dark area, one row of choices each. "Ok" (Enter)
 /// writes the <see cref="GameSettings"/> and <see cref="DisplaySettings"/> into <c>settings.json</c> (the game applies
 /// the latter, <see cref="Saved"/>), "Abbrechen" (Esc) drops the changes, "Standard" resets the open tab (game
@@ -84,6 +84,8 @@ public sealed class SettingsScreen : IDisposable
             // Each language by its own name.
             Display("language", [("Deutsch", (int)Language.German), ("English", (int)Language.English)],
                 d => (int)d.Language, (d, v) => d with { Language = (Language)v }),
+            Display("theme", Enum.GetValues<Theme>().Select(t => ("settings.display.themes." + t.ToString().ToLowerInvariant(), (int)t)).ToArray(),
+                d => (int)d.Theme, (d, v) => d with { Theme = (Theme)v }),
             Display("music", VolumeValues, d => d.MusicVolume, (d, v) => d with { MusicVolume = v }),
             Display("peopleMusic", YesNo, d => d.PeopleMusic ? 1 : 0, (d, v) => d with { PeopleMusic = v == 1 }),
             Display("effects", VolumeValues, d => d.EffectsVolume, (d, v) => d with { EffectsVolume = v }),
@@ -238,11 +240,10 @@ public sealed class SettingsScreen : IDisposable
         {
             var box = TabBox(t);
             var (bright, dark) = _icons[t];
-            var icon = t == _tab || box.Contains(hover) ? bright : dark;
+            // The chosen tab pressed in (the dark icon), the others raised.
+            var icon = t == _tab ? dark : bright;
             var at = new Rectangle(box.Center.X - icon.Width / 2, box.Center.Y - icon.Height / 2, icon.Width, icon.Height);
             batch.Draw(icon, ToScreen(at), Color.White);
-            if (t == _tab)
-                Outline(batch, pixel, ToScreen(new Rectangle(at.X - 2, at.Y - 2, at.Width + 4, at.Height + 4)), Gold);
         }
 
         string heading = Lang.T("settings.title");
@@ -254,7 +255,7 @@ public sealed class SettingsScreen : IDisposable
         Write(batch, font, current.Subtitle, Content.X + 20, 124, Dim, 11);
         if (current.Choices.Length == 0)
             Write(batch, font, Lang.T("settings.nothingYet"), Content.X + 20, RowTop + 6, Text, 13);
-        string? hint = TabAt(hover) is { } hovered && hovered != _tab ? Tabs[hovered].Name : null;
+        string? hint = null;
         for (int row = 0; row < current.Choices.Length; row++)
         {
             var choice = current.Choices[row];
@@ -285,15 +286,6 @@ public sealed class SettingsScreen : IDisposable
         TextButton.Draw(batch, pixel, font, ToScreen(DefaultButton), Lang.T("settings.defaults"), mouse.ToVector2(), size: Px(13));
         TextButton.Draw(batch, pixel, font, ToScreen(OkButton), Lang.T("common.ok"), mouse.ToVector2(), size: Px(13));
         TextButton.Draw(batch, pixel, font, ToScreen(CancelButton), Lang.T("common.cancel"), mouse.ToVector2(), size: Px(13));
-    }
-
-    private void Outline(SpriteBatch batch, Texture2D pixel, Rectangle r, Color color)
-    {
-        int line = Math.Max(1, (int)MathF.Round(_scale * 1.5f));
-        batch.Draw(pixel, new Rectangle(r.X, r.Y, r.Width, line), color);
-        batch.Draw(pixel, new Rectangle(r.X, r.Bottom - line, r.Width, line), color);
-        batch.Draw(pixel, new Rectangle(r.X, r.Y, line, r.Height), color);
-        batch.Draw(pixel, new Rectangle(r.Right - line, r.Y, line, r.Height), color);
     }
 
     private static int? TabAt(Point at)

@@ -52,7 +52,10 @@ Regeln aus JSettlers (`AdvancedDatFileReader.initialize`) übernommen, siehe `Gf
 - Schatten: bei Differenz 7 oder 8 fehlen sie am Anfang, sonst am Ende.
 - Sonderfälle, erkannt an den Tabellengrößen: Gebäude (Differenz 26, Dateien 13/43), Schiffe (28, Datei 36),
   römische Spezialisten (239 Einträge, Datei 11).
-- Offen: in Datei 12 wirken die Schatten der Sequenzen 26–33 nicht stimmig.
+- Soldaten (Dateien 12/22/32/42, eigene Zuordnung nach Bildanzahl, die Schatten für Schatten übereinstimmt):
+  Schatten 0–18 gehören zu den Soldaten ab Sequenz 9 (Römer, Asiaten), 14 (Ägypter) bzw. 7 (Amazonen),
+  Schatten 19–25 zu den Sequenzen davor (Sequenz 0, dann 2–7; Amazonen 0–6). JSettlers verschiebt Römer/Asiaten um 8
+  und Amazonen um 6 – Bogenschützen bekommen dann Nachbarschatten, schießende Stufe 3 einen leeren.
 
 Einzelne Sequenzen (visuell bestätigt):
 - Datei 01, Sequenz 100–105: fliegender Pfeil je Richtung (SW, W, NW, NE, O, SO), 3 Frames: steigend, waagrecht, fallend.

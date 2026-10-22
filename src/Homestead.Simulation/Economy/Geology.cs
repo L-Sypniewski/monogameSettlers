@@ -48,9 +48,9 @@ public sealed class Geology
     /// <summary>
     /// Turns the carriers among <paramref name="settlers"/> into geologists (or scouts, pioneers), one after another
     /// while the carrier reserve allows: free ones at once, busy ones after their delivery. Returns how many
-    /// converted now and how many will follow.
+    /// converted now and how many will follow; both are added to <paramref name="chosen"/>.
     /// </summary>
-    public (int Now, int Later) Convert(IEnumerable<Settler> settlers, Profession profession = Profession.Geologist)
+    public (int Now, int Later) Convert(IEnumerable<Settler> settlers, Profession profession = Profession.Geologist, ICollection<Settler>? chosen = null)
     {
         int now = 0, later = 0;
         foreach (var settler in settlers.Where(s => s.IsCarrier && !s.IsDead).ToList())
@@ -61,11 +61,13 @@ public sealed class Geology
             if (settler.IsAvailableCarrier)
             {
                 Make(settler, profession);
+                chosen?.Add(settler);
                 now++;
             }
             else if (_conversions.TryAdd(settler, profession))
             {
                 settler.ConversionPending = true;
+                chosen?.Add(settler);
                 later++;
             }
         }
@@ -74,14 +76,14 @@ public sealed class Geology
 
     /// <summary>
     /// Turns up to <paramref name="count"/> carriers of the player into geologists or scouts (Siedler › Berufe):
-    /// idle ones first, then busy ones after their delivery, as far as the carrier reserve allows.
+    /// idle ones first, then busy ones after their delivery, as far as the carrier reserve allows (those added to <paramref name="chosen"/>).
     /// </summary>
-    public (int Now, int Later) ConvertCarriers(int player, int count, Profession profession = Profession.Geologist) =>
+    public (int Now, int Later) ConvertCarriers(int player, int count, Profession profession = Profession.Geologist, ICollection<Settler>? chosen = null) =>
         Convert(_world.Settlers
             .Where(s => s.Player == player && s.IsCarrier && !s.IsDead && !s.ConversionPending && !_world.Recruitment.Active.Any(r => r.Settler == s))
             .OrderBy(s => s.IsAvailableCarrier ? 0 : 1)
             .ThenBy(s => s.Id)
-            .Take(count), profession);
+            .Take(count), profession, chosen);
 
     private void Make(Settler settler, Profession profession)
     {

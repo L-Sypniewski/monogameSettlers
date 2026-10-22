@@ -69,7 +69,8 @@ public sealed class SettlerRenderer
 
     /// <summary>
     /// A soldier in a place of a military building at a given screen position: bowmen stand on top
-    /// (shooting towards their target, else looking to <paramref name="facing"/>), infantry look out of a window.
+    /// (shooting towards their target, else looking to <paramref name="facing"/>; without a shadow, as in the
+    /// original), infantry look out of a window.
     /// </summary>
     public void DrawOccupant(SpriteBatch batch, Settler settler, Vector2 anchor, Direction facing, Color playerColor, long tick, float tickAlpha)
     {
@@ -80,11 +81,11 @@ public sealed class SettlerRenderer
         }
         if (settler.Activity == Activity.Shooting && Find(settler, "ACTION1", settler.Facing) is { } shooting)
         {
-            Sprites(shooting).Draw(batch, ShotFrame(settler, shooting, tick, tickAlpha), anchor, 1, playerColor);
+            Sprites(shooting).Draw(batch, ShotFrame(settler, shooting, tick, tickAlpha), anchor, 1, playerColor, shadow: false);
             return;
         }
         var (sprites, frame) = Look(settler, "NO_ACTION", facing, a => a.Start, 0);
-        sprites.Draw(batch, frame, anchor, 1, playerColor);
+        sprites.Draw(batch, frame, anchor, 1, playerColor, shadow: false);
     }
 
     /// <summary>
@@ -262,7 +263,7 @@ public sealed class SettlerRenderer
     private string? TypeFor(Settler settler) => settler == _disguised ? "BEARER" : TypeOf(settler);
 
     /// <summary>The people a settler looks like: the viewer's in disguise, its own (priests, won-over soldiers), else its player's.</summary>
-    private Civilization PeopleOf(Settler settler) =>
+    public Civilization PeopleOf(Settler settler) =>
         settler == _disguised ? _peopleOf(Viewer) : settler.People ?? _peopleOf(settler.Player);
 
     /// <summary>

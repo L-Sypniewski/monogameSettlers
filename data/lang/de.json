@@ -285,7 +285,9 @@
   "system": {
     "save": "Spiel speichern",
     "quit": "Spiel beenden",
-    "quitQuestion": "Spiel wirklich beenden?"
+    "quitQuestion": "Spiel wirklich beenden?",
+    "paused": "Pause",
+    "pausedHint": "P: weiterspielen"
   },
   "start": {
     "categories": {
@@ -395,6 +397,14 @@
       "fullScreenHint": "Beim Start im Vollbild. F11 wechselt jederzeit, nur bis zum Beenden.",
       "language": "Sprache",
       "languageHint": "Sprache der Texte.",
+      "theme": "Thema",
+      "themeHint": "Titelbild und Ladebildschirm. Normal: Gold Edition, beim Laden die Farbe der Kampagne.",
+      "themes": {
+        "normal": "Normal",
+        "gold": "Gold",
+        "classic": "Classic",
+        "amazons": "Amazonen"
+      },
       "music": "Musik",
       "musicHint": "Lautstärke der Hintergrundmusik – je Volk eigene Stücke.",
       "peopleMusic": "Musik je Volk",

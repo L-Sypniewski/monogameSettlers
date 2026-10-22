@@ -1,9 +1,9 @@
 namespace Homestead.Simulation.Map;
 
 /// <summary>
-/// What one player sees of the map (fog of war): their own land, everything within sight of their
-/// settlers and of finished buildings with a sight (<see cref="Military.MilitaryConfig.BuildingSight"/>,
-/// the lookout tower) is visible; what was visible once stays explored. Recomputed on demand (<see cref="Update"/>),
+/// What one player sees of the map (fog of war): everything within sight of their settlers outside the buildings
+/// and of buildings with a sight (<see cref="Military.Military.SightOfBuilding"/>: the lookout tower, occupied
+/// military buildings a little beyond their land) is visible – the own land itself sees nothing; what was visible once stays explored. Recomputed on demand (<see cref="Update"/>),
 /// not every tick. The simulation itself does not use it: computer players know the whole map (scouts stay revealed
 /// while in sight, <see cref="Military.Military.Sees"/>).
 /// </summary>
@@ -37,19 +37,15 @@ public sealed class Vision
     /// <summary>Recomputes what is visible now; all of it counts as explored from now on.</summary>
     public void Update(World world)
     {
-        var map = world.Map!;
-        for (int i = 0; i < _visible.Length; i++)
-            _visible[i] = map.OwnerAt(i) == Player;
+        Array.Clear(_visible);
         foreach (var settler in world.Settlers)
         {
             if (settler.Player != Player || settler.IsDead || settler.IsInside)
                 continue;
             See(settler.Position, world.Military.SightOf(settler));
         }
-        var buildingSight = world.Military.Config.BuildingSight;
         foreach (var building in world.Buildings)
-            if (building is { Exists: true, State: Buildings.BuildingState.Finished } && building.Player == Player
-                && buildingSight.TryGetValue(building.Definition.Name, out int sight))
+            if (building.Player == Player && world.Military.SightOfBuilding(building) is { } sight)
                 See(building.Position, sight);
         for (int i = 0; i < _visible.Length; i++)
             _explored[i] |= _visible[i];

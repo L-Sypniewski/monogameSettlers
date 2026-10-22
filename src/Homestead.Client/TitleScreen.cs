@@ -72,12 +72,11 @@ public sealed class TitleScreen : IDisposable
 
     private static string Label(string key) => Lang.T("title.buttons." + key);
 
-    // The original's engraved buttons: a fill a little darker than the gold, a dark line around it and a light
-    // one just outside to the lower right.
-    private static readonly Color Fill = new(146, 132, 58);
-    private static readonly Color PressedFill = new(128, 116, 46);
-    private static readonly Color Dark = new(100, 90, 26);
-    private static readonly Color Light = new(186, 170, 108);
+    // The original's engraved buttons: a fill a little darker than the background, a dark line around it and a light
+    // one just outside to the lower right (per theme in ui.json).
+    private readonly Color Fill, PressedFill, Dark, Light, Shadow;
+    /// <summary>Right edge of the version in the 800 × 600 space.</summary>
+    private readonly float _versionRight = 773;
     private static readonly Color Text = new(250, 246, 225);
     private static readonly Color HoverText = new(255, 236, 140);
     private static readonly Color Version = new(240, 222, 70);
@@ -96,10 +95,25 @@ public sealed class TitleScreen : IDisposable
     private KeyboardState _previousKeys = Keyboard.GetState();
     private MouseState _previousMouse = Mouse.GetState();
 
-    public TitleScreen(GraphicsDevice device, GfxDirectory gfx)
+    /// <param name="theme">The look (<see cref="DisplaySettings.Theme"/>); normal is gold.</param>
+    public TitleScreen(GraphicsDevice device, GfxDirectory gfx, Theme theme)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var look = document.RootElement.GetProperty("titleScreen");
+        var screen = document.RootElement.GetProperty("titleScreen");
+        var look = screen.GetProperty("themes").GetProperty(theme switch
+        {
+            Theme.Classic => "classic",
+            Theme.Amazons => "amazons",
+            _ => "gold",
+        });
+        Color Rgb(string name)
+        {
+            var rgb = look.GetProperty(name);
+            return new Color(rgb[0].GetInt32(), rgb[1].GetInt32(), rgb[2].GetInt32());
+        }
+        (Fill, PressedFill, Dark, Light, Shadow) = (Rgb("fill"), Rgb("pressed"), Rgb("dark"), Rgb("light"), Rgb("shadow"));
+        if (look.TryGetProperty("versionRight", out var versionRight))
+            _versionRight = versionRight.GetSingle();
         var file = gfx.Open(look.GetProperty("file").GetInt32());
         Texture2D Image(string name) => Gui(look.GetProperty(name).GetInt32());
         Texture2D Gui(int index)
@@ -112,7 +126,7 @@ public sealed class TitleScreen : IDisposable
         foreach (var language in Enum.GetValues<Language>())
             _backgrounds[language] = Gui(look.GetProperty("background").GetProperty(Lang.Code(language)).GetInt32());
         _plain = Image("plain");
-        var popup = look.GetProperty("popup");
+        var popup = screen.GetProperty("popup");
         var popupBitmap = gfx.Open(popup[0].GetInt32()).ReadGui(popup[1].GetInt32());
         _popupImage = new Texture2D(device, popupBitmap.Width, popupBitmap.Height);
         _popupImage.SetData(popupBitmap.Pixels);
@@ -265,7 +279,7 @@ public sealed class TitleScreen : IDisposable
 
         Write(batch, font, Lang.T("title.disclaimer"), 27, 577, Version, 10);
         float width = font.Measure(GameVersion, Px(10)).X / _scale;
-        Write(batch, font, GameVersion, 773 - width, 577, Version, 10);
+        Write(batch, font, GameVersion, _versionRight - width, 577, Version, 10);
         if (_popup is not null)
             DrawPopup(batch, pixel, font, _popup);
         if (_failure is not null)
@@ -350,7 +364,7 @@ public sealed class TitleScreen : IDisposable
     {
         var at = _origin + new Vector2(x, y) * _scale;
         at = new Vector2(MathF.Round(at.X), MathF.Round(at.Y));
-        font.Draw(batch, text, at + new Vector2(1, 1), new Color(60, 52, 12) * 0.9f, Px(size));
+        font.Draw(batch, text, at + new Vector2(1, 1), Shadow * 0.9f, Px(size));
         font.Draw(batch, text, at, color, Px(size));
     }
 

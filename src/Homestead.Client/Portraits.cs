@@ -54,21 +54,27 @@ public sealed class Portraits : IDisposable
     /// <summary>The size of a portrait (all the same).</summary>
     public static readonly Point Size = new(40, 60);
 
-    /// <summary>The type's portrait centered in the box, or its standing figure (in an empty frame, if there is one) if it has none.</summary>
-    public void Draw(SpriteBatch batch, string type, Rectangle box, SettlerRenderer settlers, Civilization people, Color playerColor)
+    /// <summary>
+    /// The type's portrait centered in the box (<paramref name="scale"/> times its size), or its standing figure
+    /// (in an empty frame, if there is one) if it has none.
+    /// </summary>
+    public void Draw(SpriteBatch batch, string type, Rectangle box, SettlerRenderer settlers, Civilization people, Color playerColor,
+        float scale = 1)
     {
         if (_images.TryGetValue(type, out var image))
         {
-            batch.Draw(image, new Vector2(box.Center.X - image.Width / 2, box.Center.Y - image.Height / 2), Color.White);
+            batch.Draw(image, new Vector2(box.Center.X - image.Width * scale / 2, box.Center.Y - image.Height * scale / 2), null, Color.White,
+                0, Vector2.Zero, scale, SpriteEffects.None, 0);
             return;
         }
         if (_images.TryGetValue("FRAME", out var frame))
         {
-            var at = new Vector2(box.Center.X - frame.Width / 2, box.Center.Y - frame.Height / 2);
-            batch.Draw(frame, at, Color.White);
-            box = new Rectangle((int)at.X + 4, (int)at.Y + 4, frame.Width - 8, frame.Height - 8);
+            var at = new Vector2(box.Center.X - frame.Width * scale / 2, box.Center.Y - frame.Height * scale / 2);
+            batch.Draw(frame, at, null, Color.White, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+            int border = (int)MathF.Round(4 * scale);
+            box = new Rectangle((int)at.X + border, (int)at.Y + border, (int)(frame.Width * scale) - 2 * border, (int)(frame.Height * scale) - 2 * border);
         }
-        settlers.DrawIcon(batch, people, type, box, 2f, playerColor);
+        settlers.DrawIcon(batch, people, type, box, 2f * scale, playerColor);
     }
 
     public void Dispose()

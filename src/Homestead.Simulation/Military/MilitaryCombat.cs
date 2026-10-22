@@ -414,7 +414,7 @@ public sealed partial class Military
         guard.ShotTicks = interval;
     }
 
-    /// <summary>Bowmen in military buildings shoot at enemies within range of the building.</summary>
+    /// <summary>Bowmen in military buildings shoot at enemies within their tower range (<see cref="MilitaryConfig.TowerRange"/>) of the building.</summary>
     private void ShootFromBuildings()
     {
         foreach (var g in _garrisons.Values)
@@ -432,7 +432,7 @@ public sealed partial class Military
                 var stats = _config.Soldiers[SoldierType.Bowman];
                 if (!searched || enemy is { IsDead: true })
                 {
-                    enemy = NearestEnemy(g.Building.Position, bowman.Player, stats.Range);
+                    enemy = NearestEnemy(g.Building.Position, bowman.Player, _config.TowerRange);
                     searched = true;
                 }
                 if (enemy is null)

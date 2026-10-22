@@ -374,6 +374,9 @@ public sealed partial class World
             _occupant[map.Index(settler.Position)] = NoOccupant;
         var target = settler.Position.Neighbor(direction);
         settler.StepSpeed = Trails.StepSpeed(target);
+        // Soldier types walk at their own speed.
+        if (settler.SoldierType is { } type && Military.Config.Soldiers[type].SpeedFactor is var factor and not 1)
+            settler.StepSpeed = Math.Max(1, (int)Math.Round(settler.StepSpeed * factor));
         // A scout with stolen goods sneaks.
         if (settler is { Profession: Profession.Scout, Carrying: not null })
             settler.StepSpeed = Math.Max(1, (int)Math.Round(settler.StepSpeed * (Military.Config.Scouts ?? ScoutRules.Default).LoadedSpeed));

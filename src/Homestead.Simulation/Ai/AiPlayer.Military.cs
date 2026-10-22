@@ -358,7 +358,7 @@ public sealed partial class AiPlayer
     /// </summary>
     internal double TowerFire(IReadOnlyCollection<GridPoint> points, Building? except = null)
     {
-        int range = _world.Military.Config.Soldiers[SoldierType.Bowman].Range;
+        int range = _world.Military.Config.TowerRange;
         return EnemyMilitaryNow().Where(b => b != except && points.Any(p => PathFinder.Distance(b.Position, p) <= range))
             .Sum(b => _world.Military.Occupants(b).Where(s => s is { SoldierType: SoldierType.Bowman }).Sum(s => Strength(s!, b.Position)));
     }

@@ -415,6 +415,49 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Swordsmen_walk_faster_than_pikemen_and_pikemen_faster_than_bowmen()
+    {
+        int TicksFor(SoldierType type)
+        {
+            var world = new World(new GameMap(80), TestConfig.NoTools);
+            var soldier = world.SpawnSoldier(new GridPoint(10, 40), type)!;
+            Assert.True(world.WalkTo(soldier, new GridPoint(70, 40)));
+            int ticks = 0;
+            while (soldier.Position != new GridPoint(70, 40) && ticks < 10_000)
+            {
+                world.Step();
+                ticks++;
+            }
+            return ticks;
+        }
+        int sword = TicksFor(SoldierType.Swordsman), pike = TicksFor(SoldierType.Pikeman), bow = TicksFor(SoldierType.Bowman);
+
+        Assert.InRange(bow / (double)sword, 1.07, 1.13); // 10 % faster
+        Assert.InRange(bow / (double)pike, 1.03, 1.07); // 5 % faster
+    }
+
+    [Fact]
+    public void Bowmen_in_a_tower_shoot_further_than_on_the_ground()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools);
+        var config = world.Military.Config;
+        int ground = config.Soldiers[SoldierType.Bowman].Range;
+        Assert.True(config.TowerRange > ground);
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 40))!;
+        SpawnSoldiers(world, SoldierType.Bowman, 1, new GridPoint(35, 50));
+        world.Military.ChangeWanted(tower, SoldierType.Bowman, 1);
+        world.Military.ChangeWanted(tower, SoldierType.Swordsman, -1);
+        Run(world, 3_000, stopWhen: () => world.Military.Occupants(tower).Any(s => s is { SoldierType: SoldierType.Bowman }));
+        // A geologist (does not fight back, stands still) beyond the ground range, within the tower range.
+        var geologist = world.Spawn(new GridPoint(30 + config.TowerRange, 40), Profession.Geologist, player: 1)!;
+        Assert.InRange(PathFinder.Distance(tower.Position, geologist.Position), ground + 1, config.TowerRange);
+
+        Run(world, 3_000, stopWhen: () => geologist.IsDead);
+
+        Assert.True(geologist.IsDead);
+    }
+
+    [Fact]
     public void Attackers_take_an_enemy_tower_with_its_land()
     {
         var map = new GameMap(120);

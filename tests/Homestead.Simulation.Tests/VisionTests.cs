@@ -60,6 +60,34 @@ public class VisionTests
     }
 
     [Fact]
+    public void Occupied_military_buildings_see_a_little_beyond_their_land_and_the_land_itself_sees_nothing()
+    {
+        var map = new GameMap(120);
+        var world = new World(map, TestConfig.NoTools);
+        var tower = world.PlaceBuilding(BuildingCatalog.Load(Civilization.Roman)["tower"], 0, new GridPoint(60, 60), force: true)!;
+        var vision = new Vision(120, player: 0);
+        vision.Update(world);
+        Assert.False(vision.IsVisible(tower.Position), "an empty tower sees nothing");
+
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        for (int t = 0; t < 200 && !world.Military.IsOccupied(tower); t++)
+            world.Step();
+        Assert.True(world.Military.IsOccupied(tower));
+        vision.Update(world);
+        int sight = world.Military.SightOfBuilding(tower)!.Value;
+        Assert.Equal((int)Math.Ceiling(world.Military.Config.Territory["tower"]) + world.Military.Config.MilitarySightMargin, sight);
+        Assert.True(vision.IsVisible(new GridPoint(tower.Position.X + sight, tower.Position.Y)));
+        Assert.False(vision.IsVisible(new GridPoint(tower.Position.X + sight + 1, tower.Position.Y)));
+
+        // Torn down: the land stays the player's, but nobody sees it any more.
+        world.RemoveBuilding(tower);
+        Assert.Equal(0, map.OwnerAt(tower.Position));
+        vision.Update(world);
+        Assert.False(vision.IsVisible(new GridPoint(tower.Position.X + 10, tower.Position.Y)));
+        Assert.True(vision.IsExplored(120 * tower.Position.Y + tower.Position.X + 10));
+    }
+
+    [Fact]
     public void The_seen_area_is_the_round_circle_of_the_pathfinder()
     {
         var world = new World(new GameMap(80), TestConfig.NoTools);

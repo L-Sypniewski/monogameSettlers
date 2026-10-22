@@ -12,7 +12,8 @@ public sealed class CheatMenu
     private const int Width = 190;
     private const int ButtonHeight = 24;
     private const int Gap = 3;
-    private const int Top = 60;
+    /// <summary>Where the menu begins (below the group icons, which grow with the side panel).</summary>
+    public int Top { get; set; } = 76;
     private const int Margin = 8;
 
     private readonly List<(string Label, Action Run)> _entries = new();
@@ -56,6 +57,6 @@ public sealed class CheatMenu
     private Rectangle Frame(int width) =>
         new(width - Margin - Width, Top, Width, 24 + _entries.Count * (ButtonHeight + Gap) + Gap);
 
-    private static Rectangle Button(int width, int i) =>
+    private Rectangle Button(int width, int i) =>
         new(width - Margin - Width + 4, Top + 24 + i * (ButtonHeight + Gap), Width - 8, ButtonHeight);
 }

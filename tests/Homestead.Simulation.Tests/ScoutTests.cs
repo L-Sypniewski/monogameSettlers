@@ -69,16 +69,14 @@ public class ScoutTests(ITestOutputHelper output)
     public void A_revealed_scout_stays_revealed_while_in_sight()
     {
         var map = new GameMap(120);
-        for (int y = 30; y < 60; y++)
-        for (int x = 50; x < 70; x++)
-            map.SetOwner(new GridPoint(x, y), 1);
         var world = new World(map, TestConfig.NoTools);
         var scout = world.Spawn(new GridPoint(40, 40), Profession.Scout)!;
         world.SpawnSoldier(new GridPoint(45, 40), SoldierType.Swordsman, player: 1);
+        world.Spawn(new GridPoint(58, 46), player: 1);
         world.Step();
         Assert.True(scout.IsRevealedTo(1));
 
-        // Away from the soldier, but on player 1's land: still revealed.
+        // Away from the soldier, but near a carrier of player 1: still revealed.
         world.Military.Move(world.Settlers.Where(s => s.Player == 1 && s.Profession == Profession.Soldier), new GridPoint(100, 40), forced: true);
         world.WalkTo(scout, new GridPoint(55, 46));
         for (int t = 0; t < 600; t++)
