@@ -34,6 +34,9 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   Erkundetes bleibt erkundet; KI nutzt es nicht.
 - `Pathfinding/PathFinder`: A*; Erreichbarkeit über `Regions` (führen Begehbarkeitsänderungen nach). Schrittkosten nach Laufzeit
   (`SetStepCosts`: Pfad 8, eben 10, Gebirge 13); Landgebiete je Besitzer.
+  Ferne Ziele etappenweise (`FindRoute`, von `WalkTo`/`Replan`; nicht auf eigenes Land Beschränkte über `ExactDistance` (96)): grobe Route über
+  `Clusters` (16×16-Zellen, je Zelle ihre zusammenhängenden Teile, Nachbarn gecacht, geänderte Zellen neu), exakt nur bis in den Teil
+  `LegNodes` (4) Zellen voraus; `Settler.PathIsLeg` → am Etappenende plant `World` die nächste. Nahe am Ziel exakt.
 - `World`/`Settler`: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf (Kommentar in `World`).
   `Settler.StepProgress` in `World.StepUnits`; Tempo je Zielfeld: Gebirge ×0,8, Trampelpfad ×1,2 (`walking` in `production.json`);
   dazu Soldaten je Typ `speed` in `military.json` (Schwertkämpfer ×1,1, Pikeniere ×1,05, Bogenschützen ×1).

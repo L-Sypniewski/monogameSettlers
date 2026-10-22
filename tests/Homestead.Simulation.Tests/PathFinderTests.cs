@@ -193,6 +193,100 @@ public class PathFinderTests
         Assert.True(finder.FullRegionLabels < 150, $"{finder.FullRegionLabels} full labels");
     }
 
+    /// <summary>Follows <see cref="PathFinder.FindRoute"/> leg by leg; the points walked, or null if it gave up.</summary>
+    private static List<GridPoint>? WalkRoute(GameMap map, PathFinder finder, GridPoint start, GridPoint target, int maxLegExpanded)
+    {
+        var walked = new List<GridPoint> { start };
+        for (int legs = 0; legs < 200; legs++)
+        {
+            var path = finder.FindRoute(walked[^1], target, out bool partial);
+            if (path is null)
+                return null;
+            Assert.True(!partial || finder.LastExpandedNodes <= maxLegExpanded, $"a leg expanded {finder.LastExpandedNodes} nodes");
+            foreach (var step in path)
+            {
+                walked.Add(walked[^1].Neighbor(step));
+                Assert.True(map.IsWalkable(walked[^1]), $"Route crosses blocked point {walked[^1]}.");
+            }
+            if (!partial)
+                return walked;
+            Assert.NotEmpty(path);
+        }
+        return null;
+    }
+
+    [Fact]
+    public void Far_targets_are_reached_leg_by_leg_almost_as_short_as_exact()
+    {
+        var random = new Random(7);
+        var map = new GameMap(320);
+        // Lakes of all sizes.
+        for (int lake = 0; lake < 260; lake++)
+        {
+            var center = new GridPoint(random.Next(320), random.Next(320));
+            foreach (var p in PathFinder.Circle(center, random.Next(1, 9)))
+                if (map.Contains(p))
+                    map.SetTerrain(p, TerrainType.Water);
+        }
+        var finder = new PathFinder(map);
+        int routes = 0;
+        for (int query = 0; query < 40; query++)
+        {
+            var start = new GridPoint(random.Next(320), random.Next(320));
+            var target = new GridPoint(random.Next(320), random.Next(320));
+            if (!map.IsWalkable(start) || !finder.AreConnected(start, target) || PathFinder.Distance(start, target) <= PathFinder.ExactDistance)
+                continue;
+            var exact = finder.FindPath(start, target)!;
+            int exactExpanded = finder.LastExpandedNodes;
+
+            var walked = WalkRoute(map, finder, start, target, maxLegExpanded: exactExpanded / 4 + 500);
+
+            Assert.NotNull(walked);
+            Assert.Equal(target, walked[^1]);
+            Assert.True(walked.Count - 1 <= exact.Count * 1.2, $"{walked.Count - 1} steps instead of {exact.Count}");
+            routes++;
+        }
+        Assert.True(routes >= 10, $"only {routes} far routes");
+    }
+
+    [Fact]
+    public void Legs_follow_walkability_changes()
+    {
+        // A wall across the map with a gap at either end.
+        var map = new GameMap(300);
+        for (int y = 0; y < 300; y++)
+            if (y is not 10 and not 290)
+                map.SetTerrain(new GridPoint(150, y), TerrainType.Water);
+        var finder = new PathFinder(map);
+        var start = new GridPoint(20, 20);
+        var target = new GridPoint(280, 30);
+        Assert.NotNull(WalkRoute(map, finder, start, target, maxLegExpanded: 20_000));
+
+        map.SetObject(new GridPoint(150, 10), MapObjectKind.Tree); // the near gap closes
+        var walked = WalkRoute(map, finder, start, target, maxLegExpanded: 20_000);
+
+        Assert.NotNull(walked);
+        Assert.Equal(target, walked[^1]);
+        Assert.Contains(new GridPoint(150, 290), walked);
+    }
+
+    [Fact]
+    public void A_settler_walks_a_far_way_leg_by_leg_to_its_destination()
+    {
+        var map = new GameMap(300);
+        var world = new World(map, Homestead.Simulation.Economy.ProductionConfig.None);
+        var soldier = world.SpawnSoldier(new GridPoint(10, 10), SoldierType.Swordsman)!;
+        var destination = new GridPoint(290, 280);
+
+        Assert.True(world.WalkTo(soldier, destination));
+        Assert.True(soldier.RemainingPath.Count() < PathFinder.Distance(soldier.Position, destination), "only a leg planned");
+        for (int t = 0; t < 400 * World.TicksPerSecond && soldier.Position != destination; t++)
+            world.Step();
+
+        Assert.Equal(destination, soldier.Position);
+        Assert.Null(soldier.Destination);
+    }
+
     internal static void AssertValid(GameMap map, GridPoint start, GridPoint target, IReadOnlyList<Direction> path)
     {
         var position = start;

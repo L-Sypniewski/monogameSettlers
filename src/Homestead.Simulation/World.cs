@@ -250,10 +250,11 @@ public sealed partial class World
         settler.IsStrolling = false;
         // Plan from where the settler will be standing next.
         var from = settler.StepTarget;
-        var path = PathFinder!.FindPath(from, destination, ownLandOf: LandOf(settler));
+        var path = PathFinder!.FindRoute(from, destination, out bool leg, ownLandOf: LandOf(settler));
         if (path is null)
             return false;
         Follow(settler, path, destination);
+        settler.PathIsLeg = leg;
         return true;
     }
 
@@ -283,6 +284,7 @@ public sealed partial class World
     internal void Follow(Settler settler, IReadOnlyList<Direction> path, GridPoint destination)
     {
         settler.IsStrolling = false;
+        settler.PathIsLeg = false;
         settler.Path.Clear();
         foreach (var step in path)
             settler.Path.Enqueue(step);
@@ -313,7 +315,13 @@ public sealed partial class World
             _occupant[map.Index(settler.Position)] = settler.Id;
 
         if (settler.Path.Count == 0)
-            settler.Destination = null;
+        {
+            // The end of a leg towards a far destination: on with the next one.
+            if (settler.PathIsLeg && settler.Destination is { } destination && destination != settler.Position)
+                Replan(settler, avoid: null);
+            else
+                settler.Destination = null;
+        }
     }
 
     private void TryStartStep(Settler settler)
@@ -419,7 +427,7 @@ public sealed partial class World
             return;
         }
 
-        var path = PathFinder!.FindPath(settler.Position, destination, avoid, LandOf(settler));
+        var path = PathFinder!.FindRoute(settler.Position, destination, out bool leg, avoid, LandOf(settler));
         if (path is null)
         {
             // No way around: keep waiting (the watchdog will push through) unless the
@@ -443,6 +451,7 @@ public sealed partial class World
         settler.Path.Clear();
         foreach (var step in path)
             settler.Path.Enqueue(step);
+        settler.PathIsLeg = leg;
     }
 
     /// <summary>Moves an idle settler one step to a free neighbor, preferring one away from <paramref name="keepFree"/>.</summary>
