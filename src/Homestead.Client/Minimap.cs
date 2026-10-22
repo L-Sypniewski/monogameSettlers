@@ -1,12 +1,13 @@
 using Homestead.Assets.Maps;
 using Homestead.Simulation.Map;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace Homestead.Client;
 
 /// <summary>
 /// The minimap's picture: one texel per grid point, landscape colors (<see cref="MapOverview"/>) where
-/// player 1 has explored, black elsewhere; territory borders in the player colors. Units and military
+/// player 1 has explored, black elsewhere; territory borders white for player 1, red for everyone else (as the dots). Units and military
 /// buildings are dots on top (<see cref="SidePanel"/>).
 /// </summary>
 public sealed class Minimap : IDisposable
@@ -26,7 +27,7 @@ public sealed class Minimap : IDisposable
     /// <summary>
     /// Shows what <paramref name="vision"/> has explored (everything with <paramref name="all"/>), with the borders
     /// of <paramref name="map"/>'s territories: both fields of every neighbor pair with different owners (two
-    /// texels, one is lost when the map is scaled down), in the color of the owned one.
+    /// texels, one is lost when the map is scaled down), in the color of the owned one: white for player 1, red else.
     /// </summary>
     public void Update(Vision vision, bool all, GameMap map)
     {
@@ -60,7 +61,7 @@ public sealed class Minimap : IDisposable
         void Mark(int i, int player)
         {
             if (all || vision.IsExplored(i))
-                _pixels[i] = PlayerColors.Of(player).PackedValue;
+                _pixels[i] = (player == 0 ? Color.White : Color.Red).PackedValue;
         }
     }
 
