@@ -11,15 +11,15 @@ namespace Homestead.Simulation.Map.Generation;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The land is an island in the middle of the (square) grid. Seen in the grid's own geometry — the six
-/// neighbors at equal distance, <see cref="Uv"/> — it is a disc, so it can be mirrored around its center:
-/// reflections at multiples of 30° map the grid onto itself, which makes the mirrored maps exactly fair
-/// for 2, 3, 4 and 6 players (5 players: rounded).
+/// The land is one landmass in the middle of the (square) grid with a ragged coast of bays and peninsulas.
+/// Mirrored, it is a disc in the grid's own geometry — the six neighbors at equal distance, <see cref="Uv"/> —
+/// so it can be mirrored around its center: reflections at multiples of 30° map the grid onto itself, which
+/// makes the mirrored maps exactly fair for 2, 3, 4 and 6 players (5 players: rounded).
 /// </para>
 /// <para>
 /// Steps: ground classes (sea, grass, mountain, swamp, lakes, rivers), every player's surroundings
 /// (a mountain with coal, iron and gold, a pond fed by a stream, a forest, stones, a flat start area),
-/// heights, objects, ore and fish, treasures; then the symmetry (mirroring or copying the start tile)
+/// heights (grass slightly bumpy), objects, ore and fish, treasures; then the symmetry (mirroring or copying the start tile)
 /// and last the landscape bytes: water depth, beaches and the border rings of mountains, snow and swamps
 /// are derived from the classes, one field per ring, so every triangle has an original transition tile.
 /// Features keep enough distance from each other that the rings do not meet other ground.
@@ -35,6 +35,8 @@ public sealed class RandomMapGenerator
         Snow,
         Mud,
         River,
+        /// <summary>Impassable bog (the moat around the hill).</summary>
+        Moor,
     }
 
     private static readonly (int X, int Y)[] Deltas = [(1, 0), (1, 1), (0, 1), (-1, 0), (-1, -1), (0, -1)];
@@ -42,7 +44,7 @@ public sealed class RandomMapGenerator
 
     // Landscape bytes of the original maps (docs/formate/map.md).
     private const byte LGrass = 16, LMountainBorderOuter = 17, LMudBorderOuter = 23, LMountain = 32, LMountainBorder = 33,
-        LSnowBorderOuter = 35, LSand = 48, LRiver = 96, LSnow = 128, LSnowBorder = 129, LMud = 144, LMudBorder = 145;
+        LSnowBorderOuter = 35, LSand = 48, LMoorBorderOuter = 21, LMoor = 80, LMoorBorder = 81, LRiver = 96, LSnow = 128, LSnowBorder = 129, LMud = 144, LMudBorder = 145;
 
     /// <summary>Tree codes without the palms (78/79), first of each pair of variants.</summary>
     private static readonly byte[] TreeKinds = [68, 70, 72, 74, 76, 80];
@@ -76,6 +78,15 @@ public sealed class RandomMapGenerator
     private int[] _starts = [];
     private int[] _startDistance = [];
     private double _centerU, _centerV, _landRadius;
+    /// <summary>Treasures 'many' or King of the Hill: a large heap of gold and weapons in the middle, kept free of mountains, water and swamps.</summary>
+    private bool Hoard => (_settings.Treasures == TreasureLevel.Many || _settings.KingOfTheHill) && _config.HoardRadius > 0 && _config.HoardGoods.Count > 0;
+    /// <summary>King of the Hill: everything within this distance of the middle belongs to the hill.</summary>
+    private int HillRadius => _settings.KingOfTheHill ? _config.KingOfTheHill.MoatRadius + _config.KingOfTheHill.MoatWidth + 6 : 0;
+    /// <summary>Whether the field belongs to the hill (the players' surroundings keep off).</summary>
+    private bool OnHill(int i) => _settings.KingOfTheHill && Polar(i).R <= HillRadius;
+    /// <summary>The middle of the map, where the hoard lies.</summary>
+    private int _center;
+    private const int HoardClear = 9;
 
     // Symmetry: mirrors at angle _axis + k·π/_mirrors; _canonical maps every field to its image in the first wedge.
     private int _mirrors;
@@ -125,9 +136,13 @@ public sealed class RandomMapGenerator
         Layout();
         Coast();
         Mountains();
+        if (_settings.KingOfTheHill)
+            Hill();
         var homes = _settings.Symmetry == MapSymmetry.None ? _starts : [_starts[0]];
         foreach (int start in homes)
             Home(start);
+        if (Hoard)
+            Reserve(_center, HoardClear);
         Lakes();
         Rivers();
         Swamps();
@@ -141,6 +156,8 @@ public sealed class RandomMapGenerator
             Mirror();
         else if (_settings.Symmetry == MapSymmetry.Repeat)
             RepeatHome();
+        if (Hoard)
+            PlaceHoard();
         ClearStarts();
         return ToArea();
     }
@@ -240,6 +257,7 @@ public sealed class RandomMapGenerator
         int players = _settings.Players;
         var (cu, cv) = Uv((_size - 1) / 2, (_size - 1) / 2);
         (_centerU, _centerV) = (cu, cv);
+        _center = Index((_size - 1) / 2, (_size - 1) / 2);
         // The square grid is a rhombus with 60° angles in grid geometry: its inscribed circle has 0.433 × size.
         _landRadius = _size * Sqrt3Half / 2 - _config.SeaMargin - _size * 0.04;
 
@@ -341,13 +359,117 @@ public sealed class RandomMapGenerator
 
     private void Coast()
     {
+        if (_settings.Symmetry == MapSymmetry.Mirror)
+        {
+            // Mirrored: a disc, so every image of the first wedge stays on the grid.
+            for (int i = 0; i < Count; i++)
+            {
+                var (r, _) = Polar(i);
+                var (u, v) = Uv(i);
+                double edge = _landRadius * (1 + 0.09 * _noise.Fbm(u / 45, v / 45, 3));
+                _ground[i] = r < edge ? Ground.Grass : Ground.Water;
+            }
+            return;
+        }
+        double inscribed = _size * Sqrt3Half / 2, warp = _size * 0.2, half = _size / 2.0;
         for (int i = 0; i < Count; i++)
         {
-            var (r, _) = Polar(i);
+            int x = X(i), y = Y(i);
+            int border = Math.Min(Math.Min(x, y), Math.Min(_size - 1 - x, _size - 1 - y));
+            if (border < _config.SeaMargin)
+            {
+                _ground[i] = Ground.Water;
+                continue;
+            }
+            // Warped space: the coast bends into bays and peninsulas instead of following a circle.
             var (u, v) = Uv(i);
-            double edge = _landRadius * (1 + 0.09 * _noise.Fbm(u / 45, v / 45, 3));
-            _ground[i] = r < edge ? Ground.Grass : Ground.Water;
+            double wu = u + warp * _noise.Fbm(u / 140 + 7, v / 140 - 3, 3);
+            double wv = v + warp * _noise.Fbm(u / 140 - 21, v / 140 + 13, 3);
+            double radial = Math.Sqrt((wu - _centerU) * (wu - _centerU) + (wv - _centerV) * (wv - _centerV)) / inscribed;
+            // Half circle, half the grid's own rhombus, so the land fills the map more like the original ones.
+            double wy = wv / Sqrt3Half, wx = wu + wy / 2;
+            double square = Math.Max(Math.Abs(wx - half), Math.Abs(wy - half)) / half;
+            double value = 0.8 - (0.55 * radial + 0.45 * square) + 0.42 * _noise.Fbm(u / 75 + 3.7, v / 75 - 8.2, 5);
+            // No straight cut at the sea margin.
+            double margin = (_config.SeaMargin + 15 - border) / 15.0;
+            if (margin > 0)
+                value -= 0.6 * margin * margin;
+            // Land around the starts (their surroundings need it) and in the middle (it joins them).
+            foreach (int start in _starts)
+                value += 0.7 * Bump(Math.Sqrt(Squared(Uv(start), (u, v))) / (_config.HomeRadius + 12));
+            value += 0.3 * Bump(Math.Sqrt(Squared((_centerU, _centerV), (u, v))) / (0.4 * inscribed));
+            if (_settings.KingOfTheHill)
+                value += 0.8 * Bump(Math.Sqrt(Squared((_centerU, _centerV), (u, v))) / (HillRadius + 20));
+            _ground[i] = value > 0 ? Ground.Grass : Ground.Water;
         }
+        JoinLand();
+    }
+
+    /// <summary>1 at 0, smoothly down to 0 at 1 and beyond.</summary>
+    private static double Bump(double t) => t >= 1 ? 0 : 1 - t * t * (3 - 2 * t);
+
+    private static double Squared((double U, double V) a, (double U, double V) b) =>
+        (a.U - b.U) * (a.U - b.U) + (a.V - b.V) * (a.V - b.V);
+
+    /// <summary>
+    /// One landmass that holds every start: land not connected to the first start sinks, a start cut off by a
+    /// bay gets an isthmus towards the middle, and small ponds the coast left inland fill up.
+    /// </summary>
+    private void JoinLand()
+    {
+        for (int pass = 0; pass < _starts.Length; pass++)
+        {
+            var main = Connected(_starts[0], IsLand);
+            int lost = Array.FindIndex(_starts, s => !main[s]);
+            if (lost < 0)
+                break;
+            var (su, sv) = Uv(_starts[lost]);
+            for (double t = 0; t <= 1; t += 0.5 / Math.Sqrt(Squared((su, sv), (_centerU, _centerV))))
+            {
+                int at = FromUv(su + (_centerU - su) * t, sv + (_centerV - sv) * t);
+                if (at >= 0)
+                    foreach (int i in Disc(at, 6))
+                        _ground[i] = Ground.Grass;
+            }
+        }
+        var land = Connected(_starts[0], IsLand);
+        var sea = Connected(0, i => !IsLand(i));
+        var seen = new bool[Count];
+        for (int i = 0; i < Count; i++)
+        {
+            if (!land[i] && IsLand(i))
+                _ground[i] = Ground.Water;
+            else if (!IsLand(i) && !sea[i] && !seen[i])
+            {
+                var pond = Patch(i, n => !IsLand(n), seen);
+                if (pond.Count < 60)
+                    foreach (int p in pond)
+                        _ground[p] = Ground.Grass;
+            }
+        }
+    }
+
+    /// <summary>Fields connected to <paramref name="from"/> through fields that <paramref name="through"/> accepts.</summary>
+    private bool[] Connected(int from, Func<int, bool> through)
+    {
+        var reached = new bool[Count];
+        Patch(from, through, reached);
+        return reached;
+    }
+
+    /// <summary>The connected patch of fields <paramref name="through"/> accepts around <paramref name="from"/>, marked in <paramref name="seen"/>.</summary>
+    private List<int> Patch(int from, Func<int, bool> through, bool[] seen)
+    {
+        var patch = new List<int> { from };
+        seen[from] = true;
+        for (int k = 0; k < patch.Count; k++)
+            foreach (int n in Neighbors(patch[k]))
+                if (!seen[n] && through(n))
+                {
+                    seen[n] = true;
+                    patch.Add(n);
+                }
+        return patch;
     }
 
     private void Mountains()
@@ -358,7 +480,7 @@ public sealed class RandomMapGenerator
         for (int i = 0; i < Count; i++)
         {
             // Mirrored maps: the share counts in the wedge that is mirrored.
-            if (coast[i] < 10 || StartDistance(i) < 22 || !InDomain(i))
+            if (coast[i] < 10 || StartDistance(i) < 22 || !InDomain(i) || Polar(i).R < Math.Max(Hoard ? HoardClear + 6 : 0, HillRadius + 2))
                 continue;
             var (u, v) = Uv(i);
             value[i] = 0.7 * _noise.Fbm(u / 100 + 31, v / 100 + 17, 4) + 0.3 * _noise.Ridge(u / 55 + 5, v / 55 - 9, 3);
@@ -456,10 +578,10 @@ public sealed class RandomMapGenerator
             _ground[i] = Ground.Grass;
 
         var coast = DistanceFrom(i => _ground[i] == Ground.Water, 16);
-        int mountain = Around(start, 24, 30, i => coast[i] >= 12 && Distance(i, start) >= 24);
+        int mountain = Around(start, 24, 30, i => coast[i] >= 12 && Distance(i, start) >= 24 && !OnHill(i));
         if (mountain >= 0)
         {
-            var fields = Blob(mountain, 6.5, Ground.Mountain, i => IsLand(i) && Distance(i, start) >= 17);
+            var fields = Blob(mountain, 6.5, Ground.Mountain, i => IsLand(i) && Distance(i, start) >= 17 && !OnHill(i));
             // The same three ores in every home, as small veins next to each other.
             var veins = new[] { ResourceType.Coal, ResourceType.IronOre, ResourceType.GoldOre };
             var level = _config.Resources[(int)_settings.Resources];
@@ -471,10 +593,10 @@ public sealed class RandomMapGenerator
         }
 
         var mountainDistance = DistanceFrom(i => _ground[i] == Ground.Mountain, 12);
-        int pond = Around(start, 14, 20, i => coast[i] >= 8 && mountainDistance[i] >= 9 && Distance(i, start) >= 14);
+        int pond = Around(start, 14, 20, i => coast[i] >= 8 && mountainDistance[i] >= 9 && Distance(i, start) >= 14 && !OnHill(i));
         if (pond >= 0)
         {
-            var water = Blob(pond, 3, Ground.Water, i => mountainDistance[i] >= 7 && Distance(i, start) >= StartClear + 3);
+            var water = Blob(pond, 3, Ground.Water, i => mountainDistance[i] >= 7 && Distance(i, start) >= StartClear + 3 && !OnHill(i));
             Reserve(pond, 7);
             // The stream starts between the mountain and the pond and runs into it.
             if (water.Count > 0)
@@ -489,7 +611,7 @@ public sealed class RandomMapGenerator
             }
         }
 
-        int forest = Around(start, 13, 19, i => _ground[i] == Ground.Grass && mountainDistance[i] >= 4);
+        int forest = Around(start, 13, 19, i => _ground[i] == Ground.Grass && mountainDistance[i] >= 4 && !OnHill(i));
         if (forest >= 0)
             Reserve(forest, 8);
         if (forest >= 0)
@@ -500,12 +622,51 @@ public sealed class RandomMapGenerator
         var wet = DistanceFrom(i => _ground[i] is Ground.Water or Ground.River or Ground.Mud, 8);
         var rock = DistanceFrom(i => _ground[i] is Ground.Mountain or Ground.Snow, 4);
         int stones = Around(start, 12, 16, i => _ground[i] == Ground.Grass && !_forest[i] && wet[i] >= 6 && rock[i] >= 4
-                                                && Distance(i, start) >= 12, tries: 200);
+                                                && Distance(i, start) >= 12 && !OnHill(i), tries: 200);
         if (stones >= 0)
         {
             Reserve(stones, 7);
             StoneCluster(stones, 7, start, wet, rock);
         }
+    }
+
+    /// <summary>
+    /// King of the Hill: the middle becomes a hill worth holding — the hoard on top (<see cref="PlaceHoard"/>),
+    /// mountains with full veins of gold, gems and coal between the passes, and around it a ring of impassable
+    /// moor with one pass towards each start, so it can be held at a few narrow places.
+    /// </summary>
+    private void Hill()
+    {
+        var king = _config.KingOfTheHill;
+        var passes = _starts.Select(s => Polar(s).Angle).OrderBy(a => a).ToArray();
+        double offset = _random.NextDouble() * 100;
+        foreach (int i in Disc(_center, HillRadius + 2))
+        {
+            var (r, angle) = Polar(i);
+            if (r > HillRadius)
+                continue;
+            var (u, v) = Uv(i);
+            _ground[i] = Ground.Grass;
+            double ring = r - king.MoatRadius - 1.5 * _noise.Fbm(u / 9 + offset, v / 9 - offset, 2);
+            bool pass = passes.Any(a => Math.Abs(Wrap(angle - a)) * r < king.PassWidth / 2.0);
+            if (ring >= 0 && ring < king.MoatWidth && !pass)
+                _ground[i] = Ground.Moor;
+        }
+        for (int k = 0; k < passes.Length; k++)
+        {
+            // Halfway between two passes, inside the ring.
+            double next = k + 1 < passes.Length ? passes[k + 1] : passes[0] + 2 * Math.PI;
+            double angle = (passes[k] + next) / 2;
+            int center = FromUv(_centerU + king.MountainDistance * Math.Cos(angle), _centerV + king.MountainDistance * Math.Sin(angle));
+            if (center < 0)
+                continue;
+            var fields = Blob(center, king.MountainRadius, Ground.Mountain,
+                i => Polar(i).R is var r && r > HoardClear + 1 && r < king.MoatRadius - 4).Where(InDomain).ToList();
+            foreach (var ore in king.Veins ?? [])
+                if (fields.Count > 0)
+                    Vein(fields[_random.Next(fields.Count)], 3, ore, king.VeinAmount, overwrite: true);
+        }
+        Reserve(_center, HillRadius);
     }
 
     private void Lakes()
@@ -585,57 +746,83 @@ public sealed class RandomMapGenerator
 
     /// <summary>
     /// A river from <paramref name="source"/> downhill on <paramref name="target"/> (steps to the water it runs into),
-    /// two fields wide, meandering; it keeps away from mountains and start areas and ends at water or another river.
+    /// about two fields wide, widening downstream; it keeps away from mountains and start areas and ends at water or
+    /// another river.
     /// </summary>
+    /// <remarks>
+    /// The course is traced in grid geometry with half-field steps and a heading that turns only a little per
+    /// step: downhill as seen three fields ahead, swung to and fro by slow noise, so it bends in curves
+    /// instead of following the grid's six directions. Then every field near the course turns to river.
+    /// </remarks>
     private void Flow(int source, int[] target, int[] mountainDistance, int home)
     {
-        int at = source;
-        int direction = _random.Next(6);
-        double offset = _random.NextDouble() * 1000;
-        var path = new List<int>();
-        for (int step = 0; step < 4 * target[source] + 20; step++)
+        const double step = 0.5, look = 3, maxTurn = 0.13;
+        bool Blocked(int n) => n < 0 || mountainDistance[n] < 3 || _ground[n] is Ground.Mountain or Ground.Moor || OnHill(n)
+                               || (home >= 0 ? Distance(n, home) : StartDistance(n)) <= StartClear + 2 || (home < 0 && _reserved[n]);
+        // The direction with the lowest target three fields ahead, preferring little turning; null if all are blocked.
+        double? Downhill(double u, double v, double heading)
         {
-            path.Add(at);
-            if (Neighbors(at).Any(n => _ground[n] is Ground.Water or Ground.River && !path.Contains(n)))
-                break;
-            int best = -1;
+            double? best = null;
             double bestScore = double.MaxValue;
-            for (int d = 0; d < 6; d++)
+            for (int k = 0; k < 24; k++)
             {
-                int x = X(at) + Deltas[d].X, y = Y(at) + Deltas[d].Y;
-                if (!Inside(x, y))
+                double angle = heading + Wrap(k * Math.PI / 12);
+                int n = FromUv(u + look * Math.Cos(angle), v + look * Math.Sin(angle));
+                if (Blocked(n))
                     continue;
-                int n = Index(x, y);
-                if (path.Contains(n) || mountainDistance[n] < 3 || _ground[n] == Ground.Mountain)
-                    continue;
-                if ((home >= 0 ? Distance(n, home) : StartDistance(n)) <= StartClear + 2 || (home < 0 && _reserved[n]))
-                    continue;
-                // Downhill on a noisy slope, so the river swings in bends instead of following the grid.
-                var (u, v) = Uv(n);
-                double turn = Math.Min((d - direction + 6) % 6, (direction - d + 6) % 6);
-                double score = target[n] - target[at] + 12 * _noise.Fbm(u / 18 + offset, v / 18, 2) + 0.3 * turn + _random.NextDouble() * 0.6;
+                double score = target[n] + 0.8 * Math.Abs(Wrap(angle - heading));
                 if (score < bestScore)
-                {
-                    bestScore = score;
-                    best = d;
-                }
+                    (bestScore, best) = (score, angle);
             }
-            if (best < 0)
-                break;
-            direction = best;
-            at = Index(X(at) + Deltas[best].X, Y(at) + Deltas[best].Y);
+            return best;
         }
-        if (path.Count < 4)
-            return;
-        foreach (int p in path)
+
+        var (u, v) = Uv(source);
+        double offset = _random.NextDouble() * 1000;
+        double heading = _random.NextDouble() * 2 * Math.PI;
+        heading = Downhill(u, v, heading) ?? heading;
+        var course = new List<(double U, double V)>();
+        int limit = (int)((4 * target[source] + 20) / step);
+        for (int s = 0; s < limit; s++)
         {
-            _ground[p] = Ground.River;
-            // The second field on a fixed side: the river is two fields wide.
-            int x = X(p) + 1, y = Y(p);
-            if (Inside(x, y) && _ground[Index(x, y)] == Ground.Grass && mountainDistance[Index(x, y)] >= 3)
-                _ground[Index(x, y)] = Ground.River;
+            course.Add((u, v));
+            int at = FromUv(u, v);
+            if (at >= 0 && course.Count > 4 && Neighbors(at).Any(n => _ground[n] is Ground.Water or Ground.River))
+                break;
+            if (Downhill(u, v, heading) is not double down)
+                break;
+            // Meanders: the noise swings the wanted direction by up to about 50° either way.
+            double wanted = down + 0.9 * _noise.Fbm(u / 24 + offset, v / 24 - offset, 2);
+            double turned = heading + Math.Clamp(Wrap(wanted - heading), -maxTurn, maxTurn);
+            int next = FromUv(u + step * Math.Cos(turned), v + step * Math.Sin(turned));
+            if (Blocked(next))
+            {
+                // Steer straight downhill to get around; stop if that is blocked too.
+                turned = heading + Math.Clamp(Wrap(down - heading), -3 * maxTurn, 3 * maxTurn);
+                next = FromUv(u + step * Math.Cos(turned), v + step * Math.Sin(turned));
+                if (Blocked(next))
+                    break;
+            }
+            heading = turned;
+            (u, v) = (u + step * Math.Cos(heading), v + step * Math.Sin(heading));
+        }
+        if (course.Count < 8)
+            return;
+        for (int k = 0; k < course.Count; k++)
+        {
+            var point = course[k];
+            double width = 0.8 + 0.35 * k / course.Count;
+            int at = FromUv(point.U, point.V);
+            if (at < 0)
+                continue;
+            foreach (int i in Disc(at, 2))
+                if (_ground[i] == Ground.Grass && !Blocked(i) && Squared(Uv(i), point) <= width * width)
+                    _ground[i] = Ground.River;
         }
     }
+
+    /// <summary>The angle in -π..π.</summary>
+    private static double Wrap(double angle) => Math.IEEERemainder(angle, 2 * Math.PI);
 
     private void Swamps()
     {
@@ -672,7 +859,12 @@ public sealed class RandomMapGenerator
                 h += 8 + 7.5 * Math.Min(inside[i], 13) * (0.75 + 0.5 * Unit(_noise.Fbm(u / 18, v / 18, 3)));
             else
                 h += 8 * Math.Max(0, 1 - mountain[i] / 6.0);
-            if (_ground[i] is Ground.River or Ground.Mud)
+            // Gentle bumps on the grassland (a few height steps; building sites level them easily).
+            if (_ground[i] == Ground.Grass)
+                h += 3.5 * _noise.Fbm(u / 9 + 40, v / 9 - 40, 2);
+            if (_settings.KingOfTheHill)
+                h += _config.KingOfTheHill.HillHeight * Bump(Math.Max(0, Polar(i).R - 6) / (HillRadius + 2 - 6));
+            if (_ground[i] is Ground.River or Ground.Mud or Ground.Moor)
                 h *= 0.75;
             // Down to the shore.
             double shore = Math.Clamp(water[i] / 10.0, 0, 1);
@@ -852,6 +1044,30 @@ public sealed class RandomMapGenerator
         }
     }
 
+    /// <summary>Full piles of gold and weapons on every field around the middle (after the symmetry: it is its own image).</summary>
+    private void PlaceHoard()
+    {
+        int total = _config.HoardGoods.Sum(g => g.Weight);
+        foreach (int i in Disc(_center, _config.HoardRadius + 2))
+        {
+            if (_ground[i] is not Ground.Water)
+                _ground[i] = Ground.Grass;
+            _object[i] = 0;
+            (_pileType[i], _pileCount[i]) = (0, 0);
+            if (Distance(i, _center) > _config.HoardRadius || _ground[i] != Ground.Grass)
+                continue;
+            // Gold in the middle, the rest drawn by weight.
+            var material = _config.HoardGoods[0].Material;
+            if (i != _center)
+            {
+                int roll = _random.Next(total);
+                material = _config.HoardGoods.First(g => (roll -= g.Weight) < 0).Material;
+            }
+            _pileType[i] = OriginalStackType(material);
+            _pileCount[i] = Materials.MaxPileSize;
+        }
+    }
+
     private static byte OriginalStackType(Material material)
     {
         for (int code = 1; code < 64; code++)
@@ -907,6 +1123,7 @@ public sealed class RandomMapGenerator
         var mountain = DistanceFrom(i => _ground[i] is Ground.Mountain or Ground.Snow, 2);
         var snow = DistanceFrom(i => _ground[i] == Ground.Snow, 2);
         var mud = DistanceFrom(i => _ground[i] == Ground.Mud, 2);
+        var moor = DistanceFrom(i => _ground[i] == Ground.Moor, 2);
         bool Edge(int i, Ground ground) => Neighbors(i).Any(n => _ground[n] != ground && !(ground == Ground.Mountain && _ground[n] == Ground.Snow));
         for (int i = 0; i < Count; i++)
         {
@@ -919,9 +1136,11 @@ public sealed class RandomMapGenerator
                 Ground.Mountain when Edge(i, Ground.Mountain) => LMountainBorder,
                 Ground.Mountain => snow[i] == 1 ? LSnowBorderOuter : LMountain,
                 Ground.Mud => Edge(i, Ground.Mud) ? LMudBorder : LMud,
+                Ground.Moor => Edge(i, Ground.Moor) ? LMoorBorder : LMoor,
                 _ when water[i] <= 2 => LSand,
                 _ when mountain[i] == 1 => LMountainBorderOuter,
                 _ when mud[i] == 1 => LMudBorderOuter,
+                _ when moor[i] == 1 => LMoorBorderOuter,
                 _ => LGrass,
             };
             area.Landscape[i] = landscape;

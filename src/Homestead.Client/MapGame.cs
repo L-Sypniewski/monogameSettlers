@@ -483,9 +483,11 @@ public sealed class MapGame : Game
             }
             else
             {
-                _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _peoples);
-                if (int.TryParse(captureStart, out int category))
+                _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _peoples, _display.PreferredColor);
+                if (int.TryParse(captureStart?.Split(':')[0], out int category))
                     _startScreen.ShowCategory(category);
+                if (captureStart?.EndsWith(":color") == true)
+                    _startScreen.OpenColorChoice(0);
             }
         }
         else if (_loadSlot is { } slot)
@@ -1154,7 +1156,7 @@ public sealed class MapGame : Game
         {
             _title.Dispose();
             _title = null;
-            _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _peoples);
+            _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _peoples, _display.PreferredColor);
         }
     }
 

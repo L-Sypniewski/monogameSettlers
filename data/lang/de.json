@@ -8,8 +8,7 @@
     "off": "Aus"
   },
   "formats": {
-    "savedAt": "dd.MM.yy HH:mm",
-    "recentMap": "dd.MM. HH:mm"
+    "savedAt": "dd.MM.yy HH:mm"
   },
   "title": {
     "buttons": {
@@ -323,10 +322,10 @@
       "stones": "Steine",
       "stonesHint": "Steinvorkommen für Steinmetze.",
       "forests": "Wälder",
-      "decorations": "Dekoration",
-      "decorationsHint": "Büsche, Blumen, Pilze, Gräber, Felsen.",
       "treasures": "Schätze",
-      "treasuresHint": "Warenstapel im Land zwischen den Spielern: Gold, Edelsteine, Eisen, Kohle, Waffen, Steine, Werkzeuge."
+      "treasuresHint": "Warenstapel im Land zwischen den Spielern: Gold, Edelsteine, Eisen, Kohle, Waffen, Steine, Werkzeuge.",
+      "kingOfTheHill": "King of the Hill",
+      "kingOfTheHillHint": "Die Kartenmitte ist ein Hügel, der sich lohnt: Schatzhort mit Gold und Waffen, Berge voller Gold, Edelsteine und Kohle, ringsum ein Moor mit einem Durchgang je Spieler."
     },
     "randomPeople": "Zufall",
     "noMaps": "keine Karten in dieser Kategorie",
@@ -361,9 +360,7 @@
     "fixedPeopleHint": "Die Karte gibt das Volk dieser Startposition vor; es gilt für den Spieler, der dort startet.",
     "you": " (Du)",
     "byMap": " (Karte)",
-    "colorHint": "Farbe: Klick die nächste freie, Rechtsklick die vorige; „?“ wird beim Start gelost.",
-    "recent": "Vorherige Karten",
-    "noneRecent": "noch keine gespielt",
+    "colorHint": "Farbe: Klick öffnet die Auswahl; „?“ wird beim Start gelost, belegte Farben sind durchgestrichen.",
     "reroll": "Neu würfeln"
   },
   "settings": {
@@ -415,7 +412,9 @@
       "effects": "Effekte",
       "effectsHint": "Lautstärke der Geräusche, etwa im Kampf.",
       "autoSave": "Automatisch speichern",
-      "autoSaveHint": "Ja: alle 15 Minuten und beim Beenden in Slot 8 (überschreibt ihn)."
+      "autoSaveHint": "Ja: alle 15 Minuten und beim Beenden in Slot 8 (überschreibt ihn).",
+      "preferredColor": "Bevorzugte Farbe",
+      "preferredColorHint": "Deine Farbe als Spieler 1 auf dem Startscreen, solange du keine andere wählst."
     }
   },
   "install": {

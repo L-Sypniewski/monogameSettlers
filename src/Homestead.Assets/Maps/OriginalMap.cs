@@ -23,7 +23,7 @@ public sealed class OriginalMap
         Players = ReadPlayers();
         Area = ReadArea();
         Settlers = ReadRecords(MapChunkType.Settlers, 6, (c, p) => new MapSettler(c[p], c[p + 1], U16(c, p + 2), U16(c, p + 4)));
-        Buildings = ReadRecords(MapChunkType.Buildings, 12, (c, p) => new MapBuilding(c[p], c[p + 1], U16(c, p + 2), U16(c, p + 4)));
+        Buildings = ReadRecords(MapChunkType.Buildings, 12, (c, p) => new MapBuilding(c[p], c[p + 1], U16(c, p + 2), U16(c, p + 4), ReadGarrison(c, p)));
         Stacks = ReadRecords(MapChunkType.Stacks, 8, (c, p) => new MapStack(U16(c, p), U16(c, p + 2), c[p + 4], c[p + 5]));
     }
 
@@ -63,7 +63,7 @@ public sealed class OriginalMap
     /// <summary>Settlers placed in the editor (chunk 7).</summary>
     public IReadOnlyList<MapSettler> Settlers { get; }
 
-    /// <summary>Buildings placed in the editor (chunk 8). Soldier counts are not read yet.</summary>
+    /// <summary>Buildings placed in the editor (chunk 8).</summary>
     public IReadOnlyList<MapBuilding> Buildings { get; }
 
     /// <summary>Piles of goods placed in the editor (chunk 9).</summary>
@@ -194,6 +194,17 @@ public sealed class OriginalMap
     private static uint U32(byte[] data, int pos) => BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(pos));
 
     private static int U16(byte[] data, int pos) => BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(pos));
+
+    /// <summary>
+    /// The soldier counts of a building record, as nibbles in bytes 7–11 (order from JSettlers, MIT):
+    /// swordsman 1|2, bowman 2|3, swordsman 3|bowman 1, pikeman 3|unused, pikeman 1|2 (high|low).
+    /// </summary>
+    private static MapGarrison ReadGarrison(byte[] c, int p)
+    {
+        int High(int i) => c[p + i] >> 4;
+        int Low(int i) => c[p + i] & 0xF;
+        return new MapGarrison([High(7), Low(7), High(9)], [Low(9), High(8), Low(8)], [High(11), Low(11), High(10)]);
+    }
 }
 
 public enum MapChunkType
@@ -217,7 +228,14 @@ public sealed record MapPlayer(int Tribe, int StartX, int StartY, string Name);
 public sealed record MapSettler(int Player, int Type, int X, int Y);
 
 /// <summary>A building from the map, positioned at its anchor point.</summary>
-public sealed record MapBuilding(int Player, int Type, int X, int Y);
+/// <param name="Garrison">Soldiers inside; only meaningful for military buildings, others hold leftovers of the editor.</param>
+public sealed record MapBuilding(int Player, int Type, int X, int Y, MapGarrison Garrison);
+
+/// <summary>Soldiers of a military building from the map: count per level (index 0 = level 1) and type.</summary>
+public sealed record MapGarrison(IReadOnlyList<int> Swordsmen, IReadOnlyList<int> Bowmen, IReadOnlyList<int> Pikemen)
+{
+    public int Count => Swordsmen.Sum() + Bowmen.Sum() + Pikemen.Sum();
+}
 
 /// <summary>A pile of goods from the map.</summary>
 public sealed record MapStack(int X, int Y, int Type, int Count);

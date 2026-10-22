@@ -24,7 +24,7 @@ Lizenzprüfung, das Spiel und der Editor lesen die Karten ohne Weiteres.
 | 4 | Vorschaubild: `u16 größe, u16 ?`, dann RGB565 |
 | 6 | Gelände: `u32 größe` (Karten sind quadratisch), dann je Punkt 6 Byte |
 | 7 | Siedler: `u32 anzahl`, je `u8 partei, u8 typ, u16 x, u16 y` |
-| 8 | Gebäude: `u32 anzahl`, je 12 Byte (Partei, Typ, x, y, Soldaten als Nibbles) |
+| 8 | Gebäude: `u32 anzahl`, je 12 Byte: `u8 partei, u8 typ, u16 x, u16 y, u8 ?`, dann Besatzung als Nibbles (hoch\|tief): Schwertkämpfer 1\|2, Bogenschütze 2\|3, Schwertkämpfer 3\|Bogenschütze 1, Pikenier 3\|?, Pikenier 1\|2 – nur bei Militärgebäuden sinnvoll, sonst Reste |
 | 9 | Warenstapel: `u32 anzahl`, je `u16 x, u16 y, u8 typ, u8 menge, 2 Byte ?` |
 | 10 | Siegbedingungen |
 | 11/12 | Questtext / Questtipp (C-Strings, Latin-1) |
@@ -41,8 +41,11 @@ Besitzer-Byte (Index 3): Spielernummer ab 0, 255 = niemand. Der Rand des Landes 
 (im Kreismaß dx²+dy²−dx·dy) beim Turm bei 931, beim großen Turm bei 967, bei der Burg bei 1101 –
 gemessen über alle Karten; manche Karten vergeben zusätzlich Land ohne Militärgebäude (Editor).
 
+Gebäudetypen (Chunk 8) nach JSettlers' `EOriginalMapBuildingType`: 15 Turm, 16 großer Turm, 18 Burg (Besatzung über alle
+Karten meist 1+2, 3+3, 6+4 Infanterie+Bogenschützen), 11 Eisenschmelze, 17 Mühle; Tempel je Volk eigene Nummern (41–46, 54/55).
+
 Siedlertypen (Chunk 7) nach JSettlers' `EOriginalMapSettlersType`: 0 Träger, 1 Planierer, 2 Bauarbeiter,
-5/32/35 Schwertkämpfer Stufe 1/2/3, 8/30/33 Bogenschütze, 15/31/34 Pikenier, 23 Dieb/Späher (aus den Kampagnen:
+5/32/35 Schwertkämpfer Stufe 1/2/3, 8/30/33 Bogenschütze, 15/31/34 Pikenier, 22 Geologe, 36 Priester, 40 Pionier, 23 Dieb/Späher (aus den Kampagnen:
 Missions-CD J1 vier einzeln über die Karte verteilt – „Unsere Kundschafter“ –, Amazonen-Kampagne G11 57 zum Stehlen).
 Reihenfolge zeilenweise, `index = y * größe + x`, y = 0 ist der obere Kartenrand.
 

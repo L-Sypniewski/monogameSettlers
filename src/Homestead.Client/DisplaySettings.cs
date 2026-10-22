@@ -44,6 +44,9 @@ public sealed record DisplaySettings
     /// <summary>Saves the running game into the last slot every 15 minutes and on quitting (off by default: it overwrites that slot).</summary>
     public bool AutoSave { get; init; }
 
+    /// <summary>Palette index (<see cref="PlayerColors.Palette"/>) of the color player 1 gets by default on the start screen.</summary>
+    public int PreferredColor { get; init; }
+
     /// <summary>The settings in the file (default: the user's); missing or unreadable values keep their default.</summary>
     public static DisplaySettings Load(string? path = null)
     {
@@ -71,6 +74,9 @@ public sealed record DisplaySettings
                     && Enum.TryParse<Theme>(theme.GetString(), ignoreCase: true, out var chosen) && Enum.IsDefined(chosen)
                 ? chosen
                 : settings.Theme,
+            PreferredColor = display.TryGetProperty("preferredColor", out var color) && color.ValueKind == JsonValueKind.String
+                ? PlayerColors.IndexOf(color.GetString())
+                : settings.PreferredColor,
         };
     }
 
@@ -86,5 +92,6 @@ public sealed record DisplaySettings
             ["peopleMusic"] = PeopleMusic,
             ["effectsVolume"] = EffectsVolume,
             ["autoSave"] = AutoSave,
+            ["preferredColor"] = PlayerColors.Choices[PreferredColor].Id,
         }, path);
 }

@@ -80,9 +80,9 @@ public sealed class StartScreen : IDisposable
         new("resources", Levels, s => (int)s.Resources, (s, v) => s with { Resources = (Abundance)v }),
         new("stones", Levels, s => (int)s.Stones, (s, v) => s with { Stones = (Abundance)v }),
         new("forests", Levels, s => (int)s.Forests, (s, v) => s with { Forests = (Abundance)v }),
-        new("decorations", Levels, s => (int)s.Decorations, (s, v) => s with { Decorations = (Abundance)v }),
         new("treasures", ["start.levels.none", "start.levels.normal", "start.levels.many"], s => (int)s.Treasures,
             (s, v) => s with { Treasures = (TreasureLevel)v }),
+        new("kingOfTheHill", ["common.off", "common.on"], s => s.KingOfTheHill ? 1 : 0, (s, v) => s with { KingOfTheHill = v == 1 }),
     ];
 
     private static int CategoryOf(string folder) => folder.ToUpperInvariant() switch
@@ -115,10 +115,15 @@ public sealed class StartScreen : IDisposable
     private int?[] _positions = [];
     /// <summary>Start position whose player menu is open.</summary>
     private int? _positionMenu;
+    /// <summary>Player whose color choice is open below the swatch.</summary>
+    private int? _colorMenu;
+    /// <summary>First player row shown when the players don't fit the table.</summary>
+    private int _playerScroll;
+    /// <summary>Palette index player 1 gets (<see cref="DisplaySettings.PreferredColor"/>).</summary>
+    private readonly int _preferredColor;
 
     private RandomMapSettings _randomSettings = new();
     private int _randomSeed = Random.Shared.Next();
-    private readonly RandomMapHistory _history = new();
 
     private OriginalMap? _map;
     private string? _mapError;
@@ -133,10 +138,12 @@ public sealed class StartScreen : IDisposable
 
     /// <param name="mapDirectory">Map directory of the installation; its first level of folders gives the category.</param>
     /// <param name="peoples">Preset peoples (command line): player i gets entry i modulo the count.</param>
+    /// <param name="preferredColor">Palette index of player 1's color.</param>
     public StartScreen(GraphicsDevice device, GfxDirectory gfx, IReadOnlyList<string> mapFiles, string mapDirectory, int selected,
-        IReadOnlyList<Civilization>? peoples)
+        IReadOnlyList<Civilization>? peoples, int preferredColor = 0)
     {
         _device = device;
+        _preferredColor = Math.Clamp(preferredColor, 0, PlayerColors.Palette.Length - 1);
         _mapFiles = mapFiles;
         _entries = mapFiles.Select((file, index) =>
         {
@@ -196,6 +203,9 @@ public sealed class StartScreen : IDisposable
         Select(0);
     }
 
+    /// <summary>For capture runs: opens the color choice of <paramref name="player"/>.</summary>
+    public void OpenColorChoice(int player) => _colorMenu = Math.Clamp(player, 0, PlayerCount - 1);
+
     private string NameOf(Civilization? people) =>
         people is { } p ? Lang.T("peoples." + p) : Lang.T("start.randomPeople");
 
@@ -230,7 +240,7 @@ public sealed class StartScreen : IDisposable
         {
             int player = _peoples.Count;
             _peoples.Add(_presetPeoples is { } preset ? preset[player % preset.Count] : player == 0 ? Civilization.Roman : null);
-            _colors.Add(null);
+            _colors.Add(player == 0 ? _preferredColor : null);
             _hardcore.Add(false);
         }
     }
@@ -254,6 +264,8 @@ public sealed class StartScreen : IDisposable
         _map = null;
         _mapError = error;
         _positionMenu = null;
+        _colorMenu = null;
+        _playerScroll = 0;
         _positions = [];
         try
         {
@@ -298,31 +310,39 @@ public sealed class StartScreen : IDisposable
     private static Vector2 PreviewPoint(float u, float v) =>
         new(PreviewLeft - PreviewSlant * v + PreviewWidth * u, PreviewTop + PreviewHeight * v);
 
-    // The random map generator's panel in place of the list: last maps on the left, one row per setting on the right.
-    private static Rectangle RecentRow(int entry) => new(92, 84 + entry * RowHeight, 250, RowHeight);
-
-    private const int OptionRow = 27;
+    // The random map generator's panel in place of the list: one row per setting, "Neu würfeln" with the seed below.
+    private const int OptionRow = 24, OptionLabel = 100;
 
     private static int OptionY(int option) => 64 + option * OptionRow;
 
     private static Rectangle OptionValue(int option, int value)
     {
-        const int left = 440, width = 250;
+        const int left = 240, width = 440;
         int count = RandomOptions[option].ValueKeys.Length;
-        return new Rectangle(left + value * width / count, OptionY(option), width / count - 3, OptionRow - 4);
+        // Two values don't stretch over the whole row.
+        int slot = Math.Min(width / count, 110);
+        return new Rectangle(left + value * slot, OptionY(option), slot - 3, OptionRow - 3);
     }
 
-    private static readonly Rectangle RerollButton = new(96, 196, 136, 28);
+    private static readonly Rectangle RerollButton = new(OptionLabel - 4, OptionY(RandomOptions.Length) + 2, 136, 24);
 
     // The players' table in the lower panel: name, people with arrows, color, hardcore.
     private const int TableTop = 340, TableBottom = 536;
 
-    private int PlayerRow => Math.Min(30, (TableBottom - TableTop) / (PlayerCount + 1));
+    private const int PlayerRow = 28;
 
-    /// <summary>Top of the row of <paramref name="player"/> (-1: the header).</summary>
-    private int RowY(int player) => TableTop + (player + 1) * PlayerRow;
+    /// <summary>Player rows that fit below the header; more scroll.</summary>
+    private const int ShownPlayers = (TableBottom - TableTop) / PlayerRow - 1;
 
-    private int Control => Math.Min(20, PlayerRow - 4);
+    private static readonly Rectangle PlayerTable = new(340, TableTop, 360, TableBottom - TableTop);
+
+    /// <summary>Top of the row of <paramref name="player"/> (-1: the header, which stays).</summary>
+    private int RowY(int player) => TableTop + (player < 0 ? 0 : player - _playerScroll + 1) * PlayerRow;
+
+    /// <summary>The players whose rows are shown.</summary>
+    private IEnumerable<int> ShownRows => Enumerable.Range(_playerScroll, Math.Min(ShownPlayers, PlayerCount - _playerScroll));
+
+    private const int Control = 20;
 
     private Rectangle Cell(int x, int player, int width = 0) =>
         new(x, RowY(player) + (PlayerRow - Control) / 2, width == 0 ? Control : width, Control);
@@ -334,6 +354,24 @@ public sealed class StartScreen : IDisposable
     private Rectangle ColorBox(int player) => Cell(608, player, 22);
 
     private Rectangle HardcoreBox(int player) => Cell(660, player);
+
+    // The color choice below a swatch: "?" (random) and the palette.
+    private const int ColorColumns = 6, ColorCell = 22;
+
+    /// <summary>Entry <paramref name="item"/> of the open color choice: 0 is "?", entry i + 1 palette color i.</summary>
+    private Rectangle ColorItem(int item)
+    {
+        var swatch = ColorBox(_colorMenu!.Value);
+        int rows = (PlayerColors.Palette.Length + ColorColumns) / ColorColumns;
+        int width = ColorColumns * ColorCell + 6, height = rows * ColorCell + 6;
+        // Below the swatch, above it if there is no room; kept inside the screen.
+        int x = Math.Min(swatch.X - 4, Width - width - 4);
+        int y = swatch.Bottom + 4 + height <= Height - 4 ? swatch.Bottom + 4 : swatch.Y - 4 - height;
+        return new Rectangle(x + 3 + item % ColorColumns * ColorCell, y + 3 + item / ColorColumns * ColorCell, ColorCell - 2, ColorCell - 2);
+    }
+
+    /// <summary>Whether another player has the palette color.</summary>
+    private bool Taken(int player, int color) => Enumerable.Range(0, PlayerCount).Any(other => other != player && _colors[other] == color);
 
     private static string HardcoreHint => Lang.T("start.hardcoreHint");
 
@@ -416,6 +454,20 @@ public sealed class StartScreen : IDisposable
             }
             return null;
         }
+        // So does an open color choice.
+        if (_colorMenu is { } chooser)
+        {
+            if (Pressed(Keys.Escape))
+                _colorMenu = null;
+            else if (clicked || rightClicked)
+            {
+                for (int item = 0; item <= PlayerColors.Palette.Length; item++)
+                    if (clicked && ColorItem(item).Contains(at) && (item == 0 || !Taken(chooser, item - 1)))
+                        _colors[chooser] = item == 0 ? null : item - 1;
+                _colorMenu = null;
+            }
+            return null;
+        }
 
         quit = Pressed(Keys.Escape) || clicked && QuitButton.Contains(at);
         if (Pressed(Keys.Tab))
@@ -435,14 +487,13 @@ public sealed class StartScreen : IDisposable
             Select(_selected + move);
             _scroll = Math.Clamp(_scroll, _selected - rows + 1, _selected);
         }
-        if (wheel != 0)
+        if (wheel != 0 && PlayerTable.Contains(at))
+            _playerScroll -= Math.Sign(wheel);
+        else if (wheel != 0)
             _scroll -= Math.Sign(wheel) * 3;
         _scroll = Math.Clamp(_scroll, 0, Math.Max(0, _shown.Length - rows));
+        _playerScroll = Math.Clamp(_playerScroll, 0, Math.Max(0, PlayerCount - ShownPlayers));
 
-        if (clicked || rightClicked)
-            for (int player = 0; player < PlayerCount; player++)
-                if (ColorBox(player).Contains(at))
-                    _colors[player] = NextColor(player, clicked ? 1 : -1);
         if (clicked)
         {
             if (_category == RandomCategory)
@@ -460,8 +511,10 @@ public sealed class StartScreen : IDisposable
                 for (int position = 0; position < _map.Players.Count; position++)
                     if (MarkAt(position).Contains(at))
                         _positionMenu = position;
-            for (int player = 0; player < PlayerCount; player++)
+            foreach (int player in ShownRows)
             {
+                if (ColorBox(player).Contains(at))
+                    _colorMenu = player;
                 int step = LeftArrow(player).Contains(at) ? -1 : RightArrow(player).Contains(at) ? 1 : 0;
                 if (step != 0 && FixedPeople(player) is null)
                     _peoples[player] = Cycle(_peoples[player], step);
@@ -478,10 +531,6 @@ public sealed class StartScreen : IDisposable
 
     private void ClickRandomPanel(Point at)
     {
-        var entries = _history.Entries;
-        for (int entry = 0; entry < entries.Count; entry++)
-            if (RecentRow(entry).Contains(at))
-                ShowRandom(entries[entry].Settings, entries[entry].Seed);
         for (int option = 0; option < RandomOptions.Length; option++)
             for (int value = 0; value < RandomOptions[option].ValueKeys.Length; value++)
                 if (OptionValue(option, value).Contains(at) && RandomOptions[option].Get(_randomSettings) != value)
@@ -496,7 +545,6 @@ public sealed class StartScreen : IDisposable
         var positions = RandomPositions ? _positions.ToArray() : null;
         if (_category != RandomCategory)
             return new Choice(_shown[_selected].Index, players, positions);
-        _history.Add(_randomSettings, _randomSeed);
         return new Choice(-1, players, positions, new RandomMap(_randomSettings, _randomSeed));
     }
 
@@ -540,23 +588,6 @@ public sealed class StartScreen : IDisposable
         int index = people is { } p ? Array.IndexOf(all, p) + 1 : 0;
         index = ((index + step) % count + count) % count;
         return index == 0 ? null : all[index - 1];
-    }
-
-    /// <summary>Next color for the player in the order random, palette; colors of other players are skipped (random never is).</summary>
-    private int? NextColor(int player, int step)
-    {
-        int count = PlayerColors.Palette.Length + 1;
-        int index = _colors[player] is { } c ? c + 1 : 0;
-        for (int i = 0; i < count; i++)
-        {
-            index = ((index + step) % count + count) % count;
-            if (index == 0)
-                return null;
-            int color = index - 1;
-            if (!Enumerable.Range(0, PlayerCount).Any(other => other != player && _colors[other] == color))
-                return color;
-        }
-        return null;
     }
 
     /// <summary>The color shown for the player: its chosen one, grey while random.</summary>
@@ -673,6 +704,30 @@ public sealed class StartScreen : IDisposable
                 }
             }
         }
+        // The color choice over everything else: "?" and the palette; colors of other players crossed out.
+        if (_colorMenu is { } chooser)
+        {
+            var first = ColorItem(0);
+            int rows = (PlayerColors.Palette.Length + ColorColumns) / ColorColumns;
+            var frame = new Rectangle(first.X - 3, first.Y - 3, ColorColumns * ColorCell + 4, rows * ColorCell + 4);
+            batch.Draw(pixel, ToScreen(new Rectangle(frame.X - 2, frame.Y - 2, frame.Width + 4, frame.Height + 4)), Gold);
+            batch.Draw(pixel, ToScreen(frame), Ink);
+            for (int item = 0; item <= PlayerColors.Palette.Length; item++)
+            {
+                var cell = ColorItem(item);
+                int? color = item == 0 ? null : item - 1;
+                bool taken = color is { } c && Taken(chooser, c);
+                bool current = _colors[chooser] == color;
+                var edge = current ? Gold : !taken && cell.Contains(hover) ? HoverText : new Color(90, 100, 115);
+                batch.Draw(pixel, ToScreen(cell), edge);
+                var inner = new Rectangle(cell.X + 2, cell.Y + 2, cell.Width - 4, cell.Height - 4);
+                batch.Draw(pixel, ToScreen(inner), color is { } k ? PlayerColors.Palette[k] : Ink);
+                if (color is null)
+                    Centered(batch, font, "?", inner, Color.White, 12);
+                else if (taken)
+                    Centered(batch, font, "×", inner, TextOn(PlayerColors.Palette[color.Value]) * 0.8f, 14, shadow: false);
+            }
+        }
         if (hint is not null)
             Hint(batch, pixel, font, hint, mouse, view);
     }
@@ -721,7 +776,7 @@ public sealed class StartScreen : IDisposable
         Centered(batch, font, Lang.T("start.columns.color"), new Rectangle(ColorBox(0).X - 10, header, ColorBox(0).Width + 20, 12), Gold, 11);
         Centered(batch, font, Lang.T("start.columns.hardcore"), new Rectangle(HardcoreBox(0).X - 20, header, HardcoreBox(0).Width + 40, 12), Gold, 11);
         var fixedHint = Lang.T("start.fixedPeopleHint");
-        for (int player = 0; player < PlayerCount; player++)
+        foreach (int player in ShownRows)
         {
             var left = LeftArrow(player);
             var right = RightArrow(player);
@@ -758,38 +813,35 @@ public sealed class StartScreen : IDisposable
             if (box.Contains(hover))
                 hint = HardcoreHint;
         }
+        if (PlayerCount > ShownPlayers)
+        {
+            // Scroll bar like the map list's, beside the rows.
+            var track = new Rectangle(686, RowY(_playerScroll), 10, ShownPlayers * PlayerRow);
+            batch.Draw(_scrollTop, ToScreen(new Rectangle(track.X, track.Y, track.Width, 8)), Color.White);
+            batch.Draw(_scrollTrack, ToScreen(new Rectangle(track.X, track.Y + 8, track.Width, track.Height - 16)), Color.White);
+            batch.Draw(_scrollBottom, ToScreen(new Rectangle(track.X, track.Bottom - 8, track.Width, 8)), Color.White);
+            int height = Math.Max(16, (track.Height - 16) * ShownPlayers / PlayerCount);
+            int y = track.Y + 8 + (track.Height - 16 - height) * _playerScroll / (PlayerCount - ShownPlayers);
+            batch.Draw(_sheet, ToScreen(new Rectangle(track.X + 1, y, track.Width - 2, height)), _handle, Color.White);
+        }
         return hint;
     }
 
-    /// <summary>The random map generator in place of the list: last maps, "Neu würfeln", settings. Returns the hint under the mouse.</summary>
+    /// <summary>The random map generator in place of the list: settings, "Neu würfeln". Returns the hint under the mouse.</summary>
     private string? DrawRandomPanel(SpriteBatch batch, Texture2D pixel, UiFont font, Point mouse, Point hover)
     {
-        Write(batch, font, Lang.T("start.recent"), 96, 64, Gold, 13);
-        var entries = _history.Entries;
-        if (entries.Count == 0)
-            Write(batch, font, Lang.T("start.noneRecent"), 100, RecentRow(0).Y + 2, Dim, 12);
-        for (int entry = 0; entry < entries.Count; entry++)
-        {
-            var e = entries[entry];
-            var row = RecentRow(entry);
-            bool current = e.Settings == _randomSettings && e.Seed == _randomSeed;
-            if (current)
-                batch.Draw(_rowBar, ToScreen(row), Color.White);
-            var color = current ? Color.White : row.Contains(hover) ? HoverText : Text;
-            Write(batch, font, $"{Lang.T("start.playerCount", e.Settings.Players)} · {Lang.T(Symmetries[(int)e.Settings.Symmetry])}", row.X + 6, row.Y + 3, color, 12);
-            string date = e.Created.ToString(Lang.T("formats.recentMap"), Lang.Culture);
-            Write(batch, font, date, row.Right - 6 - Measure(font, date, 11), row.Y + 4, current ? color : Dim, 11);
-        }
         TextButton.Draw(batch, pixel, font, ToScreen(RerollButton), Lang.T("start.reroll"), mouse.ToVector2(), size: Px(13));
-        Write(batch, font, $"#{(uint)_randomSeed:X8}", RerollButton.Right + 10, RerollButton.Y + 7, Dim, 12);
+        Write(batch, font, $"#{(uint)_randomSeed:X8}", RerollButton.Right + 10, RerollButton.Y + 5, Dim, 12);
 
         string? hint = null;
         for (int option = 0; option < RandomOptions.Length; option++)
         {
             var o = RandomOptions[option];
             int y = OptionY(option);
-            Write(batch, font, o.Label, 360, y + 4, Text, 13);
-            if (new Rectangle(356, y, 340, OptionRow).Contains(hover))
+            // Long labels in smaller type, so they end before the first value.
+            int labelSize = Measure(font, o.Label, 13) > OptionValue(option, 0).X - OptionLabel - 4 ? 11 : 13;
+            Write(batch, font, o.Label, OptionLabel, y + (labelSize == 13 ? 3 : 4), Text, labelSize);
+            if (new Rectangle(OptionLabel - 4, y, 590, OptionRow).Contains(hover))
                 hint = o.Hint;
             int chosen = o.Get(_randomSettings);
             var values = o.Values;

@@ -70,10 +70,33 @@ internal sealed class Clusters
             return;
         if (_walkabilityVersion >= 0 && _map.WalkabilityChangesSince(_walkabilityVersion, out var changes))
             foreach (int index in changes)
-                _dirty[CellOf(index)] = true;
+                MarkDirty(CellOf(index));
         else
+        {
             Array.Fill(_dirty, true);
+            Array.Clear(_neighbors);
+        }
         _walkabilityVersion = _map.WalkabilityVersion;
+    }
+
+    /// <summary>
+    /// The cell is labelled again when next used. The neighbours known around it go at once: they may name
+    /// parts the cell will no longer have, reached before the cell itself is asked again.
+    /// </summary>
+    private void MarkDirty(int cell)
+    {
+        if (_dirty[cell])
+            return;
+        _dirty[cell] = true;
+        ForgetNeighborsAround(cell);
+    }
+
+    private void ForgetNeighborsAround(int cell)
+    {
+        int cx = cell % _cellsPerRow, cy = cell / _cellsPerRow;
+        for (int y = Math.Max(0, cy - 1); y <= Math.Min(_cellsPerRow - 1, cy + 1); y++)
+        for (int x = Math.Max(0, cx - 1); x <= Math.Min(_cellsPerRow - 1, cx + 1); x++)
+            _neighbors[y * _cellsPerRow + x] = null!;
     }
 
     /// <summary>
@@ -170,10 +193,7 @@ internal sealed class Clusters
     {
         _dirty[cell] = false;
         // The parts are new: their neighbours and those of the cells around are found again.
-        int cx = cell % _cellsPerRow, cy = cell / _cellsPerRow;
-        for (int y = Math.Max(0, cy - 1); y <= Math.Min(_cellsPerRow - 1, cy + 1); y++)
-        for (int x = Math.Max(0, cx - 1); x <= Math.Min(_cellsPerRow - 1, cx + 1); x++)
-            _neighbors[y * _cellsPerRow + x] = null;
+        ForgetNeighborsAround(cell);
         int size = _map.Size;
         int left = cell % _cellsPerRow * Size, top = cell / _cellsPerRow * Size;
         int right = Math.Min(left + Size, size) - 1, bottom = Math.Min(top + Size, size) - 1;

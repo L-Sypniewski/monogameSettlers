@@ -8,8 +8,7 @@
     "off": "Off"
   },
   "formats": {
-    "savedAt": "MM/dd/yy h:mm tt",
-    "recentMap": "MM/dd h:mm tt"
+    "savedAt": "MM/dd/yy h:mm tt"
   },
   "title": {
     "buttons": {
@@ -323,10 +322,10 @@
       "stones": "Stones",
       "stonesHint": "Rocks for stonecutters.",
       "forests": "Forests",
-      "decorations": "Decoration",
-      "decorationsHint": "Bushes, flowers, mushrooms, graves, boulders.",
       "treasures": "Treasures",
-      "treasuresHint": "Piles of goods in the land between the players: gold, gems, iron, coal, weapons, stones, tools."
+      "treasuresHint": "Piles of goods in the land between the players: gold, gems, iron, coal, weapons, stones, tools.",
+      "kingOfTheHill": "King of the Hill",
+      "kingOfTheHillHint": "The middle of the map is a hill worth holding: a hoard of gold and weapons, mountains full of gold, gems and coal, ringed by a moor with one pass per player."
     },
     "randomPeople": "Random",
     "noMaps": "no maps in this category",
@@ -361,9 +360,7 @@
     "fixedPeopleHint": "The map sets the people of this start position; it applies to the player starting there.",
     "you": " (you)",
     "byMap": " (map)",
-    "colorHint": "Color: click for the next free one, right-click for the previous one; “?” is drawn at the start.",
-    "recent": "Previous maps",
-    "noneRecent": "none played yet",
+    "colorHint": "Color: click to choose; “?” is drawn at the start, colors of other players are crossed out.",
     "reroll": "Reroll"
   },
   "settings": {
@@ -415,7 +412,9 @@
       "effects": "Effects",
       "effectsHint": "Volume of the sounds, e.g. in battle.",
       "autoSave": "Autosave",
-      "autoSaveHint": "Yes: every 15 minutes and on quitting into slot 8 (overwriting it)."
+      "autoSaveHint": "Yes: every 15 minutes and on quitting into slot 8 (overwriting it).",
+      "preferredColor": "Preferred color",
+      "preferredColorHint": "Your color as player 1 on the start screen unless you pick another."
     }
   },
   "install": {

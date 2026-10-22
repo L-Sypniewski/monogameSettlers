@@ -22,11 +22,27 @@
   "forestShare": { "few": 0.08, "medium": 0.16, "many": 0.26 },
   "treeDensity": 0.4,
   "decorationShare": { "few": 0.006, "medium": 0.018, "many": 0.045 },
-  "treasureSitesPerPlayer": { "off": 0, "normal": 2, "many": 5 },
+  "treasureSitesPerPlayer": { "off": 0, "normal": 2, "many": 10 },
   "_treasureGoods": "Material: weight. A site has 1-3 piles of 3-8.",
   "treasureGoods": {
     "GOLD": 4, "GEMS": 3, "IRON": 3, "COAL": 3, "STONE": 3,
     "SWORD": 2, "BOW": 1, "SPEAR": 1,
     "HAMMER": 1, "AXE": 1, "PICK": 1, "SAW": 1, "SCYTHE": 1, "FISHINGROD": 1
+  },
+  "_hoard": "Treasures 'many' only: a large heap in the middle of the map, full piles on every field within the radius (material: weight).",
+  "hoard": {
+    "radius": 2,
+    "goods": { "GOLD": 3, "SWORD": 2, "BOW": 1, "SPEAR": 1 }
+  },
+  "_kingOfTheHill": "Option 'King of the Hill': the middle is a hill with the hoard, rich mountains (veins of the given ores at full amount) between the passes and a ring of moor (impassable) with one pass towards each start. Radii in fields from the middle.",
+  "kingOfTheHill": {
+    "moatRadius": 30,
+    "moatWidth": 5,
+    "passWidth": 7,
+    "hillHeight": 18,
+    "mountainDistance": 19,
+    "mountainRadius": 7,
+    "veins": [ "GoldOre", "Gems", "Coal" ],
+    "veinAmount": 15
   }
 }
