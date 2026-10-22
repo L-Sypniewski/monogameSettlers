@@ -1673,6 +1673,17 @@ public sealed class MapGame : Game
                     _message = stealing > 0 ? $"{stealing} scouts go stealing" : "no goods to steal nearby";
                 }
             }
+            else if (action == SelectionAction.Hold)
+            {
+                _message = "soldiers: hold the position, fight only enemies within reach";
+                if (released)
+                {
+                    int holding = _world.Military.Hold(_group);
+                    if (holding > 0)
+                        PlayCommand();
+                    _message = $"{holding} soldiers hold their position";
+                }
+            }
             else
             {
                 _message = "pioneers: take the free land around them, field by field";

@@ -23,6 +23,13 @@ public abstract class AiTrait
     internal virtual CampaignLeader? LeadCampaign(AiPlayer ai, AiPlayer.Campaign campaign, List<Settler> spare) => null;
 
     /// <summary>
+    /// Decision point "leading fights": takes over a strike as it starts (strikers and enemies are chosen) and
+    /// gives the strikers their first orders. The first trait of the character returning a leader leads it;
+    /// null leaves it to the built-in all-in (everybody walks at the enemies).
+    /// </summary>
+    internal virtual StrikeLeader? LeadStrike(AiPlayer ai, AiPlayer.Strike strike, AiPlayer.EnemyGroup group) => null;
+
+    /// <summary>
     /// Decision point "guarding": places the idle soldiers left after defence, strikes and campaign
     /// (<paramref name="military"/>: the own finished military buildings). True if the trait did; the
     /// first one that does decides. Without such a trait idle soldiers stay where they are.
@@ -66,6 +73,7 @@ public abstract class AiTrait
         [RotatingTowersTrait.TraitId] = settings => new RotatingTowersTrait(settings),
         [ThiefTrait.TraitId] = settings => new ThiefTrait(settings),
         [SummonerTrait.TraitId] = settings => new SummonerTrait(settings),
+        [FormationTrait.TraitId] = settings => new FormationTrait(settings),
     };
 
     public static IEnumerable<string> Known => Factories.Keys;
@@ -91,4 +99,14 @@ internal abstract class CampaignLeader
     /// over (the leader has sent the soldiers home).
     /// </summary>
     public abstract bool Follow(AiPlayer ai, AiPlayer.Campaign campaign);
+}
+
+/// <summary>Leads a strike in place of the built-in all-in.</summary>
+internal abstract class StrikeLeader
+{
+    /// <summary>
+    /// Every think while the strike runs (after retreat, reinforcements and the wounded are seen to), with
+    /// its enemies as found again. True if it placed the strikers itself: the built-in following leaves them be.
+    /// </summary>
+    public abstract bool Follow(AiPlayer ai, AiPlayer.Strike strike, AiPlayer.EnemyGroup group);
 }

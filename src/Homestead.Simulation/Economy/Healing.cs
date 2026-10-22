@@ -1,11 +1,13 @@
+using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Pathfinding;
 
 namespace Homestead.Simulation.Economy;
 
 /// <summary>
-/// Hospitals: the healer calls the nearest wounded own idle soldier within
-/// <see cref="Military.MilitaryConfig.HospitalCallRadius"/> to the field in front of the door. Whenever a
-/// wounded own soldier stands still at the door, the healer comes out and heals it: once he is out, the
+/// Hospitals: the healer calls the weakest wounded own idle soldier (least health left; ties: the nearest) within
+/// <see cref="Military.MilitaryConfig.HospitalCallRadius"/> to the field in front of the door; soldiers holding
+/// their position („Position halten“) are not idle and stay. Whenever wounded own soldiers stand still at the
+/// door, the healer comes out and heals the weakest of them: once he is out, the
 /// heal cannot be stopped (only by tearing the hospital down) and the soldier is free to go; unless it
 /// dies, it has full health after <see cref="Military.MilitaryConfig.HealTicks"/>, wherever it is by then.
 /// The healer goes back in; after a heal it waits
@@ -40,10 +42,13 @@ public sealed partial class Production
         var hospital = w.Hospital!;
         var door = w.Building.Door;
         var healerSpot = HealerSpot(w);
+        var healSpot = HealSpot(w);
+        // In front of the door: next to it, the healer's spot or the spot called soldiers are sent to (pushed a field aside there).
         var waiting = _world.Settlers.Where(s => IsWounded(s, w.Building.Player) && !s.HasTask
                                                  && s.State != SettlerState.Stepping && s.Destination is null
-                                                 && (PathFinder.Distance(s.Position, door) <= 1 || PathFinder.Distance(s.Position, healerSpot) <= 1))
-            .MinBy(s => s.Id);
+                                                 && (PathFinder.Distance(s.Position, door) <= 1 || PathFinder.Distance(s.Position, healerSpot) <= 1
+                                                     || PathFinder.Distance(s.Position, healSpot) <= 1))
+            .OrderBy(s => s.Health).ThenBy(s => s.Id).FirstOrDefault();
         if (waiting is not null)
         {
             StartHealing(w, waiting);
@@ -57,13 +62,13 @@ public sealed partial class Production
         if (hospital.Called is not null || _world.Tick < hospital.NextCall)
             return;
         var config = _world.Military.Config;
-        var nearest = _world.Settlers.Where(s => IsWounded(s, w.Building.Player) && !s.HasTask
+        var weakest = _world.Settlers.Where(s => IsWounded(s, w.Building.Player) && !s.HasTask
                                                  && PathFinder.Distance(s.Position, door) <= config.HospitalCallRadius)
-            .MinBy(s => PathFinder.Distance(s.Position, door));
-        if (nearest is null)
+            .OrderBy(s => s.Health).ThenBy(s => PathFinder.Distance(s.Position, door)).ThenBy(s => s.Id).FirstOrDefault();
+        if (weakest is null)
             return;
-        _world.Military.Move([nearest], HealSpot(w));
-        hospital.Called = nearest;
+        _world.Military.Move([weakest], HealSpot(w));
+        hospital.Called = weakest;
         hospital.CalledUntil = _world.Tick + CallTimeoutTicks;
     }
 
@@ -185,4 +190,11 @@ public sealed partial class Production
 
     /// <summary>Soldiers healed fully in hospitals.</summary>
     public int HealsDone { get; private set; }
+
+    /// <summary>
+    /// Where a soldier stands to be healed at the hospital (down-right of the healer's spot); null for other buildings.
+    /// An idle wounded soldier standing still there is healed, called or not.
+    /// </summary>
+    public GridPoint? HealSpotOf(Building building) =>
+        _workplaces.GetValueOrDefault(building.Id) is { Hospital: not null } w ? HealSpot(w) : null;
 }

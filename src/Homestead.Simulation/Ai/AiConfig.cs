@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Homestead.Simulation.Buildings;
+using Homestead.Simulation.Economy;
 using Homestead.Simulation.Map;
 
 namespace Homestead.Simulation.Ai;
@@ -33,6 +34,44 @@ public sealed record AiConfig
         double RetreatRatio = 1.0, int HinterlandDepth = 0, int ReinforceRadius = 0, double TowerFireRatio = 0);
 
     public required AttackRules Attack { get; init; }
+
+    /// <summary>Wounded soldiers in small fights (see <c>military.wounded</c> in ai.json); null in games saved before: <see cref="WoundedRules.Default"/>.</summary>
+    public WoundedRules? Wounded { get; init; }
+
+    /// <param name="MaxSoldiers">Only in fights of at most this many own soldiers (strike or campaign).</param>
+    /// <param name="WithdrawHealth">A fighting soldier below this share of its full health withdraws (0: never).</param>
+    /// <param name="RejoinHealth">A withdrawn soldier healed to this share comes back.</param>
+    /// <param name="HoldRatio">Only while the others still fighting have this times the enemy's strength without it.</param>
+    /// <param name="NeedRatio">The withdrawn come back when those fighting fall below this times the enemy's strength.</param>
+    /// <param name="MopUpRatio">… or when the enemy has at most this times their strength left (finishing it off is safe).</param>
+    /// <param name="RestDistance">How far from the enemies they wait (beyond sight: they do not fight again on their own).</param>
+    public sealed record WoundedRules(int MaxSoldiers, double WithdrawHealth, double RejoinHealth, double HoldRatio, double NeedRatio,
+        double MopUpRatio, int RestDistance)
+    {
+        public static readonly WoundedRules Default = new(10, 0.35, 0.8, 0.8, 0.6, 0.25, 21);
+    }
+
+    /// <summary>Hospitals for the wounded (see <c>hospital</c> in ai.json); null in games saved before: <see cref="HospitalRules.Default"/>.</summary>
+    public HospitalRules? Hospital { get; init; }
+
+    /// <param name="Wounded">A hospital is built once more than this many wounded soldiers are outside none's call range (0: never).</param>
+    /// <param name="WoundedHealth">Wounded: below this share of the full health.</param>
+    /// <param name="SendDistance">Idle wounded soldiers walk to the door of an own hospital at most this far away.</param>
+    public sealed record HospitalRules(int Wounded, double WoundedHealth, int SendDistance)
+    {
+        public static readonly HospitalRules Default = new(5, 0.8, 60);
+    }
+
+    /// <summary>Weapons made in the late game, with a big army (see <c>army</c> in ai.json); null in games saved before: no change.</summary>
+    public ArmyRules? Army { get; init; }
+
+    /// <param name="LateSoldiers">Late game from this many own soldiers outside the buildings on (0: never).</param>
+    /// <param name="LateShares">The weaponsmiths' shares then (Waren › Herstellung).</param>
+    public sealed record ArmyRules(int LateSoldiers, IReadOnlyDictionary<Material, double> LateShares)
+    {
+        /// <summary>Below this many the late game is over again (a little fewer than it took, so it does not flicker).</summary>
+        public int EarlySoldiers => LateSoldiers * 3 / 4;
+    }
 
     /// <summary>Priests (see <c>magic</c> in ai.json).</summary>
     public MagicRules Magic { get; init; } = new(6, 3, DefaultUpgradeOrder);
@@ -180,6 +219,22 @@ public sealed record AiConfig
                 military.TryGetProperty("hinterlandDepth", out var hinterland) ? hinterland.GetInt32() : 0,
                 military.TryGetProperty("reinforceRadius", out var reinforce) ? reinforce.GetInt32() : 0,
                 military.TryGetProperty("towerFireRatio", out var towerFire) ? towerFire.GetDouble() : 0),
+            Wounded = military.TryGetProperty("wounded", out var wounded)
+                ? new WoundedRules(wounded.GetProperty("maxSoldiers").GetInt32(), wounded.GetProperty("withdrawHealth").GetDouble(),
+                    wounded.GetProperty("rejoinHealth").GetDouble(), wounded.GetProperty("holdRatio").GetDouble(),
+                    wounded.GetProperty("needRatio").GetDouble(), wounded.GetProperty("mopUpRatio").GetDouble(),
+                    wounded.GetProperty("restDistance").GetInt32())
+                : WoundedRules.Default,
+            Hospital = root.TryGetProperty("hospital", out var hospital)
+                ? new HospitalRules(hospital.GetProperty("wounded").GetInt32(), hospital.GetProperty("woundedHealth").GetDouble(),
+                    hospital.GetProperty("sendDistance").GetInt32())
+                : HospitalRules.Default,
+            Army = root.TryGetProperty("army", out var army)
+                ? new ArmyRules(army.GetProperty("lateSoldiers").GetInt32(),
+                    army.GetProperty("lateShares").EnumerateObject().Where(p => !p.Name.StartsWith('_'))
+                        .ToDictionary(p => Materials.Parse(p.Name) ?? throw new InvalidDataException($"unknown good '{p.Name}' in army.lateShares"),
+                            p => p.Value.GetDouble()))
+                : null,
             Magic = root.TryGetProperty("magic", out var magic)
                 ? new MagicRules(magic.GetProperty("priestDistance").GetInt32(), magic.GetProperty("minTargets").GetInt32(),
                     magic.TryGetProperty("upgradeOrder", out var order)

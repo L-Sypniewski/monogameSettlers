@@ -377,6 +377,33 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void The_hospital_heals_the_weakest_first_and_leaves_soldiers_holding_their_position()
+    {
+        var world = new World(new GameMap(100), TestConfig.NoTools);
+        var hospital = world.PlaceBuilding(Romans["hospital"], 0, new GridPoint(40, 40))!;
+        Spawn(world, 1, new GridPoint(30, 55)); // becomes the healer
+        var door = hospital.Door;
+        var near = world.SpawnSoldier(new GridPoint(door.X + 5, door.Y), SoldierType.Swordsman)!;
+        var far = world.SpawnSoldier(new GridPoint(door.X + 15, door.Y + 6), SoldierType.Swordsman)!;
+        var holding = world.SpawnSoldier(new GridPoint(door.X + 3, door.Y + 4), SoldierType.Swordsman)!;
+        SetHealth(near, 60);
+        SetHealth(far, 20);
+        SetHealth(holding, 10);
+        world.Military.Hold([holding]);
+
+        var healed = new List<Settler>();
+        Run(world, 5_000, stopWhen: () =>
+        {
+            healed.AddRange(new[] { near, far }.Where(s => s.Health >= 100 && !healed.Contains(s)));
+            return healed.Count == 2;
+        });
+
+        Assert.Equal([far, near], healed); // the weakest first, although further away
+        Assert.Equal(10, holding.Health);
+        Assert.True(world.Military.Holds(holding));
+    }
+
+    [Fact]
     public void Once_the_healer_is_out_the_soldier_is_healed_wherever_it_runs()
     {
         var world = new World(new GameMap(100), TestConfig.NoTools);
@@ -886,11 +913,88 @@ public class MilitaryTests(ITestOutputHelper output)
         Assert.False(host.IsDead);
     }
 
+    [Fact]
+    public void Holding_soldiers_chase_nobody_but_strike_enemies_within_reach()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools);
+        var holder = world.SpawnSoldier(new GridPoint(20, 30), SoldierType.Swordsman)!;
+        var archer = world.SpawnSoldier(new GridPoint(20, 40), SoldierType.Bowman)!;
+        Assert.Equal(2, world.Military.Hold([holder, archer]));
+        // An enemy in sight but out of reach: the swordsman stays, the bowman shoots from where he stands.
+        var enemy = world.SpawnSoldier(new GridPoint(26, 34), SoldierType.Pikeman, level: 3, player: 1)!;
+        world.Military.Hold([enemy]);
+        float health = enemy.Health;
+        Run(world, 300);
+        Assert.Equal(new GridPoint(20, 30), holder.Position);
+        Assert.Equal(new GridPoint(20, 40), archer.Position);
+        Assert.True(enemy.Health < health, "the bowman shoots within his range");
+        Assert.True(world.Military.Holds(holder));
+        Assert.Null(world.Military.MoveTarget(holder));
+
+        // Next to it, the swordsman strikes.
+        var other = world.SpawnSoldier(new GridPoint(21, 30), SoldierType.Swordsman, player: 1)!;
+        Run(world, 600, stopWhen: () => other.IsDead);
+        Assert.True(other.IsDead);
+        Assert.Equal(new GridPoint(20, 30), holder.Position);
+
+        // A new order ends the hold.
+        world.Military.Move([holder], new GridPoint(10, 30));
+        Assert.False(world.Military.Holds(holder));
+    }
+
+    [Fact]
+    public void A_tower_does_not_call_in_soldiers_holding_their_position()
+    {
+        var world = new World(new GameMap(70), TestConfig.NoTools);
+        world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 30));
+        var soldier = world.SpawnSoldier(new GridPoint(36, 36), SoldierType.Swordsman)!;
+        world.Military.Hold([soldier]);
+        Run(world, 600);
+        Assert.False(soldier.IsInside);
+        Assert.Equal(new GridPoint(36, 36), soldier.Position);
+        world.Military.Move([soldier], soldier.Position);
+        Run(world, 1200, stopWhen: () => soldier.IsInside);
+        Assert.True(soldier.IsInside, "free again, it is called in");
+    }
+
+    [Fact]
+    public void Pikemen_take_half_of_every_hit_rounded_down()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools) { PlayerCount = 2 };
+        var pikeman = world.SpawnSoldier(new GridPoint(20, 30), SoldierType.Pikeman)!;
+        var swordsman = world.SpawnSoldier(new GridPoint(23, 30), SoldierType.Swordsman, player: 1)!;
+        world.SpawnSoldier(new GridPoint(20, 40), SoldierType.Bowman, player: 1);
+        // Nobody's land: half the combat strength with two players (sword 12 → 6 → 3, bow 4 → 2 → 1, spear 9 → 4.5).
+        float strength = world.Military.CombatStrength(1);
+        var config = world.Military.Config;
+        float sword = MathF.Floor(config.Damage(SoldierType.Swordsman, 1) * strength / 2);
+        float bow = MathF.Floor(config.Damage(SoldierType.Bowman, 1) * strength / 2);
+        var taken = new HashSet<float>();
+        var dealt = new HashSet<float>();
+        float pikemanHealth = pikeman.Health, swordsmanHealth = swordsman.Health;
+
+        Run(world, 3_000, stopWhen: () =>
+        {
+            if (pikeman.Health < pikemanHealth)
+                taken.Add(pikemanHealth - pikeman.Health);
+            if (swordsman.Health < swordsmanHealth)
+                dealt.Add(swordsmanHealth - swordsman.Health);
+            (pikemanHealth, swordsmanHealth) = (pikeman.Health, swordsman.Health);
+            return pikeman.IsDead || swordsman.IsDead;
+        });
+
+        Assert.Equal(new HashSet<float> { sword, bow }, taken.Select(t => (float)Math.Round(t, 3)).ToHashSet());
+        Assert.Equal([config.Damage(SoldierType.Pikeman, 1) * strength], dealt.Select(d => (float)Math.Round(d, 3)));
+    }
+
     private static void SpawnSoldiers(World world, SoldierType type, int count, GridPoint near)
     {
         for (int i = 0; i < count; i++)
             Assert.NotNull(world.SpawnSoldier(new GridPoint(near.X + i, near.Y), type));
     }
+
+    /// <summary>Wounds a soldier at once (the health is the simulation's own).</summary>
+    private static void SetHealth(Settler soldier, float health) => typeof(Settler).GetProperty(nameof(Settler.Health))!.SetValue(soldier, health);
 
     private static void Run(World world, int ticks, Func<bool>? stopWhen = null)
     {

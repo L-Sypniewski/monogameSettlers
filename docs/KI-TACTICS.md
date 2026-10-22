@@ -51,7 +51,8 @@ Charakterzüge zusammenwirken:
 |---|---|---|
 | **Besatzung** (`GarrisonLimit`, umgesetzt) | jede Militär-Runde, je eigenem Militärgebäude | Charakterzüge begrenzen die Besatzung; die niedrigste Grenze gilt (mindestens 1) |
 | **Angriffsziele** | Planung eines Feldzugs | Charakterzüge bewerten Ziele (Punkte addieren sich), bestes Ziel gewinnt |
-| **Truppenführung** (`LeadCampaign`, umgesetzt) | während eines Feldzugs | einer führt den Trupp (z. B. Zange *oder* Hinterhalt), Schlachtordnung kann zusätzlich gelten |
+| **Truppenführung** (`LeadCampaign`, umgesetzt) | während eines Feldzugs | einer führt den Trupp (z. B. Zange *oder* Hinterhalt) |
+| **Gefechtsführung** (`LeadStrike`, umgesetzt) | Beginn eines Strikes (Guerilla, Verteidigung), dann jede Militär-Runde | einer führt den Strike (z. B. Schlachtordnung); ohne ihn gehen alle zugleich rein |
 | **Bewachung** (`Guard`, umgesetzt) | jede Militär-Runde, für die übrigen untätigen Soldaten | der erste, der sie aufstellt, entscheidet; ohne ihn bleiben sie stehen |
 | **Turmplätze** | Expansion | Charakterzüge bewerten Bauplätze, Punkte addieren sich |
 | **Zeitpunkt** (`AllowCampaign`, umgesetzt) | jede Militär-Runde, vor der Planung eines Feldzugs | jeder Charakterzug kann einen neuen Feldzug zurückhalten |
@@ -169,12 +170,29 @@ gesetzt, bevor der Angriff beginnt.
 Angeschlagene Soldaten kehren in einen Turm zurück, frische kommen heraus.
 *Voraussetzung:* Soldaten heilen derzeit nicht. Erst sinnvoll, wenn sie im Gebäude Gesundheit
 zurückgewinnen (eigene Spielregel, für Mensch und KI gleich).
+*Eingebaut statt Charakterzug* (`military.wounded`, `AiPlayer.Tactics`): In kleinen Gefechten (≤ `maxSoldiers`
+eigene Soldaten) ziehen sich schwer Verwundete aus dem Kampf zurück, solange der Rest standhält, und halten
+außer Sicht des Feinds mit „Position halten“; liegt ein eigenes Lazarett in Rufweite, gibt die KI sie stattdessen
+frei und schickt sie zu dessen Tür (Haltende ruft das Lazarett nicht).
+Untätige Verwundete schickt die KI ebenfalls zum nächsten Lazarett (`hospital.sendDistance`): den schwächsten auf den
+Heilplatz (wer dort steht, wird ohne Ruf geheilt), die übrigen warten ein paar Felder vor der Tür – im Gedränge an der
+Tür schöben sie sich gegenseitig weg und der Heiler käme nie heraus. Lazarette baut sie bei Bedarf wie Wohnhäuser: mehr als `hospital.wounded` (5) Verwundete außerhalb
+der Reichweite aller Lazarette → eins am Militärgebäude nächst ihnen. Sie kommen zurück, wenn sie geheilt sind,
+gebraucht werden oder der Feind fast besiegt ist. Der `hothead` zieht nie zurück (`withdrawHealth` 0).
 
 ### Truppenführung
 
-**`formation` – Infanterie vorn, Bogenschützen hinten** · M
-Bogenschützen halten ein paar Felder Abstand hinter der Infanterie. Erreicht feindliche Infanterie
-die Bogenschützen, weichen diese zurück, statt in den Nahkampf zu geraten.
+**`formation` – Bogenschützen vor, Nahkämpfer dahinter** · M · **umgesetzt** (`legion`, `general`, `skirmisher`)
+Entscheidungspunkt „Gefechtsführung“ (`LeadStrike`, Strikes = Guerilla und Verteidigung). Hat ein Strike
+Bogenschützen und Nahkämpfer, sind die Feinde vorwiegend zu Fuß (ihre Bogenschützen höchstens
+`maxEnemyBowShare` ihrer Stärke) und noch außer Bogenreichweite, gehen die Bogenschützen vor und schießen
+aus Reichweite; die Nahkämpfer halten `parkDistance` Felder dahinter, außer Sicht der Feinde. Kommt ein
+Feind einem Bogenschützen auf `fallBackDistance` nahe, weichen die Bogenschützen ohne Kampf hinter die
+Nahkämpfer zurück und schießen von dort, die Nahkämpfer gehen rein; im weiteren Kampf ebenso (höchstens
+alle `fallBackSeconds`, Bogenschützen ohne Ziel rücken dazwischen nach). Nach `screenSeconds` gehen die
+Nahkämpfer auf jeden Fall rein. Bogenschützen und geparkte Nahkämpfer nutzen „Position halten“ wie der
+Spieler (`Military.Hold`, `Move(…, hold: true)`): nur Feinde in Reichweite, keine Verfolgung, nicht untätig –
+also nicht von Gebäuden als Besatzung gerufen.
 
 **`pincer` – Zange und Finte** · L · **umgesetzt** (Charakter `general`)
 Zwei Trupps: ein kleiner lockt die Verteidiger an einer Stelle heraus, der Hauptangriff kommt kurz
@@ -341,7 +359,7 @@ Amazonen früh angreifen oder sich auf ein hartes spätes Spiel einstellen.
 |---|---|---|
 | Standard (`standard`) | eingebautes Verhalten | – (Guerilla, Feldzug, volle Besatzung sind eingebaut) |
 | Stürmer (`rusher`) | früh und oft angreifen, geringere Überlegenheit reicht | earlyRush, frontGarrison, waves |
-| Feldherr (`general`) | geordnete Schlachten | pincer, guardByThreat (umgesetzt); geplant: formation, spellTiming, reinforceThreatened |
+| Feldherr (`general`) | geordnete Schlachten | pincer, formation, guardByThreat (umgesetzt); geplant: spellTiming, reinforceThreatened |
 | Hinterhältiger (`trickster`) | dort zuschlagen, wo keiner hinschaut | flanking, exposedTowers, goldRaid, frontGarrison, jitter |
 | Landnehmer (`landTaker`) | wächst über Grenzen und nimmt Land ohne Kampf | landGrab, frontGarrison, economicTargets |
 | Wirtschafter (`merchant`) | ruhig aufbauen, dann mit starken Soldaten zuschlagen | goldRace, goldGuard, powerSpike, spellTiming |

@@ -134,6 +134,7 @@ public sealed partial class AiPlayer
         FollowCampaign();
         LeadPriests();
         UpgradeSoldiers();
+        ArmForLateGame();
         if (_world.Tick >= _nextMilitary)
         {
             Command(mine);
@@ -281,6 +282,8 @@ public sealed partial class AiPlayer
     {
         if (HouseWanted(mine) && HouseToBuild(mine) is { } house)
             yield return (house.Name, mine.Count(b => b.Definition.Name == house.Name) + 1);
+        if ((_hospitalAnchor = HospitalSpot(mine)) is not null)
+            yield return (HospitalName, mine.Count(b => b.Definition.Name == HospitalName) + 1);
         // A storehouse only once goods worth storing (tools, weapons, gold, gems) are made in numbers and
         // pile up, and the storehouses there are have no room left for them.
         var storage = mine.Where(b => b.State == BuildingState.Finished).SelectMany(b => b.Piles).Where(p => p.Role == PileRole.Storage).ToList();
@@ -380,6 +383,7 @@ public sealed partial class AiPlayer
             return cells.Select(c => (GridPoint?)c).FirstOrDefault();
         return definition.Name switch
         {
+            HospitalName => _hospitalAnchor ?? _home!.Position,
             "forester" => mine.Where(b => b.Definition.Name == "lumberjack")
                               .OrderBy(l => mine.Count(f => f.Definition.Name == "forester" && PathFinder.Distance(f.Position, l.Position) < 12))
                               .Select(l => (GridPoint?)l.Position).FirstOrDefault() ?? _home!.Position,

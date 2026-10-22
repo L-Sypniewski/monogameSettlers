@@ -3,10 +3,10 @@
   "territory": { "tower": 30.52, "big_tower": 31.1, "castle": 33.19 },
   "weapons": { "SWORD": "Swordsman", "SPEAR": "Pikeman", "BOW": "Bowman" },
   "trainingSeconds": 4,
-  "_soldiersComment": "Homestead's own combat values. damage per hit, one hit every attackSeconds; speed: walking speed as a factor (1 = as everybody); bowmen shoot up to range fields but not at enemies nearer than minRange (they step back first; not from the top of a military building), from military buildings towerRangeFactor times as far. Level 2/3 multiply health and damage by levelBonus.",
+  "_soldiersComment": "Homestead's own combat values. damage per hit, one hit every attackSeconds; speed: walking speed as a factor (1 = as everybody); bowmen shoot up to range fields but not at enemies nearer than minRange (they step back first; not from the top of a military building), from military buildings towerRangeFactor times as far. armor: share of every hit a soldier of the type does not take (the rest rounded down; pikemen take half). Level 2/3 multiply health and damage by levelBonus.",
   "soldiers": {
     "Swordsman": { "health": 100, "damage": 12, "attackSeconds": 1.0, "range": 1, "speed": 1.1 },
-    "Pikeman": { "health": 130, "damage": 9, "attackSeconds": 1.0, "range": 2, "speed": 1.05 },
+    "Pikeman": { "health": 130, "damage": 9, "attackSeconds": 1.0, "range": 2, "speed": 1.05, "armor": 0.5 },
     "Bowman": { "health": 80, "damage": 4, "attackSeconds": 1.5, "range": 14, "minRange": 5 }
   },
   "towerRangeFactor": 1.69,
@@ -39,7 +39,7 @@
       }
     }
   },
-  "_hospitalComment": "Hospital: its healer calls the nearest wounded own idle soldier within callRadius fields of the door to the field in front of it. Whenever a wounded own soldier stands still at the door, the healer comes out, heals it fully in healSeconds and goes back in; after a heal it waits callPauseSeconds before calling the next one (soldiers that come by themselves are healed at once).",
+  "_hospitalComment": "Hospital: its healer calls the weakest wounded own idle soldier (least health left, ties: the nearest; not one holding its position) within callRadius fields of the door to the field in front of it. Whenever wounded own soldiers stand still at the door, the healer comes out, heals the weakest fully in healSeconds and goes back in; after a heal it waits callPauseSeconds before calling the next one (soldiers that come by themselves are healed at once).",
   "hospital": { "callRadius": 40, "healSeconds": 2, "callPauseSeconds": 10 },
   "sightRange": 15,
   "_geologistHealthComment": "Geologists of other players are fought like soldiers (they do not strike back) and have this much health.",

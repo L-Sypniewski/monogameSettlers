@@ -518,6 +518,7 @@
   "selection": {
     "steal": "Waren stehlen",
     "claim": "Land einnehmen",
+    "hold": "Position halten",
     "combatStrength": "Kampfkraft: {0}%"
   },
   "manufacture": {

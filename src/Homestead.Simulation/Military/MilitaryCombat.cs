@@ -102,14 +102,15 @@ public sealed partial class Military
     /// it. Enemies in sight on the way are fought first, then they carry on.
     /// </summary>
     /// <param name="forced">Forced order (escape, retreat): walk there without fighting anybody on the way.</param>
-    public void Move(IEnumerable<Settler> soldiers, GridPoint destination, bool forced = false)
+    /// <param name="hold">Hold the spot once there („Position halten“, see <see cref="Hold"/>).</param>
+    public void Move(IEnumerable<Settler> soldiers, GridPoint destination, bool forced = false, bool hold = false)
     {
         var list = Commandable(soldiers);
         var spots = FreeSpotsAround(destination, list.Count);
         for (int i = 0; i < list.Count; i++)
         {
             var soldier = list[i];
-            _fighters[soldier.Id] = new Fighter(soldier) { MoveTo = spots.Count > i ? spots[i] : destination, Forced = forced };
+            _fighters[soldier.Id] = new Fighter(soldier) { MoveTo = spots.Count > i ? spots[i] : destination, Forced = forced, Hold = hold };
             soldier.HasTask = true;
         }
     }
@@ -119,11 +120,37 @@ public sealed partial class Military
     /// attacking a building on the way; null otherwise. Such a soldier may take a new order any time.
     /// </summary>
     public GridPoint? MoveTarget(Settler soldier) =>
-        _fighters.TryGetValue(soldier.Id, out var f) && f is { MoveTo: { } to, Forced: false, Target: null, Enemy: null } ? to : null;
+        _fighters.TryGetValue(soldier.Id, out var f) && f is { MoveTo: { } to, Forced: false, Hold: false, Target: null, Enemy: null } ? to : null;
 
     /// <summary>Where the soldier walks on a forced move order (escape, retreat); null otherwise.</summary>
     public GridPoint? ForcedMoveTarget(Settler soldier) =>
-        _fighters.TryGetValue(soldier.Id, out var f) && f is { MoveTo: { } to, Forced: true, Target: null, Enemy: null } ? to : null;
+        _fighters.TryGetValue(soldier.Id, out var f) && f is { MoveTo: { } to, Forced: true, Hold: false, Target: null, Enemy: null } ? to : null;
+
+    /// <summary>
+    /// „Position halten“: the soldiers stay where they stand until they get another order. They fight only enemies
+    /// within their reach (melee: next to them; bowmen: within range, not nearer than the minimum) and chase nobody;
+    /// they are not idle, so no building calls them in. Returns how many hold.
+    /// </summary>
+    public int Hold(IEnumerable<Settler> soldiers)
+    {
+        var list = Commandable(soldiers);
+        foreach (var soldier in list)
+        {
+            // Mid-step: the field it is stepping onto.
+            _fighters[soldier.Id] = new Fighter(soldier) { MoveTo = soldier.StepTarget, Hold = true, Holding = true };
+            soldier.HasTask = true;
+            if (soldier.Path.Count > 0)
+                _world.WalkTo(soldier, soldier.StepTarget);
+        }
+        return list.Count;
+    }
+
+    /// <summary>The spot the soldier is ordered to hold (on its way there or holding it); null otherwise.</summary>
+    public GridPoint? HoldTarget(Settler soldier) =>
+        _fighters.TryGetValue(soldier.Id, out var f) && f is { MoveTo: { } to, Hold: true } ? to : null;
+
+    /// <summary>Whether the soldier has reached the spot it is ordered to hold (and holds it).</summary>
+    public bool Holds(Settler soldier) => _fighters.TryGetValue(soldier.Id, out var f) && f is { Hold: true, Holding: true };
 
     /// <summary>
     /// Orders the given soldiers to attack an enemy military building (enemies on the way first); bowmen
@@ -472,7 +499,9 @@ public sealed partial class Military
             return;
         }
 
-        if (f.Forced)
+        if (f.Holding)
+            HoldingEnemy(f, stats);
+        else if (f.Forced)
             f.Enemy = null;
         else
         {
@@ -610,6 +639,13 @@ public sealed partial class Military
         {
             if (soldier.Position == spot || soldier.Destination is null && PathFinder.Distance(soldier.Position, spot) <= 1 && f.NextReplan > 0)
             {
+                if (f.Hold)
+                {
+                    // There: from now on it fights only what comes within its reach.
+                    f.Holding = true;
+                    f.Forced = false;
+                    return;
+                }
                 Dismiss(f);
                 return;
             }
@@ -717,6 +753,21 @@ public sealed partial class Military
                 return spot;
         }
         return door;
+    }
+
+    /// <summary>A soldier holding its position fights only an enemy within its reach: the one it fights while it stays so, otherwise the nearest.</summary>
+    private void HoldingEnemy(Fighter f, SoldierStats stats)
+    {
+        var soldier = f.Soldier;
+        if (f.Enemy is { } current && !current.IsDead && !current.IsInside && current.Player != soldier.Player
+            && stats.InReach(PathFinder.Distance(soldier.Position, current.Position)))
+            return;
+        f.Enemy = null;
+        if (_world.Tick >= f.NextRetarget)
+        {
+            f.Enemy = NearestEnemy(soldier.Position, soldier.Player, stats.Range, stats.MinRange);
+            f.NextRetarget = _world.Tick + (f.Enemy is null ? RetargetTicks / 2 : 0);
+        }
     }
 
     /// <summary>
@@ -877,7 +928,8 @@ public sealed partial class Military
         }
         _world.Cue(new SoundCue(SoundCueKind.Strike, tower?.Position ?? attacker.Position, attacker.Player, attacker.SoldierType,
             attacker.People ?? _world.PeopleOf(attacker.Player)));
-        enemy.Health -= _config.Damage(attacker.SoldierType!.Value, attacker.Level) * CombatStrengthOf(attacker);
+        float damage = _config.Damage(attacker.SoldierType!.Value, attacker.Level) * CombatStrengthOf(attacker);
+        enemy.Health -= enemy.SoldierType is { } type ? _config.Soldiers[type].Taken(damage) : damage;
         var home = DefendedBy(enemy);
         if (home is not null)
         {
@@ -1020,7 +1072,13 @@ public sealed partial class Military
         public GridPoint? MoveTo { get; set; }
 
         /// <summary>Forced move order: no fighting on the way.</summary>
-        public bool Forced { get; init; }
+        public bool Forced { get; set; }
+
+        /// <summary>Hold the <see cref="MoveTo"/> spot once there instead of being done.</summary>
+        public bool Hold { get; init; }
+
+        /// <summary>It has reached the spot it holds.</summary>
+        public bool Holding { get; set; }
 
         /// <summary>The <see cref="Target"/> was taken up on its own (seen, not ordered).</summary>
         public bool AutoTarget { get; set; }

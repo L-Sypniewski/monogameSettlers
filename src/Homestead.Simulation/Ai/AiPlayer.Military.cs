@@ -26,7 +26,7 @@ public sealed partial class AiPlayer
     private readonly Dictionary<Settler, long> _leftAlone = new();
 
     /// <summary>A running guerilla attack: who strikes, whom, and where the enemies were last.</summary>
-    private sealed class Strike(List<Settler> soldiers, HashSet<Settler> targets, GridPoint center, bool guerilla)
+    internal sealed class Strike(List<Settler> soldiers, HashSet<Settler> targets, GridPoint center, bool guerilla)
     {
         /// <summary>Outside the own land by choice (not defence): given up under tower fire.</summary>
         public bool Guerilla { get; } = guerilla;
@@ -34,6 +34,15 @@ public sealed partial class AiPlayer
         public List<Settler> Soldiers { get; } = soldiers;
         public HashSet<Settler> Targets { get; set; } = targets;
         public GridPoint Center { get; set; } = center;
+
+        /// <summary>Wounded strikers withdrawn from the fight for now (see <see cref="TendWounded"/>).</summary>
+        public HashSet<Settler> Resting { get; } = new();
+
+        /// <summary>The strikers in the fight: all but the withdrawn.</summary>
+        public IEnumerable<Settler> Fighting => Soldiers.Where(s => !Resting.Contains(s));
+
+        /// <summary>The trait leading it, or null for the built-in all-in.</summary>
+        public StrikeLeader? Leader { get; set; }
     }
 
     /// <summary>Enemy soldiers, geologists and revealed scouts outside buildings, grouped (seen at the last military think).</summary>
@@ -102,6 +111,9 @@ public sealed partial class AiPlayer
         // Decision point "guarding": the first trait that takes it places the idle soldiers; without one they stay where they are.
         // Retreating soldiers walk on: only a new action stops their retreat.
         var rest = guards.Concat(spare).Where(s => _world.Military.ForcedMoveTarget(s) is null).ToList();
+        // The wounded among them go to a hospital first.
+        var patients = SendToHospital(rest);
+        rest.RemoveAll(patients.Contains);
         foreach (var trait in Character.Traits)
             if (trait.Guard(this, military, rest))
                 break;
@@ -225,9 +237,15 @@ public sealed partial class AiPlayer
             if (round == 2 && (guerilla && UnderTowerFire(group, from) || strength < Opposition(group, from) * config.StrikeRatio))
                 return false;
         }
-        _world.Military.Move(strikers, group.Center);
-        _strikes.Add(new Strike(strikers, group.Soldiers.ToHashSet(), group.Center, guerilla));
+        var strike = new Strike(strikers, group.Soldiers.ToHashSet(), group.Center, guerilla);
+        _strikes.Add(strike);
         Note($"{verb} {group.Soldiers.Count} enemies at {group.Center.X},{group.Center.Y} with {strikers.Count} soldiers{(remark is null ? "" : $" ({remark})")}");
+        // Decision point "leading fights": the first trait that takes the strike places the strikers; otherwise they all go in.
+        foreach (var trait in Character.Traits)
+            if ((strike.Leader = trait.LeadStrike(this, strike, group)) is not null)
+                break;
+        if (strike.Leader is null)
+            _world.Military.Move(strikers, group.Center);
         pool.RemoveAll(strikers.Contains);
         return true;
     }
@@ -409,10 +427,14 @@ public sealed partial class AiPlayer
         foreach (var strike in _strikes.ToList())
         {
             strike.Soldiers.RemoveAll(s => s.IsDead || s.IsInside || s.Player != Player); // also won over by a spell
-            var group = groups.FirstOrDefault(g => g.Soldiers.Any(strike.Targets.Contains))
-                        ?? groups.Where(g => PathFinder.Distance(g.Center, strike.Center) <= config.GroupRadius * 2)
-                            .MinBy(g => PathFinder.Distance(g.Center, strike.Center));
-            if (strike.Soldiers.Count == 0 || group is null)
+            strike.Resting.IntersectWith(strike.Soldiers);
+            // The targets may have split up (one runs after a striker): all parts stay targets, the nearest is gone for.
+            var tracked = groups.Where(g => g.Soldiers.Any(strike.Targets.Contains)).ToList();
+            var group = strike.Soldiers.Count == 0 ? null
+                : tracked.MinBy(g => PathFinder.Distance(g.Center, CenterOf(strike.Soldiers)))
+                  ?? groups.Where(g => PathFinder.Distance(g.Center, strike.Center) <= config.GroupRadius * 2)
+                      .MinBy(g => PathFinder.Distance(g.Center, strike.Center));
+            if (group is null)
             {
                 // Won, or nobody left: the survivors go home.
                 if (strike.Soldiers.Count > 0)
@@ -420,7 +442,7 @@ public sealed partial class AiPlayer
                 _strikes.Remove(strike);
                 continue;
             }
-            strike.Targets = group.Soldiers.ToHashSet();
+            strike.Targets = tracked.Append(group).SelectMany(g => g.Soldiers).ToHashSet();
 
             double strength = strike.Soldiers.Sum(s => Strength(s, group.Center));
             // What they will meet: the group and whoever waits on the way to it.
@@ -465,10 +487,16 @@ public sealed partial class AiPlayer
                 }
             }
 
-            // The enemies moved: the strikers that are not fighting follow them.
-            if (PathFinder.Distance(group.Center, strike.Center) > 3)
+            var center = group.Center;
+            TendWounded(strike.Soldiers, strike.Resting, center, opposition, back => _world.Military.Move(back, center));
+
+            // The enemies moved: the strikers that are not fighting follow them (unless a trait leads them; not those
+            // it placed on a spot to hold).
+            bool led = strike.Leader?.Follow(this, strike, group) == true;
+            if (!led && PathFinder.Distance(group.Center, strike.Center) > 3)
             {
-                var following = strike.Soldiers.Where(s => s.Activity is not (Activity.Fighting or Activity.Shooting)).ToList();
+                var following = strike.Fighting.Where(s => s.Activity is not (Activity.Fighting or Activity.Shooting)
+                                                           && _world.Military.HoldTarget(s) is null).ToList();
                 if (following.Count > 0)
                     _world.Military.Move(following, group.Center);
             }
@@ -529,13 +557,17 @@ public sealed partial class AiPlayer
     /// </summary>
     internal double Strength(Settler soldier, GridPoint at) => Power(soldier) * _world.Military.CombatStrengthAt(soldier.Player, at);
 
-    /// <summary>Health times damage per second, without the combat strength (0 for geologists and scouts: they do not fight).</summary>
+    /// <summary>
+    /// Health (as much more as its armour makes it last) times damage per second, without the combat strength
+    /// (0 for geologists and scouts: they do not fight).
+    /// </summary>
     private double Power(Settler soldier)
     {
         var military = _world.Military.Config;
         if (soldier.SoldierType is not { } type)
             return 0;
-        double perSecond = military.Damage(type, soldier.Level) * World.TicksPerSecond / military.Soldiers[type].AttackTicks;
-        return soldier.Health * perSecond;
+        var stats = military.Soldiers[type];
+        double perSecond = military.Damage(type, soldier.Level) * World.TicksPerSecond / stats.AttackTicks;
+        return soldier.Health * stats.Toughness * perSecond;
     }
 }

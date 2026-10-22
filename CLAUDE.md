@@ -39,7 +39,8 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   `LegNodes` (4) Zellen voraus; `Settler.PathIsLeg` → am Etappenende plant `World` die nächste. Nahe am Ziel exakt.
 - `World`/`Settler`: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf (Kommentar in `World`).
   `Settler.StepProgress` in `World.StepUnits`; Tempo je Zielfeld: Gebirge ×0,8, Trampelpfad ×1,2 (`walking` in `production.json`);
-  dazu Soldaten je Typ `speed` in `military.json` (Schwertkämpfer ×1,1, Pikeniere ×1,05, Bogenschützen ×1).
+  dazu Soldaten je Typ `speed` in `military.json` (Schwertkämpfer ×1,1, Pikeniere ×1,05, Bogenschützen ×1); `armor` (Pikeniere 0,5):
+  so viel weniger Schaden je Treffer, abgerundet (`SoldierStats.Taken`; KI rechnet mit `Toughness`).
   Siedler und Gebäude haben einen Spieler; Logistik/Rekrutierung nur für den eigenen. `World.TerritoryRules` erzwingt eigenes Land
   (Bauplatz samt Tür, Stapel, Bauarbeiterplätze, Wege – außer Soldaten, Priester, Geologen, Späher, Pioniere); Gestrandete fliehen (`Idling`); wer mit Auftrag Land unter den Füßen verliert (`World.IsStranded`), bricht ab, lässt Getragenes fallen und nimmt erst auf eigenem Land Neues an.
 - `Trails`: Träger mit Auftrag treten auf Gras Trampelpfade (`GroundCover.Trail`, nach `trailSteps`), verschwinden nach `trailFadeSeconds` (300).
@@ -72,7 +73,9 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     Resterz im Umkreis gegen `resources.fullAmount` (8) je Feld (leere/fremde Felder = Nieten, jeder Fund senkt sie; `MineChance`); Niete kostet Zeit und Nahrung.
     Sammler: Wasserwerk nur an Flüssen; Bauer, Weinbauer, Reisbauer, Imker nach `crops` – Getreide macht Ackerland (`GroundCover.Farmland`,
     begehbar, bis Abriss/Verlust der Farm), wächst 200 s; Wein am Hang schneller; Reis nur auf Sumpf; Reben/Bienenstöcke wachsen nach.
-  - `Healing`: Lazarett-Heiler ruft den nächsten verwundeten untätigen eigenen Soldaten im Umkreis `hospital.callRadius` (40) vor die Tür,
+  - `Healing`: Lazarett-Heiler ruft den schwächsten (wenigste LP, Gleichstand: nächster) verwundeten untätigen eigenen Soldaten im Umkreis
+    `hospital.callRadius` (40) auf den Heilplatz vor der Tür (`HealSpotOf`; Haltende nicht); wer still neben Tür, Heilerplatz oder Heilplatz steht,
+    wird ohne Ruf geheilt (der schwächste zuerst),
     heilt ihn (ab da nur durch Abriss unterbrechbar; volle LP nach `healSeconds`, wo immer er ist), geht hinein, `callPauseSeconds` Pause.
   - `Housing`: Wohnhäuser entlassen Träger und geben so viel Wohnraum (plus Startbevölkerung, `SettleStartPopulation`). Platz brauchen
     Träger und Arbeiter (auch Planierer/Bauarbeiter – Baustellen rekrutieren höchstens Anteil `Share.Diggers`/`Builders`, mind. je einer),
@@ -110,6 +113,9 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     (weder von selbst noch auf Befehl – `Attack` übergeht sie; KI-Feldzüge ohne sie) und schießen am Boden nicht unter `minRange` (5):
     zu Nahe → zurückweichen (`SoldierStats.InReach`/`OffReach`), auch Tür-Wächter; vom Turm ohne Mindestreichweite.
     Bogenschützen in Militärgebäuden schießen `towerRangeFactor` (1,69) weiter (`TowerRange`, auch KI-Turmfeuer). Bogenschützen treffen beim Schuss, Pfeil (`Military.Arrows`, `ArrowTicks`) nur Darstellung. Nahe am Feind lokale Wegsuche (`combatPathRadius`).
+    „Position halten“ (`Military.Hold`, Auswahl-Panel bei Soldaten, an der Stelle von „Land einnehmen“; `Move(…, hold: true)` erst hinlaufen):
+    nicht untätig (kein Gebäude ruft ihn), kämpft nur gegen Feinde in Reichweite, verfolgt niemanden, kehrt auf den Platz zurück, bis zum nächsten Befehl
+    (`HoldTarget`/`Holds`; das Lazarett ruft Haltende nicht). KI: Verwundete, geparkte Nahkämpfer, Bogenschützen der Schlachtordnung.
   - Kampfkraft (`CombatStrength`): eigenes Land 100 %, sonst 100 % / Spielerzahl; plus Gold im eigenen Land (nach Landbesitz; Ägypter: Gold
     halb, Edelsteine doppelt), progressiv (`unitsPerPercent` je `stepPercent`), ohne Obergrenze (200 % = doppelter Schaden außerhalb; zwingt Reiche zum Angriff). KI kennt alle Werte und bewertet den Kampfort.
   - Werte: `data/military.json`; Gebietsradien aus Originalkarten gemessen.
@@ -138,12 +144,22 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   - `AiPlayer.Campaign`: sammelt Soldaten, erobert feindliche Militärgebäude bei 1,5:1 (Besatzung gewichtet `attack.garrisonWeight`, Burg doppelt).
     Werte: `attack.armyRatio` (0 = egal), `attack.commit` (Anteil freier Soldaten, 1 = alle), `attack.abortRatio` (0 = nie aufgeben),
     `attack.maxDistance` (0 = egal), `military.retreatRatio` (0 = nie zurück).
+  - `AiPlayer.Tactics`: in kleinen Gefechten (Strike/Feldzug ≤ `military.wounded.maxSoldiers` 10) ziehen sich Kämpfende unter `withdrawHealth` (35 %)
+    zurück (erzwungen, Position halten `restDistance` vom Feind Richtung `RetreatDoor`; verfolgt → zum Gebäude; eigenes Lazarett in Rufweite, nicht
+    näher am Feind: stattdessen freigegeben zu dessen Tür), solange der Rest `holdRatio` × Gegner hat;
+    zurück bei `rejoinHealth` (geheilt), unter `needRatio` × Gegner oder Gegner fast besiegt (`mopUpRatio`); 20 s kein erneuter Rückzug. Hitzkopf: nie.
+    Lazarett (`hospital` in `ai.json`): untätige Verwundete (< `woundedHealth` 80 %) zum nächsten eigenen Lazarett bis `sendDistance` (60): der schwächste
+    auf den Heilplatz, die übrigen warten 3 Felder vor der Tür (sonst schieben sie sich gegenseitig weg, der Heiler kommt nie); mehr als `wounded` (5) solche (ohne die noch Kämpfenden) weiter als `sendDistance` von jedem Lazarett
+    (auch Baustellen) → Lazarett vor der Build-Order (wie Wohnhäuser) am Militärgebäude nächst ihnen.
+    Late Game = große Armee (`army.lateSoldiers` 20 Soldaten außerhalb der Gebäude; zu groß, um Einzelne zurückzuziehen): Waffenschmied-Anteile
+    `lateShares` (Speer 100 %, Bogen 80 %, Schwert 15 %); unter ¾ davon die Anteile von vorher.
+    Strikes verfolgen alle Teile zerfallener Zielgruppen (nächster zuerst).
   - `AiPlayer.Magic`: Priester folgen Angriffen mit Abstand, zaubern ab `magic.minTargets` Getroffenen; Aufwertungen sofort bei genug Mana
     (`magic.upgradeOrder`: Schwertkämpfer, Bogenschützen, Pikeniere). KI zaubert nur den Volkszauber.
   - Charaktere/Charakterzüge (Konzept: `docs/KI-TACTICS.md`; Kennungen englisch, deutsche Namen in `ui.json` `aiCharacters`/`aiTraits`):
     Charakter (`AiCharacter`, `characters` in `ai.json`) nennt Züge (`AiTrait`, `Ai/Traits/<Kennung>Trait`; Vorgaben unter `traits`,
     je Charakter überschreibbar) und überschreibt Werte; `characterWeights` (je Volk) losen je Partie.
-    Entscheidungspunkte: `LeadCampaign` (Truppenführung), `Guard` (Bewachung), `AllowCampaign` (Zeitpunkt), `GarrisonLimit` (Besatzung),
+    Entscheidungspunkte: `LeadCampaign` (Truppenführung), `LeadStrike` (Gefechtsführung, `StrikeLeader`), `Guard` (Bewachung), `AllowCampaign` (Zeitpunkt), `GarrisonLimit` (Besatzung),
     `ArrangeBuildOrder` (Build-Order, einmal beim Start), `RunErrands` (Besorgungen, nach der Bewachung).
     Züge: `waves` (Ruhe/Wellen im Wechsel), `frontGarrison` (nur frontnahe Gebäude voll, sonst `backline`), `earlyArmy` (Schmelze,
     Waffenschmied, Kaserne direkt nach Holz/Stein; Schmelze auch ohne Mine bei Erz auf eigenem Land), `forwardBase` (Sammeln am frontnächsten
@@ -152,6 +168,9 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     nicht bei feindlichen Soldaten in `soldierRadius`, sonst heimgerufen, Stapel `retrySeconds` gemieden).
     `summoner` (Legion: Mana über `reserveSpells` × Volkszauber → „Waren herbeirufen“ durch einen freien Priester auf eigenem Land
     nahe ihm, `edgeDistance` vom Rand, ohne Feindsoldaten, mit `minFreeFields` freien Feldern).
+    `formation` (Legion, Feldherr, Plänklerin: Strike mit Bogen + Nahkampf gegen Feinde zu Fuß, noch außer Reichweite – Bogenschützen vor auf
+    Reichweite − 2, Nahkämpfer halten `parkDistance` dahinter; Feind ≤ `fallBackDistance` an Bogenschützen → diese halten hinter den Nahkämpfern,
+    die gehen rein; danach alle `fallBackSeconds` erneut, ohne Ziel rücken Bogenschützen nach; spätestens nach `screenSeconds` rein).
     `buildOrderMoves` verschiebt Gebäude in der Build-Order.
     Volks-Charaktere (`standard`/`general` nur per `--characters`): `hothead` (Ägypter: `earlyArmy`, alles greift an, Hinterland dünn, stiehlt),
     `unyielding` (Asiaten: gibt erst unter halber Verteidigungsstärke auf), `legion` (Römer: frühes Gold, Wellen, Zange, Warenzauber),

@@ -4,8 +4,14 @@ using Homestead.Simulation.Economy;
 
 namespace Homestead.Simulation.Military;
 
-public sealed record SoldierStats(float Health, float Damage, int AttackTicks, int Range, double Speed = 1, int MinRange = 0)
+public sealed record SoldierStats(float Health, float Damage, int AttackTicks, int Range, double Speed = 1, int MinRange = 0, double Armor = 0)
 {
+    /// <summary>What a hit of <paramref name="damage"/> takes from the soldier: with armour that share less, rounded down.</summary>
+    public float Taken(float damage) => Armor > 0 ? MathF.Floor(damage * (float)(1 - Armor)) : damage;
+
+    /// <summary>How many times its health the soldier stands up to, thanks to its armour (for weighing strengths).</summary>
+    public double Toughness => Armor is > 0 and < 1 ? 1 / (1 - Armor) : 1;
+
     /// <summary>Walking speed as a factor (0 in games saved before there were speeds: as everybody).</summary>
     public double SpeedFactor => Speed > 0 ? Speed : 1;
 
@@ -120,7 +126,8 @@ public sealed record MilitaryConfig
             s => new SoldierStats(s.Value.GetProperty("health").GetSingle(), s.Value.GetProperty("damage").GetSingle(),
                 (int)Math.Round(s.Value.GetProperty("attackSeconds").GetDouble() * World.TicksPerSecond), s.Value.GetProperty("range").GetInt32(),
                 s.Value.TryGetProperty("speed", out var speed) ? speed.GetDouble() : 1,
-                s.Value.TryGetProperty("minRange", out var minRange) ? minRange.GetInt32() : 0));
+                s.Value.TryGetProperty("minRange", out var minRange) ? minRange.GetInt32() : 0,
+                s.Value.TryGetProperty("armor", out var armor) ? armor.GetDouble() : 0));
         var door = root.TryGetProperty("door", out var d) ? d : default;
         return new MilitaryConfig
         {

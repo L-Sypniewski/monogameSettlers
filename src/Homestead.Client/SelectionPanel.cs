@@ -8,8 +8,8 @@ namespace Homestead.Client;
 /// <summary>
 /// The selected units in the blue panel: one portrait per kind (soldier type and level, geologist, priest,
 /// scout, pioneer) with how many are selected; at the bottom the player's combat strength away from own land,
-/// above it the orders of the selection (<see cref="ActionAt"/>): „Waren stehlen“ for scouts, „Land
-/// einnehmen“ for pioneers. Below the spell menu when priests are selected.
+/// above it the orders of the selection (<see cref="ActionAt"/>): „Position halten“ for soldiers, „Waren stehlen“
+/// for scouts, „Land einnehmen“ for pioneers. Below the spell menu when priests are selected.
 /// </summary>
 public sealed class SelectionPanel
 {
@@ -25,6 +25,8 @@ public sealed class SelectionPanel
     private static List<SelectionAction> Actions(IEnumerable<Settler> selection)
     {
         var actions = new List<SelectionAction>();
+        if (selection.Any(s => s.Profession == Profession.Soldier && !s.IsDead))
+            actions.Add(SelectionAction.Hold);
         if (selection.Any(s => s.Profession == Profession.Scout && !s.IsDead))
             actions.Add(SelectionAction.Steal);
         if (selection.Any(s => s.Profession == Profession.Pioneer && !s.IsDead))
@@ -35,7 +37,12 @@ public sealed class SelectionPanel
     private static Rectangle ActionRect(int i) =>
         new(BuildMenu.Content.X + 2, BuildMenu.Content.Bottom - 44 - i * ActionHeight, BuildMenu.Content.Width - 4, 20);
 
-    private static string TextOf(SelectionAction action) => Lang.T(action == SelectionAction.Steal ? "selection.steal" : "selection.claim");
+    private static string TextOf(SelectionAction action) => Lang.T(action switch
+    {
+        SelectionAction.Steal => "selection.steal",
+        SelectionAction.Claim => "selection.claim",
+        _ => "selection.hold",
+    });
 
     /// <summary>The order text under the point (panel space), or null.</summary>
     public static SelectionAction? ActionAt(IEnumerable<Settler> selection, Vector2 panel)
@@ -114,4 +121,7 @@ public enum SelectionAction
 
     /// <summary>„Land einnehmen“: pioneers take land around them.</summary>
     Claim,
+
+    /// <summary>„Position halten“: soldiers stay where they stand and fight only enemies within reach.</summary>
+    Hold,
 }

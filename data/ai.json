@@ -102,7 +102,28 @@
     "threatRange": 70,
     "guardDistance": 10,
     "reinforceRadius": 30,
-    "towerFireRatio": 0.5
+    "towerFireRatio": 0.5,
+    "wounded": {
+      "_comment": "Small fights (strikes and campaigns with at most maxSoldiers own soldiers): a fighting soldier below withdrawHealth of its full health withdraws to restDistance fields from the enemies (beyond their sight) and holds its position – or, with an own hospital within its call range (not nearer the enemies), walks to its door, free to be healed (soldiers holding their position are not called) while the others still fighting have holdRatio times the enemy's strength without it. The withdrawn come back once healed to rejoinHealth, when those fighting fall below needRatio times the enemy's strength, or when the enemy has at most mopUpRatio times their strength left. withdrawHealth 0: never.",
+      "maxSoldiers": 10,
+      "withdrawHealth": 0.35,
+      "rejoinHealth": 0.8,
+      "holdRatio": 0.8,
+      "needRatio": 0.6,
+      "mopUpRatio": 0.25,
+      "restDistance": 21
+    }
+  },
+  "hospital": {
+    "_comment": "Wounded soldiers: below woundedHealth of their full health. Idle ones go to the nearest own hospital at most sendDistance away: the weakest to its heal spot (who stands there is healed without being called), the others wait a few fields out in front of the door for their turn. More than wounded of them (not counting those still fighting a strike or campaign) further than sendDistance from every own hospital (sites too): a hospital is built at the own military building nearest them, before the build order (like living houses). wounded 0: never.",
+    "wounded": 5,
+    "woundedHealth": 0.8,
+    "sendDistance": 60
+  },
+  "army": {
+    "_comment": "Late game: a big army of lateSoldiers soldiers outside the buildings or more (its fights are too big to pull single wounded out, see military.wounded). Then the weaponsmiths make mostly spears and bows (lateShares, as in Waren > Herstellung): pikemen wear armour, bowmen shoot from behind them. Below three quarters of lateSoldiers the shares from before come back. 0: never.",
+    "lateSoldiers": 20,
+    "lateShares": { "SWORD": 0.15, "SPEAR": 1, "BOW": 0.8 }
   },
   "attack": {
     "_comment": "Campaigns against enemy land. Defence comes first: idle soldiers needed against enemies near the own land stay back, and no campaign starts while enemies stand on the own land. Target: an occupied enemy military building; its defence is its garrison plus enemy soldiers within defenseRadius. Preferred are targets close to the own land, weakly defended, with no enemy group within pathClearance of the way there. A campaign starts when the spare soldiers have ratio times the target's defence and the AI's whole army has armyRatio (default: ratio; 0: any) times that enemy's (at least minSoldiers). commit (0-1, default 0): that share of the spare soldiers left over comes along as well (1: full strength). The soldiers first gather at the own military building nearest the target (at most gatherSeconds); the campaign is given up when they then have less than abortRatio (default: ratio; 0: never) times the defence, otherwise they attack together; they retreat when they fall below military.retreatRatio (0: never), and go home when it is over. maxDistance (default 0: any): targets at most this far from the own land (an enemy building at the border stands some 30 fields behind the edge of its land).",
@@ -174,6 +195,14 @@
       "replaceSeconds": 90,
       "ranks": [["GOLD", "GEMS", "SWORD", "BOW", "SPEAR", "GOLDORE", "IRONORE", "COAL"], ["AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD"], ["BREAD", "FISH", "MEAT"]]
     },
+    "formation": {
+      "_comment": "Bowmen first, melee behind (decision point leading fights): a strike with bowmen and melee soldiers against enemies mostly on foot (their bowmen at most maxEnemyBowShare of their strength), still at least the bowmen's range away, sends the bowmen ahead to shoot from range and parks the melee soldiers parkDistance fields behind them (beyond the enemies' sight: they wait). When an enemy comes within fallBackDistance of a bowman, the bowmen fall back without fighting behind the melee soldiers and these go in; later too, whenever an enemy gets that close again (at most every fallBackSeconds). After screenSeconds without that the melee soldiers go in anyway.",
+      "maxEnemyBowShare": 0.34,
+      "parkDistance": 8,
+      "fallBackDistance": 6,
+      "fallBackSeconds": 4,
+      "screenSeconds": 30
+    },
     "summoner": {
       "_comment": "Mana beyond reserveSpells casts of the people's own spell goes into summoning goods (magic.json, SummonGoods): a free priest casts it on the best spot within priestRadius of him – own land at least edgeDistance fields from where it ends (thieves, enemies; the map border does not count), no enemy soldier outside within soldierRadius, at least minFreeFields free fields (walkable, no pile, no building) within the spell radius; the most free fields win, then the nearest to the priest. Only while no priest of the player is casting. Rechecked every checkSeconds. Errands only: combines with any other trait.",
       "reserveSpells": 2,
@@ -186,12 +215,12 @@
   },
   "characters": {
     "standard": { "traits": [] },
-    "general": { "traits": ["pincer", "everyOtherTower", "guardByThreat"], "attack": { "ratio": 1.2 }, "military": { "strikeRange": 40 } },
-    "_peoplesComment": "One character per people (characterWeights under civilizations), each a recognisable opponent. Egyptians (hothead): hot-tempered, military early, attack at slight superiority with all they have, thin garrisons in the back. Asians (unyielding): hardly ever give up or retreat (only below half the defence; never at all bled them out). Romans (legion): strong economy with early gold, attack bundled in waves, pincers. Amazons (skirmisher): play safe at home (garrisons full, campaigns only at 2:1), but wear the enemy down with guerilla groups far out (at 2:1, so they do not turn round at the first sign of danger); campaigns only near the own land (an outpost far away is lost again). Idle soldiers without a threat: hothead keeps them in one heap at home, unyielding on a changing third of its towers, legion and general on every other tower, skirmisher on the towers facing the enemy; enemies standing around deep in their own land are left alone by the skirmisher (that mostly goes wrong).",
+    "general": { "traits": ["pincer", "formation", "everyOtherTower", "guardByThreat"], "attack": { "ratio": 1.2 }, "military": { "strikeRange": 40 } },
+    "_peoplesComment": "One character per people (characterWeights under civilizations), each a recognisable opponent. Egyptians (hothead): hot-tempered, military early, attack at slight superiority with all they have, thin garrisons in the back. Asians (unyielding): hardly ever give up or retreat (only below half the defence; never at all bled them out). Romans (legion): strong economy with early gold, attack bundled in waves, pincers. Amazons (skirmisher): play safe at home (garrisons full, campaigns only at 2:1), but wear the enemy down with guerilla groups far out (at 2:1, so they do not turn round at the first sign of danger); campaigns only near the own land (an outpost far away is lost again). Idle soldiers without a threat: hothead keeps them in one heap at home, unyielding on a changing third of its towers, legion and general on every other tower, skirmisher on the towers facing the enemy; enemies standing around deep in their own land are left alone by the skirmisher (that mostly goes wrong). In fights legion, general and skirmisher send their bowmen ahead (formation); the hothead never pulls its wounded out.",
     "hothead": {
       "traits": ["earlyArmy", "frontGarrison", "thief"],
       "attack": { "ratio": 1.2, "armyRatio": 1.0, "commit": 1.0, "minSoldiers": 3 },
-      "military": { "strikeRatio": 1.2, "strikeRange": 120 }
+      "military": { "strikeRatio": 1.2, "strikeRange": 120, "wounded": { "withdrawHealth": 0 } }
     },
     "unyielding": {
       "traits": ["rotatingTowers", "guardByThreat", "summoner"],
@@ -199,14 +228,14 @@
       "military": { "retreatRatio": 0.5 }
     },
     "legion": {
-      "traits": ["waves", "pincer", "everyOtherTower", "guardByThreat", "summoner"],
+      "traits": ["waves", "pincer", "formation", "everyOtherTower", "guardByThreat", "summoner"],
       "attack": { "minSoldiers": 8, "commit": 0.6 },
       "waves": { "calmSeconds": 420, "waveSeconds": 240 },
       "maxSites": 5,
       "buildOrderMoves": { "goldmine": -10, "goldmelt": -10 }
     },
     "skirmisher": {
-      "traits": ["frontTowers", "guardByThreat", "frontGarrison", "thief", "summoner"],
+      "traits": ["formation", "frontTowers", "guardByThreat", "frontGarrison", "thief", "summoner"],
       "attack": { "ratio": 2.0, "armyRatio": 0, "minSoldiers": 2, "maxDistance": 60 },
       "military": { "strikeRange": 150, "strikeRatio": 1.5, "retreatRatio": 1.0, "hinterlandDepth": 8 }
     }

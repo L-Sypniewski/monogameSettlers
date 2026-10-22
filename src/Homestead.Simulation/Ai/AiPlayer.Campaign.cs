@@ -25,6 +25,9 @@ public sealed partial class AiPlayer
 
         /// <summary>The trait leading it, or null for the built-in gather-and-attack.</summary>
         public CampaignLeader? Leader { get; set; }
+
+        /// <summary>Wounded soldiers withdrawn from the fight for now (see <see cref="TendWounded"/>).</summary>
+        public HashSet<Settler> Resting { get; } = new();
     }
 
     private void StartCampaign(List<Building> military, List<Settler> spare)
@@ -98,6 +101,7 @@ public sealed partial class AiPlayer
             return;
         var rules = _config.Attack;
         c.Soldiers.RemoveAll(s => s.IsDead || s.IsInside || s.Player != Player); // also won over by a spell
+        c.Resting.IntersectWith(c.Soldiers);
         var target = c.Target;
         if (!target.Exists || target.Player == Player || c.Soldiers.Count == 0)
         {
@@ -109,6 +113,8 @@ public sealed partial class AiPlayer
             _campaign = null;
             return;
         }
+        if (c.Attacking)
+            TendWounded(c.Soldiers, c.Resting, target.Door, Defense(target), back => _world.Military.Attack(back, target));
         if (c.Leader is { } leader)
         {
             if (!leader.Follow(this, c))

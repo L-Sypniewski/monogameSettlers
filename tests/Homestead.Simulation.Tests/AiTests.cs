@@ -365,7 +365,7 @@ public class AiTests(ITestOutputHelper output)
         var world = new World(new GameMap(40), TestConfig.NoTools);
         Assert.Equal(["waves", "frontGarrison"], new AiPlayer(world, Romans, 0, character: "waves+frontGarrison").Character.Traits.Select(t => t.Id));
         Assert.Throws<ArgumentException>(() => new AiPlayer(world, Romans, 0, character: "waves+nothing"));
-        Assert.Equal(["waves", "pincer", "everyOtherTower", "guardByThreat"], new AiPlayer(world, Romans, 0, character: "general+waves").Character.Traits.Select(t => t.Id));
+        Assert.Equal(["waves", "pincer", "formation", "everyOtherTower", "guardByThreat"], new AiPlayer(world, Romans, 0, character: "general+waves").Character.Traits.Select(t => t.Id));
     }
 
     [Fact]
