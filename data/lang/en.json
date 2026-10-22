@@ -323,10 +323,10 @@
       "stones": "Stones",
       "stonesHint": "Rocks for stonecutters.",
       "forests": "Forests",
-      "decorations": "Decoration",
-      "decorationsHint": "Bushes, flowers, mushrooms, graves, boulders.",
       "treasures": "Treasures",
-      "treasuresHint": "Piles of goods in the land between the players: gold, gems, iron, coal, weapons, stones, tools."
+      "treasuresHint": "Piles of goods in the land between the players: gold, gems, iron, coal, weapons, stones, tools.",
+      "kingOfTheHill": "King of the Hill",
+      "kingOfTheHillHint": "The middle of the map is a hill worth holding: a hoard of gold and weapons, mountains full of gold, gems and coal, ringed by a moor with one pass per player."
     },
     "randomPeople": "Random",
     "noMaps": "no maps in this category",

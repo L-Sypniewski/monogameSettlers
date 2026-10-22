@@ -40,7 +40,8 @@ public sealed record RandomMapSettings(
     Abundance Stones = Abundance.Medium,
     Abundance Forests = Abundance.Medium,
     Abundance Decorations = Abundance.Medium,
-    TreasureLevel Treasures = TreasureLevel.Normal)
+    TreasureLevel Treasures = TreasureLevel.Normal,
+    bool KingOfTheHill = false)
 {
     public const int MinPlayers = 2;
     public const int MaxPlayers = 6;
@@ -88,6 +89,16 @@ public sealed record RandomMapConfig
     /// <summary>Radius of the heap in the map's middle with treasures 'many'.</summary>
     public int HoardRadius { get; init; } = 2;
     public IReadOnlyList<(Material Material, int Weight)> HoardGoods { get; init; } = [];
+    public KingOfTheHillConfig KingOfTheHill { get; init; } = new();
+
+    /// <summary>The middle with the option 'King of the Hill'; radii in fields from the middle.</summary>
+    /// <param name="MoatRadius">Inner edge of the moor ring.</param>
+    /// <param name="PassWidth">Width of the pass through the ring towards each start.</param>
+    /// <param name="HillHeight">How much higher the middle is than the land around.</param>
+    /// <param name="MountainDistance">Mountains between the passes, this far from the middle.</param>
+    /// <param name="Veins">Ores of the mountains, each one vein at <paramref name="VeinAmount"/>.</param>
+    public sealed record KingOfTheHillConfig(int MoatRadius = 30, int MoatWidth = 5, int PassWidth = 7, double HillHeight = 18,
+        int MountainDistance = 19, double MountainRadius = 7, ResourceType[]? Veins = null, int VeinAmount = 15);
 
     /// <param name="Cover">Share of mountain fields with ore.</param>
     /// <param name="Fish">Fish amount in shallow water.</param>
@@ -110,6 +121,7 @@ public sealed record RandomMapConfig
             .ToArray();
         var resources = root.GetProperty("resources");
         var hoard = root.TryGetProperty("hoard", out var h) ? h : default;
+        var king = root.TryGetProperty("kingOfTheHill", out var k) ? k : default;
         return new RandomMapConfig
         {
             Sizes = root.GetProperty("sizes").EnumerateObject().ToDictionary(s => int.Parse(s.Name), s => s.Value.GetInt32()),
@@ -133,6 +145,11 @@ public sealed record RandomMapConfig
             TreasureGoods = Goods(root.GetProperty("treasureGoods")),
             HoardRadius = hoard.ValueKind == JsonValueKind.Object ? hoard.GetProperty("radius").GetInt32() : 0,
             HoardGoods = hoard.ValueKind == JsonValueKind.Object ? Goods(hoard.GetProperty("goods")) : [],
+            KingOfTheHill = king.ValueKind != JsonValueKind.Object ? new() : new(
+                king.GetProperty("moatRadius").GetInt32(), king.GetProperty("moatWidth").GetInt32(), king.GetProperty("passWidth").GetInt32(),
+                king.GetProperty("hillHeight").GetDouble(), king.GetProperty("mountainDistance").GetInt32(), king.GetProperty("mountainRadius").GetDouble(),
+                king.GetProperty("veins").EnumerateArray().Select(v => Enum.Parse<ResourceType>(v.GetString()!)).ToArray(),
+                king.GetProperty("veinAmount").GetInt32()),
         };
     }
 }

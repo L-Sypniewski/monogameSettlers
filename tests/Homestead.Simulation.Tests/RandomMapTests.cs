@@ -121,6 +121,30 @@ public class RandomMapTests(ITestOutputHelper output)
     }
 
     [Theory]
+    [InlineData(2, MapSymmetry.None)]
+    [InlineData(4, MapSymmetry.Mirror)]
+    [InlineData(5, MapSymmetry.Repeat)]
+    public void King_of_the_hill_rings_a_rich_middle_with_moor_and_a_pass_per_player(int players, MapSymmetry symmetry)
+    {
+        var original = RandomMapGenerator.Generate(new RandomMapSettings(players, symmetry, KingOfTheHill: true), 2);
+        var area = original.Area;
+        int middle = (area.Size - 1) / 2;
+        var hill = Around(area, middle, middle, 28).ToList();
+        Assert.Equal(19, original.Stacks.Count(s => PathFinder.Distance(new GridPoint(s.X, s.Y), new GridPoint(middle, middle)) <= 2));
+        // Full veins of gold and gems on the hill.
+        Assert.Contains(hill, i => area.Resources[i] == ((int)ResourceType.GoldOre << 4 | 15));
+        Assert.Contains(hill, i => area.Resources[i] == ((int)ResourceType.Gems << 4 | 15));
+        Assert.Contains(Around(area, middle, middle, 40), i => area.Landscape[i] == 80);
+
+        // The moor holds, the passes let every player in.
+        var (world, _) = OriginalScenario.Load(original);
+        var finder = new PathFinder(world.Map!);
+        var top = Walkable(world.Map!, new GridPoint(middle, middle));
+        foreach (var p in original.Players)
+            Assert.True(finder.FindPath(Walkable(world.Map!, new GridPoint(p.StartX, p.StartY)), top) is not null, $"start {p.StartX},{p.StartY} reaches the hill");
+    }
+
+    [Theory]
     [InlineData(2, MapSymmetry.None, 1)]
     [InlineData(5, MapSymmetry.None, 9)]
     [InlineData(6, MapSymmetry.Repeat, 3)]

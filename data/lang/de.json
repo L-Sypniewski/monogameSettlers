@@ -323,10 +323,10 @@
       "stones": "Steine",
       "stonesHint": "Steinvorkommen für Steinmetze.",
       "forests": "Wälder",
-      "decorations": "Dekoration",
-      "decorationsHint": "Büsche, Blumen, Pilze, Gräber, Felsen.",
       "treasures": "Schätze",
-      "treasuresHint": "Warenstapel im Land zwischen den Spielern: Gold, Edelsteine, Eisen, Kohle, Waffen, Steine, Werkzeuge."
+      "treasuresHint": "Warenstapel im Land zwischen den Spielern: Gold, Edelsteine, Eisen, Kohle, Waffen, Steine, Werkzeuge.",
+      "kingOfTheHill": "King of the Hill",
+      "kingOfTheHillHint": "Die Kartenmitte ist ein Hügel, der sich lohnt: Schatzhort mit Gold und Waffen, Berge voller Gold, Edelsteine und Kohle, ringsum ein Moor mit einem Durchgang je Spieler."
     },
     "randomPeople": "Zufall",
     "noMaps": "keine Karten in dieser Kategorie",

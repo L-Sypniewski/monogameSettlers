@@ -80,9 +80,9 @@ public sealed class StartScreen : IDisposable
         new("resources", Levels, s => (int)s.Resources, (s, v) => s with { Resources = (Abundance)v }),
         new("stones", Levels, s => (int)s.Stones, (s, v) => s with { Stones = (Abundance)v }),
         new("forests", Levels, s => (int)s.Forests, (s, v) => s with { Forests = (Abundance)v }),
-        new("decorations", Levels, s => (int)s.Decorations, (s, v) => s with { Decorations = (Abundance)v }),
         new("treasures", ["start.levels.none", "start.levels.normal", "start.levels.many"], s => (int)s.Treasures,
             (s, v) => s with { Treasures = (TreasureLevel)v }),
+        new("kingOfTheHill", ["common.off", "common.on"], s => s.KingOfTheHill ? 1 : 0, (s, v) => s with { KingOfTheHill = v == 1 }),
     ];
 
     private static int CategoryOf(string folder) => folder.ToUpperInvariant() switch
@@ -788,7 +788,9 @@ public sealed class StartScreen : IDisposable
         {
             var o = RandomOptions[option];
             int y = OptionY(option);
-            Write(batch, font, o.Label, 360, y + 4, Text, 13);
+            // Long labels (King of the Hill) in smaller type, so they end before the first value.
+            int labelSize = Measure(font, o.Label, 13) > OptionValue(option, 0).X - 364 ? 11 : 13;
+            Write(batch, font, o.Label, 360, y + (labelSize == 13 ? 4 : 5), Text, labelSize);
             if (new Rectangle(356, y, 340, OptionRow).Contains(hover))
                 hint = o.Hint;
             int chosen = o.Get(_randomSettings);

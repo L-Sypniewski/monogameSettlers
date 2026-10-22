@@ -193,7 +193,9 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   Abgetrenntes versinkt, abgeschnittene Starts bekommen eine Landbrücke zur Mitte); gespiegelt ein Kreis in Rastergeometrie. Jeder Start gleich: flache Startfläche,
   Berg mit Kohle/Eisen/Gold, Teich mit Bach (Wasserwerke brauchen Flüsse), Wald, Steine. Dazu Gebirge, Seen, Flüsse zum Meer, Sümpfe (mind. einer),
   Wälder, Steinfelder, Erzadern, Fisch, Deko, Schätze (Warenstapel ≥ 32 Felder von Starts; „Viel“: dazu ein Hort voller Stapel Gold/Waffen in der
-  Kartenmitte, `hoard`). Flüsse als stetig drehender Verlauf in Halbfeld-Schritten (bergab, Mäander per Rauschen), stromab breiter; Grasland leicht uneben. Symmetrie: `Mirror` (Keilfläche; exakt bei 2/3/4/6,
+  Kartenmitte, `hoard`). King of the Hill (`RandomMapSettings.KingOfTheHill`, `kingOfTheHill` in `randommap.json`): Mitte als Hügel mit Hort,
+  Bergen zwischen den Durchgängen (volle Adern Gold/Edelsteine/Kohle) und Ring aus unbegehbarem Moor (80/81) mit je einem Durchgang Richtung Start;
+  Heimat-Merkmale halten Abstand (`OnHill`). Flüsse als stetig drehender Verlauf in Halbfeld-Schritten (bergab, Mäander per Rauschen), stromab breiter; Grasland leicht uneben. Symmetrie: `Mirror` (Keilfläche; exakt bei 2/3/4/6,
   5 gerundet), `Repeat` (Startkachel `homeRadius` kopiert). Landschaftsbytes zuletzt aus Bodenklassen (Wassertiefe, Strand, Ränder je ein Feld,
   damit jedes Dreieck eine Original-Übergangskachel hat – Merkmale halten Abstand). Starts ohne Verbindung → neu würfeln.
 
@@ -260,8 +262,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
 - **Startscreen** (`StartScreen`): auf dem Kartenwahl-Hintergrund des Originals (`startScreen` in `ui.json`, Datei 02 GUI 8,
   im 800×600-Raster auf Fenstergröße skaliert, daneben Marmor; ovale Steinknöpfe, Steinleiste unter der Auswahl, Vorschau im schrägen Fenster): Kartenliste mit Vorschau, Tabs Einzelspieler/Mehrspieler/Eigene (Tab-Taste),
   sortiert nach Spielerzahl (`OriginalMap.ReadPlayerCount` liest nur MapInfo). Tab „Zufallsgenerator“: letzte 5 Zufallskarten
-  (`RandomMapHistory`, `~/.config/homestead/random-maps.json`) und Einstellungen (Spieler, Symmetrie, Flüsse, Rohstoffe, Steine, Wälder, Deko,
-  Schätze) – Änderung erzeugt mit gleichem Seed neu, „Neu würfeln“/R neuer Seed. Je Spieler: Volk (oder Zufall; Kartenvorgaben gelten je Position),
+  (`RandomMapHistory`, `~/.config/homestead/random-maps.json`) und Einstellungen (Spieler, Symmetrie, Flüsse, Rohstoffe, Steine, Wälder,
+  Schätze, King of the Hill; Dekoration nicht wählbar, immer mittel) – Änderung erzeugt mit gleichem Seed neu, „Neu würfeln“/R neuer Seed. Je Spieler: Volk (oder Zufall; Kartenvorgaben gelten je Position),
   Farbe (`PlayerColors.Palette`; Klick nächste freie, Rechtsklick vorige; „Zufall“ → `PlayerColors.Assign`), Hardcore.
   Mehrspieler-Startpositionen gelost (Vorschau schwarz „?“, Klick weist zu/zurück; `StartScreen.ResolvePositions` → `OriginalScenario.Load(positions:)`).
   Hardcore (`World.HardcorePlayers`, `Hardcore`): +10 % Kampfkraft flach (auch über 100 %), +30 % Bewohner je Wohnhaus, +20 % Soldaten-LP

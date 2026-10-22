@@ -33,5 +33,16 @@
   "hoard": {
     "radius": 2,
     "goods": { "GOLD": 3, "SWORD": 2, "BOW": 1, "SPEAR": 1 }
+  },
+  "_kingOfTheHill": "Option 'King of the Hill': the middle is a hill with the hoard, rich mountains (veins of the given ores at full amount) between the passes and a ring of moor (impassable) with one pass towards each start. Radii in fields from the middle.",
+  "kingOfTheHill": {
+    "moatRadius": 30,
+    "moatWidth": 5,
+    "passWidth": 7,
+    "hillHeight": 18,
+    "mountainDistance": 19,
+    "mountainRadius": 7,
+    "veins": [ "GoldOre", "Gems", "Coal" ],
+    "veinAmount": 15
   }
 }
