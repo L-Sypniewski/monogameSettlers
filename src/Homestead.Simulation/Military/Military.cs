@@ -249,7 +249,8 @@ public sealed partial class Military
         {
             if (--b.TicksLeft > 0)
                 return;
-            _world.LeaveBuilding(trainee);
+            trainee.IsWorking = false;
+            trainee.Activity = Activity.None;
             trainee.Profession = Profession.Soldier;
             trainee.SoldierType = b.Becomes;
             // The level the player's upgrades (small temple) give newly trained soldiers of the type.
@@ -282,7 +283,10 @@ public sealed partial class Military
         if (IsManualRecruitment(b.Building.Player))
             ChangePlanned(b.Building.Player, b.Becomes, -1);
         pile.ResetMaterialIfEmpty();
-        _world.EnterBuilding(trainee);
+        // Trained at the door: the carrier takes up the weapon there and comes out as a soldier, without going in.
+        trainee.IsWorking = true;
+        trainee.Activity = Activity.PickingUp;
+        trainee.ActivityTicks = 0;
         b.Training = true;
         b.TicksLeft = _config.TrainingTicks;
     }
@@ -293,6 +297,8 @@ public sealed partial class Military
         {
             if (trainee.IsInside)
                 _world.LeaveBuilding(trainee);
+            trainee.IsWorking = false;
+            trainee.Activity = Activity.None;
             trainee.HasTask = false;
         }
         b.Trainee = null;

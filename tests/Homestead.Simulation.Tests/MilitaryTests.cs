@@ -17,12 +17,20 @@ public class MilitaryTests(ITestOutputHelper output)
     public void Barracks_turn_carriers_and_weapons_into_soldiers()
     {
         var world = new World(new GameMap(70), TestConfig.NoTools);
-        world.PlaceBuilding(Romans["barrack"], 0, new GridPoint(30, 30));
+        var barrack = world.PlaceBuilding(Romans["barrack"], 0, new GridPoint(30, 30))!;
         world.AddLooseGoods(new GridPoint(50, 50), Material.Sword, 2);
         world.AddLooseGoods(new GridPoint(52, 50), Material.Bow, 1);
         Spawn(world, 5, new GridPoint(40, 45));
 
-        Run(world, 10_000, stopWhen: () => world.Military.SoldiersTrained == 3);
+        // Trained at the door: nobody goes in.
+        bool atDoor = false;
+        Run(world, 10_000, stopWhen: () =>
+        {
+            Assert.DoesNotContain(world.Settlers, s => s.IsInside);
+            atDoor |= world.Settlers.Any(s => s.Position == barrack.Door && s.Activity == Activity.PickingUp);
+            return world.Military.SoldiersTrained == 3;
+        });
+        Assert.True(atDoor, "the recruit takes up its weapon at the door");
 
         var soldiers = world.Settlers.Where(s => s.Profession == Profession.Soldier).ToList();
         Assert.Equal(3, soldiers.Count);

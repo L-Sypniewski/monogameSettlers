@@ -98,7 +98,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     `claimSeconds` (2) Pfosten, dann gehört ihm das Feld samt unbegehbaren Nachbarn (`Military.TakeLand`, ungeschützte fremde Gebäude fallen).
     Im geschützten Feindland Richtung freies Land, sonst Ende. Vollständig umschlossenes freies Land (nicht Kartenrand/fremdes Land) wird
     auf einmal genommen (bis 4096 Felder). Land ungeschützt.
-- `Military/`: Kaserne bildet aus, Rekruten laufen zum Sammelpunkt. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
+- `Military/`: Kaserne bildet an der Tür aus (Träger nimmt dort `trainingSeconds` lang die Waffe auf, geht nicht hinein), Rekruten laufen zum Sammelpunkt. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
   nie über Infanterie-/Bogenplätze; „+“ bei vollen Infanterieplätzen ersetzt die andere Infanterieart; Überzählige kehren um oder kommen
   heraus, nie der letzte – Ersatz tauscht an der Tür). Besetzte beanspruchen Land; immer ihren eigenen Grund (sonst fiele ein eroberter Turm gleich wieder).
   - `MilitaryCombat`: Untätige Soldaten und solche mit nicht erzwungenem Laufbefehl greifen feindliche Soldaten und besetzte Militärgebäude
