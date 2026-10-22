@@ -139,9 +139,10 @@ public sealed class ProfessionsMenu : IDisposable
 
     /// <summary>
     /// A click (panel space): changes a share or converts carriers and returns a message; a find button
-    /// returns what to select in <paramref name="find"/> (the caller selects). Null if it hit nothing.
+    /// returns what to select in <paramref name="find"/> (the caller selects), converted carriers are added to
+    /// <paramref name="chosen"/> (also those that follow after their delivery). Null if it hit nothing.
     /// </summary>
-    public string? Click(Vector2 panel, World world, int player, out (Profession Profession, FindMode Mode)? find)
+    public string? Click(Vector2 panel, World world, int player, out (Profession Profession, FindMode Mode)? find, ICollection<Settler>? chosen = null)
     {
         find = null;
         for (int row = 0; row < Shares.Length; row++)
@@ -174,7 +175,7 @@ public sealed class ProfessionsMenu : IDisposable
                         int back = world.Geology.PioneersToCarriers(player, Amounts[i]);
                         return back == 0 ? "no pioneers to turn into carriers" : $"{back} pioneers became carriers";
                     }
-                    var (now, later) = world.Geology.ConvertCarriers(player, Amounts[i], converted);
+                    var (now, later) = world.Geology.ConvertCarriers(player, Amounts[i], converted, chosen);
                     return now + later == 0 ? $"no carrier may become one of the {entry.Name} (carrier share)"
                         : later == 0 ? $"{now} carriers became {entry.Name}"
                         : $"{now} carriers became {entry.Name}, {later} more after their delivery";

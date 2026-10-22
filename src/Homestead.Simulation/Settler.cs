@@ -154,6 +154,9 @@ public sealed class Settler
     /// <summary>Where the settler is walking to, or null when it has no order.</summary>
     public GridPoint? Destination { get; internal set; }
 
+    /// <summary>The path ends short of a far <see cref="Destination"/> (one leg, <see cref="Pathfinding.PathFinder.FindRoute"/>); the next is planned at its end.</summary>
+    internal bool PathIsLeg { get; set; }
+
     /// <summary>Consecutive ticks spent waiting for a free field.</summary>
     public int WaitingTicks { get; internal set; }
 

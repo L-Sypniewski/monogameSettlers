@@ -77,6 +77,14 @@ public static class SaveSlots
         }
     }
 
+    /// <summary>The slot saved last (by its header's time), or null when all are empty.</summary>
+    public static int? Latest() => Enumerable.Range(0, Count)
+        .Select(slot => (Slot: slot, Info: Info(slot)))
+        .Where(s => s.Info is not null)
+        .OrderByDescending(s => s.Info!.SavedAt)
+        .Select(s => (int?)s.Slot)
+        .FirstOrDefault();
+
     public static SaveGame Load(int slot)
     {
         using var file = File.OpenRead(PathOf(slot));

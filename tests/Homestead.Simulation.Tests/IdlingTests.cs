@@ -40,6 +40,40 @@ public class IdlingTests
     }
 
     [Fact]
+    public void A_stranded_carrier_flees_to_the_nearest_own_land()
+    {
+        var map = new GameMap(80);
+        foreach (var p in Pathfinding.PathFinder.Circle(new GridPoint(60, 40), 6).Where(map.Contains))
+            map.SetOwner(p, 0);
+        var world = new World(map, ProductionConfig.None) { TerritoryRules = true };
+        var carrier = world.Spawn(new GridPoint(20, 40), Profession.Carrier)!;
+
+        Run(world, 60 * World.TicksPerSecond, () => map.OwnerAt(carrier.Position) == 0);
+
+        Assert.False(carrier.IsDead);
+        Assert.Equal(0, map.OwnerAt(carrier.Position));
+    }
+
+    [Fact]
+    public void A_carrier_with_no_own_land_wanders_and_dies_within_a_minute()
+    {
+        var map = new GameMap(80);
+        foreach (var p in Pathfinding.PathFinder.Circle(new GridPoint(60, 40), 6).Where(map.Contains))
+            map.SetOwner(p, 1);
+        var world = new World(map, ProductionConfig.None) { TerritoryRules = true };
+        var carrier = world.Spawn(new GridPoint(20, 40), Profession.Carrier)!;
+        var start = carrier.Position;
+        bool moved = false;
+
+        Run(world, (Idling.MinLostSeconds - 1) * World.TicksPerSecond, () => (moved |= carrier.Position != start) && false);
+        Assert.False(carrier.IsDead);
+        Assert.True(moved, "a lost carrier wanders about");
+
+        Run(world, (Idling.MaxLostSeconds - Idling.MinLostSeconds + 5) * World.TicksPerSecond);
+        Assert.True(carrier.IsDead);
+    }
+
+    [Fact]
     public void A_strolling_carrier_takes_a_job_at_once()
     {
         var world = new World(new GameMap(70), ProductionConfig.None);

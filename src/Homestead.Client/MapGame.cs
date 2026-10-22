@@ -25,7 +25,7 @@ namespace Homestead.Client;
 /// Mouse: left click on a settler selects it, left click elsewhere sends the selected settler there ·
 /// right drag pan · wheel zoom.
 /// Keys: arrows/WASD scroll · N new carrier at cursor · M 50 wandering settlers ·
-/// G demo economy at cursor · P placement mode (Q/E building type, click places a construction site) ·
+/// G demo economy at cursor · P pause · placing (build menu): Q/E building type, click places a construction site ·
 /// PgUp/PgDn map ·
 /// O objects · B blocked fields · T game time · Esc quit
 /// </remarks>
@@ -78,6 +78,19 @@ public sealed class MapGame : Game
     /// <summary>The decided outcome already noted (progress saved, own selection dropped).</summary>
     private MissionOutcome _outcomeNoted;
 
+    /// <summary>Notes at the bottom left of the game view.</summary>
+    private readonly InfoFeed _info = new();
+    /// <summary>The computer players whose defeat is told already (or was, before the game was loaded).</summary>
+    private readonly HashSet<int> _defeatNoted = new();
+    /// <summary>Real seconds played since the game was saved, started or loaded (autosave, reminders).</summary>
+    private double _sinceSave;
+    /// <summary>The next reminder of an unsaved game, in minutes of <see cref="_sinceSave"/>.</summary>
+    private int _nextSaveReminder = SaveReminderMinutes;
+    private const int SaveReminderMinutes = 30;
+    private const int AutoSaveMinutes = 15;
+    /// <summary>The slot autosave writes into: the last.</summary>
+    private const int AutoSaveSlot = SaveSlots.Count - 1;
+
     /// <summary>The chosen side of the campaign.</summary>
     private CampaignSide Side => CampaignConfig.Load().Campaigns[_campaign][_campaignSide];
     private readonly GameInstallation _installation;
@@ -85,10 +98,16 @@ public sealed class MapGame : Game
     private GameAudio? _audio;
     private readonly WorkSounds _workSounds = new();
     /// <summary>Hardware cursor, full screen, language (<c>display</c> in settings.json).</summary>
-    private DisplaySettings _display = DisplaySettings.Load();
+    /// <summary>HOMESTEAD_THEME=normal|gold|classic|amazons overrides the settings' theme (capture runs).</summary>
+    private DisplaySettings _display = Enum.TryParse<Theme>(Environment.GetEnvironmentVariable("HOMESTEAD_THEME"), ignoreCase: true, out var theme)
+        ? DisplaySettings.Load() with { Theme = theme }
+        : DisplaySettings.Load();
     /// <summary>The game's own pointer while the hardware cursor is off.</summary>
     private SoftwareCursor? _cursor;
     private StartScreen? _startScreen;
+    /// <summary>The loading screen while a game is about to load (<see cref="ShowLoading"/>), and the loading.</summary>
+    private LoadingScreen? _loading;
+    private Action? _afterLoading;
 
     /// <summary>The statistics screen while it is shown (the game stands still meanwhile).</summary>
     private StatisticsScreen? _statistics;
@@ -120,6 +139,26 @@ public sealed class MapGame : Game
     private BuildingDefinition[] _placeable = [];
     private BuildMenu? _buildMenu;
     private Portraits? _portraits;
+
+    /// <summary>Portraits of other peoples, made when needed (won-over soldiers in the selection).</summary>
+    private readonly Dictionary<Civilization, Portraits> _peoplePortraits = new();
+
+    /// <summary>The portraits of a people: the own ones, or those of another people (made once).</summary>
+    private Portraits PortraitsOf(Civilization people)
+    {
+        if (people == Own.Civilization)
+            return _portraits!;
+        if (!_peoplePortraits.TryGetValue(people, out var portraits))
+            _peoplePortraits[people] = portraits = new Portraits(GraphicsDevice, _gfx, people);
+        return portraits;
+    }
+
+    private void DisposePeoplePortraits()
+    {
+        foreach (var portraits in _peoplePortraits.Values)
+            portraits.Dispose();
+        _peoplePortraits.Clear();
+    }
     private PanelTabs _tabs = null!;
     private EventButtons _eventButtons = null!;
 
@@ -144,7 +183,6 @@ public sealed class MapGame : Game
     private Homestead.Simulation.Economy.Material? _captureGood;
     private SidePanel _sidePanel = null!;
     private Minimap? _minimap;
-    private readonly ConversionMenu _conversionMenu = new();
     private readonly SelectionPanel _selectionPanel = new();
     private readonly SpellMenu _spellMenu = new();
 
@@ -188,6 +226,30 @@ public sealed class MapGame : Game
 
     /// <summary>Soldiers selected with a selection box; a click then sends them (or attacks).</summary>
     private readonly List<Settler> _group = new();
+
+    /// <summary>Carriers converted in Siedler › Berufe that join the selection once they have delivered and converted.</summary>
+    private readonly List<Settler> _joining = new();
+
+    /// <summary>The group key pressed last and when: pressed again within <see cref="GroupDoublePressSeconds"/>, the camera flies to the group.</summary>
+    private int _lastGroupKey = -1;
+    private double _lastGroupAt;
+    private const double GroupDoublePressSeconds = 0.5;
+
+    /// <summary>
+    /// The open menu stays although settlers are selected (those just converted in Siedler › Berufe, so that more
+    /// can be converted); any other selection, deselecting or a tab ends it.
+    /// </summary>
+    private bool _menuOverSelection;
+
+    /// <summary>Selects nobody (the menu shows again, see <see cref="_menuOverSelection"/>).</summary>
+    private void ClearSelection()
+    {
+        _group.Clear();
+        _menuOverSelection = false;
+    }
+
+    /// <summary>The side panel shows the selected settlers (not the open menu).</summary>
+    private bool ShowsSelection => _group.Count > 0 && !_menuOverSelection;
     private Vector2? _dragStart;
     private Vector2? _rightStart;
     private const float DragThreshold = 6;
@@ -197,12 +259,19 @@ public sealed class MapGame : Game
     /// <summary>The AI playing for player 1 (key I), if on.</summary>
     private AiPlayer? _ownAi;
     private TimeSpan _accumulator;
+
+    /// <summary>The game is paused (P): no ticks run, a banner says so.</summary>
+    private bool _paused;
     private const int FastForward = 10;
     private static readonly TimeSpan MaxBacklog = TimeSpan.FromSeconds(0.5);
     private TimeSpan _time;
 
     /// <summary>Fog of war for player 1 (key V switches it off and on); capture runs only with HOMESTEAD_CAPTURE_FOG=1.</summary>
-    private bool _fogOn;
+    /// <summary>The fog of war as chosen (V); see <see cref="FogOn"/>.</summary>
+    private bool _fogChosen;
+
+    /// <summary>The fog of war shown: as chosen, gone once the game is won (the whole map uncovered).</summary>
+    private bool FogOn => _fogChosen && Outcome != MissionOutcome.Won;
     private Vision _vision = null!;
     private FogLayer? _fog;
     private BasicEffect _fogEffect = null!;
@@ -275,7 +344,7 @@ public sealed class MapGame : Game
         _peoples = peoples;
         _characters = characters ?? [];
         _captureDirectory = captureDirectory;
-        _fogOn = captureDirectory is null || Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOG") == "1";
+        _fogChosen = captureDirectory is null || Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOG") == "1";
         _mapFiles = installation.MapFiles.ToArray();
         _randomMap = mapName is null ? null : RandomMapSettings.ParseName(mapName, defaultSeed: Random.Shared.Next());
         // Default: the first multiplayer map (equal start equipment for every player).
@@ -360,6 +429,7 @@ public sealed class MapGame : Game
             // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps);
             // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the list of saved games, load.png, =title:loadError: with a message about one that did not load);
             // =settings[:<tab>]: the settings screen's (tab: resources, economy, military, display);
+            // =loading[:<campaign>]: the loading screen's, loading.png (settlers, missionCd, amazons; without: a free game's);
             // =campaign: the campaign's choice of people (=campaign:<people>: a picture of its intro video, video.png;
             // =campaign:<people>:briefing: its first mission's description, briefing.png; =campaign:<people>:choose: the people
             // chosen (with progress the choice of missions, missions.png; otherwise the intro); =campaign:<people>:won|lost: its first
@@ -369,9 +439,11 @@ public sealed class MapGame : Game
             string? captureStart = _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START");
             bool campaignCapture = captureStart?.StartsWith("campaign") == true || captureStart?.StartsWith("amazons") == true
                 || captureStart?.StartsWith("missionCd") == true;
-            if (captureStart is null || captureStart.StartsWith("title") || captureStart.StartsWith("settings") || campaignCapture)
+            if (captureStart?.StartsWith("loading") == true)
+                _loading = new LoadingScreen(GraphicsDevice, _gfx, captureStart.Split(':') is [_, var campaign] ? campaign : null, _display.Theme);
+            else if (captureStart is null || captureStart.StartsWith("title") || captureStart.StartsWith("settings") || campaignCapture)
             {
-                _title = new TitleScreen(GraphicsDevice, _gfx);
+                _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
                 if (campaignCapture)
                 {
                     var parts = captureStart!.Split(':');
@@ -431,7 +503,7 @@ public sealed class MapGame : Game
         {
             _startScreen.Dispose();
             _startScreen = null;
-            _title = new TitleScreen(GraphicsDevice, _gfx);
+            _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
             return;
         }
         if (Keyboard.GetState().IsKeyDown(Keys.F11) && !_previousKeys.IsKeyDown(Keys.F11))
@@ -451,10 +523,29 @@ public sealed class MapGame : Game
             .ToArray();
         _hardcore = Enumerable.Range(0, players.Count).Where(p => players[p].Hardcore).ToHashSet();
         _positions = choice.Positions is { } chosen ? StartScreen.ResolvePositions(chosen, _peopleDraw) : null;
-        if (choice.Random is { } random)
-            LoadMap(RandomMapGenerator.Generate(random.Settings, random.Seed));
-        else
-            LoadMap(choice.MapIndex);
+        ShowLoading(null, () =>
+        {
+            if (choice.Random is { } random)
+                LoadMap(RandomMapGenerator.Generate(random.Settings, random.Seed));
+            else
+                LoadMap(choice.MapIndex);
+        });
+    }
+
+    /// <summary>
+    /// Shows the loading screen of the campaign (null: a free game) and loads the game once it is on the screen, so the
+    /// window does not hang on the menu meanwhile. Capture runs load at once.
+    /// </summary>
+    private void ShowLoading(string? campaign, Action load)
+    {
+        if (_captureDirectory is not null)
+        {
+            load();
+            return;
+        }
+        _loading?.Dispose();
+        _loading = new LoadingScreen(GraphicsDevice, _gfx, campaign, _display.Theme);
+        _afterLoading = load;
     }
 
     /// <summary>Building catalog of the own player (player 1): the people the map gives or the chosen one.</summary>
@@ -469,6 +560,7 @@ public sealed class MapGame : Game
         _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog);
         _portraits?.Dispose();
         _portraits = new Portraits(GraphicsDevice, _gfx, catalog.Civilization);
+        DisposePeoplePortraits();
         _soldiersMenu?.Dispose();
         _soldiersMenu = new SoldiersMenu(GraphicsDevice, _gfx, catalog.Civilization);
         _settlersOverview?.Dispose();
@@ -513,6 +605,9 @@ public sealed class MapGame : Game
             hardcore: _hardcore.Where(p => p < _map.Players.Count),
             positions: _positions?.Length == _map.Players.Count ? _positions : null,
             production: GameSettings.Load(production).Apply(production));
+        // A free game is won by defeating everybody else (a mission brings its own goals).
+        _world.Goals = new ConquestGoals();
+        BeginSession();
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
         _world.SoundCues = _audio is null ? null : new();
@@ -524,7 +619,7 @@ public sealed class MapGame : Game
         _fog.SetTargets(_vision);
         _minimap?.Dispose();
         _minimap = new Minimap(GraphicsDevice, _map.Area);
-        _minimap.Update(_vision, all: !_fogOn);
+        _minimap.Update(_vision, all: !FogOn, _gameMap);
         _nextVision = _time + VisionInterval;
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         // Every other player is a computer player.
@@ -545,7 +640,8 @@ public sealed class MapGame : Game
             ? new GridPoint(home.StartX, home.StartY)
             : new GridPoint(_map.Area.Size / 2, _map.Area.Size / 2);
         _selected = null;
-        _group.Clear();
+        ClearSelection();
+        _paused = false;
         _controlGroups = new ControlGroups();
         _selectedBuilding = null;
         _camera = ToWorld(_start);
@@ -575,11 +671,15 @@ public sealed class MapGame : Game
         _fog.SetTargets(_vision);
         _minimap?.Dispose();
         _minimap = new Minimap(GraphicsDevice, _map.Area);
-        _minimap.Update(_vision, all: !_fogOn);
+        _minimap.Update(_vision, all: !FogOn, _gameMap);
         _nextVision = _time + VisionInterval;
         PlayerColors.Restore(game.Client.GetValueOrDefault("colors"));
         _mission = MissionRef.Parse(game.Client.GetValueOrDefault("mission"));
+        // Free games saved before they had goals get them now.
+        if (_mission is null)
+            _world.Goals ??= new ConquestGoals();
         _outcomeNoted = MissionOutcome.Open;
+        BeginSession();
         _playerCatalogs = game.Catalogs;
         UsePeople(Own, force: true);
         // The computer players' notes go to the screen again; the own player's AI (I) goes on if it was on.
@@ -588,7 +688,8 @@ public sealed class MapGame : Game
         _ownAi = _world.AiPlayers.FirstOrDefault(a => a.Player == 0);
         _wanderers.Clear();
         _selected = null;
-        _group.Clear();
+        ClearSelection();
+        _paused = false;
         _controlGroups = new ControlGroups();
         _selectedBuilding = null;
         _placing = _aiming = false;
@@ -602,8 +703,43 @@ public sealed class MapGame : Game
         _message = $"game loaded ({_map.Name})";
     }
 
-    /// <summary>Saves the game into a slot (overwriting it); the list shows it right away.</summary>
-    private void SaveGameTo(int slot)
+    /// <summary>A game started or loaded: no notes yet, defeats before it untold, the time since saving from 0.</summary>
+    private void BeginSession()
+    {
+        _info.Clear();
+        _defeatNoted.Clear();
+        foreach (var ai in _world.AiPlayers)
+            if (_world.Goals?.IsDefeated(ai.Player) == true)
+                _defeatNoted.Add(ai.Player);
+        _sinceSave = 0;
+        _nextSaveReminder = SaveReminderMinutes;
+    }
+
+    /// <summary>
+    /// Once a frame in the game: computer players newly defeated are told in the info feed; with autosave on the game is
+    /// saved every <see cref="AutoSaveMinutes"/>, otherwise reminded of every <see cref="SaveReminderMinutes"/> unsaved
+    /// (not once lost, nor in capture runs).
+    /// </summary>
+    private void NoteNews(TimeSpan real)
+    {
+        if (_world.Goals is { } goals)
+            foreach (var ai in _world.AiPlayers.OrderBy(a => a.Player))
+                if (ai.Player != 0 && goals.IsDefeated(ai.Player) && _defeatNoted.Add(ai.Player))
+                    _info.Add(Lang.T("info.defeated", $"{Lang.T("start.player", ai.Player + 1)} ({_aiNames.Character(ai.Character.Id)})"), _now);
+        if (_captureDirectory is not null || Outcome == MissionOutcome.Lost)
+            return;
+        _sinceSave += real.TotalSeconds;
+        if (_display.AutoSave && _sinceSave >= AutoSaveMinutes * 60)
+            SaveGameTo(AutoSaveSlot, auto: true);
+        else if (_sinceSave >= _nextSaveReminder * 60)
+        {
+            _info.Add(Lang.T("info.notSaved", _nextSaveReminder), _now);
+            _nextSaveReminder += SaveReminderMinutes;
+        }
+    }
+
+    /// <summary>Saves the game into a slot (overwriting it); the list shows it right away, the info feed tells it.</summary>
+    private void SaveGameTo(int slot, bool auto = false)
     {
         var info = new SaveInfo(_map.Name, Own.Civilization.ToString(), DateTime.Now, _world.Tick, _mission?.ToString());
         var game = new SaveGame
@@ -625,12 +761,17 @@ public sealed class MapGame : Game
             var watch = System.Diagnostics.Stopwatch.StartNew();
             SaveSlots.Save(slot, info, game);
             _message = $"saved into slot {slot + 1} ({watch.ElapsedMilliseconds} ms)";
+            _info.Add(Lang.T(auto ? "info.autoSaved" : "info.saved", slot + 1), _now);
         }
         catch (Exception e)
         {
             Console.WriteLine(e);
             _message = $"saving failed: {e.Message}";
+            _info.Add(Lang.T("info.saveFailed", slot + 1), _now);
         }
+        // Also after a failure: autosave tries again next time, not every frame.
+        _sinceSave = 0;
+        _nextSaveReminder = SaveReminderMinutes;
         _systemMenu.Refresh();
     }
 
@@ -651,11 +792,11 @@ public sealed class MapGame : Game
             _ => _map.Name,
         };
         _statistics = new StatisticsScreen(GraphicsDevice, _gfx, _world, name, _goodsGrid, _aiNames, canResume && outcome != MissionOutcome.Lost,
-            outcome == MissionOutcome.Open ? null : Lang.T("campaign.next"));
+            outcome == MissionOutcome.Open || _mission is null ? null : Lang.T("campaign.next"));
     }
 
-    /// <summary>The campaign mission's outcome; open in free games.</summary>
-    private MissionOutcome Outcome => _mission is not null && _world.Goals is { } goals ? goals.Outcome : MissionOutcome.Open;
+    /// <summary>The outcome of the campaign mission or the free game.</summary>
+    private MissionOutcome Outcome => _world.Goals?.Outcome ?? MissionOutcome.Open;
 
     /// <summary>The statistics screen; a capture run saves every page as <c>stats_N.png</c> and quits.</summary>
     private void DrawStatistics()
@@ -690,7 +831,7 @@ public sealed class MapGame : Game
     {
         _tabs.Current = PanelTab.Build;
         _ownAi = null;
-        _title = new TitleScreen(GraphicsDevice, _gfx);
+        _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
     }
 
     /// <summary>
@@ -745,6 +886,26 @@ public sealed class MapGame : Game
         _loadList = new ListScreen(GraphicsDevice, _gfx, Lang.T("title.buttons.load"), rows);
     }
 
+    /// <summary>Loads a saved game from the title screen (behind the loading screen); one that does not load is told there.</summary>
+    private void LoadSlot(int slot)
+    {
+        SaveGame game;
+        try
+        {
+            game = SaveSlots.Load(slot);
+        }
+        catch (Exception exception)
+        {
+            var failure = SaveLoadFailure.Of(exception);
+            Console.Error.WriteLine($"Loading slot {slot + 1} failed ({failure.Code}): {exception}");
+            _title!.ShowLoadFailure(failure);
+            return;
+        }
+        _title!.Dispose();
+        _title = null;
+        ShowLoading(MissionRef.Parse(game.Client.GetValueOrDefault("mission"))?.Campaign, () => LoadGame(game));
+    }
+
     /// <summary>Back from the list of saved games to the title screen.</summary>
     private void CloseLoadList()
     {
@@ -786,11 +947,13 @@ public sealed class MapGame : Game
                 Console.WriteLine($"Campaign progress not saved: {e.Message}");
             }
         }
-        else if (outcome == MissionOutcome.Lost)
+        if (outcome == MissionOutcome.Won)
+            _minimap!.Update(_vision, all: !FogOn, _gameMap); // the fog lifts from the whole map
+        if (outcome == MissionOutcome.Lost)
         {
             _placing = _aiming = false;
             _selected = null;
-            _group.Clear();
+            ClearSelection();
             _selectedBuilding = null;
         }
     }
@@ -854,9 +1017,13 @@ public sealed class MapGame : Game
         _peoples = null;
         _hardcore = new HashSet<int>();
         _positions = null;
-        LoadMap(map);
-        _mission = new MissionRef(_campaign, _campaignSide, _briefingIndex);
-        _world.Goals = new MissionGoals();
+        var mission = new MissionRef(_campaign, _campaignSide, _briefingIndex);
+        ShowLoading(_campaign, () =>
+        {
+            LoadMap(map);
+            _mission = mission;
+            _world.Goals = new MissionGoals();
+        });
     }
 
     private void UpdateTitle()
@@ -921,24 +1088,8 @@ public sealed class MapGame : Game
                 CloseLoadList();
             else if (_loadList.Chosen is { } slot)
             {
-                SaveGame game;
-                try
-                {
-                    game = SaveSlots.Load(slot);
-                }
-                catch (Exception exception)
-                {
-                    var failure = SaveLoadFailure.Of(exception);
-                    Console.Error.WriteLine($"Loading slot {slot + 1} failed ({failure.Code}): {exception}");
-                    CloseLoadList();
-                    _title!.ShowLoadFailure(failure);
-                    return;
-                }
-                _loadList.Dispose();
-                _loadList = null;
-                _title!.Dispose();
-                _title = null;
-                LoadGame(game);
+                CloseLoadList();
+                LoadSlot(slot);
                 return;
             }
             _previousKeys = Keyboard.GetState();
@@ -964,7 +1115,15 @@ public sealed class MapGame : Game
             if (_settingsScreen.Update(GraphicsDevice.Viewport.Bounds))
             {
                 if (_settingsScreen.Saved is { } display)
+                {
+                    bool newTheme = display.Theme != _display.Theme;
                     ApplyDisplay(display);
+                    if (newTheme)
+                    {
+                        _title!.Dispose();
+                        _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
+                    }
+                }
                 _settingsScreen.Dispose();
                 _settingsScreen = null;
                 _title!.Resume();
@@ -980,6 +1139,8 @@ public sealed class MapGame : Game
         _previousMouse = Mouse.GetState();
         if (action == TitleAction.Quit)
             Exit();
+        else if (action == TitleAction.Continue && SaveSlots.Latest() is { } latest)
+            LoadSlot(latest);
         else if (action == TitleAction.Load)
             OpenLoadList();
         else if (action == TitleAction.Settings)
@@ -1109,6 +1270,36 @@ public sealed class MapGame : Game
         }
     }
 
+    private readonly List<MinimapDot> _minimapDots = [];
+
+    /// <summary>
+    /// Dots on the minimap (player 1's where explored, everyone else's only where seen now): buildings and construction
+    /// sites black, occupied military buildings on top in white for player 1 and red for everyone else; then units outside – soldiers, priests,
+    /// geologists, pioneers and scouts (others' only where player 1 sees now, scouts once revealed), white and red
+    /// alike, red drawn last so enemies stay visible in a crowd.
+    /// </summary>
+    private List<MinimapDot> MinimapDots()
+    {
+        _minimapDots.Clear();
+        foreach (var occupied in new[] { false, true })
+            foreach (var building in _world.Buildings)
+                if (building.Exists && _world.Military.IsOccupied(building) == occupied
+                    && (!FogOn || (building.Player == 0 ? _vision.IsExplored(building.Position.Y * _gameMap.Size + building.Position.X)
+                        : _vision.IsVisible(building.Position))))
+                    _minimapDots.Add(new MinimapDot(building.Position,
+                        !occupied ? Color.Black : building.Player == 0 ? Color.White : Color.Red, Building: true));
+        foreach (var own in new[] { true, false })
+            foreach (var settler in _world.Settlers)
+                if (settler.Player == 0 == own && OnMinimap(settler))
+                    _minimapDots.Add(new MinimapDot(settler.Position, own ? Color.White : Color.Red));
+        return _minimapDots;
+    }
+
+    private bool OnMinimap(Settler settler) =>
+        settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Pioneer or Profession.Scout
+        && !settler.IsDead && !settler.IsInside
+        && (settler.Player == 0 || (settler.IsRevealedTo(0) && (!FogOn || _vision.IsVisible(settler.Position))));
+
     private Vector2 ToWorld(GridPoint p) => ScreenProjection.ToWorld(p.X, p.Y, _terrain.HeightAt(p.X, p.Y));
 
     protected override void Update(GameTime gameTime)
@@ -1117,8 +1308,27 @@ public sealed class MapGame : Game
         if (_audio is not null)
         {
             // The own people's music in the game (statistics included), silence in the menus before it.
-            _audio.Music.Tracks = _audio.Config.TracksFor(_title is null && _startScreen is null ? Own.Civilization : null, _display.PeopleMusic);
+            _audio.Music.Tracks = _audio.Config.TracksFor(_title is null && _startScreen is null && _loading is not { Loaded: false } ? Own.Civilization : null, _display.PeopleMusic);
             _audio.Music.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
+        }
+        if (_loading is { Gone: true })
+        {
+            _loading.Dispose();
+            _loading = null;
+        }
+        if (_loading is { Fading: false })
+        {
+            // Loads once the loading screen is on the screen, then holds it; the input meanwhile must not act in the game.
+            if (_loading.Shown && _afterLoading is { } load)
+            {
+                _afterLoading = null;
+                load();
+                _loading.MarkLoaded();
+            }
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = Mouse.GetState();
+            base.Update(gameTime);
+            return;
         }
         if (_title is not null)
         {
@@ -1157,6 +1367,9 @@ public sealed class MapGame : Game
 
         // Capture runs use fixed frame times at 4x speed, so long processes fit into a short run.
         var elapsed = _captureDirectory is null ? gameTime.ElapsedGameTime : TimeSpan.FromSeconds(4 / 60.0);
+        // Paused (P or Esc): the world stands still; the camera, the panel and orders still work.
+        if (_paused)
+            elapsed = TimeSpan.Zero;
         // F12 held: the game runs at FastForward times its speed.
         if (_captureDirectory is null && Keyboard.GetState().IsKeyDown(Keys.F12))
             elapsed *= FastForward;
@@ -1172,6 +1385,7 @@ public sealed class MapGame : Game
         }
         _perf.EndSimulation();
         NoteOutcome();
+        NoteNews(gameTime.ElapsedGameTime);
         if (_audio is not null && _world.SoundCues is { } cues)
         {
             _audio.BeginFrame(Hearing);
@@ -1192,7 +1406,7 @@ public sealed class MapGame : Game
         {
             _vision.Update(_world);
             _fog!.SetTargets(_vision);
-            _minimap!.Update(_vision, all: !_fogOn);
+            _minimap!.Update(_vision, all: !FogOn, _gameMap);
             _nextVision = _time + VisionInterval;
         }
         _fog!.Advance((float)elapsed.TotalSeconds);
@@ -1253,7 +1467,7 @@ public sealed class MapGame : Game
     /// </summary>
     private (float X, float Y)? Hearing(GridPoint p)
     {
-        if (!_gameMap.Contains(p) || (_fogOn && !_vision.IsVisible(p)))
+        if (!_gameMap.Contains(p) || (FogOn && !_vision.IsVisible(p)))
             return null;
         var viewport = GraphicsDevice.Viewport;
         var at = ToWorld(p) - _camera;
@@ -1307,113 +1521,27 @@ public sealed class MapGame : Game
         bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
         var cursorScreen = mouse.Position.ToVector2();
 
-        // A lost mission leaves no control: only leaving (Esc → statistics) and the window keys.
-        if (Outcome == MissionOutcome.Lost)
+        // A lost game leaves no command: the camera, the minimap, the events and the computer menu (save, quit) still work;
+        // Esc leaves (→ statistics).
+        bool lost = Outcome == MissionOutcome.Lost;
+        if (lost)
         {
             if (Pressed(Keys.Escape))
+            {
                 OpenStatistics(canResume: false);
+                _previousKeys = keys;
+                _previousMouse = mouse;
+                return;
+            }
             if (Pressed(Keys.F11))
                 ToggleFullScreen();
             if (Pressed(Keys.F3))
                 _showPerf = !_showPerf;
-            _previousKeys = keys;
-            _previousMouse = mouse;
-            return;
+            if (Pressed(Keys.T))
+                _showClock = !_showClock;
         }
-
-        if (Pressed(Keys.Escape))
-        {
-            if (_aiming)
-                _aiming = false;
-            else if (_placing)
-                _placing = false;
-            else
-                OpenStatistics(canResume: true);
-        }
-        if (Pressed(Keys.F2))
-        {
-            _scaling = (Scaling)(((int)_scaling + 1) % Enum.GetValues<Scaling>().Length);
-            _scalingShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
-        }
-        if (Pressed(Keys.F3))
-            _showPerf = !_showPerf;
-        if (Pressed(Keys.T))
-            _showClock = !_showClock;
-        if (Pressed(Keys.F11))
-            ToggleFullScreen();
-        // Groups: Ctrl+1-9 stores the selection, 1-9 selects the group again.
-        bool control = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
-        for (int i = 0; i < ControlGroups.Count; i++)
-        {
-            if (!Pressed(Keys.D1 + i) && !Pressed(Keys.NumPad1 + i))
-                continue;
-            if (control)
-            {
-                _controlGroups.Store(i, _group);
-                _message = _group.Count > 0 ? $"group {i + 1}: {_group.Count} selected" : $"group {i + 1} cleared";
-            }
-            else
-                SelectGroup(i);
-        }
-        if (Pressed(Keys.P))
-            _placing = !_placing;
-        if (_placing && Pressed(Keys.E))
-            _placeIndex = (_placeIndex + 1) % _placeable.Length;
-        if (_placing && Pressed(Keys.Q))
-            _placeIndex = (_placeIndex - 1 + _placeable.Length) % _placeable.Length;
-        if (Pressed(Keys.PageDown))
-            LoadMap(_mapIndex + 1);
-        if (Pressed(Keys.PageUp))
-            LoadMap(_mapIndex - 1);
-        if (Pressed(Keys.B))
-            _showBlocked = !_showBlocked;
-        if (Pressed(Keys.V))
-        {
-            _fogOn = !_fogOn;
-            _minimap!.Update(_vision, all: !_fogOn);
-            _message = _fogOn ? "fog of war on (V)" : "fog of war off (V)";
-        }
-        if (Pressed(Keys.O))
-            _showObjects = !_showObjects;
-        if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen), Profession.Carrier) is { } spawned)
-            _selected = spawned;
-        if (Pressed(Keys.I))
-        {
-            if (_ownAi is null && _playerCatalogs.Count > 0)
-            {
-                _ownAi = NewAi(0);
-                _world.AiPlayers.Add(_ownAi);
-                _message = "the AI plays for you (I: stop)";
-            }
-            else if (_ownAi is not null)
-            {
-                _world.AiPlayers.Remove(_ownAi);
-                _ownAi = null;
-                _message = "you play again";
-            }
-        }
-        if (Pressed(Keys.L))
-        {
-            foreach (var ai in _world.AiPlayers.OrderBy(a => a.Player))
-            {
-                Console.WriteLine($"-- AI player {ai.Player + 1}, land {ai.Land}");
-                foreach (string line in ai.Log)
-                    Console.WriteLine("   " + line);
-            }
-            _message = "AI decisions written to the console";
-        }
-        if (Pressed(Keys.G))
-            _message = DemoEconomy.Create(_world, Own, ScreenToGrid(cursorScreen), _random);
-        if (Pressed(Keys.M))
-            SpawnWanderers(ScreenToGrid(cursorScreen));
-        if (Pressed(Keys.F) && _world.BuildingAt(ScreenToGrid(cursorScreen)) is { } target)
-        {
-            // F: attack the enemy military building under the cursor with player 1's soldiers nearby.
-            int sent = _world.Military.Attack(0, target);
-            _message = sent > 0 ? $"{sent} soldiers attack {target.Definition.Name}" : "no soldiers in range or not an enemy military building";
-        }
-        if (Pressed(Keys.C))
-            _cheats.IsOpen = !_cheats.IsOpen;
+        else
+            HandleKeys(keys, cursorScreen, gameTime);
         // Space: to the newest event not looked at yet; once all are, nothing. Held, it goes on faster and
         // faster: from SpaceFirstRepeat between events down to SpaceFastRepeat after SpaceRampSeconds.
         if (Pressed(Keys.Space))
@@ -1430,20 +1558,8 @@ public sealed class MapGame : Game
             if (_eventButtons.Look(_world, 0, null) is { } unseen)
                 LookAt(unseen);
         }
-        if (Pressed(Keys.K))
-        {
-            // Test soldiers: two of each kind, for player 0 (with Shift for player 1).
-            int player = keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift) ? 1 : 0;
-            int soldiers = 0;
-            foreach (var type in Enum.GetValues<SoldierType>())
-                for (int i = 0; i < 2; i++)
-                    if (_world.SpawnSoldier(ScreenToGrid(cursorScreen), type, player: player) is not null)
-                        soldiers++;
-            _message = $"{soldiers} soldiers for player {player + 1}";
-        }
 
-        // The menu at the left edge: with carriers selected what they can become, otherwise the build
-        // menu (a click chooses a category or the building to place).
+        // The menu at the left edge: the build menu (a click chooses a category or the building to place).
         bool onMenu = SidePanel.Contains(cursorScreen, GraphicsDevice.Viewport.Height);
         // The menus in the side panel work in panel space.
         var panelCursor = SidePanel.ToPanel(cursorScreen, GraphicsDevice.Viewport.Height);
@@ -1464,7 +1580,7 @@ public sealed class MapGame : Game
             if (mouse.RightButton == ButtonState.Pressed && _previousMouse.RightButton == ButtonState.Released && IsActive)
                 _minimapRightPress = cursorScreen;
             if (mouse.RightButton == ButtonState.Released && _previousMouse.RightButton == ButtonState.Pressed
-                && _minimapRightPress is { } press && Vector2.Distance(press, cursorScreen) < DragThreshold && _group.Count > 0)
+                && _minimapRightPress is { } press && Vector2.Distance(press, cursorScreen) < DragThreshold && _group.Count > 0 && !lost)
                 Command(onMinimap);
         }
         if (mouse.RightButton == ButtonState.Released)
@@ -1485,12 +1601,14 @@ public sealed class MapGame : Game
         bool released = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is null;
         // The group icons at the top right: a click selects the group.
         _controlGroups.Update();
-        int? groupIcon = _controlGroups.GroupAt(cursorScreen, GraphicsDevice.Viewport.Width);
-        if (groupIcon is { } clickedGroup && released)
+        float panelScale = SidePanel.Scale(GraphicsDevice.Viewport.Height);
+        int? groupIcon = _controlGroups.GroupAt(cursorScreen, GraphicsDevice.Viewport.Width, panelScale);
+        _cheats.Top = ControlGroups.Bottom(panelScale) + 8;
+        if (groupIcon is { } clickedGroup && released && !lost)
             SelectGroup(clickedGroup);
         onMenu |= groupIcon is not null;
         // The cheat menu below them (C).
-        if (released)
+        if (released && !lost)
             _cheats.Click(cursorScreen, GraphicsDevice.Viewport.Width);
         onMenu |= _cheats.Contains(cursorScreen, GraphicsDevice.Viewport.Width);
         if (!PriestsSelected)
@@ -1510,18 +1628,18 @@ public sealed class MapGame : Game
         {
             _tabs.Current = PanelTab.System;
             _systemMenu.Open();
-            _group.Clear();
+            ClearSelection();
             _selected = null;
             _selectedBuilding = null;
             _placing = _aiming = false;
         }
-        bool onTab = onMenu && _tabs.TabAt(panelCursor) is not null;
+        bool onTab = onMenu && _tabs.TabAt(panelCursor) is not null && !lost;
         if (onMenu && _tabs.NameAt(panelCursor) is { } tabName)
             _message = tabName;
         if (onTab && released)
         {
             _tabs.Current = _tabs.TabAt(panelCursor)!.Value;
-            _group.Clear();
+            ClearSelection();
             _selected = null;
             _selectedBuilding = null;
             _placing = _aiming = false;
@@ -1539,7 +1657,7 @@ public sealed class MapGame : Game
                     : "click where the spell should work";
             }
         }
-        else if (onMenu && SelectionPanel.ActionAt(_group, panelCursor) is { } action)
+        else if (onMenu && ShowsSelection && SelectionPanel.ActionAt(_group, panelCursor) is { } action)
         {
             if (action == SelectionAction.Steal)
             {
@@ -1547,6 +1665,8 @@ public sealed class MapGame : Game
                 if (released)
                 {
                     int stealing = _world.Theft.Steal(_group);
+                    if (stealing > 0)
+                        PlayCommand();
                     _message = stealing > 0 ? $"{stealing} scouts go stealing" : "no goods to steal nearby";
                 }
             }
@@ -1556,17 +1676,10 @@ public sealed class MapGame : Game
                 if (released)
                 {
                     int claiming = _world.Pioneering.Claim(_group);
+                    if (claiming > 0)
+                        PlayCommand();
                     _message = claiming > 0 ? $"{claiming} pioneers take land" : "no free land nearby";
                 }
-            }
-        }
-        else if (CarriersSelected)
-        {
-            if (onMenu && _conversionMenu.EntryAt(panelCursor) is { } entry)
-            {
-                _message = $"{entry.Name}: convert the selected carriers";
-                if (released)
-                    Convert(entry.Profession);
             }
         }
         else if (ShowsBuildingInfo)
@@ -1605,7 +1718,7 @@ public sealed class MapGame : Game
                 _selectedBuilding = null;
             }
         }
-        else if (_group.Count == 0 && _tabs.Current == PanelTab.System)
+        else if (!ShowsSelection && _tabs.Current == PanelTab.System)
         {
             if (onMenu && _systemMenu.HoverText(panelCursor) is { } hover)
                 _message = hover;
@@ -1615,11 +1728,17 @@ public sealed class MapGame : Game
                     SaveGameTo(_systemMenu.ChosenSlot);
                     break;
                 case SystemAction.Quit:
+                    if (_display.AutoSave && Outcome != MissionOutcome.Lost && _captureDirectory is null)
+                        SaveGameTo(AutoSaveSlot, auto: true);
                     OpenStatistics(canResume: false);
                     return;
             }
         }
-        else if (_group.Count == 0 && _tabs.Current != PanelTab.Build)
+        else if (lost)
+        {
+            // Lost: the other menus only show.
+        }
+        else if (!ShowsSelection && _tabs.Current != PanelTab.Build)
         {
             if (onMenu && released && _tabs.MenuAt(panelCursor) is { } menu)
                 _tabs.ShowMenu(menu);
@@ -1673,15 +1792,27 @@ public sealed class MapGame : Game
                     _message = hover;
                 if (released)
                 {
-                    string? done = _professionsMenu.Click(panelCursor, _world, 0, out var find);
+                    var converted = new List<Settler>();
+                    string? done = _professionsMenu.Click(panelCursor, _world, 0, out var find, converted);
                     if (find is { } f)
                         Find(f.Profession, f.Mode);
                     else if (done is not null)
                         _message = done;
+                    // Converted specialists are selected at once; carriers still delivering join when they convert.
+                    if (converted.Count > 0)
+                    {
+                        ClearSelection();
+                        _group.AddRange(converted.Where(s => !s.IsCarrier));
+                        _joining.Clear();
+                        _joining.AddRange(converted.Where(s => s.IsCarrier));
+                        _selected = null;
+                        _selectedBuilding = null;
+                        _menuOverSelection = true;
+                    }
                 }
             }
         }
-        else if (_group.Count == 0)
+        else if (!ShowsSelection)
         {
             if (onMenu && released && _buildMenu!.Click(panelCursor) is { } chosen)
             {
@@ -1694,7 +1825,7 @@ public sealed class MapGame : Game
 
         // Left button: a click on release, or a selection box when dragged.
         if (mouse.LeftButton == ButtonState.Pressed && _previousMouse.LeftButton == ButtonState.Released
-            && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position) && !onMenu)
+            && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position) && !onMenu && !lost)
             _dragStart = cursorScreen;
         if (mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is { } dragStart)
         {
@@ -1704,9 +1835,18 @@ public sealed class MapGame : Game
                 Click(cursorScreen);
             _dragStart = null;
         }
-        // The selection holds one kind; who died, went inside, changed profession or (carriers) got a task leaves it.
+        // Converted carriers join the selection once they are specialists (if it still is of their kind or empty);
+        // who died or will not convert any more drops out.
+        _joining.RemoveAll(s => s.IsDead || s.IsAvailableCarrier);
+        foreach (var joined in _joining.Where(s => !s.IsCarrier).ToList())
+        {
+            _joining.Remove(joined);
+            if (_group.Count == 0 && _selectedBuilding is null || _group.Count > 0 && _group[0].Profession == joined.Profession)
+                _group.Add(joined);
+        }
+        // The selection holds one kind; who died, went inside or changed profession leaves it.
         var kind = _group.FirstOrDefault(s => !s.IsDead && !s.IsInside)?.Profession;
-        _group.RemoveAll(s => s.IsDead || s.IsInside || s.Profession != kind || s.IsCarrier && !s.IsAvailableCarrier);
+        _group.RemoveAll(s => s.IsDead || s.IsInside || s.Profession != kind);
 
         // The flight: eased out (fast start, soft arrival); scrolling by hand ends it.
         if (_flightStart >= 0)
@@ -1739,7 +1879,7 @@ public sealed class MapGame : Game
             _camera -= (mouse.Position - _previousMouse.Position).ToVector2() / _zoom;
         if (mouse.RightButton == ButtonState.Released && _previousMouse.RightButton == ButtonState.Pressed && _rightStart is { } rightStart)
         {
-            if (Vector2.Distance(rightStart, cursorScreen) < DragThreshold)
+            if (Vector2.Distance(rightStart, cursorScreen) < DragThreshold && !lost)
                 Command(cursorScreen);
             _rightStart = null;
         }
@@ -1761,6 +1901,127 @@ public sealed class MapGame : Game
 
         _previousKeys = keys;
         _previousMouse = mouse;
+    }
+
+    /// <summary>The game's keys (not once the game is lost): pause, view, groups, placing, debugging and cheats.</summary>
+    private void HandleKeys(KeyboardState keys, Vector2 cursorScreen, GameTime gameTime)
+    {
+        bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
+        if (Pressed(Keys.Escape))
+        {
+            if (_aiming)
+                _aiming = false;
+            else if (_placing)
+                _placing = false;
+            else
+                _paused = !_paused;
+        }
+        if (Pressed(Keys.F2))
+        {
+            _scaling = (Scaling)(((int)_scaling + 1) % Enum.GetValues<Scaling>().Length);
+            _scalingShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
+        }
+        if (Pressed(Keys.F3))
+            _showPerf = !_showPerf;
+        if (Pressed(Keys.T))
+            _showClock = !_showClock;
+        if (Pressed(Keys.F11))
+            ToggleFullScreen();
+        // Groups: Ctrl+1-9 stores the selection, 1-9 selects the group again; pressed twice the camera flies to it.
+        bool control = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
+        for (int i = 0; i < ControlGroups.Count; i++)
+        {
+            if (!Pressed(Keys.D1 + i) && !Pressed(Keys.NumPad1 + i))
+                continue;
+            if (control)
+            {
+                _controlGroups.Store(i, _group);
+                _message = _group.Count > 0 ? $"group {i + 1}: {_group.Count} selected" : $"group {i + 1} cleared";
+            }
+            else
+            {
+                SelectGroup(i);
+                if (_lastGroupKey == i && _now - _lastGroupAt <= GroupDoublePressSeconds && _group.Count > 0)
+                {
+                    float alpha = TickAlpha;
+                    _flightFrom = _camera;
+                    _flightTo = _group.Aggregate(Vector2.Zero, (sum, s) => sum + SettlerRenderer.Anchor(s, _terrain, alpha)) / _group.Count;
+                    _flightStart = _now;
+                }
+                _lastGroupKey = i;
+                _lastGroupAt = _now;
+            }
+        }
+        if (Pressed(Keys.P))
+            _paused = !_paused;
+        if (_placing && Pressed(Keys.E))
+            _placeIndex = (_placeIndex + 1) % _placeable.Length;
+        if (_placing && Pressed(Keys.Q))
+            _placeIndex = (_placeIndex - 1 + _placeable.Length) % _placeable.Length;
+        if (Pressed(Keys.PageDown))
+            LoadMap(_mapIndex + 1);
+        if (Pressed(Keys.PageUp))
+            LoadMap(_mapIndex - 1);
+        if (Pressed(Keys.B))
+            _showBlocked = !_showBlocked;
+        if (Pressed(Keys.V))
+        {
+            _fogChosen = !_fogChosen;
+            _minimap!.Update(_vision, all: !FogOn, _gameMap);
+            _message = _fogChosen ? "fog of war on (V)" : "fog of war off (V)";
+        }
+        if (Pressed(Keys.O))
+            _showObjects = !_showObjects;
+        if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen), Profession.Carrier) is { } spawned)
+            _selected = spawned;
+        if (Pressed(Keys.I))
+        {
+            if (_ownAi is null && _playerCatalogs.Count > 0)
+            {
+                _ownAi = NewAi(0);
+                _world.AiPlayers.Add(_ownAi);
+                _message = "the AI plays for you (I: stop)";
+            }
+            else if (_ownAi is not null)
+            {
+                _world.AiPlayers.Remove(_ownAi);
+                _ownAi = null;
+                _message = "you play again";
+            }
+        }
+        if (Pressed(Keys.L))
+        {
+            foreach (var ai in _world.AiPlayers.OrderBy(a => a.Player))
+            {
+                Console.WriteLine($"-- AI player {ai.Player + 1}, land {ai.Land}");
+                foreach (string line in ai.Log)
+                    Console.WriteLine("   " + line);
+            }
+            _message = "AI decisions written to the console";
+        }
+        if (Pressed(Keys.G))
+            _message = DemoEconomy.Create(_world, Own, ScreenToGrid(cursorScreen), _random);
+        if (Pressed(Keys.M))
+            SpawnWanderers(ScreenToGrid(cursorScreen));
+        if (Pressed(Keys.F) && _world.BuildingAt(ScreenToGrid(cursorScreen)) is { } target)
+        {
+            // F: attack the enemy military building under the cursor with player 1's soldiers nearby.
+            int sent = _world.Military.Attack(0, target);
+            _message = sent > 0 ? $"{sent} soldiers attack {target.Definition.Name}" : "no soldiers in range or not an enemy military building";
+        }
+        if (Pressed(Keys.C))
+            _cheats.IsOpen = !_cheats.IsOpen;
+        if (Pressed(Keys.K))
+        {
+            // Test soldiers: two of each kind, for player 0 (with Shift for player 1).
+            int player = keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift) ? 1 : 0;
+            int soldiers = 0;
+            foreach (var type in Enum.GetValues<SoldierType>())
+                for (int i = 0; i < 2; i++)
+                    if (_world.SpawnSoldier(ScreenToGrid(cursorScreen), type, player: player) is not null)
+                        soldiers++;
+            _message = $"{soldiers} soldiers for player {player + 1}";
+        }
     }
 
     /// <summary>The next wheel step in or out from <paramref name="zoom"/>, which may lie between steps (e.g. from an old save).</summary>
@@ -1803,7 +2064,10 @@ public sealed class MapGame : Game
         {
             _aiming = false;
             var aimedAt = ScreenToGrid(screen);
-            _message = _world.Magic.Cast(_group, aimedAt, _aimSpell) switch
+            var cast = _world.Magic.Cast(_group, aimedAt, _aimSpell);
+            if (cast == CastResult.Started)
+                PlayCommand();
+            _message = cast switch
             {
                 CastResult.Started => $"casting {_aimSpell?.Name} at {aimedAt.X},{aimedAt.Y}",
                 CastResult.NoMana => "not enough mana",
@@ -1824,18 +2088,22 @@ public sealed class MapGame : Game
             .OrderBy(t => t.Distance)
             .Select(t => t.Settler)
             .FirstOrDefault();
-        // Own soldiers, priests, geologists, scouts and idle carriers can be selected; other trades not at all.
+        // Own soldiers, priests, geologists, scouts and pioneers can be selected; carriers and other trades not at all.
         // Shift adds to the selection (by priority, if the kinds differ) instead of replacing it.
         bool adding = ShiftDown(Keyboard.GetState());
         if (hit is { Player: 0 } && Selectable(hit))
         {
-            // Ctrl: every own settler of that kind (soldiers: of that type, whatever their rank).
-            var clicked = ControlDown(Keyboard.GetState())
-                ? _world.Settlers.Where(s => s.Player == 0 && !s.IsInside && Selectable(s)
-                                             && s.Profession == hit.Profession && s.SoldierType == hit.SoldierType).ToList()
+            // On screen: Ctrl every own settler of that kind (soldiers: all of them), Alt of that type
+            // (soldiers: of that type, whatever their rank).
+            var keys = Keyboard.GetState();
+            bool control = ControlDown(keys), alt = AltDown(keys);
+            var clicked = control || alt
+                ? OnScreen().Where(s => s.Player == 0 && !s.IsInside && Selectable(s) && s.Profession == hit.Profession
+                                        && (control && s.Profession == Profession.Soldier || s.SoldierType == hit.SoldierType))
+                    .Append(hit).Distinct().ToList()
                 : [hit];
             var selection = ByPriority(adding ? _group.Concat(clicked) : clicked);
-            _group.Clear();
+            ClearSelection();
             _group.AddRange(selection);
             _selected = null;
             _selectedBuilding = null;
@@ -1857,7 +2125,7 @@ public sealed class MapGame : Game
             return;
         if (_group.Count > 0)
         {
-            _group.Clear();
+            ClearSelection();
             _selected = null;
             _message = "";
             return;
@@ -1888,7 +2156,7 @@ public sealed class MapGame : Game
     /// <summary>Selects the members of a group that can be selected now (not inside a building).</summary>
     private void SelectGroup(int index)
     {
-        _group.Clear();
+        ClearSelection();
         _group.AddRange(_controlGroups.Members(index).Where(s => !s.IsInside && Selectable(s)));
         _selected = null;
         _selectedBuilding = null;
@@ -1922,7 +2190,7 @@ public sealed class MapGame : Game
             _message = mode == FindMode.Screen ? "none on the screen" : "none there";
             return;
         }
-        _group.Clear();
+        ClearSelection();
         _group.AddRange(found);
         _selected = null;
         _selectedBuilding = null;
@@ -1963,7 +2231,7 @@ public sealed class MapGame : Game
         }
         _shownEvent = e;
         _tabs.Current = PanelTab.Event;
-        _group.Clear();
+        ClearSelection();
         _selected = null;
         _selectedBuilding = null;
         _placing = _aiming = false;
@@ -2049,11 +2317,11 @@ public sealed class MapGame : Game
         return next;
     }
 
-    /// <summary>Selection by priority: the soldiers among the settlers if there are any, else the priests, geologists, scouts, pioneers, else the carriers.</summary>
+    /// <summary>Selection by priority: the soldiers among the settlers if there are any, else the priests, geologists, scouts, pioneers.</summary>
     private static List<Settler> ByPriority(IEnumerable<Settler> settlers)
     {
         var list = settlers.Distinct().ToList();
-        foreach (var profession in new[] { Profession.Soldier, Profession.Priest, Profession.Geologist, Profession.Scout, Profession.Pioneer, Profession.Carrier })
+        foreach (var profession in new[] { Profession.Soldier, Profession.Priest, Profession.Geologist, Profession.Scout, Profession.Pioneer })
             if (list.Where(s => s.Profession == profession).ToList() is { Count: > 0 } chosen)
                 return chosen;
         return [];
@@ -2063,14 +2331,28 @@ public sealed class MapGame : Game
 
     private static bool ShiftDown(KeyboardState keys) => keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift);
 
-    /// <summary>Own settlers that can be selected: soldiers, priests, geologists, scouts, pioneers and carriers with nothing to do.</summary>
+    private static bool AltDown(KeyboardState keys) => keys.IsKeyDown(Keys.LeftAlt) || keys.IsKeyDown(Keys.RightAlt);
+
+    /// <summary>The settlers whose body lies in the visible part of the map (the panel's side excluded).</summary>
+    private IEnumerable<Settler> OnScreen()
+    {
+        var inverse = Matrix.Invert(View);
+        var viewport = GraphicsDevice.Viewport;
+        var min = Vector2.Transform(new Vector2(SidePanel.Width * SidePanel.Scale(viewport.Height), 0), inverse);
+        var max = Vector2.Transform(new Vector2(viewport.Width, viewport.Height), inverse);
+        float alpha = TickAlpha;
+        return _world.Settlers.Where(s => SettlerRenderer.Anchor(s, _terrain, alpha) - new Vector2(0, 10) is var p
+                                          && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y);
+    }
+
+    /// <summary>Own settlers that can be selected: soldiers, priests, geologists, scouts and pioneers (not carriers).</summary>
     private static bool Selectable(Settler s) =>
-        s.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer || s.IsAvailableCarrier;
+        s.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer;
 
     private List<Settler> SelectedSoldiers() => _group.Where(s => s.Profession == Profession.Soldier).ToList();
 
     /// <summary>A building is selected: the menu at the left shows what there is to know about it.</summary>
-    private bool ShowsBuildingInfo => _selectedBuilding is { Exists: true } && !_placing && !CarriersSelected && !PriestsSelected;
+    private bool ShowsBuildingInfo => _selectedBuilding is { Exists: true } && !_placing && !PriestsSelected;
 
     /// <summary>Only priests are selected: the menu at the left offers their spell.</summary>
     /// <summary>The entries of the cheat menu (C): own units in the middle of the view, mana.</summary>
@@ -2096,8 +2378,8 @@ public sealed class MapGame : Game
         });
         void Decide(string key, MissionOutcome outcome) => _cheats.Add(Lang.T("cheats." + key), () =>
         {
-            if (_mission is null || _world.Goals is null)
-                _message = "cheat: not a campaign mission";
+            if (_world.Goals is null)
+                _message = "cheat: no goals in this game";
             else
                 _world.Goals.Decide(outcome, _world.Tick);
         });
@@ -2125,9 +2407,6 @@ public sealed class MapGame : Game
 
     private bool PriestsSelected => _group.Count > 0 && _group.All(s => s.Profession == Profession.Priest);
 
-    /// <summary>Only carriers are selected: the menu at the left offers what they can become.</summary>
-    private bool CarriersSelected => _group.Count > 0 && _group.All(s => s.Profession == Profession.Carrier);
-
     private string SelectionHint() => _group.Count == 0 ? "" : _group[0].Profession switch
     {
         Profession.Soldier => $"{_group.Count} soldiers selected (right click: go there / attack, left click: deselect)",
@@ -2135,19 +2414,8 @@ public sealed class MapGame : Game
         Profession.Scout => $"{_group.Count} scouts selected (right click: go there, Alt+right click: steal there; enemies take them for carriers)",
         Profession.Pioneer => $"{_group.Count} pioneers selected (right click: go there, Alt+right click: take land there)",
         Profession.Priest => $"{_group.Count} priests selected (menu at the left: cast the spell, right click: go there)",
-        _ => $"{_group.Count} carriers selected (menu at the left: convert them)",
+        _ => "",
     };
-
-    /// <summary>Turns the selected carriers into specialists, as far as the carrier reserve allows; they stay selected.</summary>
-    private void Convert(Profession profession)
-    {
-        int count = _group.Count;
-        var (now, later) = profession is Profession.Geologist or Profession.Scout or Profession.Pioneer ? _world.Geology.Convert(_group, profession) : (0, 0);
-        _group.RemoveAll(s => s.Profession != profession);
-        string name = profession.ToString().ToLowerInvariant() + "s";
-        _message = $"{now} {name}" + (later > 0 ? $", {later} more after their delivery" : "")
-                   + (now + later < count ? $"; {count - now - later} stay carriers (carrier reserve)" : "");
-    }
 
     /// <summary>
     /// Right click: the selected soldiers attack the enemy military building clicked on, otherwise go
@@ -2180,6 +2448,8 @@ public sealed class MapGame : Game
         if (priests.Count > 0)
         {
             int walking = priests.Count(p => _world.WalkTo(p, clicked));
+            if (walking > 0)
+                PlayCommand();
             _message = walking > 0 ? $"{walking} priests to {clicked.X},{clicked.Y}" : "no way there";
             return;
         }
@@ -2189,6 +2459,8 @@ public sealed class MapGame : Game
         {
             int stealing = _world.Theft.StealAt(_group, clicked);
             int claiming = _world.Pioneering.ClaimAt(_group, clicked);
+            if (stealing + claiming > 0)
+                PlayCommand();
             _message = stealing + claiming == 0 ? "no way there"
                 : claiming == 0 ? $"{stealing} scouts steal at {clicked.X},{clicked.Y}"
                 : stealing == 0 ? $"{claiming} pioneers take land at {clicked.X},{clicked.Y}"
@@ -2199,6 +2471,8 @@ public sealed class MapGame : Game
         if (geologists.Count > 0)
         {
             int sent = _world.Geology.Send(geologists, clicked);
+            if (sent > 0)
+                PlayCommand();
             string name = geologists.All(s => s.Profession == Profession.Scout) ? "scouts"
                 : geologists.All(s => s.Profession == Profession.Pioneer) ? "pioneers" : "geologists";
             _message = sent == 0 ? "no way there"
@@ -2210,10 +2484,11 @@ public sealed class MapGame : Game
         if (soldiers.Count == 0)
             return;
         bool control = Keyboard.GetState().IsKeyDown(Keys.LeftControl) || Keyboard.GetState().IsKeyDown(Keys.RightControl);
-        if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) > 0)
+        // Bowmen do not attack buildings: they keep their order (alone: they walk there).
+        if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) is > 0 and var attacking)
         {
             PlayCommand();
-            _message = $"{soldiers.Count} soldiers attack {attacked.Definition.Name}";
+            _message = $"{attacking} soldiers attack {attacked.Definition.Name}";
             return;
         }
         // Ctrl: forced order, they walk there without stopping to fight.
@@ -2227,8 +2502,7 @@ public sealed class MapGame : Game
     /// <summary>
     /// Selects the own settlers (outside buildings) inside the box between two screen points: the
     /// soldiers if there are any, else the priests, else the geologists. Without them the building
-    /// nearest to the middle of the box is chosen, and only without one the carriers. With Shift settlers
-    /// join the selection.
+    /// nearest to the middle of the box is chosen. With Shift settlers join the selection.
     /// </summary>
     private void SelectInBox(Vector2 from, Vector2 to)
     {
@@ -2244,16 +2518,16 @@ public sealed class MapGame : Game
             .ToList();
         // Shift adds to the selection.
         var candidates = ShiftDown(Keyboard.GetState()) ? _group.Concat(inBox).ToList() : inBox;
-        if (candidates.All(s => s.Profession == Profession.Carrier) && BuildingInBox(min, max) is { } building)
+        if (candidates.Count == 0 && BuildingInBox(min, max) is { } building)
         {
-            _group.Clear();
+            ClearSelection();
             _selected = null;
             _selectedBuilding = building;
             _message = "";
             return;
         }
         var selection = ByPriority(candidates);
-        _group.Clear();
+        ClearSelection();
         _group.AddRange(selection);
         _selected = null;
         _selectedBuilding = null;
@@ -2331,6 +2605,27 @@ public sealed class MapGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        if (_loading is { Loaded: false })
+        {
+            // Capture runs with HOMESTEAD_CAPTURE_START=loading save its picture and quit.
+            // Once loaded, the game is drawn beneath it (LoadingScreen.WarmFrames).
+            var loadingTarget = _captureDirectory is null ? null : NewCaptureTarget();
+            GraphicsDevice.SetRenderTarget(loadingTarget);
+            GraphicsDevice.Clear(Color.Black);
+            _spriteBatch.Begin(samplerState: SamplerState.LinearClamp);
+            _loading.Draw(_spriteBatch, GraphicsDevice.Viewport.Bounds);
+            _spriteBatch.End();
+            if (loadingTarget is not null)
+            {
+                GraphicsDevice.SetRenderTarget(null);
+                using (var stream = File.Create(Path.Combine(_captureDirectory!, "loading.png")))
+                    loadingTarget.SaveAsPng(stream, loadingTarget.Width, loadingTarget.Height);
+                loadingTarget.Dispose();
+                Exit();
+            }
+            base.Draw(gameTime);
+            return;
+        }
         if (_title is not null || _startScreen is not null)
         {
             // Capture runs with HOMESTEAD_CAPTURE_START save one picture of the title or start screen and quit
@@ -2461,14 +2756,14 @@ public sealed class MapGame : Game
             foreach (var settler in settlersByRow[y])
             {
                 // Under the fog, other players' settlers are seen only where player 1 sees now.
-                if (_fogOn && settler.Player != 0 && !_vision.IsVisible(settler.Position))
+                if (FogOn && settler.Player != 0 && !_vision.IsVisible(settler.Position))
                     continue;
                 // Scouts in disguise look like one of player 1's carriers.
                 _settlerRenderer.Draw(_spriteBatch, settler, _terrain, _world.Tick, alpha,
                     PlayerColors.Of(settler.IsRevealedTo(0) ? settler.Player : 0), disguised: !settler.IsRevealedTo(0));
             }
             foreach (var ghost in ghostsByRow[y])
-                if (!_fogOn || _vision.IsVisible(ghost.Position))
+                if (!FogOn || _vision.IsVisible(ghost.Position))
                     _economyRenderer.DrawGhost(_spriteBatch, ghost.Position, (_world.Tick - ghost.Tick + alpha) / World.GhostTicks, _terrain,
                         PlayerColors.Of(ghost.Player));
         }
@@ -2476,7 +2771,7 @@ public sealed class MapGame : Game
         foreach (var cloud in _world.DustClouds)
             _economyRenderer.DrawDustCloud(_spriteBatch, cloud.Position, (_world.Tick - cloud.Tick + alpha) / World.DustCloudTicks, _terrain);
         DrawArrows(alpha);
-        if (_fogOn)
+        if (FogOn)
         {
             // Over the world, under markers and previews: black, transparent where seen.
             _spriteBatch.End();
@@ -2536,15 +2831,15 @@ public sealed class MapGame : Game
         _spriteBatch.End();
 
         // Side panel: minimap and blue panel scaled to the window height, the menus inside in panel space.
-        _sidePanel.Draw(_spriteBatch, _pixel, _minimap?.Texture, _gameMap.Size, visible);
+        _sidePanel.Draw(_spriteBatch, _pixel, _minimap?.Texture, _gameMap.Size, visible, MinimapDots());
         SidePanel.Begin(_spriteBatch, viewport.Height);
         var panelMouse = SidePanel.ToPanel(Mouse.GetState().Position.ToVector2(), viewport.Height);
         if (ShowsBuildingInfo)
             _buildingInfo.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _economyRenderer, _settlerRenderer, Own.Civilization, _world, _selectedBuilding!, 0,
                 panelMouse);
-        else if (_group.Count > 0)
+        else if (ShowsSelection)
         {
-            // The selected units (below the spell or conversion menu for priests or carriers) and the combat strength.
+            // The selected units (below the spell menu for priests) and the combat strength.
             int unitsTop = BuildMenu.Content.Y;
             if (PriestsSelected)
             {
@@ -2553,12 +2848,7 @@ public sealed class MapGame : Game
                     _world.Magic.Mana(0), _aiming ? _aimSpell : null, panelMouse);
                 unitsTop = SpellMenu.Bottom(spells.Count);
             }
-            else if (CarriersSelected)
-            {
-                _conversionMenu.Draw(_spriteBatch, _pixel, _settlerRenderer, _portraits!, Own.Civilization, panelMouse);
-                unitsTop = ConversionMenu.Bottom;
-            }
-            _selectionPanel.Draw(_spriteBatch, _font, _settlerRenderer, _portraits!, Own.Civilization, _group,
+            _selectionPanel.Draw(_spriteBatch, _font, _settlerRenderer, PortraitsOf, Own.Civilization, _group,
                 _world.Military.CombatStrength(0), unitsTop, panelMouse);
         }
         else if (_tabs.Current == PanelTab.System)
@@ -2594,10 +2884,12 @@ public sealed class MapGame : Game
         _spriteBatch.End();
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-        _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, _font, _settlerRenderer, Own.Civilization, _group,
+        _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, SidePanel.Scale(viewport.Height), _font, _settlerRenderer, PortraitsOf, _group,
             Mouse.GetState().Position.ToVector2());
         _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, Mouse.GetState().Position.ToVector2());
         DrawOutcome(viewport);
+        _info.Draw(_spriteBatch, _font, SidePanel.Width * SidePanel.Scale(viewport.Height) + 12, viewport.Height - 10,
+            Math.Max(14, viewport.Height / 48), _now);
         // Bottom right, stacked upwards: performance (F3), then the game time (T).
         int bottom = viewport.Height;
         if (_showPerf)
@@ -2607,6 +2899,13 @@ public sealed class MapGame : Game
         if (gameTime.TotalGameTime < _scalingShownUntil)
             DrawCornerText($"Skalierung: {_scaling}", bottom);
         _spriteBatch.End();
+        if (_loading is not null)
+        {
+            // The loading screen over the loaded game: covering it at first, then fading out.
+            _spriteBatch.Begin(samplerState: SamplerState.LinearClamp);
+            _loading.Draw(_spriteBatch, viewport.Bounds, overGame: true);
+            _spriteBatch.End();
+        }
         _perf.EndDraw(GraphicsDevice);
 
         if (target is not null)
@@ -2620,21 +2919,28 @@ public sealed class MapGame : Game
     private const float HitHeight = 10;
 
     /// <summary>A text box at the bottom right, ending at <paramref name="bottom"/>; returns its top.</summary>
-    /// <summary>A decided mission: "Spiel gewonnen" or "Spiel verloren" in white at the top of the map, how to go on below.</summary>
+    /// <summary>A decided game: "Spiel gewonnen" or "Spiel verloren" in white at the top of the map, how to go on below.</summary>
     private void DrawOutcome(Viewport viewport)
     {
         var outcome = Outcome;
-        if (outcome == MissionOutcome.Open)
-            return;
+        if (_paused)
+            DrawBanner(viewport, Lang.T("system.paused"), Lang.T("system.pausedHint"));
+        else if (outcome != MissionOutcome.Open)
+            DrawBanner(viewport, Lang.T(outcome == MissionOutcome.Won ? "campaign.won" : "campaign.lost"),
+                _mission is not null ? Lang.T(outcome == MissionOutcome.Won ? "campaign.wonHint" : "campaign.lostHint")
+                    : Lang.T(outcome == MissionOutcome.Won ? "system.wonHint" : "system.lostHint"));
+    }
+
+    /// <summary>White text with a shadow at the top of the game view, a smaller hint under it (game won/lost, pause).</summary>
+    private void DrawBanner(Viewport viewport, string text, string hint)
+    {
         float left = SidePanel.Width * SidePanel.Scale(viewport.Height);
         float center = left + (viewport.Width - left) / 2;
         int size = Math.Max(24, viewport.Height / 22);
-        string text = Lang.T(outcome == MissionOutcome.Won ? "campaign.won" : "campaign.lost");
         var measured = _font.Measure(text, size);
         var at = new Vector2(MathF.Round(center - measured.X / 2), MathF.Round(viewport.Height * 0.06f));
         _font.Draw(_spriteBatch, text, at + new Vector2(2, 2), Color.Black * 0.8f, size);
         _font.Draw(_spriteBatch, text, at, Color.White, size);
-        string hint = Lang.T(outcome == MissionOutcome.Won ? "campaign.wonHint" : "campaign.lostHint");
         int small = Math.Max(13, size / 2);
         var hintSize = _font.Measure(hint, small);
         var hintAt = new Vector2(MathF.Round(center - hintSize.X / 2), MathF.Round(at.Y + measured.Y + 6));
@@ -2815,28 +3121,54 @@ public sealed class MapGame : Game
         }
     }
 
-    /// <summary>Shading of the selection marker: L light rim, H highlight, B body, D shadow.</summary>
-    private static readonly string[] SelectionMarkerShape = [".LLL.", "LHBBB", "BBBBB", "BBBBD", ".DDD."];
+    /// <summary>Shading of a build spot dot: L light rim, H highlight, B body, D shadow.</summary>
+    private static readonly string[] BuildSpotShape = [".LLL.", "LHBBB", "BBBBB", "BBBBD", ".DDD."];
 
-    /// <summary>A small round dot above a selected settler, lit from above, green to red by health left.</summary>
+    /// <summary>
+    /// The health dot of a selected settler as in the original: dark ring, K outline, L light rim,
+    /// H highlight, B body, D shadow.
+    /// </summary>
+    private static readonly string[] HealthDotShape =
+        ["..KKKK..", ".KLLHBK.", "KLHHBBBK", "KLHBBBBK", "KBBBBBDK", "KBBBBDDK", ".KBDDDK.", "..KKKK.."];
+
+    /// <summary>The left bracket above a selected settler (W white); the right one is its mirror image.</summary>
+    private static readonly string[] SelectionBracketShape =
+        ["..WWWWW", ".WWWWWW", "W......", "W......", "W......", "W......", "W......", "W......", "W......", "W......"];
+
+    /// <summary>How far above the anchor (the feet) the brackets begin, and their width.</summary>
+    private const int SelectionMarkerTop = 49, SelectionMarkerWidth = 28;
+
+    /// <summary>
+    /// The mark above a selected settler as in the original: two white brackets (the top corners of a
+    /// frame) above the head, between them a round dot green to red by health left.
+    /// </summary>
     private void DrawSelectionMarker(Settler settler, float alpha)
     {
         var anchor = SettlerRenderer.Anchor(settler, _terrain, alpha);
-        DrawDot((int)anchor.X - 2, (int)anchor.Y - 34, HealthColor(HealthLeft(settler)));
+        int left = (int)anchor.X - SelectionMarkerWidth / 2, top = (int)anchor.Y - SelectionMarkerTop;
+        for (int y = 0; y < SelectionBracketShape.Length; y++)
+        for (int x = 0; x < SelectionBracketShape[y].Length; x++)
+            if (SelectionBracketShape[y][x] == 'W')
+            {
+                _spriteBatch.Draw(_pixel, new Rectangle(left + x, top + y, 1, 1), Color.White);
+                _spriteBatch.Draw(_pixel, new Rectangle(left + SelectionMarkerWidth - 1 - x, top + y, 1, 1), Color.White);
+            }
+        DrawDot((int)anchor.X - HealthDotShape[0].Length / 2, top - 1, HealthColor(HealthLeft(settler)), HealthDotShape);
     }
 
-    /// <summary>A small round dot of <paramref name="body"/> color, lit from above, its top left corner given.</summary>
-    private void DrawDot(int left, int top, Color body)
+    /// <summary>A small round dot of <paramref name="body"/> color, lit from above, its top left corner given (a build spot unless another shape is given).</summary>
+    private void DrawDot(int left, int top, Color body, string[]? shape = null)
     {
+        shape ??= BuildSpotShape;
         var light = Color.Lerp(body, Color.White, 0.35f);
         var highlight = Color.Lerp(body, Color.White, 0.75f);
         var shadow = Color.Lerp(body, Color.Black, 0.45f);
-        for (int y = 0; y < SelectionMarkerShape.Length; y++)
-        for (int x = 0; x < SelectionMarkerShape[y].Length; x++)
+        for (int y = 0; y < shape.Length; y++)
+        for (int x = 0; x < shape[y].Length; x++)
         {
-            Color? color = SelectionMarkerShape[y][x] switch
+            Color? color = shape[y][x] switch
             {
-                'L' => light, 'H' => highlight, 'B' => body, 'D' => shadow, _ => null,
+                'K' => Color.Black, 'L' => light, 'H' => highlight, 'B' => body, 'D' => shadow, _ => null,
             };
             if (color is { } c)
                 _spriteBatch.Draw(_pixel, new Rectangle(left + x, top + y, 1, 1), c);
@@ -2955,24 +3287,19 @@ public sealed class MapGame : Game
     /// start, run four minutes of game time (long enough for grain to ripen), save a frame every eight game seconds, then quit.
     /// </summary>
     /// <summary>
-    /// HOMESTEAD_CAPTURE_GEOLOGISTS=1: carriers are selected (the conversion menu shows), become
-    /// geologists and search the own mountain nearest to the start; the camera follows them.
+    /// HOMESTEAD_CAPTURE_GEOLOGISTS=1: four carriers become geologists and search the own mountain
+    /// nearest to the start; the camera follows them.
     /// </summary>
     private void CaptureGeologists(int frame)
     {
-        if (frame == 60)
+        if (frame == 240)
         {
-            _group.Clear();
-            _group.AddRange(_world.Settlers.Where(s => s.Player == 0 && s.IsCarrier && !s.IsInside).Take(4));
-        }
-        else if (frame == 240)
-        {
-            Convert(Profession.Geologist);
-            Console.WriteLine($"geologists: {_message}");
+            var (now, later) = _world.Geology.Convert(_world.Settlers.Where(s => s.Player == 0 && s.IsCarrier && !s.IsInside).Take(4).ToList());
+            Console.WriteLine($"geologists: {now}, {later} more after their delivery");
         }
         else if (frame == 600)
         {
-            _group.Clear();
+            ClearSelection();
             _group.AddRange(_world.Settlers.Where(s => s.Player == 0 && s.Profession == Profession.Geologist));
             var mountain = Enumerable.Range(0, _gameMap.Size * _gameMap.Size).Select(i => new GridPoint(i % _gameMap.Size, i / _gameMap.Size))
                 .Where(p => _world.Geology.IsSearchable(p) && _gameMap.OwnerAt(p) == 0)
@@ -2995,7 +3322,7 @@ public sealed class MapGame : Game
             .Where(p => _gameMap.OwnerAt(p) == 0 && _gameMap.IsWalkable(p)
                         && Enumerable.Range(0, 6).Any(d => _gameMap.Contains(p.Neighbor((Direction)d)) && _gameMap.OwnerAt(p.Neighbor((Direction)d)) is null))
             .OrderBy(p => Simulation.Pathfinding.PathFinder.Distance(p, _start)).FirstOrDefault();
-        _group.Clear();
+        ClearSelection();
         for (int i = 0; i < 2; i++)
             if (_world.Spawn(edge, Profession.Pioneer) is { } pioneer)
                 _group.Add(pioneer);
@@ -3042,7 +3369,7 @@ public sealed class MapGame : Game
         }
         else if (frame == 240)
         {
-            _group.Clear();
+            ClearSelection();
             _group.AddRange(_world.Settlers.Where(s => s.Player == 0 && s.Profession == Profession.Priest));
             var spell = CaptureSummon ? _world.Magic.SpellsOf(0).FirstOrDefault(s => s.Kind == SpellKind.SummonGoods) : null;
             Console.WriteLine($"magic: {_group.Count} priests, mana {_world.Magic.Mana(0)}, cast: {_world.Magic.Cast(_group, battle, spell)}");
@@ -3073,7 +3400,7 @@ public sealed class MapGame : Game
                 _world.Step();
         _vision.Update(_world);
         _fog!.SetTargets(_vision);
-        _minimap!.Update(_vision, all: !_fogOn);
+        _minimap!.Update(_vision, all: !FogOn, _gameMap);
         Console.WriteLine($"benchmark: {_world.Tick / World.TicksPerSecond / 60} min played in {clock.Elapsed.TotalSeconds:F0} s, {_world.Settlers.Count} settlers, " +
                           $"{_world.Buildings.Count(b => b.Exists)} buildings");
         // HOMESTEAD_CAPTURE_VIEW=economy: the camera stays on player 1's home; battle: it follows the biggest fight.
@@ -3272,15 +3599,23 @@ public sealed class MapGame : Game
                     _world.Military.Move(armies[1], open);
                     battleMiddle = open;
                 }
-                // HOMESTEAD_CAPTURE_SELECT=1: own soldiers of every type and level are selected (units panel at the left).
-                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SELECT") == "1")
+                // HOMESTEAD_CAPTURE_SELECT=1: own soldiers of every type and level are selected (units panel at the left),
+                // stored as group 1, the bowmen as group 2 (icons at the top right). =mixed: also those of player 2's people
+                // in the selection (as won-over soldiers would be; the panel squeezes them in).
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SELECT") is "1" or "mixed")
                 {
                     _selectedBuilding = null;
+                    var players = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SELECT") == "mixed" ? new[] { 0, 1 } : [0];
+                    foreach (int player in players)
                     foreach (var type in Enum.GetValues<SoldierType>())
                         for (int level = 1; level <= 3; level++)
                             for (int i = 0; i < level; i++)
-                                if (_world.SpawnSoldier(new GridPoint(start.X - 10 + (int)type * 4 + i, start.Y + 6 + level), type, level) is { } soldier)
+                                if (_world.SpawnSoldier(new GridPoint(start.X - 10 + (int)type * 4 + i, start.Y + 6 + level + 4 * player), type, level, player) is { } soldier)
                                     _group.Add(soldier);
+                    _controlGroups.Store(0, _group);
+                    _controlGroups.Store(1, _group.Where(s => s.SoldierType == SoldierType.Bowman));
+                    if (_zoom > 1)
+                        _camera = ToWorld(new GridPoint(start.X - 6, start.Y + 8));
                 }
                 if (_zoom > 1 && battleMiddle is { } battle)
                     _camera = ToWorld(battle);
@@ -3365,11 +3700,13 @@ public sealed class MapGame : Game
         _loadList?.Dispose();
         _cursor?.Dispose();
         _startScreen?.Dispose();
+        _loading?.Dispose();
         _statistics?.Dispose();
         TextButton.Dispose();
         _sprites.Dispose();
         _buildMenu?.Dispose();
         _portraits?.Dispose();
+        DisposePeoplePortraits();
         _soldiersMenu?.Dispose();
         _settlersOverview?.Dispose();
         _professionsMenu?.Dispose();

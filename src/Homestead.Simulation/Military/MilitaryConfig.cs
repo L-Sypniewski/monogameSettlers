@@ -4,7 +4,17 @@ using Homestead.Simulation.Economy;
 
 namespace Homestead.Simulation.Military;
 
-public sealed record SoldierStats(float Health, float Damage, int AttackTicks, int Range);
+public sealed record SoldierStats(float Health, float Damage, int AttackTicks, int Range, double Speed = 1, int MinRange = 0)
+{
+    /// <summary>Walking speed as a factor (0 in games saved before there were speeds: as everybody).</summary>
+    public double SpeedFactor => Speed > 0 ? Speed : 1;
+
+    /// <summary>Whether an enemy this many fields away can be struck or shot: not farther than the range, not nearer than the minimum.</summary>
+    public bool InReach(int distance) => distance <= Range && distance >= MinRange;
+
+    /// <summary>How many fields the soldier is off reach at this distance (0 within it).</summary>
+    public int OffReach(int distance) => distance > Range ? distance - Range : Math.Max(0, MinRange - distance);
+}
 
 /// <summary>
 /// Hand-set fields of a door fight, as offsets from the door: where the guard stands and where the melee
@@ -73,6 +83,9 @@ public sealed record MilitaryConfig
     /// <summary>Fog of war: how far finished buildings of these names see (by building name).</summary>
     public IReadOnlyDictionary<string, int> BuildingSight { get; init; } = new Dictionary<string, int>();
 
+    /// <summary>Fog of war: occupied military buildings see this many fields beyond their land.</summary>
+    public int MilitarySightMargin { get; init; } = 3;
+
     /// <summary>Near the enemy, ways are planned locally within this radius around everyone standing.</summary>
     public required int CombatPathRadius { get; init; }
 
@@ -81,6 +94,12 @@ public sealed record MilitaryConfig
 
     /// <summary>Combat strength away from own land: how much the goods on own land add.</summary>
     public CombatStrengthConfig CombatStrength { get; init; } = CombatStrengthConfig.None;
+
+    /// <summary>Bowmen in military buildings shoot this much further than on the ground (0 in games saved before: as on the ground).</summary>
+    public double TowerRangeFactor { get; init; } = 1;
+
+    /// <summary>How far bowmen in military buildings shoot.</summary>
+    public int TowerRange => (int)Math.Round(Soldiers[SoldierType.Bowman].Range * (TowerRangeFactor > 0 ? TowerRangeFactor : 1));
 
     /// <summary>How far a soldier of the type notices enemies: the sight range, or its shooting range if further.</summary>
     public int Sight(SoldierType type) => Math.Max(SightRange, Soldiers[type].Range);
@@ -99,7 +118,9 @@ public sealed record MilitaryConfig
         var soldiers = root.GetProperty("soldiers").EnumerateObject().ToDictionary(
             s => Enum.Parse<SoldierType>(s.Name),
             s => new SoldierStats(s.Value.GetProperty("health").GetSingle(), s.Value.GetProperty("damage").GetSingle(),
-                (int)Math.Round(s.Value.GetProperty("attackSeconds").GetDouble() * World.TicksPerSecond), s.Value.GetProperty("range").GetInt32()));
+                (int)Math.Round(s.Value.GetProperty("attackSeconds").GetDouble() * World.TicksPerSecond), s.Value.GetProperty("range").GetInt32(),
+                s.Value.TryGetProperty("speed", out var speed) ? speed.GetDouble() : 1,
+                s.Value.TryGetProperty("minRange", out var minRange) ? minRange.GetInt32() : 0));
         var door = root.TryGetProperty("door", out var d) ? d : default;
         return new MilitaryConfig
         {
@@ -122,6 +143,7 @@ public sealed record MilitaryConfig
             DoorCalmRadius = door.ValueKind == JsonValueKind.Object && door.TryGetProperty("calmRadius", out var calmRadius) ? calmRadius.GetInt32() : 6,
             DoorRegenTicks = (int)Math.Round((door.ValueKind == JsonValueKind.Object ? door.GetProperty("regenSeconds").GetDouble() : 30) * World.TicksPerSecond),
             LevelBonus = root.GetProperty("levelBonus").EnumerateArray().Select(v => v.GetSingle()).ToArray(),
+            TowerRangeFactor = root.TryGetProperty("towerRangeFactor", out var towerRange) ? towerRange.GetDouble() : 1,
             SightRange = root.GetProperty("sightRange").GetInt32(),
             GeologistHealth = root.TryGetProperty("geologistHealth", out var geologistHealth) ? geologistHealth.GetSingle() : 40,
             Scouts = root.TryGetProperty("scouts", out var scouts)
@@ -139,6 +161,7 @@ public sealed record MilitaryConfig
             BuildingSight = root.TryGetProperty("buildingSight", out var buildingSight)
                 ? buildingSight.EnumerateObject().ToDictionary(b => b.Name, b => b.Value.GetInt32())
                 : new Dictionary<string, int>(),
+            MilitarySightMargin = root.TryGetProperty("militarySightMargin", out var sightMargin) ? sightMargin.GetInt32() : 3,
             CombatPathRadius = root.GetProperty("combatPathRadius").GetInt32(),
             AttackRange = root.GetProperty("attackRange").GetInt32(),
             CombatStrength = root.TryGetProperty("combatStrength", out var strength) ? CombatStrengthConfig.Parse(strength) : CombatStrengthConfig.None,
@@ -211,7 +234,7 @@ public sealed record CombatStrengthConfig(float StepPercent, IReadOnlyList<float
 /// </summary>
 public sealed record ScoutRules(float Health, int RevealRadius, int Sight, int StealRadius, double LoadedSpeed)
 {
-    public static readonly ScoutRules Default = new(40, 10, 20, 5, 0.5);
+    public static readonly ScoutRules Default = new(40, 10, 26, 5, 0.5);
 }
 
 /// <summary>

@@ -116,8 +116,11 @@ public class ToolTests
         Assert.Equal(5, world.Recruitment.Convertible(0));
 
         Assert.Equal((1, 0), world.Geology.ConvertCarriers(0, 1));
-        Assert.Equal((4, 0), world.Geology.ConvertCarriers(0, 5)); // the fifth would undercut the half kept
+        var chosen = new List<Settler>();
+        Assert.Equal((4, 0), world.Geology.ConvertCarriers(0, 5, chosen: chosen)); // the fifth would undercut the half kept
         Assert.Equal(5, world.Settlers.Count(s => s.Profession == Profession.Geologist));
+        Assert.Equal(4, chosen.Count); // those converted, for the selection
+        Assert.All(chosen, s => Assert.Equal(Profession.Geologist, s.Profession));
     }
 
     [Fact]

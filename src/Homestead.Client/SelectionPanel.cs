@@ -7,9 +7,9 @@ namespace Homestead.Client;
 
 /// <summary>
 /// The selected units in the blue panel: one portrait per kind (soldier type and level, geologist, priest,
-/// carrier) with how many are selected; at the bottom the player's combat strength away from own land,
+/// scout, pioneer) with how many are selected; at the bottom the player's combat strength away from own land,
 /// above it the orders of the selection (<see cref="ActionAt"/>): „Waren stehlen“ for scouts, „Land
-/// einnehmen“ for pioneers. Below the spell or conversion menu when priests or carriers are selected.
+/// einnehmen“ for pioneers. Below the spell menu when priests are selected.
 /// </summary>
 public sealed class SelectionPanel
 {
@@ -47,26 +47,31 @@ public sealed class SelectionPanel
         return null;
     }
 
+    /// <param name="portraits">The portraits of a people (won-over soldiers keep their people's look).</param>
+    /// <param name="own">The own people: its kinds come first among those of the same type.</param>
     /// <param name="top">Where the portraits start (panel space).</param>
     /// <param name="cursor">Mouse in panel space (highlights the order under it).</param>
-    public void Draw(SpriteBatch batch, UiFont font, SettlerRenderer settlers, Portraits portraits, Civilization people,
+    public void Draw(SpriteBatch batch, UiFont font, SettlerRenderer settlers, Func<Civilization, Portraits> portraits, Civilization own,
         IReadOnlyCollection<Settler> selection, float combatStrength, int top, Vector2 cursor)
     {
         var actions = Actions(selection);
         var content = BuildMenu.Content;
-        int cellWidth = content.Width / Columns;
-        var kinds = selection.Where(s => !s.IsDead).GroupBy(s => SettlerRenderer.TypeOf(s))
-            .Where(g => g.Key is not null).OrderBy(g => g.Key).ToList();
+        // One portrait per kind and people.
+        var kinds = selection.Where(s => !s.IsDead).GroupBy(s => (Type: SettlerRenderer.TypeOf(s), People: settlers.PeopleOf(s)))
+            .Where(g => g.Key.Type is not null)
+            .OrderBy(g => g.Key.Type).ThenBy(g => g.Key.People != own).ThenBy(g => g.Key.People).ToList();
+        var (columns, scale) = Layout(kinds.Count, content.Bottom - 22 - actions.Count * ActionHeight - top, content.Width);
+        int cellWidth = content.Width / columns, cellHeight = (int)(CellHeight * scale);
+        int textSize = Math.Max(9, (int)MathF.Round(14 * scale));
         for (int i = 0; i < kinds.Count; i++)
         {
-            var cell = new Rectangle(content.X + i % Columns * cellWidth, top + i / Columns * CellHeight, cellWidth, CellHeight);
-            if (cell.Bottom > content.Bottom - 22 - actions.Count * ActionHeight)
-                break;
-            var portrait = new Rectangle(cell.X, cell.Y + PortraitDrop, cell.Width, Portraits.Size.Y);
-            portraits.Draw(batch, kinds[i].Key!, portrait, settlers, people, PlayerColors.Of(0));
+            var cell = new Rectangle(content.X + i % columns * cellWidth, top + i / columns * cellHeight, cellWidth, cellHeight);
+            var portrait = new Rectangle(cell.X, cell.Y + (int)(PortraitDrop * scale), cell.Width, (int)(Portraits.Size.Y * scale));
+            var (type, people) = kinds[i].Key;
+            portraits(people).Draw(batch, type!, portrait, settlers, people, PlayerColors.Of(0), scale);
             string count = kinds[i].Count().ToString();
-            var size = font.Measure(count, 14);
-            Shadowed(batch, font, count, new Vector2(cell.Center.X - size.X / 2, portrait.Bottom), 14);
+            var size = font.Measure(count, textSize);
+            Shadowed(batch, font, count, new Vector2(cell.Center.X - size.X / 2, portrait.Bottom), textSize);
         }
         for (int i = 0; i < actions.Count; i++)
         {
@@ -74,6 +79,23 @@ public sealed class SelectionPanel
             Shadowed(batch, font, TextOf(actions[i]), rect.Location.ToVector2(), 14, rect.Contains(cursor) ? new Color(255, 240, 160) : Color.White);
         }
         Shadowed(batch, font, Lang.T("selection.combatStrength", $"{combatStrength * 100:0}"), new Vector2(content.X + 2, content.Bottom - 20), 14);
+    }
+
+    /// <summary>
+    /// How the kinds fit into the space: three columns at full size if they do, else squeezed – more columns
+    /// or smaller portraits, whichever keeps them larger.
+    /// </summary>
+    private static (int Columns, float Scale) Layout(int kinds, int height, int width)
+    {
+        var best = (Columns: Columns, Scale: 0f);
+        for (int columns = Columns; columns <= 2 * Columns; columns++)
+        {
+            int rows = Math.Max(1, (kinds + columns - 1) / columns);
+            float scale = Math.Min(1, Math.Min(height / (float)(rows * CellHeight), (width / columns - 2) / (float)Portraits.Size.X));
+            if (scale > best.Scale + 0.001f)
+                best = (columns, scale);
+        }
+        return (best.Columns, Math.Max(0.2f, best.Scale));
     }
 
     /// <summary>White text with a dark shadow, readable on the blue panel.</summary>

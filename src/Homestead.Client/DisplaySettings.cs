@@ -8,6 +8,12 @@ namespace Homestead.Client;
 public enum Language { German, English }
 
 /// <summary>
+/// The look of the title and loading screens: <c>Normal</c> the Gold Edition's title and each campaign's loading
+/// screen; the others always gold, the original's orange (<c>Classic</c>) or the Amazons' purple.
+/// </summary>
+public enum Theme { Normal, Gold, Classic, Amazons }
+
+/// <summary>
 /// How the game shows itself: the <c>display</c> section of <c>settings.json</c> (<see cref="SettingsFile"/>), written
 /// by the settings screen, applied at the start and on "Ok". F11 switches full screen for the session only.
 /// </summary>
@@ -24,6 +30,8 @@ public sealed record DisplaySettings
     public Language Language { get; init; } =
         System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de" ? Language.German : Language.English;
 
+    public Theme Theme { get; init; } = Theme.Normal;
+
     /// <summary>Loudness of the background music in percent (0 = off).</summary>
     public int MusicVolume { get; init; } = 75;
 
@@ -32,6 +40,9 @@ public sealed record DisplaySettings
 
     /// <summary>Loudness of the sound effects in percent (0 = off).</summary>
     public int EffectsVolume { get; init; } = 100;
+
+    /// <summary>Saves the running game into the last slot every 15 minutes and on quitting (off by default: it overwrites that slot).</summary>
+    public bool AutoSave { get; init; }
 
     /// <summary>The settings in the file (default: the user's); missing or unreadable values keep their default.</summary>
     public static DisplaySettings Load(string? path = null)
@@ -52,9 +63,14 @@ public sealed record DisplaySettings
             EffectsVolume = Percent("effectsVolume", settings.EffectsVolume),
             HardwareCursor = Flag("hardwareCursor", settings.HardwareCursor),
             FullScreen = Flag("fullScreen", settings.FullScreen),
+            AutoSave = Flag("autoSave", settings.AutoSave),
             Language = display.TryGetProperty("language", out var language) && language.ValueKind == JsonValueKind.String
                 ? language.GetString() == "en" ? Language.English : Language.German
                 : settings.Language,
+            Theme = display.TryGetProperty("theme", out var theme) && theme.ValueKind == JsonValueKind.String
+                    && Enum.TryParse<Theme>(theme.GetString(), ignoreCase: true, out var chosen) && Enum.IsDefined(chosen)
+                ? chosen
+                : settings.Theme,
         };
     }
 
@@ -65,8 +81,10 @@ public sealed record DisplaySettings
             ["hardwareCursor"] = HardwareCursor,
             ["fullScreen"] = FullScreen,
             ["language"] = Language == Language.English ? "en" : "de",
+            ["theme"] = Theme.ToString().ToLowerInvariant(),
             ["musicVolume"] = MusicVolume,
             ["peopleMusic"] = PeopleMusic,
             ["effectsVolume"] = EffectsVolume,
+            ["autoSave"] = AutoSave,
         }, path);
 }

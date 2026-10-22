@@ -14,6 +14,8 @@ namespace Homestead.Client;
 public enum TitleAction
 {
     None,
+    /// <summary>Load the game saved last (<see cref="SaveSlots.Latest"/>).</summary>
+    Continue,
     /// <summary>Open the campaign (<see cref="CampaignScreen"/>).</summary>
     Campaign,
     /// <summary>Open the Mission CD's campaign.</summary>
@@ -32,7 +34,7 @@ public enum TitleAction
 /// <summary>
 /// The title screen: the Gold Edition's main menu picture (<c>titleScreen</c> in <c>data/ui.json</c>, scaled from
 /// 800 × 600 to the window, plain gold beside it) with a column of engraved buttons on its left side as in the
-/// original, "Beenden" set apart at the bottom. On top the campaigns ("Kampagne", "Missions-CD", "Amazonen-Kampagne"), then the
+/// original, "Beenden" set apart at the bottom. On top "Weiterspielen" (the game saved last; dimmed without one), then the campaigns ("Kampagne", "Missions-CD", "Amazonen-Kampagne"), then the
 /// free games; "Spiel laden" opens the list of saved games, "Einstellungen" the settings screen; Esc quits. Set apart below, readme, contribution and licenses open a popup (the
 /// original's message box) offering to show <c>README.md</c>, <c>CONTRIBUTING.md</c> or <c>THIRD_PARTY_NOTICES.md</c> of the
 /// repository in the browser.
@@ -56,6 +58,7 @@ public sealed class TitleScreen : IDisposable
     /// <summary>The buttons (label <c>title.buttons.&lt;key&gt;</c>): what they ask the game to do, or the popup (<c>Link</c>).</summary>
     private static readonly (string Key, TitleAction Action, Link? Link)[] Buttons =
     [
+        ("continue", TitleAction.Continue, null),
         ("campaign", TitleAction.Campaign, null),
         ("missionCd", TitleAction.MissionCd, null),
         ("amazonCampaign", TitleAction.AmazonCampaign, null),
@@ -70,14 +73,18 @@ public sealed class TitleScreen : IDisposable
     /// <summary>Buttons shown dimmed, without effect: what is not there yet.</summary>
     private static readonly HashSet<string> NotYet = [];
 
+    /// <summary>Whether there is a saved game to continue (looked at on opening and on coming back).</summary>
+    private bool _canContinue = SaveSlots.Latest() is not null;
+
+    private bool Dimmed(string key) => NotYet.Contains(key) || key == "continue" && !_canContinue;
+
     private static string Label(string key) => Lang.T("title.buttons." + key);
 
-    // The original's engraved buttons: a fill a little darker than the gold, a dark line around it and a light
-    // one just outside to the lower right.
-    private static readonly Color Fill = new(146, 132, 58);
-    private static readonly Color PressedFill = new(128, 116, 46);
-    private static readonly Color Dark = new(100, 90, 26);
-    private static readonly Color Light = new(186, 170, 108);
+    // The original's engraved buttons: a fill a little darker than the background, a dark line around it and a light
+    // one just outside to the lower right (per theme in ui.json).
+    private readonly Color Fill, PressedFill, Dark, Light, Shadow;
+    /// <summary>Right edge of the version in the 800 × 600 space.</summary>
+    private readonly float _versionRight = 773;
     private static readonly Color Text = new(250, 246, 225);
     private static readonly Color HoverText = new(255, 236, 140);
     private static readonly Color Version = new(240, 222, 70);
@@ -96,10 +103,25 @@ public sealed class TitleScreen : IDisposable
     private KeyboardState _previousKeys = Keyboard.GetState();
     private MouseState _previousMouse = Mouse.GetState();
 
-    public TitleScreen(GraphicsDevice device, GfxDirectory gfx)
+    /// <param name="theme">The look (<see cref="DisplaySettings.Theme"/>); normal is gold.</param>
+    public TitleScreen(GraphicsDevice device, GfxDirectory gfx, Theme theme)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var look = document.RootElement.GetProperty("titleScreen");
+        var screen = document.RootElement.GetProperty("titleScreen");
+        var look = screen.GetProperty("themes").GetProperty(theme switch
+        {
+            Theme.Classic => "classic",
+            Theme.Amazons => "amazons",
+            _ => "gold",
+        });
+        Color Rgb(string name)
+        {
+            var rgb = look.GetProperty(name);
+            return new Color(rgb[0].GetInt32(), rgb[1].GetInt32(), rgb[2].GetInt32());
+        }
+        (Fill, PressedFill, Dark, Light, Shadow) = (Rgb("fill"), Rgb("pressed"), Rgb("dark"), Rgb("light"), Rgb("shadow"));
+        if (look.TryGetProperty("versionRight", out var versionRight))
+            _versionRight = versionRight.GetSingle();
         var file = gfx.Open(look.GetProperty("file").GetInt32());
         Texture2D Image(string name) => Gui(look.GetProperty(name).GetInt32());
         Texture2D Gui(int index)
@@ -112,7 +134,7 @@ public sealed class TitleScreen : IDisposable
         foreach (var language in Enum.GetValues<Language>())
             _backgrounds[language] = Gui(look.GetProperty("background").GetProperty(Lang.Code(language)).GetInt32());
         _plain = Image("plain");
-        var popup = look.GetProperty("popup");
+        var popup = screen.GetProperty("popup");
         var popupBitmap = gfx.Open(popup[0].GetInt32()).ReadGui(popup[1].GetInt32());
         _popupImage = new Texture2D(device, popupBitmap.Width, popupBitmap.Height);
         _popupImage.SetData(popupBitmap.Pixels);
@@ -121,9 +143,9 @@ public sealed class TitleScreen : IDisposable
     }
 
     // Layout in the 800 × 600 space of the picture, measured on the original menu.
-    // The free games (from the first one on) sit a little apart from the campaigns, the links to the repository
-    // (from the first one on) from the game's buttons.
-    private const int FirstGame = 3, FirstLink = 6, GroupGap = 16;
+    // The campaigns sit a little apart from "Weiterspielen", the free games (from the first one on) from the campaigns,
+    // the links to the repository (from the first one on) from the game's buttons.
+    private const int FirstCampaign = 1, FirstGame = 4, FirstLink = 7, GroupGap = 16;
 
     /// <summary>The version of this build (from the git tags, docs/VERSIONING.md), with the commit shortened.</summary>
     private static readonly string GameVersion = "v" + (typeof(TitleScreen).Assembly
@@ -133,7 +155,8 @@ public sealed class TitleScreen : IDisposable
         : "?");
 
     private static Rectangle Button(int index) =>
-        new(74, 19 + index * 40 + (index >= FirstGame ? GroupGap : 0) + (index >= FirstLink ? GroupGap : 0), 175, 31);
+        new(74, 19 + index * 40 + (index >= FirstCampaign ? GroupGap : 0) + (index >= FirstGame ? GroupGap : 0)
+                                + (index >= FirstLink ? GroupGap : 0), 175, 31);
 
     private static readonly Rectangle QuitButton = new(74, 540, 175, 31);
 
@@ -196,7 +219,7 @@ public sealed class TitleScreen : IDisposable
         if (QuitButton.Contains(at))
             return TitleAction.Quit;
         for (int index = 0; index < Buttons.Length; index++)
-            if (Button(index).Contains(at) && !NotYet.Contains(Buttons[index].Key))
+            if (Button(index).Contains(at) && !Dimmed(Buttons[index].Key))
             {
                 var (_, action, link) = Buttons[index];
                 if (link is null)
@@ -212,6 +235,7 @@ public sealed class TitleScreen : IDisposable
     {
         _previousKeys = Keyboard.GetState();
         _previousMouse = Mouse.GetState();
+        _canContinue = SaveSlots.Latest() is not null;
     }
 
     /// <summary>
@@ -260,12 +284,12 @@ public sealed class TitleScreen : IDisposable
 
         for (int index = 0; index < Buttons.Length; index++)
             Engraved(batch, pixel, font, Button(index), Label(Buttons[index].Key), hover, held,
-                _popup is not null && Buttons[index].Link == _popup, NotYet.Contains(Buttons[index].Key));
+                _popup is not null && Buttons[index].Link == _popup, Dimmed(Buttons[index].Key));
         Engraved(batch, pixel, font, QuitButton, Label("quit"), hover, held, false);
 
         Write(batch, font, Lang.T("title.disclaimer"), 27, 577, Version, 10);
         float width = font.Measure(GameVersion, Px(10)).X / _scale;
-        Write(batch, font, GameVersion, 773 - width, 577, Version, 10);
+        Write(batch, font, GameVersion, _versionRight - width, 577, Version, 10);
         if (_popup is not null)
             DrawPopup(batch, pixel, font, _popup);
         if (_failure is not null)
@@ -350,7 +374,7 @@ public sealed class TitleScreen : IDisposable
     {
         var at = _origin + new Vector2(x, y) * _scale;
         at = new Vector2(MathF.Round(at.X), MathF.Round(at.Y));
-        font.Draw(batch, text, at + new Vector2(1, 1), new Color(60, 52, 12) * 0.9f, Px(size));
+        font.Draw(batch, text, at + new Vector2(1, 1), Shadow * 0.9f, Px(size));
         font.Draw(batch, text, at, color, Px(size));
     }
 

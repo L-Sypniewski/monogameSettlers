@@ -13,6 +13,7 @@
   },
   "title": {
     "buttons": {
+      "continue": "Weiterspielen",
       "campaign": "Kampagne",
       "missionCd": "Missions-CD",
       "amazonCampaign": "Amazonen-Kampagne",
@@ -49,7 +50,7 @@
     "saveName": "{0} {1}, Mission {2}",
     "won": "Spiel gewonnen",
     "lost": "Spiel verloren",
-    "wonHint": "Spiel beenden (oder Esc → Statistik) führt zur nächsten Mission.",
+    "wonHint": "Spiel beenden führt zur nächsten Mission.",
     "lostHint": "Esc: Spiel verlassen – die Mission beginnt von vorn.",
     "chooseMission": "Mission wählen",
     "missionDone": "geschafft",
@@ -285,7 +286,11 @@
   "system": {
     "save": "Spiel speichern",
     "quit": "Spiel beenden",
-    "quitQuestion": "Spiel wirklich beenden?"
+    "quitQuestion": "Spiel wirklich beenden?",
+    "paused": "Pause",
+    "pausedHint": "P oder Esc: weiterspielen",
+    "wonHint": "Alle Gegner besiegt – weiterspielen oder Spiel beenden.",
+    "lostHint": "Alle Wachgebäude verloren. Esc: Spiel verlassen."
   },
   "start": {
     "categories": {
@@ -395,12 +400,22 @@
       "fullScreenHint": "Beim Start im Vollbild. F11 wechselt jederzeit, nur bis zum Beenden.",
       "language": "Sprache",
       "languageHint": "Sprache der Texte.",
+      "theme": "Thema",
+      "themeHint": "Titelbild und Ladebildschirm. Normal: Gold Edition, beim Laden die Farbe der Kampagne.",
+      "themes": {
+        "normal": "Normal",
+        "gold": "Gold",
+        "classic": "Classic",
+        "amazons": "Amazonen"
+      },
       "music": "Musik",
       "musicHint": "Lautstärke der Hintergrundmusik – je Volk eigene Stücke.",
       "peopleMusic": "Musik je Volk",
       "peopleMusicHint": "Ja: nur die Stücke des eigenen Volks. Nein: alle Stücke gemischt.",
       "effects": "Effekte",
-      "effectsHint": "Lautstärke der Geräusche, etwa im Kampf."
+      "effectsHint": "Lautstärke der Geräusche, etwa im Kampf.",
+      "autoSave": "Automatisch speichern",
+      "autoSaveHint": "Ja: alle 15 Minuten und beim Beenden in Slot 8 (überschreibt ihn)."
     }
   },
   "install": {
@@ -544,5 +559,12 @@
     "soldiers": "{0}/{1} Soldaten",
     "soldiersOnTheWay": ", {0} unterwegs",
     "door": ", Tür {0} %"
+  },
+  "info": {
+    "defeated": "{0} ist besiegt.",
+    "saved": "Spiel in Slot {0} gespeichert.",
+    "autoSaved": "Automatisch in Slot {0} gespeichert.",
+    "saveFailed": "Speichern in Slot {0} fehlgeschlagen.",
+    "notSaved": "Seit {0} Minuten nicht gespeichert."
   }
 }

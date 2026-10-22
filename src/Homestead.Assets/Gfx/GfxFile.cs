@@ -270,11 +270,20 @@ public sealed class GfxFile
             for (int i = 0; i < settlers; i++)
                 shadow[i] = i is 1 or (>= 8 and <= 13) ? -1 : i == 0 ? 19 : i < 14 ? i + 18 : i - 14;
         }
+        else if (shadows == 26 && settlers == 34)
+        {
+            // Roman (12) and Asian (32) soldiers, laid out like the Egyptian ones: the soldiers from 9 on
+            // (frame counts match shadow for shadow), the sequences 0 and 2–7 at the end. Our own pairing;
+            // JSettlers shifts the soldiers by 8, which gives bowmen the shadows of their neighbors.
+            for (int i = 0; i < settlers; i++)
+                shadow[i] = i is 1 or 8 ? -1 : i == 0 ? 19 : i < 8 ? i + 18 : i - 9;
+        }
         else if (shadows == 26 && settlers == 32)
         {
-            // Amazon soldiers (42; JSettlers' ShadowMapping42).
+            // Amazon soldiers (42): the soldiers from 7 on, the sequences 0–6 at the end. Our own pairing
+            // (frame counts match); JSettlers' ShadowMapping42 shifts the soldiers by 6.
             for (int i = 0; i < settlers; i++)
-                shadow[i] = i <= 6 ? i + 19 : i - 6;
+                shadow[i] = i <= 6 ? i + 19 : i - 7;
         }
 
         for (int i = 0; i < settlers; i++)

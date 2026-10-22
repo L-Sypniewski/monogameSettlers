@@ -46,15 +46,15 @@ public sealed class SettlerSprites
     /// <summary>
     /// Draws shadow, body and player-colored torso with the frame's anchor at <paramref name="anchor"/>.
     /// <paramref name="visibleFromBottom"/> &lt; 1 shows only the lower part (growing construction sites);
-    /// the shadow is left out then. <paramref name="tint"/> multiplies all layers (placement preview).
+    /// the shadow is left out then, as without <paramref name="shadow"/>. <paramref name="tint"/> multiplies all layers (placement preview).
     /// </summary>
     public void Draw(SpriteBatch batch, int frame, Vector2 anchor, float scale, Color playerColor,
-        float visibleFromBottom = 1, Color? tint = null)
+        float visibleFromBottom = 1, Color? tint = null, bool shadow = true)
     {
         if ((uint)frame >= (uint)FrameCount || visibleFromBottom <= 0)
             return;
         var white = tint ?? Color.White;
-        if (visibleFromBottom >= 1)
+        if (visibleFromBottom >= 1 && shadow)
             _shadow[frame]?.Draw(batch, anchor, scale, white, 1);
         _body[frame]?.Draw(batch, anchor, scale, white, visibleFromBottom);
         _torso[frame]?.Draw(batch, anchor, scale, Multiply(playerColor, white), visibleFromBottom);

@@ -1,3 +1,4 @@
+using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Pathfinding;
 
@@ -45,22 +46,36 @@ public sealed partial class Military
     }
 
     /// <summary>
-    /// Whether <paramref name="player"/> sees the point: on the own land, within sight of an own settler outside
-    /// the buildings or of a finished own building with a sight (as the fog of war, <see cref="Vision"/>).
+    /// Whether <paramref name="player"/> sees the point: within sight of an own settler outside the buildings
+    /// or of an own building with a sight (<see cref="SightOfBuilding"/>; as the fog of war, <see cref="Vision"/>).
+    /// The own land itself sees nothing.
     /// </summary>
     public bool Sees(int player, GridPoint p)
     {
-        if (_world.Map!.OwnerAt(p) == player)
-            return true;
         foreach (var settler in _world.Settlers)
             if (settler.Player == player && !settler.IsDead && !settler.IsInside
                 && PathFinder.InCircle(settler.Position, p, SightOf(settler)))
                 return true;
         foreach (var building in _world.Buildings)
-            if (building is { Exists: true, State: Buildings.BuildingState.Finished } && building.Player == player
-                && _config.BuildingSight.TryGetValue(building.Definition.Name, out int sight) && PathFinder.InCircle(building.Position, p, sight))
+            if (building.Player == player && SightOfBuilding(building) is { } sight && PathFinder.InCircle(building.Position, p, sight))
                 return true;
         return false;
+    }
+
+    /// <summary>
+    /// How far a building sees in the fog of war: finished ones with a <see cref="MilitaryConfig.BuildingSight"/>
+    /// (lookout tower) that far, occupied military buildings <see cref="MilitaryConfig.MilitarySightMargin"/> beyond
+    /// their land; null for the others.
+    /// </summary>
+    public int? SightOfBuilding(Building building)
+    {
+        if (building is not { Exists: true, State: Buildings.BuildingState.Finished })
+            return null;
+        if (_config.BuildingSight.TryGetValue(building.Definition.Name, out int sight))
+            return sight;
+        return IsOccupied(building) && TerritoryRadius(building) is var radius and > 0
+            ? (int)Math.Ceiling(radius) + _config.MilitarySightMargin
+            : null;
     }
 
     /// <summary>How far a settler sees (soldiers as far as they notice enemies, scouts further, others <see cref="Vision.SettlerSight"/>).</summary>

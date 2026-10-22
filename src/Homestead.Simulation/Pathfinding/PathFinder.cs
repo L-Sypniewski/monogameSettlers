@@ -6,6 +6,8 @@ namespace Homestead.Simulation.Pathfinding;
 /// A* search on the six-neighbor grid; a step costs by the ground it enters (see <see cref="SetStepCosts"/>:
 /// trails cheaper, mountains dearer, as settlers walk there). Search buffers are allocated once
 /// per map and reused, so a search allocates only its result. Not thread-safe.
+/// Far targets go leg by leg (<see cref="FindRoute"/>): a coarse route over cells of the map, the exact path
+/// only to the next part of it.
 /// </summary>
 public sealed class PathFinder
 {
@@ -24,6 +26,14 @@ public sealed class PathFinder
     /// <summary>Like <see cref="_regions"/>, but neighbours only join when they have the same owner.</summary>
     private readonly Regions _landRegions;
 
+    private readonly Clusters _clusters;
+
+    /// <summary>Targets up to this many steps away are searched exactly at once (<see cref="FindRoute"/>).</summary>
+    public const int ExactDistance = 96;
+
+    /// <summary>Cells of the coarse route one leg goes ahead.</summary>
+    private const int LegNodes = 4;
+
     public PathFinder(GameMap map)
     {
         _map = map;
@@ -34,6 +44,7 @@ public sealed class PathFinder
         _closedStamp = new int[map.PointCount];
         _regions = new Regions(map, sameOwner: false);
         _landRegions = new Regions(map, sameOwner: true);
+        _clusters = new Clusters(map);
     }
 
     /// <summary>What a step onto plain ground, a trail and a mountain costs (proportional to the time it takes).</summary>
@@ -96,16 +107,71 @@ public sealed class PathFinder
     public IReadOnlyList<Direction>? FindPath(GridPoint start, GridPoint target, IReadOnlySet<int>? avoid = null, int? ownLandOf = null)
     {
         LastExpandedNodes = 0;
-        if (!_map.Contains(start) || !_map.IsWalkable(target) || avoid?.Contains(_map.Index(target)) == true)
-            return null;
-        byte landOf = ownLandOf is { } player ? (byte)player : GameMap.NoOwner;
-        if (ownLandOf is not null && !AreConnected(start, target, ownLandOf))
-            return null; // fail fast instead of searching the whole land
-        if (start == target)
-            return [];
-        if (!MayBeConnected(start, target))
-            return null;
+        if (!Searchable(start, target, avoid, ownLandOf, out var trivial))
+            return trivial;
+        return Search(start, target, goalNode: -1, avoid, ownLandOf);
+    }
 
+    /// <summary>
+    /// Like <see cref="FindPath"/>, but a target further than <see cref="ExactDistance"/> (off the own land) is
+    /// reached leg by leg: a coarse route over the map's cells, the exact path only a few cells ahead along it
+    /// (<paramref name="partial"/>; the walker plans the next leg at its end). Near the target the path is exact.
+    /// </summary>
+    public IReadOnlyList<Direction>? FindRoute(GridPoint start, GridPoint target, out bool partial,
+        IReadOnlySet<int>? avoid = null, int? ownLandOf = null)
+    {
+        partial = false;
+        LastExpandedNodes = 0;
+        if (!Searchable(start, target, avoid, ownLandOf, out var trivial))
+            return trivial;
+        if (ownLandOf is not null || Distance(start, target) <= ExactDistance)
+            return Search(start, target, goalNode: -1, avoid, ownLandOf);
+        // A start that is not walkable itself (a doorway): the route from a walkable neighbour.
+        int startIndex = _map.Index(start);
+        if (!_map.IsWalkable(startIndex))
+        {
+            for (int d = 0; d < DirectionExtensions.Count && !_map.IsWalkable(startIndex); d++)
+                if (_map.IsWalkable(start.Neighbor((Direction)d)))
+                    startIndex = _map.Index(start.Neighbor((Direction)d));
+            if (!_map.IsWalkable(startIndex))
+                return Search(start, target, goalNode: -1, avoid, ownLandOf);
+        }
+        _clusters.Update();
+        if (_clusters.Route(startIndex, _map.Index(target), _minCost) is not { } route || route.Count <= LegNodes + 1)
+            return Search(start, target, goalNode: -1, avoid, ownLandOf);
+        var leg = Search(start, target, route[LegNodes], avoid, ownLandOf);
+        // The leg's part may be cut off by what is to be avoided: then the whole way.
+        if (leg is null)
+            return Search(start, target, goalNode: -1, avoid, ownLandOf);
+        partial = true;
+        return leg;
+    }
+
+    /// <summary>Checks before a search; false with the answer when none is needed (null: unreachable, empty: there).</summary>
+    private bool Searchable(GridPoint start, GridPoint target, IReadOnlySet<int>? avoid, int? ownLandOf, out IReadOnlyList<Direction>? answer)
+    {
+        answer = null;
+        if (!_map.Contains(start) || !_map.IsWalkable(target) || avoid?.Contains(_map.Index(target)) == true)
+            return false;
+        if (ownLandOf is not null && !AreConnected(start, target, ownLandOf))
+            return false; // fail fast instead of searching the whole land
+        if (start == target)
+        {
+            answer = [];
+            return false;
+        }
+        return MayBeConnected(start, target);
+    }
+
+    /// <summary>
+    /// A* to the target, or with <paramref name="goalNode"/> to the first point of that coarse node
+    /// (<see cref="Clusters"/>), heading for its middle.
+    /// </summary>
+    private Direction[]? Search(GridPoint start, GridPoint target, int goalNode, IReadOnlySet<int>? avoid, int? ownLandOf)
+    {
+        byte landOf = ownLandOf is { } player ? (byte)player : GameMap.NoOwner;
+        if (goalNode >= 0)
+            target = _map.Point(_clusters.CenterOf(goalNode));
         if (++_stamp == int.MaxValue)
         {
             Array.Clear(_seenStamp);
@@ -129,8 +195,8 @@ public sealed class PathFinder
             _closedStamp[current] = _stamp;
             LastExpandedNodes++;
 
-            if (current == targetIndex)
-                return BuildPath(startIndex, targetIndex);
+            if (current == targetIndex || goalNode >= 0 && _clusters.NodeOf(current) == goalNode)
+                return BuildPath(startIndex, current);
 
             int x = current % size, y = current / size;
             for (int d = 0; d < DirectionExtensions.Count; d++)

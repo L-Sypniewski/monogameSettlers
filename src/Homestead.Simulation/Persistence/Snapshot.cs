@@ -603,6 +603,12 @@ public static partial class Snapshot
                 .Where(f => f.FieldType is { IsClass: true, IsAbstract: false } && f.FieldType != typeof(string)
                             && f.FieldType.GetConstructor(Type.EmptyTypes) is not null)
                 .ToArray();
+            // A newer reference that can be neither made empty nor null (e.g. built from the map in a constructor):
+            // the game would break later, so the save does not load at all.
+            var nullability = new NullabilityInfoContext();
+            if (current.Values.FirstOrDefault(f => !savedNames.Contains(NameOf(f)) && !f.FieldType.IsValueType && !added.Contains(f)
+                                                   && nullability.Create(f).WriteState == NullabilityState.NotNull) is { } lacking)
+                throw new SaveIncompatibleException($"The saved game lacks {type.Name}.{lacking.Name}.");
             map = (saved.Select(f => Resolve(f.TypeId)).ToArray(), saved.Select(f => current.GetValueOrDefault(f.Name)).ToArray(), added);
             _fieldMaps[type] = map;
             return map;

@@ -111,9 +111,10 @@ public sealed class SidePanel : IDisposable
     /// <summary>
     /// Draws the frame with the minimap (<paramref name="minimap"/>: one texel per grid point of a map of
     /// <paramref name="mapSize"/>), the part of the world on screen (<paramref name="view"/>) as a frame on it,
-    /// and the empty panel.
+    /// units and military buildings as dots (<paramref name="dots"/>) and the empty panel.
     /// </summary>
-    public void Draw(SpriteBatch batch, Texture2D pixel, Texture2D? minimap, int mapSize, RectangleF view)
+    public void Draw(SpriteBatch batch, Texture2D pixel, Texture2D? minimap, int mapSize, RectangleF view,
+        IReadOnlyList<MinimapDot>? dots = null)
     {
         var viewport = _device.Viewport;
         float scale = Scale(viewport.Height);
@@ -122,12 +123,38 @@ public sealed class SidePanel : IDisposable
         batch.Begin(samplerState: SamplerState.LinearClamp, transformMatrix: Matrix.CreateScale(scale));
         // Before the frame: where the view reaches beyond the map, the frame covers it.
         if (minimap is not null)
+        {
+            if (dots is not null)
+                DrawDots(batch, pixel, mapSize, dots);
             DrawViewFrame(batch, pixel, mapSize, view);
+        }
         batch.Draw(_frame, Vector2.Zero, Color.White);
         batch.Draw(_frameRight, new Vector2(Width, 0), Color.White);
         batch.Draw(_panel, new Vector2(0, Top), Color.White);
         batch.Draw(_panelRight, new Vector2(Width, Top), Color.White);
         batch.End();
+    }
+
+    /// <summary>Unscaled size of a unit's dot on the minimap; a building's is a bigger black square (an occupied military building's with its color inside).</summary>
+    private const float DotSize = 2, BuildingDotSize = 4;
+
+    private static void DrawDots(SpriteBatch batch, Texture2D pixel, int mapSize, IReadOnlyList<MinimapDot> dots)
+    {
+        foreach (var dot in dots)
+        {
+            var at = OnMinimap(ScreenProjection.ToWorld(dot.At), mapSize);
+            if (dot.Building)
+            {
+                Square(at, BuildingDotSize + 1, Color.Black);
+                if (dot.Color != Color.Black)
+                    Square(at, BuildingDotSize - 1, dot.Color);
+            }
+            else
+                Square(at, DotSize, dot.Color);
+        }
+
+        void Square(Vector2 center, float size, Color color) =>
+            batch.Draw(pixel, center - new Vector2(size / 2), null, color, 0, Vector2.Zero, new Vector2(size), SpriteEffects.None, 0);
     }
 
     private static void DrawViewFrame(SpriteBatch batch, Texture2D pixel, int mapSize, RectangleF view)
@@ -193,3 +220,6 @@ public sealed class SidePanel : IDisposable
         _black.Dispose();
     }
 }
+
+/// <summary>A dot on the minimap: a unit or (<paramref name="Building"/>) a building, black unless an occupied military building.</summary>
+public readonly record struct MinimapDot(GridPoint At, Color Color, bool Building = false);
