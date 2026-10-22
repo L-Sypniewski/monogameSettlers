@@ -32,9 +32,11 @@ public sealed class SettingsScreen : IDisposable
 
     /// <summary>
     /// One setting: its text key (label <c>settings.&lt;tab&gt;.&lt;key&gt;</c>, hint with <c>Hint</c> appended), a row of
-    /// values to choose from – each with its label (a text key if it has a dot, otherwise shown as it is).
+    /// values to choose from – each with its label (a text key if it has a dot, otherwise shown as it is) or, with
+    /// <paramref name="Swatches"/>, a color patch per value instead.
     /// </summary>
-    private sealed record Choice(string Key, (string Label, int Value)[] Values, Func<State, int> Get, Func<State, int, State> Set)
+    private sealed record Choice(string Key, (string Label, int Value)[] Values, Func<State, int> Get, Func<State, int, State> Set,
+        Color[]? Swatches = null)
     {
         public string Label => Lang.T(Key);
         public string Hint => Lang.T(Key + "Hint");
@@ -64,8 +66,9 @@ public sealed class SettingsScreen : IDisposable
         new("settings.resources." + key, DepletionValues, s => get(s.Game.Depletion),
             (s, v) => s with { Game = s.Game with { Depletion = set(s.Game.Depletion, v) } });
 
-    private static Choice Display(string key, (string, int)[] values, Func<DisplaySettings, int> get, Func<DisplaySettings, int, DisplaySettings> set) =>
-        new("settings.display." + key, values, s => get(s.Display), (s, v) => s with { Display = set(s.Display, v) });
+    private static Choice Display(string key, (string, int)[] values, Func<DisplaySettings, int> get, Func<DisplaySettings, int, DisplaySettings> set,
+        Color[]? swatches = null) =>
+        new("settings.display." + key, values, s => get(s.Display), (s, v) => s with { Display = set(s.Display, v) }, swatches);
 
     private static readonly Tab[] Tabs =
     [
@@ -90,6 +93,8 @@ public sealed class SettingsScreen : IDisposable
             Display("peopleMusic", YesNo, d => d.PeopleMusic ? 1 : 0, (d, v) => d with { PeopleMusic = v == 1 }),
             Display("effects", VolumeValues, d => d.EffectsVolume, (d, v) => d with { EffectsVolume = v }),
             Display("autoSave", YesNo, d => d.AutoSave ? 1 : 0, (d, v) => d with { AutoSave = v == 1 }),
+            Display("preferredColor", PlayerColors.Palette.Select((_, i) => ("", i)).ToArray(), d => d.PreferredColor,
+                (d, v) => d with { PreferredColor = v }, PlayerColors.Palette),
         ], "settings.notes.immediately"),
     ];
 
@@ -102,7 +107,7 @@ public sealed class SettingsScreen : IDisposable
     private static readonly Rectangle OkButton = new(528, 555, 116, 30);
     private static readonly Rectangle CancelButton = new(656, 555, 116, 30);
 
-    private const int RowTop = 150, RowHeight = 40;
+    private const int RowTop = 150, RowHeight = 36;
 
     private static Rectangle Row(int row) => new(Content.X + 16, RowTop + row * RowHeight, Content.Width - 32, RowHeight - 6);
 
@@ -268,8 +273,17 @@ public sealed class SettingsScreen : IDisposable
             for (int value = 0; value < choice.Values.Length; value++)
             {
                 var (label, number) = choice.Values[value];
-                TextButton.Draw(batch, pixel, font, ToScreen(ValueBox(choice, row, value)), ValueLabel(label),
+                var box = ValueBox(choice, row, value);
+                TextButton.Draw(batch, pixel, font, ToScreen(box), ValueLabel(label),
                     mouse.ToVector2(), size: Px(label == "∞" ? 18 : 12), selected: number == chosen);
+                if (choice.Swatches is { } swatches)
+                {
+                    // The chosen color with a gold edge.
+                    int inset = number == chosen ? 4 : 6;
+                    if (number == chosen)
+                        batch.Draw(pixel, ToScreen(new Rectangle(box.X + inset - 2, box.Y + inset - 2, box.Width - 2 * inset + 4, box.Height - 2 * inset + 4)), Gold);
+                    batch.Draw(pixel, ToScreen(new Rectangle(box.X + inset, box.Y + inset, box.Width - 2 * inset, box.Height - 2 * inset)), swatches[value]);
+                }
             }
         }
         if (hint is not null)
