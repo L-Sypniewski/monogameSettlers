@@ -47,28 +47,23 @@ public sealed class SettlerSprites
     /// Draws shadow, body and player-colored torso with the frame's anchor at <paramref name="anchor"/>.
     /// <paramref name="visibleFromBottom"/> &lt; 1 shows only the lower part (growing construction sites);
     /// the shadow is left out then, as without <paramref name="shadow"/>. <paramref name="tint"/> multiplies all layers (placement preview).
+    /// With <paramref name="clip"/> (unscaled only) just what lies within it.
     /// </summary>
     public void Draw(SpriteBatch batch, int frame, Vector2 anchor, float scale, Color playerColor,
-        float visibleFromBottom = 1, Color? tint = null, bool shadow = true)
+        float visibleFromBottom = 1, Color? tint = null, bool shadow = true, Rectangle? clip = null)
     {
         if ((uint)frame >= (uint)FrameCount || visibleFromBottom <= 0)
             return;
         var white = tint ?? Color.White;
         if (visibleFromBottom >= 1 && shadow)
-            _shadow[frame]?.Draw(batch, anchor, scale, white, 1);
-        _body[frame]?.Draw(batch, anchor, scale, white, visibleFromBottom);
-        _torso[frame]?.Draw(batch, anchor, scale, Multiply(playerColor, white), visibleFromBottom);
+            _shadow[frame]?.Draw(batch, anchor, scale, white, 1, clip);
+        _body[frame]?.Draw(batch, anchor, scale, white, visibleFromBottom, clip);
+        _torso[frame]?.Draw(batch, anchor, scale, Multiply(playerColor, white), visibleFromBottom, clip);
     }
 
     /// <summary>Draws the frame unscaled like <see cref="Draw"/>, but only what lies within <paramref name="clip"/>.</summary>
-    public void DrawClipped(SpriteBatch batch, int frame, Vector2 anchor, Rectangle clip, Color playerColor)
-    {
-        if ((uint)frame >= (uint)FrameCount)
-            return;
-        _shadow[frame]?.DrawClipped(batch, anchor, clip, Color.White);
-        _body[frame]?.DrawClipped(batch, anchor, clip, Color.White);
-        _torso[frame]?.DrawClipped(batch, anchor, clip, playerColor);
-    }
+    public void DrawClipped(SpriteBatch batch, int frame, Vector2 anchor, Rectangle clip, Color playerColor) =>
+        Draw(batch, frame, anchor, 1, playerColor, clip: clip);
 
     /// <summary>The body of a frame relative to its anchor (unscaled); null if the frame is empty.</summary>
     public Rectangle? Bounds(int frame) =>
@@ -111,20 +106,27 @@ public sealed class SettlerSprites
             return new Layer(atlas.Add(bitmap), new Vector2(bitmap.OffsetX, bitmap.OffsetY));
         }
 
-        public void DrawClipped(SpriteBatch batch, Vector2 anchor, Rectangle clip, Color tint)
+        /// <summary>Unscaled, only the lower <paramref name="visibleFromBottom"/> part within <paramref name="clip"/>.</summary>
+        private void DrawClipped(SpriteBatch batch, Vector2 anchor, Rectangle clip, Color tint, float visibleFromBottom)
         {
             var source = Image.Source;
             var at = anchor + Offset;
             var rect = new Rectangle((int)Math.Round(at.X), (int)Math.Round(at.Y), source.Width, source.Height);
-            var visible = Rectangle.Intersect(rect, clip);
+            int hidden = source.Height - (int)(source.Height * Math.Min(1, visibleFromBottom));
+            var visible = Rectangle.Intersect(new Rectangle(rect.X, rect.Y + hidden, rect.Width, rect.Height - hidden), clip);
             if (visible.Width <= 0 || visible.Height <= 0)
                 return;
             batch.Draw(Image.Texture, new Vector2(visible.X, visible.Y),
                 new Rectangle(source.X + visible.X - rect.X, source.Y + visible.Y - rect.Y, visible.Width, visible.Height), tint);
         }
 
-        public void Draw(SpriteBatch batch, Vector2 anchor, float scale, Color tint, float visibleFromBottom)
+        public void Draw(SpriteBatch batch, Vector2 anchor, float scale, Color tint, float visibleFromBottom, Rectangle? clip)
         {
+            if (clip is { } box)
+            {
+                DrawClipped(batch, anchor, box, tint, visibleFromBottom);
+                return;
+            }
             var source = Image.Source;
             if (visibleFromBottom >= 1)
             {

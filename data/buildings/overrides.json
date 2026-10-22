@@ -12,7 +12,7 @@
     "castle": {
       "_occupiersComment": "Six infantry as in the original: the first above the gate, the others in the five windows; only four bowmen on the roofs: one on each front tower (in its middle), two on the rear tower.",
       "occupiers": [
-        { "type": "INFANTRY", "soldier": [-2, 2], "pixel": [-55, 30], "looksRight": false },
+        { "type": "INFANTRY", "soldier": [-2, 2], "pixel": [-55, 41], "looksRight": false },
         { "type": "INFANTRY", "soldier": [-6, -3], "pixel": [-85, 41], "looksRight": false },
         { "type": "INFANTRY", "soldier": [0, 2], "pixel": [-25, -1], "looksRight": false },
         { "type": "INFANTRY", "soldier": [2, 3], "pixel": [-5, -2], "looksRight": true },

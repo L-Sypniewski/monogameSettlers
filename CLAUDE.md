@@ -350,14 +350,14 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   neue Liste beginnt mit ihrem ersten Stück, dann gemischt, Pause dazwischen, neue Liste ohne das laufende Stück blendet aus; in Menüs vor dem Spiel still. Musik/Musik je Volk/Effekte in den Einstellungen
   (Darstellung, `DisplaySettings`).
 - **Darstellung**: Figuren nach Volk; Tote: Geist in Spielerfarbe (Datei 12 Seq. 27, `World.Ghosts`); Stehende ohne Aufgabe wechseln alle 2–30 s
-  die Blickrichtung (nur Darstellung); Turm-Bogenschützen mit Schussanimation im Takt, ohne Schatten (wie im Original), Infanterie im Turm als Fensterbild; Pfeile im flachen Bogen
+  die Blickrichtung (nur Darstellung); Turm-Bogenschützen mit Schussanimation im Takt, ohne Schatten (wie im Original), Infanterie im Turm als Fensterbild; Gebäude: Ebene 0, Besatzung, dann weitere Ebenen (Fensterrahmen/Brüstungen davor); in 8-px-Streifen gezeichnet, jeder in der vordersten Sperrfeld-Reihe seiner Spalte (`EconomyRenderer.Strip`, sonst verdeckt ein hohes Gebäude, was seitlich davor steht); Pfeile im flachen Bogen
   (`docs/formate/gfx.md`). `SettlerAnimations` löst Typ/Aktion/Ware/Richtung über `data/settlers.json` (generiert mit
   `tools/data-import/convert_jsettlers_movables.py`, nicht von Hand ändern). Baustellen zeigen Schild und Pfosten.
 - **Capture** (`--capture <dir>`, offscreen PNGs, nur temporäre Verzeichnisse): ignoriert Eingaben, ohne VSync, 4× Tempo; gibt am Ende Zähler und
   Gebäudezustände aus. Umgebungsvariablen `HOMESTEAD_CAPTURE_…`:
   `ZOOM=4`; `EVERY=<n>` (PNG alle n Frames, sonst 120); `SIZE=1920x1080` (sonst 960×600); `SCALING=<Sharp|Linear|CatmullRom|Lanczos2>`;
   `FOCUS=<gebäude>` (`site`: frische Baustelle; `temple`: kleiner Tempel mit Mana; Militärgebäude wie `castle`: voll besetzt); `FOG=1`;
-  `EVENT=1` (springt zu Events); `BATTLE=1` (Stufe-3-Feinde greifen den Startturm an; `=big`: zwei Armeen à 30 treffen sich südlich des Starts; `=open`: 40 gegen 40 auf freiem Feld; `=town[:n]`: n (90) gegen n mitten im Dorf; mit `ZOOM` Kamera darauf); `COLORS=2,4` (Palettenfarben je Spieler); `STRIKE=1` (Abriss des fokussierten Gebäudes + 10 Träger ohne Wohnraum);
+  `EVENT=1` (springt zu Events); `BATTLE=1` (Stufe-3-Feinde greifen das fokussierte Militärgebäude an, sonst den Startturm; `=big`: zwei Armeen à 30 treffen sich südlich des Starts; `=open`: 40 gegen 40 auf freiem Feld; `=town[:n]`: n (90) gegen n mitten im Dorf; mit `ZOOM` Kamera darauf); `COLORS=2,4` (Palettenfarben je Spieler); `STRIKE=1` (Abriss des fokussierten Gebäudes + 10 Träger ohne Wohnraum);
   `GEOLOGISTS=1`; `PIONEERS=1`; `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
   `TAB=system[:save|quit]` bzw. `goods|settlers[:<untermenü>[:manual|<ware>]]` (z. B. `settlers:soldiers:manual`, `goods:distribution:bread`);
   `STORE=<ware>` (mit `FOCUS=stock`); `PLACE=<gebäude>`; `START=<tab>[:color]` (nur `start.png` des Startscreens, 3: Zufallsgenerator; `:color` mit offener Farbauswahl von Spieler 1);

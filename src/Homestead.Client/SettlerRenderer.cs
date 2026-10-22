@@ -72,20 +72,21 @@ public sealed class SettlerRenderer
     /// (shooting towards their target, else looking to <paramref name="facing"/>; without a shadow, as in the
     /// original), infantry look out of a window.
     /// </summary>
-    public void DrawOccupant(SpriteBatch batch, Settler settler, Vector2 anchor, Direction facing, Color playerColor, long tick, float tickAlpha)
+    public void DrawOccupant(SpriteBatch batch, Settler settler, Vector2 anchor, Direction facing, Color playerColor, long tick, float tickAlpha,
+        Rectangle? clip = null)
     {
         if (settler.SoldierType != SoldierType.Bowman && WindowSequence(settler) is { } window)
         {
-            Sprites(PeopleFile(PeopleOf(settler)), window).Draw(batch, facing == Direction.SouthEast ? 1 : 0, anchor, 1, playerColor);
+            Sprites(PeopleFile(PeopleOf(settler)), window).Draw(batch, facing == Direction.SouthEast ? 1 : 0, anchor, 1, playerColor, clip: clip);
             return;
         }
         if (settler.Activity == Activity.Shooting && Find(settler, "ACTION1", settler.Facing) is { } shooting)
         {
-            Sprites(shooting).Draw(batch, ShotFrame(settler, shooting, tick, tickAlpha), anchor, 1, playerColor, shadow: false);
+            Sprites(shooting).Draw(batch, ShotFrame(settler, shooting, tick, tickAlpha), anchor, 1, playerColor, shadow: false, clip: clip);
             return;
         }
         var (sprites, frame) = Look(settler, "NO_ACTION", facing, a => a.Start, 0);
-        sprites.Draw(batch, frame, anchor, 1, playerColor, shadow: false);
+        sprites.Draw(batch, frame, anchor, 1, playerColor, shadow: false, clip: clip);
     }
 
     /// <summary>

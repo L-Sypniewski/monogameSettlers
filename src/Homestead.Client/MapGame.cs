@@ -2725,6 +2725,10 @@ public sealed class MapGame : Game
         float alpha = TickAlpha;
         var settlersByRow = _world.Settlers.Where(s => !s.IsInside).ToLookup(SettlerRenderer.DepthRow);
         var buildingsByRow = _world.Buildings.Where(b => b.Exists).ToLookup(EconomyRenderer.DepthRow);
+        // Buildings in slices, each in the front row of the footprint below it (see EconomyRenderer.Strip).
+        var stripsByRow = _world.Buildings.Where(b => b.Exists)
+            .SelectMany(b => _economyRenderer.StripsOf(b.Definition).Select(strip => (Building: b, Strip: strip)))
+            .ToLookup(s => s.Building.Position.Y + s.Strip.Row);
         var pilesByRow = _world.Piles.ToLookup(p => p.Position.Y);
         var signsByRow = _world.Geology.Signs.ToLookup(s => s.Key.Y);
         var ghostsByRow = _world.Ghosts.ToLookup(g => g.Position.Y);
@@ -2746,12 +2750,13 @@ public sealed class MapGame : Game
                 _economyRenderer.DrawResourceSign(_spriteBatch, point, sign, _terrain);
             if (_showObjects)
                 _objects.DrawRow(_spriteBatch, y, visible, _time);
+            foreach (var (building, strip) in stripsByRow[y])
+                _economyRenderer.DrawStrip(_spriteBatch, building, strip, _world.Military.Occupants(building), _settlerRenderer, _terrain,
+                    PlayerColors.Of(building.Player), _world.Tick, alpha);
             foreach (var building in buildingsByRow[y])
             {
                 var color = PlayerColors.Of(building.Player);
-                _economyRenderer.DrawBuilding(_spriteBatch, building, _terrain, color);
-                _economyRenderer.DrawOccupants(_spriteBatch, building, _world.Military.Occupants(building), _settlerRenderer, _terrain,
-                    _world.Tick, alpha);
+                _economyRenderer.DrawSiteMarks(_spriteBatch, building, _terrain, color);
                 _economyRenderer.DrawFlag(_spriteBatch, building, _world.Production.HasWorker(building) || _world.Military.IsOccupied(building),
                     _terrain, color, _time);
             }
@@ -3539,13 +3544,14 @@ public sealed class MapGame : Game
                     _world.Military.SetManualRecruitment(0, true);
                     _world.Military.ChangePlanned(0, SoldierType.Bowman, 3);
                 }
-                // HOMESTEAD_CAPTURE_BATTLE=1: enemy soldiers attack the start tower.
+                // HOMESTEAD_CAPTURE_BATTLE=1: enemy soldiers attack the focused military building, else the start tower.
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_BATTLE") == "1"
-                    && _world.Buildings.FirstOrDefault(b => b.Player == 0 && b.Definition.Occupiers.Count > 0) is { } tower)
+                    && (_selectedBuilding is { Player: 0, Definition.Occupiers.Count: > 0 } focused ? focused
+                        : _world.Buildings.FirstOrDefault(b => b.Player == 0 && b.Definition.Occupiers.Count > 0)) is { } tower)
                 {
                     foreach (var type in Enum.GetValues<SoldierType>())
                         for (int i = 0; i < 3; i++)
-                            _world.SpawnSoldier(new GridPoint(start.X + 12 + i, start.Y + 6), type, level: 3, player: 1);
+                            _world.SpawnSoldier(new GridPoint(tower.Door.X + 6 + i, tower.Door.Y + 6), type, level: 3, player: 1);
                     _world.Military.Attack(1, tower);
                 }
                 // HOMESTEAD_CAPTURE_BATTLE=big: two armies of 30 meet south of the start (zoomed in: the camera on them).

@@ -45,29 +45,80 @@ public sealed class EconomyRenderer
     public static int DepthRow(Building building) => building.Position.Y + building.Definition.BottomRow;
 
     /// <summary>
-    /// Finished buildings show their final layers. Construction sites show the construction image,
-    /// growing from the bottom with progress; while levelling there is nothing to see yet.
+    /// A vertical slice of a building's picture, <see cref="Left"/> to <see cref="Right"/> pixels from its anchor,
+    /// drawn in grid row <see cref="Row"/> (offset from the building's): the front row of the footprint below it.
+    /// What stands beside a tall building, in front of its side but behind its front row, would be painted over
+    /// if the whole picture were drawn in the front row.
     /// </summary>
-    public void DrawBuilding(SpriteBatch batch, Building building, TerrainMesh terrain, Color playerColor)
+    public readonly record struct Strip(int Row, int Left, int Right);
+
+    private const int StripWidth = 8;   // half a field: the footprint's fields lie on columns 8 px apart
+    private const int Unbounded = 1 << 20;
+
+    private readonly Dictionary<BuildingDefinition, Strip[]> _strips = new();
+
+    /// <summary>The slices of a building, left to right; the outermost reach to either side without end.</summary>
+    public IReadOnlyList<Strip> StripsOf(BuildingDefinition definition)
+    {
+        if (_strips.TryGetValue(definition, out var strips))
+            return strips;
+        var fields = definition.Blocked.Select(o => (X: o.X * 16 - o.Y * 8, Row: o.Y)).ToList();
+        if (fields.Count == 0)
+            return _strips[definition] = [new Strip(0, -Unbounded, Unbounded)];
+        int first = fields.Min(f => f.X), last = fields.Max(f => f.X);
+        var list = new List<Strip>();
+        for (int x = first; x <= last; x += StripWidth)
+        {
+            // The front-most field reaching over this column (a field is 16 px wide).
+            int row = fields.Where(f => Math.Abs(f.X - x) <= StripWidth).Select(f => f.Row).DefaultIfEmpty(int.MinValue).Max();
+            if (row == int.MinValue)
+                row = fields.MinBy(f => Math.Abs(f.X - x)).Row;
+            int left = x == first ? -Unbounded : x - StripWidth / 2;
+            if (list.Count > 0 && list[^1].Row == row)
+                list[^1] = list[^1] with { Right = x + StripWidth / 2 };
+            else
+                list.Add(new Strip(row, left, x + StripWidth / 2));
+        }
+        list[^1] = list[^1] with { Right = Unbounded };
+        return _strips[definition] = list.ToArray();
+    }
+
+    /// <summary>A construction site's sign and the posts around it, from the start of the site.</summary>
+    public void DrawSiteMarks(SpriteBatch batch, Building building, TerrainMesh terrain, Color playerColor)
+    {
+        if (building.State == BuildingState.Finished)
+            return;
+        Sprites(SignFile, SiteSignSequence).Draw(batch, 0, Anchor(building.Position, terrain), 1, playerColor);
+        foreach (var mark in building.Definition.BuildMarks)
+            Sprites(SignFile, SitePostSequence).Draw(batch, 0, Anchor(building.Position + mark, terrain), 1, playerColor);
+    }
+
+    /// <summary>
+    /// One slice of a building. Finished buildings show their first final layer, the soldiers in its places and
+    /// its further layers (window frames and parapets in front of the soldiers, so that only their heads and
+    /// shoulders show as in the original). Construction sites show the construction image, growing from the
+    /// bottom with progress; while levelling there is nothing to see yet.
+    /// </summary>
+    public void DrawStrip(SpriteBatch batch, Building building, Strip strip, IReadOnlyList<Settler?> occupants, SettlerRenderer settlers,
+        TerrainMesh terrain, Color playerColor, long tick, float tickAlpha)
     {
         var anchor = Anchor(building.Position, terrain);
-        // A construction site is marked from the start: a sign on it and posts around it.
-        if (building.State != BuildingState.Finished)
-        {
-            Sprites(SignFile, SiteSignSequence).Draw(batch, 0, anchor, 1, playerColor);
-            foreach (var mark in building.Definition.BuildMarks)
-                Sprites(SignFile, SitePostSequence).Draw(batch, 0, Anchor(building.Position + mark, terrain), 1, playerColor);
-        }
+        var clip = new Rectangle((int)Math.Round(anchor.X) + strip.Left, -Unbounded,
+            Math.Min(strip.Right - strip.Left, 2 * Unbounded), 2 * Unbounded);
         switch (building.State)
         {
             case BuildingState.Finished:
-                foreach (var image in building.Definition.FinalImages)
-                    Sprites(image.File, image.Sequence).Draw(batch, image.Image, anchor, 1, playerColor);
+                var layers = building.Definition.FinalImages;
+                if (layers.Count > 0)
+                    Sprites(layers[0].File, layers[0].Sequence).Draw(batch, layers[0].Image, anchor, 1, playerColor, clip: clip);
+                DrawOccupants(batch, building, occupants, settlers, terrain, tick, tickAlpha, clip);
+                foreach (var image in layers.Skip(1))
+                    Sprites(image.File, image.Sequence).Draw(batch, image.Image, anchor, 1, playerColor, clip: clip);
                 break;
             case BuildingState.Constructing when building.Definition.ConstructionImage is { } image:
                 // A sliver at the start, so a fresh site is visible at all.
                 float visible = 0.05f + 0.95f * building.ConstructionProgress;
-                Sprites(image.File, image.Sequence).Draw(batch, image.Image, anchor, 1, playerColor, visible);
+                Sprites(image.File, image.Sequence).Draw(batch, image.Image, anchor, 1, playerColor, visible, clip: clip);
                 break;
         }
     }
@@ -122,8 +173,8 @@ public sealed class EconomyRenderer
     /// Soldiers in the places of a military building, standing on it at the places' pixel offsets
     /// (y up, from the building anchor), facing south-east or south-west.
     /// </summary>
-    public void DrawOccupants(SpriteBatch batch, Building building, IReadOnlyList<Settler?> occupants, SettlerRenderer settlers,
-        TerrainMesh terrain, long tick, float tickAlpha)
+    private static void DrawOccupants(SpriteBatch batch, Building building, IReadOnlyList<Settler?> occupants, SettlerRenderer settlers,
+        TerrainMesh terrain, long tick, float tickAlpha, Rectangle clip)
     {
         for (int i = 0; i < occupants.Count; i++)
         {
@@ -131,7 +182,7 @@ public sealed class EconomyRenderer
                 continue;
             var place = building.Definition.Occupiers[i];
             settlers.DrawOccupant(batch, soldier, OccupantAnchor(building, i, terrain),
-                place.LooksRight ? Direction.SouthEast : Direction.SouthWest, PlayerColors.Of(soldier.Player), tick, tickAlpha);
+                place.LooksRight ? Direction.SouthEast : Direction.SouthWest, PlayerColors.Of(soldier.Player), tick, tickAlpha, clip);
         }
     }
 
