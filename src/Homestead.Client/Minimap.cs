@@ -25,14 +25,15 @@ public sealed class Minimap : IDisposable
     public Texture2D Texture { get; }
 
     /// <summary>
-    /// Shows what <paramref name="vision"/> has explored (everything with <paramref name="all"/>), with the borders
-    /// of <paramref name="map"/>'s territories: both fields of every neighbor pair with different owners (two
-    /// texels, one is lost when the map is scaled down), in the color of the owned one: white for player 1, red else.
+    /// Shows what <paramref name="vision"/> sees now, darker what it has only explored (everything with
+    /// <paramref name="all"/>), with the borders of <paramref name="map"/>'s territories: both fields of every
+    /// neighbor pair with different owners (two texels, one is lost when the map is scaled down), in the color of
+    /// the owned one – white for player 1 where explored, red for everyone else only where seen now.
     /// </summary>
     public void Update(Vision vision, bool all, GameMap map)
     {
         for (int i = 0; i < _pixels.Length; i++)
-            _pixels[i] = all || vision.IsExplored(i) ? _landscape[i] : 0xff000000;
+            _pixels[i] = all || vision.IsVisible(i) ? _landscape[i] : vision.IsExplored(i) ? Darker(_landscape[i]) : 0xff000000;
         int size = map.Size;
         for (int y = 0; y < size; y++)
             for (int x = 0; x < size; x++)
@@ -60,10 +61,13 @@ public sealed class Minimap : IDisposable
 
         void Mark(int i, int player)
         {
-            if (all || vision.IsExplored(i))
+            if (all || (player == 0 ? vision.IsExplored(i) : vision.IsVisible(i)))
                 _pixels[i] = (player == 0 ? Color.White : Color.Red).PackedValue;
         }
     }
+
+    /// <summary>Half the brightness of a packed color (ABGR), alpha kept.</summary>
+    private static uint Darker(uint color) => 0xff000000 | ((color >> 1) & 0x7f7f7f);
 
     public void Dispose() => Texture.Dispose();
 }

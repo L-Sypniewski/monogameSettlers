@@ -1112,8 +1112,8 @@ public sealed class MapGame : Game
     private readonly List<MinimapDot> _minimapDots = [];
 
     /// <summary>
-    /// Dots on the minimap (where player 1 has explored): buildings and construction sites black, occupied military
-    /// buildings on top in white for player 1 and red for everyone else; then units outside – soldiers, priests,
+    /// Dots on the minimap (player 1's where explored, everyone else's only where seen now): buildings and construction
+    /// sites black, occupied military buildings on top in white for player 1 and red for everyone else; then units outside – soldiers, priests,
     /// geologists, pioneers and scouts (others' only where player 1 sees now, scouts once revealed), white and red
     /// alike, red drawn last so enemies stay visible in a crowd.
     /// </summary>
@@ -1123,7 +1123,8 @@ public sealed class MapGame : Game
         foreach (var occupied in new[] { false, true })
             foreach (var building in _world.Buildings)
                 if (building.Exists && _world.Military.IsOccupied(building) == occupied
-                    && (!_fogOn || _vision.IsExplored(building.Position.Y * _gameMap.Size + building.Position.X)))
+                    && (!_fogOn || (building.Player == 0 ? _vision.IsExplored(building.Position.Y * _gameMap.Size + building.Position.X)
+                        : _vision.IsVisible(building.Position))))
                     _minimapDots.Add(new MinimapDot(building.Position,
                         !occupied ? Color.Black : building.Player == 0 ? Color.White : Color.Red, Building: true));
         foreach (var own in new[] { true, false })
