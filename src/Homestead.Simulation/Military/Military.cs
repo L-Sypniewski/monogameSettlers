@@ -331,6 +331,27 @@ public sealed partial class Military
         }
     }
 
+    /// <summary>
+    /// Puts the soldier straight into a free place of the finished military building (map loading); false if
+    /// no place takes it. The building then wants the soldiers it holds. Claims no land: a loaded map keeps its owners.
+    /// </summary>
+    internal bool Station(Building building, Settler soldier)
+    {
+        if (GarrisonOf(building) is not { } g || soldier.SoldierType is not { } type)
+            return false;
+        int place = Enumerable.Range(0, g.Places.Length)
+            .FirstOrDefault(i => g.Places[i] is null && building.Definition.Occupiers[i].Accepts(type), -1);
+        if (place < 0)
+            return false;
+        if (g.Places.All(p => p is null))
+            Array.Clear(g.Wanted);
+        g.Wanted[(int)type]++;
+        g.Places[place] = soldier;
+        soldier.HasTask = true;
+        _world.EnterBuildingAt(soldier, building.Door);
+        return true;
+    }
+
     /// <summary>Soldiers of a type inside the building, on the way in or out defending it.</summary>
     public int Assigned(Building building, SoldierType type) => GarrisonOf(building) is { } g ? Assigned(g, type) : 0;
 

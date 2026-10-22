@@ -23,7 +23,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration, `depletion`: Verbrauch von Steinen/Bergen/Fisch in %, 0 = unendlich;
   im Spiel über die Einstellungen überschreibbar).
   Gebäudedaten aus JSettlers generiert (`tools/data-import/`) – nie von Hand ändern, sondern `data/buildings/overrides.json`
-  (je Volk/Gebäude, `all` für alle; z. B. römische Burg 4 Bogenschützen, Minen nur auf Gebirge).
+  (je Volk/Gebäude, `all` für alle; z. B. römische Burg 6 Infanterie + 4 Bogenschützen wie im Original, Minen nur auf Gebirge).
 - `tests/Homestead.Simulation.Tests` – xUnit (`dotnet test`); Tests mit Originalkarten bestehen ohne lokale Installation ungeprüft.
 
 ### `src/Homestead.Simulation` – Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`)
@@ -187,7 +187,8 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
 - `GameHistory` (`World.History`): alle 30 s (`SampleTicks`) je Spieler eine `HistorySample` (Land, Siedler nach Art, Soldaten nach Typ,
   Gebäude, Baustellen, Militärgebäude, Wohnraum, Streikende, Lagerbestand, Produziertes, Kampfkraft, Mana) plus laufende Summen
   (getötet/gefallen, Gebäude erobert/verloren, fertiggestellt/zerstört); für den Statistik-Bildschirm.
-- `OriginalScenario`: Karte → Welt (Gebäude, Stapel, Siedler; Siedlertyp 23 = Späher/Dieb). Karten ohne Gebäude (Mehrspieler, auch Einzelspieler wie Beginner I/III): `StartSetup` gibt jedem Spieler die Ausstattung aus `data/start.json` (Startturm will nur Infanterie, Bogenschützen warten draußen).
+- `OriginalScenario`: Karte → Welt (Gebäude, Stapel, Siedler; Siedlertyp 23 = Späher/Dieb, 22 Geologe, 36 Priester, 40 Pionier; Besatzung der
+  Militärgebäude aus der Karte sofort drin, `Military.Station`, Soll = Besatzung; ohne Angabe 1 Schwertkämpfer Stufe 1 wie im Original). Karten ohne Gebäude (Mehrspieler, auch Einzelspieler wie Beginner I/III): `StartSetup` gibt jedem Spieler die Ausstattung aus `data/start.json` (Startturm will nur Infanterie, Bogenschützen warten draußen).
 - `Map/Generation/RandomMapGenerator`: Zufallskarten als `OriginalMap` (`OriginalMap.Create`), gleiche `RandomMapSettings` + Seed = gleiche Karte,
   Werte `data/randommap.json`, Größe nach Spielerzahl. Eine Landmasse mit zerklüfteter Küste (verzerrtes Rauschen, halb Kreis, halb Raute;
   Abgetrenntes versinkt, abgeschnittene Starts bekommen eine Landbrücke zur Mitte); gespiegelt ein Kreis in Rastergeometrie. Jeder Start gleich: flache Startfläche,

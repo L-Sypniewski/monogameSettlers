@@ -80,4 +80,42 @@ public class CampaignTests(ITestOutputHelper output)
             }
         }
     }
+
+    [Fact]
+    public void Military_buildings_of_a_mission_hold_their_soldiers_and_its_priests_come_as_priests()
+    {
+        GameInstallation installation;
+        try { installation = GameInstallation.Locate(); }
+        catch (Exception) { output.WriteLine("No installation found, skipped."); return; }
+
+        // The Amazon campaign's first mission of the three peoples: three priests (settler type 36) of player 1,
+        // the Amazons' towers (type 15) with a swordsman and two bowmen, castles (18) with six infantry and four bowmen.
+        var original = OriginalMap.Open(installation.FindPath("S3QOTA/MIS_M/G/G01.MAP")!);
+        var (world, _) = OriginalScenario.Load(original);
+        var priests = world.Settlers.Where(s => s.Player == 0 && s.Profession == Profession.Priest).ToList();
+        Assert.Equal(3, priests.Count);
+        Assert.All(priests, p => Assert.Equal(world.PeopleOf(0), p.People));
+
+        var military = world.Buildings.Where(b => b.Player == 1 && b.Definition.Occupiers.Count > 0).ToList();
+        Assert.Contains(military, b => b.Definition.Name == "tower");
+        Assert.DoesNotContain(world.Buildings, b => b.Definition.Name == "baker" && world.Military.IsOccupied(b));
+        foreach (var (building, map) in military.Zip(original.Buildings.Where(b => b.Player == 1 && b.Type is 15 or 16 or 18)))
+        {
+            var inside = world.Military.Occupants(building).Count(s => s is not null);
+            if (map.Garrison.Count == 0)
+            {
+                // Empty in the map: one swordsman of level 1, as in the original.
+                Assert.Equal(1, inside);
+                Assert.Equal(1, world.Military.Assigned(building, SoldierType.Swordsman));
+                continue;
+            }
+            int bowmen = map.Garrison.Bowmen.Sum(), bowPlaces = building.Definition.Occupiers.Count(o => o.ForBowman);
+            Assert.Equal(Math.Min(map.Garrison.Count - bowmen, building.Definition.Occupiers.Count - bowPlaces) + Math.Min(bowmen, bowPlaces), inside);
+            if (inside > 0)
+                Assert.All(Enum.GetValues<SoldierType>(), t => Assert.Equal(world.Military.Assigned(building, t), world.Military.Wanted(building, t)));
+        }
+        Assert.Contains(military, b => world.Military.IsOccupied(b));
+        // Player 1's towers stand empty in the map: each gets its swordsman.
+        Assert.All(world.Buildings.Where(b => b.Player == 0 && b.Definition.Occupiers.Count > 0), b => Assert.True(world.Military.IsOccupied(b)));
+    }
 }

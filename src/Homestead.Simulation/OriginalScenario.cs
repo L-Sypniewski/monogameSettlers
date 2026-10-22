@@ -8,14 +8,19 @@ namespace Homestead.Simulation;
 /// <summary>Builds a world from an original map: terrain, buildings, piles of goods and settlers.</summary>
 public static class OriginalScenario
 {
-    /// <summary>Building type byte of original maps (chunk 8). Order from JSettlers' EOriginalMapBuildingType (MIT).</summary>
+    /// <summary>
+    /// Building type byte of original maps (chunk 8). Order from JSettlers' EOriginalMapBuildingType (MIT); every
+    /// people's temples count as ours, null for buildings we do not have (catapult, powder, ballista, cannon works, gong).
+    /// </summary>
     private static readonly string?[] BuildingNames =
     [
         null, "stock", "lumberjack", "stonecutter", "sawmill", "forester", "lookout_tower", "coalmine", "goldmine",
-        "ironmine", "goldmelt", "toolsmith", "weaponsmith", "winegrower", "tower", "big_tower", "castle", "barrack",
-        "baker", "pig_farm", "farm", "fisher", "small_livinghouse", "medium_livinghouse", "big_livinghouse",
-        "sulfurmine", "waterworks", "dockyard", "harbor", "hospital", "gemsmine", "charcoal_burner", "big_temple",
-        "temple", "donkey_farm", "beekeeping", "sulfurmine",
+        "ironmine", "goldmelt", "ironmelt", "toolsmith", "weaponsmith", "winegrower", "tower", "big_tower", "mill",
+        "castle", "barrack", "baker", "slaughterhouse", "distillery", "pig_farm", "farm", "fisher", "small_livinghouse",
+        "medium_livinghouse", "big_livinghouse", "sulfurmine", "waterworks", null, "dockyard", "harbor", "market_place",
+        "hospital", "rice_farm", "gemsmine", "brewery", "charcoal_burner", null, "big_temple", "temple", "big_temple",
+        "temple", "big_temple", "temple", null, null, "donkey_farm", null, "beekeeping", "mead_brewery", "laboratory",
+        "temple", "big_temple", "sulfurmine",
     ];
 
     /// <summary>
@@ -31,6 +36,7 @@ public static class OriginalScenario
         5 => (Profession.Soldier, SoldierType.Swordsman, 1),
         8 => (Profession.Soldier, SoldierType.Bowman, 1),
         15 => (Profession.Soldier, SoldierType.Pikeman, 1),
+        22 => (Profession.Geologist, null, 1),
         23 => (Profession.Scout, null, 1),
         30 => (Profession.Soldier, SoldierType.Bowman, 2),
         31 => (Profession.Soldier, SoldierType.Pikeman, 2),
@@ -38,6 +44,8 @@ public static class OriginalScenario
         33 => (Profession.Soldier, SoldierType.Bowman, 3),
         34 => (Profession.Soldier, SoldierType.Pikeman, 3),
         35 => (Profession.Soldier, SoldierType.Swordsman, 3),
+        36 => (Profession.Priest, null, 1),
+        40 => (Profession.Pioneer, null, 1),
         _ => (Profession.Carrier, null, 1),
     };
 
@@ -91,7 +99,7 @@ public static class OriginalScenario
             return catalog;
         }
 
-        int buildings = 0;
+        int buildings = 0, garrisoned = 0;
         foreach (var b in original.Buildings)
         {
             string? name = b.Type < BuildingNames.Length ? BuildingNames[b.Type] : null;
@@ -105,6 +113,8 @@ public static class OriginalScenario
             if (world.PlaceBuilding(definition, owner, new GridPoint(b.X, b.Y), force: true) is { } building)
             {
                 world.Housing.MarkPopulated(building); // the map lists the residents as settlers
+                if (definition.Occupiers.Count > 0)
+                    garrisoned += Garrison(world, building, b.Garrison);
                 buildings++;
             }
         }
@@ -121,13 +131,15 @@ public static class OriginalScenario
                 piles++;
         }
 
-        int settlers = 0;
+        int settlers = garrisoned;
         foreach (var s in original.Settlers)
         {
             var (profession, soldier, level) = SettlerOf(s.Type);
-            var settler = soldier is { } type
-                ? world.SpawnSoldier(new GridPoint(s.X, s.Y), type, level, OwnerOf(s.Player))
-                : world.Spawn(new GridPoint(s.X, s.Y), profession, OwnerOf(s.Player));
+            var position = new GridPoint(s.X, s.Y);
+            int owner = OwnerOf(s.Player);
+            var settler = soldier is { } type ? world.SpawnSoldier(position, type, level, owner)
+                : profession == Profession.Priest ? world.Magic.SpawnPriest(position, owner, CatalogOf(owner).Civilization)
+                : world.Spawn(position, profession, owner);
             if (settler is not null)
                 settlers++;
         }
@@ -155,5 +167,34 @@ public static class OriginalScenario
         world.Peoples = playerCatalogs.Select(c => c.Civilization).ToArray();
         world.PlayerCount = original.Players.Count;
         return (world, new LoadReport(buildings, piles, settlers, skipped, playerCatalogs));
+    }
+
+    /// <summary>
+    /// The map's soldiers of a military building, inside at once; those without a place wait at the door. Without
+    /// any, one swordsman of the lowest level (as in the original). Returns how many came.
+    /// </summary>
+    private static int Garrison(World world, Building building, MapGarrison garrison)
+    {
+        if (garrison.Count == 0)
+            garrison = new MapGarrison([1, 0, 0], [0, 0, 0], [0, 0, 0]);
+        int count = 0;
+        foreach (var (type, levels) in new[]
+                 {
+                     (SoldierType.Swordsman, garrison.Swordsmen), (SoldierType.Pikeman, garrison.Pikemen),
+                     (SoldierType.Bowman, garrison.Bowmen),
+                 })
+        {
+            for (int level = 1; level <= levels.Count; level++)
+            {
+                for (int i = 0; i < levels[level - 1]; i++)
+                {
+                    if (world.SpawnSoldier(building.Door, type, level, building.Player) is not { } soldier)
+                        continue;
+                    world.Military.Station(building, soldier);
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 }
