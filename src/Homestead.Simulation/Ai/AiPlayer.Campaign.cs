@@ -30,7 +30,9 @@ public sealed partial class AiPlayer
     private void StartCampaign(List<Building> military, List<Settler> spare)
     {
         var rules = _config.Attack;
-        if (spare.Count < rules.MinSoldiers)
+        // Bowmen do not attack buildings: they stay home for defence and guerilla.
+        var fighters = spare.Where(s => s.SoldierType != SoldierType.Bowman).ToList();
+        if (fighters.Count < rules.MinSoldiers)
             return;
         // Decision point "timing": a trait may hold campaigns back.
         if (Character.Traits.Any(t => !t.AllowCampaign(this)))
@@ -56,7 +58,7 @@ public sealed partial class AiPlayer
             double defense = Defense(target);
             var force = new List<Settler>();
             double strength = 0;
-            foreach (var soldier in spare.OrderBy(s => PathFinder.Distance(s.Position, rally.Door)))
+            foreach (var soldier in fighters.OrderBy(s => PathFinder.Distance(s.Position, rally.Door)))
             {
                 if (strength >= defense * rules.Ratio && force.Count >= rules.MinSoldiers)
                     break;
@@ -73,9 +75,10 @@ public sealed partial class AiPlayer
         if (best is not { } chosen)
             return;
         spare.RemoveAll(chosen.Force.Contains);
+        fighters.RemoveAll(chosen.Force.Contains);
         // A share of the other spare soldiers comes along (all of them: full strength).
-        var along = spare.OrderBy(s => PathFinder.Distance(s.Position, chosen.Rally.Door))
-            .Take((int)Math.Ceiling(spare.Count * rules.Commit)).ToList();
+        var along = fighters.OrderBy(s => PathFinder.Distance(s.Position, chosen.Rally.Door))
+            .Take((int)Math.Ceiling(fighters.Count * rules.Commit)).ToList();
         chosen.Force.AddRange(along);
         spare.RemoveAll(along.Contains);
         var campaign = new Campaign(chosen.Target, chosen.Force, chosen.Rally.Door, _world.Tick);

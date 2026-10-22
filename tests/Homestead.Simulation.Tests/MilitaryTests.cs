@@ -567,13 +567,6 @@ public class MilitaryTests(ITestOutputHelper output)
         Assert.True(world.Military.ChangeWanted(tower, SoldierType.Swordsman, 1));
         SpawnSoldiers(world, SoldierType.Swordsman, 2, new GridPoint(45, 50));
         Run(world, 3_000, stopWhen: () => world.Military.Occupants(tower).Count(s => s is not null) == 2);
-        // Bowmen can hurt neither the door nor its guard.
-        var bowman = world.SpawnSoldier(new GridPoint(tower.Door.X + 6, tower.Door.Y + 6), SoldierType.Bowman, player: 1)!;
-        world.Military.Attack([bowman], tower);
-        Run(world, 400);
-        Assert.Equal(world.Military.Config.DoorHealth, world.Military.DoorHealth(tower));
-        Assert.Equal(2, world.Military.Occupants(tower).Count(s => s is not null));
-        Assert.True(PathFinder.Distance(bowman.Position, tower.Door) >= 2, "bowmen keep away from a defended door");
 
         var attacker = world.SpawnSoldier(new GridPoint(tower.Door.X + 5, tower.Door.Y + 5), SoldierType.Swordsman, level: 3, player: 1)!;
         world.Military.Attack([attacker], tower);
@@ -590,6 +583,50 @@ public class MilitaryTests(ITestOutputHelper output)
         Assert.Equal(post, guard.Position);
         Run(world, 2_000, stopWhen: () => guard.IsDead || attacker.IsDead);
         Assert.Equal(post, guard.Position);
+    }
+
+    [Fact]
+    public void Bowmen_do_not_attack_buildings_neither_by_order_nor_on_their_own()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools);
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 40))!;
+        world.SpawnSoldier(new GridPoint(45, 50), SoldierType.Swordsman);
+        Run(world, 3_000, stopWhen: () => world.Military.IsOccupied(tower));
+        var start = new GridPoint(tower.Door.X + 10, tower.Door.Y + 10); // the door within sight
+        var bowman = world.SpawnSoldier(start, SoldierType.Bowman, player: 1)!;
+        Run(world, 200);
+        Assert.False(bowman.HasTask);
+
+        Assert.Equal(0, world.Military.Attack([bowman], tower));
+        Assert.Equal(0, world.Military.Attack(1, tower));
+        Run(world, 400);
+
+        Assert.False(bowman.HasTask);
+        Assert.True(PathFinder.Distance(bowman.Position, tower.Door) >= 9, "the bowman stays where it was");
+        Assert.Equal(world.Military.Config.DoorHealth, world.Military.DoorHealth(tower));
+    }
+
+    [Fact]
+    public void Bowmen_step_back_from_enemies_nearer_than_their_minimum_range_and_never_shoot_them()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools);
+        var stats = world.Military.Config.Soldiers[SoldierType.Bowman];
+        Assert.True(stats.MinRange > 1);
+        var bowman = world.SpawnSoldier(new GridPoint(40, 40), SoldierType.Bowman)!;
+        // A geologist (does not fight back, stands still) right next to it.
+        var geologist = world.Spawn(new GridPoint(41, 40), Profession.Geologist, player: 1)!;
+
+        int nearestShot = int.MaxValue;
+        for (int t = 0; t < 3_000 && !geologist.IsDead; t++)
+        {
+            long shot = bowman.LastShotTick;
+            world.Step();
+            if (bowman.LastShotTick != shot)
+                nearestShot = Math.Min(nearestShot, PathFinder.Distance(bowman.Position, geologist.Position));
+        }
+
+        Assert.True(geologist.IsDead);
+        Assert.InRange(nearestShot, stats.MinRange, stats.Range);
     }
 
     [Theory]
@@ -657,7 +694,7 @@ public class MilitaryTests(ITestOutputHelper output)
         world.Military.ChangeWanted(tower, SoldierType.Swordsman, -1);
         world.SpawnSoldier(new GridPoint(45, 50), SoldierType.Bowman, level: 3);
         Run(world, 3_000, stopWhen: () => world.Military.IsOccupied(tower));
-        var archer = world.SpawnSoldier(new GridPoint(tower.Door.X + 6, tower.Door.Y + 6), SoldierType.Bowman, level: 3, player: 1)!;
+        var archer = world.SpawnSoldier(new GridPoint(tower.Door.X + 7, tower.Door.Y + 7), SoldierType.Bowman, level: 3, player: 1)!; // beyond the minimum range, near enough to keep the door broken
         var breaker = world.SpawnSoldier(new GridPoint(tower.Door.X + 7, tower.Door.Y + 6), SoldierType.Swordsman, player: 1)!;
         world.Military.Attack([archer, breaker], tower);
         Run(world, 3_000, stopWhen: () => world.Military.DoorGuard(tower) is not null);

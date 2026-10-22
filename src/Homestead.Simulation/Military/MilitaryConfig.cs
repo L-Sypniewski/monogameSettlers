@@ -4,10 +4,16 @@ using Homestead.Simulation.Economy;
 
 namespace Homestead.Simulation.Military;
 
-public sealed record SoldierStats(float Health, float Damage, int AttackTicks, int Range, double Speed = 1)
+public sealed record SoldierStats(float Health, float Damage, int AttackTicks, int Range, double Speed = 1, int MinRange = 0)
 {
     /// <summary>Walking speed as a factor (0 in games saved before there were speeds: as everybody).</summary>
     public double SpeedFactor => Speed > 0 ? Speed : 1;
+
+    /// <summary>Whether an enemy this many fields away can be struck or shot: not farther than the range, not nearer than the minimum.</summary>
+    public bool InReach(int distance) => distance <= Range && distance >= MinRange;
+
+    /// <summary>How many fields the soldier is off reach at this distance (0 within it).</summary>
+    public int OffReach(int distance) => distance > Range ? distance - Range : Math.Max(0, MinRange - distance);
 }
 
 /// <summary>
@@ -113,7 +119,8 @@ public sealed record MilitaryConfig
             s => Enum.Parse<SoldierType>(s.Name),
             s => new SoldierStats(s.Value.GetProperty("health").GetSingle(), s.Value.GetProperty("damage").GetSingle(),
                 (int)Math.Round(s.Value.GetProperty("attackSeconds").GetDouble() * World.TicksPerSecond), s.Value.GetProperty("range").GetInt32(),
-                s.Value.TryGetProperty("speed", out var speed) ? speed.GetDouble() : 1));
+                s.Value.TryGetProperty("speed", out var speed) ? speed.GetDouble() : 1,
+                s.Value.TryGetProperty("minRange", out var minRange) ? minRange.GetInt32() : 0));
         var door = root.TryGetProperty("door", out var d) ? d : default;
         return new MilitaryConfig
         {

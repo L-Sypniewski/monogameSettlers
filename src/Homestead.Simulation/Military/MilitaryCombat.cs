@@ -10,7 +10,8 @@ namespace Homestead.Simulation.Military;
 /// <remarks>
 /// A fighter looks for the nearest enemy soldier outside the buildings within sight (also while on a
 /// move or attack order; it stops as soon as the enemy is within reach). Melee soldiers walk up to it
-/// and strike from the neighboring field, bowmen shoot from up to their range; one hit every attack
+/// and strike from the neighboring field, bowmen shoot from up to their range but not at enemies nearer than
+/// their minimum range (<see cref="SoldierStats.MinRange"/>): they step back first; one hit every attack
 /// interval. A shot hurts at once, as in the original (nobody shoots at an enemy that is as good as
 /// dead); its arrow only shows on screen, flying <see cref="ArrowTicks"/>. Near the enemy the way is planned locally around everyone standing (see <see cref="Approach"/>). Idle soldiers fight enemies
 /// that come within sight.
@@ -19,17 +20,17 @@ namespace Homestead.Simulation.Military;
 /// Enemy military buildings are taken the same way on their own: an idle soldier or one on a (not forced)
 /// move order attacks the nearest defended enemy military building whose door is within sight
 /// (<see cref="NearestEnemyBuilding"/>) unless an enemy soldier is nearer: whichever is nearer comes first
-/// (<see cref="PreferNearer"/>). A moving one carries on afterwards if it did not move in.
+/// (<see cref="PreferNearer"/>). A moving one carries on afterwards if it did not move in. Bowmen never
+/// attack buildings, neither on their own nor by order: they could hurt neither the door nor its guard.
 /// </remarks>
 /// <remarks>
 /// Attacked buildings: the soldiers stay inside (bowmen keep shooting from the top). Without an enemy an
 /// attacker walks to its target's door: melee soldiers (pikemen too, as if their range were 1) break it
-/// from the few fields next to it (<see cref="MilitaryConfig.DoorFighters"/>; the others queue behind),
-/// bowmen wait <see cref="BowmanDoorDistance"/> fields away (<see cref="MilitaryConfig.DoorHealth"/>). In the
-/// broken door stands one infantry soldier at a time (<see cref="DefendDoors"/>): it cannot walk, strikes
-/// the attackers on those fields and can be fought only by them, so bowmen cannot help to take a
-/// building. When it falls the next one steps in, the bowmen last: they shoot from the door at enemies
-/// within range, but are fought the same way. The attacker that killed the
+/// from the few fields next to it (<see cref="MilitaryConfig.DoorFighters"/>; the others queue behind;
+/// <see cref="MilitaryConfig.DoorHealth"/>). In the broken door stands one infantry soldier at a time
+/// (<see cref="DefendDoors"/>): it cannot walk, strikes the attackers on those fields and can be fought only
+/// by them. When it falls the next one steps in, the bowmen last: they shoot from the door at enemies
+/// within range (minimum range too), but are fought the same way. The attacker that killed the
 /// last defender walks in and takes the building: it, its soldier places and its land change sides,
 /// and buildings standing on land their player lost are destroyed. With no enemy near for
 /// <see cref="MilitaryConfig.DoorCalmTicks"/> the guard goes back inside and the door repairs itself evenly,
@@ -40,8 +41,6 @@ public sealed partial class Military
 {
     private const int EngageInterval = 10;
     private const int ReplanTicks = 20;
-    /// <summary>Attacking bowmen wait this far from a defended door: they can hurt neither it nor its guard.</summary>
-    private const int BowmanDoorDistance = 4;
 
     /// <summary>Door guards (by soldier id) and the building they stand in.</summary>
     private readonly Dictionary<int, Garrison> _guards = new();
@@ -66,7 +65,7 @@ public sealed partial class Military
 
     /// <summary>
     /// Sends the player's soldiers against an enemy military building: idle soldiers and the soldiers
-    /// of own military buildings within <see cref="MilitaryConfig.AttackRange"/> (one stays in each).
+    /// of own military buildings within <see cref="MilitaryConfig.AttackRange"/> (one stays in each), no bowmen.
     /// Returns how many go.
     /// </summary>
     public int Attack(int player, Building target)
@@ -75,15 +74,15 @@ public sealed partial class Military
             return 0;
         int range = _config.AttackRange;
         var attackers = _world.Settlers
-            .Where(s => s.Profession == Profession.Soldier && s.Player == player && !s.HasTask && !s.IsInside
-                        && PathFinder.Distance(s.Position, target.Door) <= range)
+            .Where(s => s.Profession == Profession.Soldier && s.SoldierType != SoldierType.Bowman && s.Player == player
+                        && !s.HasTask && !s.IsInside && PathFinder.Distance(s.Position, target.Door) <= range)
             .ToList();
         foreach (var g in _garrisons.Values.Where(g => g.Building.Player == player && g.Building.Exists
                                                        && PathFinder.Distance(g.Building.Door, target.Door) <= range))
         {
             for (int i = 0; i < g.Places.Length; i++)
             {
-                if (g.Places[i] is not { } soldier || g.Places.Count(p => p is not null) <= 1)
+                if (g.Places[i] is not { } soldier || soldier.SoldierType == SoldierType.Bowman || g.Places.Count(p => p is not null) <= 1)
                     continue;
                 g.Places[i] = null;
                 LeaveBuilding(soldier);
@@ -126,12 +125,15 @@ public sealed partial class Military
     public GridPoint? ForcedMoveTarget(Settler soldier) =>
         _fighters.TryGetValue(soldier.Id, out var f) && f is { MoveTo: { } to, Forced: true, Target: null, Enemy: null } ? to : null;
 
-    /// <summary>Orders the given soldiers to attack an enemy military building (enemies on the way first).</summary>
+    /// <summary>
+    /// Orders the given soldiers to attack an enemy military building (enemies on the way first); bowmen
+    /// among them take no order.
+    /// </summary>
     public int Attack(IEnumerable<Settler> soldiers, Building target)
     {
         if (!target.Exists || !_garrisons.ContainsKey(target.Id))
             return 0;
-        var list = Commandable(soldiers).Where(s => s.Player != target.Player).ToList();
+        var list = Commandable(soldiers.Where(s => s.SoldierType != SoldierType.Bowman)).Where(s => s.Player != target.Player).ToList();
         foreach (var soldier in list)
         {
             _fighters[soldier.Id] = new Fighter(soldier) { Target = target };
@@ -203,8 +205,8 @@ public sealed partial class Military
     private IEnumerable<Settler> EnemiesOf(int player) =>
         _combatants.Where(s => s.Player != player && !s.IsInside && !s.IsDead && !_guards.ContainsKey(s.Id) && s.IsRevealedTo(player));
 
-    private Settler? NearestEnemy(GridPoint from, int player, int range) =>
-        EnemiesOf(player).Where(e => PathFinder.Distance(from, e.Position) <= range)
+    private Settler? NearestEnemy(GridPoint from, int player, int range, int minRange = 0) =>
+        EnemiesOf(player).Where(e => PathFinder.Distance(from, e.Position) is var d && d <= range && d >= minRange)
             .MinBy(e => PathFinder.Distance(from, e.Position));
 
     /// <summary>Ticks to the next strike; hasted by a spell, faster.</summary>
@@ -234,10 +236,12 @@ public sealed partial class Military
 
     /// <summary>
     /// The nearest defended enemy military building whose door is within the soldier's sight and that it
-    /// did not just fail to reach.
+    /// did not just fail to reach; none for bowmen.
     /// </summary>
     private Building? NearestEnemyBuilding(Settler soldier)
     {
+        if (soldier.SoldierType == SoldierType.Bowman)
+            return null;
         int sight = _config.Sight(soldier.SoldierType!.Value);
         Building? nearest = null;
         int best = int.MaxValue;
@@ -269,7 +273,7 @@ public sealed partial class Military
     {
         var soldier = f.Soldier;
         int enemyDistance = f.Enemy is { } enemy ? PathFinder.Distance(soldier.Position, enemy.Position) : int.MaxValue;
-        if (enemyDistance <= stats.Range)
+        if (stats.InReach(enemyDistance))
             return;
         if (f.Target is null && _world.Tick % EngageInterval == 0 && NearestEnemyBuilding(soldier) is { } building)
         {
@@ -397,7 +401,7 @@ public sealed partial class Military
         bool bowman = guard.SoldierType == SoldierType.Bowman;
         var spots = DoorSpotsOf(g);
         var enemy = bowman
-            ? NearestEnemy(guard.Position, guard.Player, stats.Range)
+            ? NearestEnemy(guard.Position, guard.Player, stats.Range, stats.MinRange)
             : EnemiesOf(guard.Player).Where(e => spots.Contains(e.Position)).MinBy(e => e.Health);
         if (enemy is null)
         {
@@ -481,7 +485,7 @@ public sealed partial class Military
         if (f.Enemy is { } enemy)
         {
             int distance = PathFinder.Distance(soldier.Position, enemy.Position);
-            if (distance <= stats.Range)
+            if (stats.InReach(distance))
             {
                 // Stop after the current step. Walkers are mid-step whenever this runs (movement comes
                 // first in a tick), so waiting for a standstill would let them walk on.
@@ -545,13 +549,12 @@ public sealed partial class Military
             else
             {
                 // Defended: melee soldiers break the door from the fighting fields in front of it, then fight
-                // its guard from there; the others queue behind, bowmen keep their distance. Nobody else
-                // stands in the door or on the guard's field.
-                bool bowman = soldier.SoldierType == SoldierType.Bowman;
+                // its guard from there; the others queue behind. Nobody else stands in the door or on the
+                // guard's field.
                 var spots = DoorSpotsOf(g);
                 var fightPoint = FightPointOf(g);
                 // A walk-through (watchdog) can leave two on one field: only its owner fights from there.
-                if (!bowman && standing && soldier.Destination is null && spots.Contains(soldier.Position)
+                if (standing && soldier.Destination is null && spots.Contains(soldier.Position)
                     && _world.OccupantAt(soldier.Position) == soldier)
                 {
                     // The next defender is coming, or the guard is not yet at its post.
@@ -586,9 +589,9 @@ public sealed partial class Military
                              && _world.OccupantAt(heading) is { } holder && holder != soldier;
                 if (soldier.Destination is null || taken || _world.Tick >= f.NextReplan + 10 * ReplanTicks)
                 {
-                    var free = bowman ? null : spots.Where(p => _world.OccupantAt(p) is null || _world.OccupantAt(p) == soldier)
+                    var free = spots.Where(p => _world.OccupantAt(p) is null || _world.OccupantAt(p) == soldier)
                         .Select(p => (GridPoint?)p).MinBy(p => PathFinder.Distance(soldier.Position, p!.Value));
-                    var wait = free ?? QueueSpot(soldier, fightPoint, bowman ? BowmanDoorDistance : 2, spots.Append(door).ToArray());
+                    var wait = free ?? QueueSpot(soldier, fightPoint, 2, spots.Append(door).ToArray());
                     if (!_world.WalkTo(soldier, wait) && !_world.WalkTo(soldier, door))
                         EndAttack(f, unreachable: true);
                     f.NextReplan = _world.Tick;
@@ -719,7 +722,8 @@ public sealed partial class Military
     /// <summary>
     /// Picks the enemy to fight. An enemy already within reach (the neighboring field for melee) is
     /// attacked at once; every <see cref="RetargetTicks"/> a clearly nearer enemy replaces the current
-    /// one, so a soldier does not wait behind someone who stepped into its way.
+    /// one, so a soldier does not wait behind someone who stepped into its way. A bowman takes one within
+    /// reach before a nearer one that is too close.
     /// </summary>
     private void ChooseEnemy(Fighter f, SoldierStats stats)
     {
@@ -729,7 +733,7 @@ public sealed partial class Military
             f.Enemy = null;
 
         int currentDistance = f.Enemy is { } e ? PathFinder.Distance(soldier.Position, e.Position) : int.MaxValue;
-        if (currentDistance <= stats.Range)
+        if (stats.InReach(currentDistance))
             return;
         bool recheck = f.Enemy is null || _world.Tick >= f.NextRetarget;
         var candidates = EnemiesOf(soldier.Player)
@@ -739,8 +743,9 @@ public sealed partial class Military
             .ToList();
         if (candidates.Count == 0)
             return;
-        var nearest = candidates.MinBy(x => x.Distance);
-        if (nearest.Distance <= stats.Range || nearest.Distance < currentDistance - 1)
+        var inReach = candidates.Where(x => stats.InReach(x.Distance)).ToList();
+        var nearest = (inReach.Count > 0 ? inReach : candidates).MinBy(x => x.Distance);
+        if (stats.InReach(nearest.Distance) || nearest.Distance < currentDistance - 1)
         {
             f.Enemy = nearest.Enemy;
             f.NextReplan = 0; // walk towards the new one right away
@@ -750,10 +755,10 @@ public sealed partial class Military
     }
 
     /// <summary>
-    /// Plans the way to a field within reach of the enemy. Near the enemy the search stays inside
+    /// Plans the way to a field within reach of the enemy (for a bowman too close: back off). Near the enemy the search stays inside
     /// <see cref="MilitaryConfig.CombatPathRadius"/> and treats everyone standing (fighting, waiting, idle; own
     /// soldiers too) as an obstacle, so a soldier walks around a busy friend instead of queueing
-    /// behind it. When the crowd blocks every way, it goes to the reachable field closest to any
+    /// behind it. When the crowd blocks every way, it goes to the reachable field closest to reach of any
     /// enemy (and takes that enemy). False if the enemy cannot be reached at all.
     /// </summary>
     private bool Approach(Fighter f, Settler enemy, SoldierStats stats)
@@ -770,7 +775,7 @@ public sealed partial class Military
         // The combatants are those of the tick's start: a defender sent out since is not among them yet.
         if (!enemies.Contains(enemy))
             enemies.Add(enemy);
-        int Reach(GridPoint p) => enemies.Min(e => PathFinder.Distance(p, e.Position));
+        int Reach(GridPoint p) => enemies.Min(e => stats.OffReach(PathFinder.Distance(p, e.Position)));
 
         var cameFrom = new Dictionary<GridPoint, (GridPoint From, Direction Step)> { [start] = (start, default) };
         var queue = new Queue<GridPoint>();
@@ -788,7 +793,7 @@ public sealed partial class Military
                     || !map.Contains(next) || !map.IsWalkable(next) || _world.OccupantAt(next) is { State: not SettlerState.Stepping } other && other != soldier)
                     continue;
                 cameFrom[next] = (current, (Direction)d);
-                if (PathFinder.Distance(next, enemy.Position) <= stats.Range)
+                if (stats.InReach(PathFinder.Distance(next, enemy.Position)))
                 {
                     goal = next;
                     break;
@@ -813,7 +818,7 @@ public sealed partial class Military
                 return _world.PathFinder!.AreConnected(start, enemy.Position);
             }
             goal = closest;
-            f.Enemy = enemies.MinBy(e => PathFinder.Distance(closest, e.Position));
+            f.Enemy = enemies.MinBy(e => stats.OffReach(PathFinder.Distance(closest, e.Position)));
         }
 
         var steps = new List<Direction>();

@@ -3,11 +3,11 @@
   "territory": { "tower": 30.52, "big_tower": 31.1, "castle": 33.19 },
   "weapons": { "SWORD": "Swordsman", "SPEAR": "Pikeman", "BOW": "Bowman" },
   "trainingSeconds": 4,
-  "_soldiersComment": "Homestead's own combat values. damage per hit, one hit every attackSeconds; speed: walking speed as a factor (1 = as everybody); bowmen shoot up to range fields, from military buildings towerRangeFactor times as far. Level 2/3 multiply health and damage by levelBonus.",
+  "_soldiersComment": "Homestead's own combat values. damage per hit, one hit every attackSeconds; speed: walking speed as a factor (1 = as everybody); bowmen shoot up to range fields but not at enemies nearer than minRange (they step back first; not from the top of a military building), from military buildings towerRangeFactor times as far. Level 2/3 multiply health and damage by levelBonus.",
   "soldiers": {
     "Swordsman": { "health": 100, "damage": 12, "attackSeconds": 1.0, "range": 1, "speed": 1.1 },
     "Pikeman": { "health": 130, "damage": 9, "attackSeconds": 1.0, "range": 2, "speed": 1.05 },
-    "Bowman": { "health": 80, "damage": 4, "attackSeconds": 1.5, "range": 14 }
+    "Bowman": { "health": 80, "damage": 4, "attackSeconds": 1.5, "range": 14, "minRange": 5 }
   },
   "towerRangeFactor": 1.69,
   "levelBonus": [ 1.0, 1.3, 1.7 ],

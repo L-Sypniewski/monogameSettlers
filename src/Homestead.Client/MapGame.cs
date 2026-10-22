@@ -2374,10 +2374,11 @@ public sealed class MapGame : Game
         if (soldiers.Count == 0)
             return;
         bool control = Keyboard.GetState().IsKeyDown(Keys.LeftControl) || Keyboard.GetState().IsKeyDown(Keys.RightControl);
-        if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) > 0)
+        // Bowmen do not attack buildings: they keep their order (alone: they walk there).
+        if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) is > 0 and var attacking)
         {
             PlayCommand();
-            _message = $"{soldiers.Count} soldiers attack {attacked.Definition.Name}";
+            _message = $"{attacking} soldiers attack {attacked.Definition.Name}";
             return;
         }
         // Ctrl: forced order, they walk there without stopping to fight.
