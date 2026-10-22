@@ -85,6 +85,9 @@ public sealed record RandomMapConfig
     public required double[] DecorationShare { get; init; }
     public required double[] TreasureSitesPerPlayer { get; init; }
     public required IReadOnlyList<(Material Material, int Weight)> TreasureGoods { get; init; }
+    /// <summary>Radius of the heap in the map's middle with treasures 'many'.</summary>
+    public int HoardRadius { get; init; } = 2;
+    public IReadOnlyList<(Material Material, int Weight)> HoardGoods { get; init; } = [];
 
     /// <param name="Cover">Share of mountain fields with ore.</param>
     /// <param name="Fish">Fish amount in shallow water.</param>
@@ -102,7 +105,11 @@ public sealed record RandomMapConfig
         static double[] Treasures(JsonElement e) => [e.GetProperty("off").GetDouble(), e.GetProperty("normal").GetDouble(), e.GetProperty("many").GetDouble()];
         static ResourceLevel Resource(JsonElement e) => new(e.GetProperty("cover").GetDouble(), e.GetProperty("min").GetInt32(),
             e.GetProperty("max").GetInt32(), e.GetProperty("fish").GetInt32());
+        static (Material, int)[] Goods(JsonElement e) => e.EnumerateObject()
+            .Select(g => (Materials.Parse(g.Name) ?? throw new InvalidDataException($"randommap.json: unknown material {g.Name}"), g.Value.GetInt32()))
+            .ToArray();
         var resources = root.GetProperty("resources");
+        var hoard = root.TryGetProperty("hoard", out var h) ? h : default;
         return new RandomMapConfig
         {
             Sizes = root.GetProperty("sizes").EnumerateObject().ToDictionary(s => int.Parse(s.Name), s => s.Value.GetInt32()),
@@ -123,9 +130,9 @@ public sealed record RandomMapConfig
             TreeDensity = root.GetProperty("treeDensity").GetDouble(),
             DecorationShare = Levels(root.GetProperty("decorationShare")),
             TreasureSitesPerPlayer = Treasures(root.GetProperty("treasureSitesPerPlayer")),
-            TreasureGoods = root.GetProperty("treasureGoods").EnumerateObject()
-                .Select(g => (Materials.Parse(g.Name) ?? throw new InvalidDataException($"randommap.json: unknown material {g.Name}"), g.Value.GetInt32()))
-                .ToArray(),
+            TreasureGoods = Goods(root.GetProperty("treasureGoods")),
+            HoardRadius = hoard.ValueKind == JsonValueKind.Object ? hoard.GetProperty("radius").GetInt32() : 0,
+            HoardGoods = hoard.ValueKind == JsonValueKind.Object ? Goods(hoard.GetProperty("goods")) : [],
         };
     }
 }

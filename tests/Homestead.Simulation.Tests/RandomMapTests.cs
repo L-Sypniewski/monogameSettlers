@@ -1,4 +1,5 @@
 using Homestead.Assets.Maps;
+using Homestead.Simulation.Economy;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Map.Generation;
 using Homestead.Simulation.Pathfinding;
@@ -98,6 +99,48 @@ public class RandomMapTests(ITestOutputHelper output)
             output.WriteLine($"start {p.StartX},{p.StartY}: ore {ore}, stones {stones}, trees {trees}, river {river}");
             Assert.True(ore >= 10 && stones >= 5 && trees >= 20 && river >= 4, $"home at {p.StartX},{p.StartY}");
         }
+    }
+
+    [Theory]
+    [InlineData(2, MapSymmetry.None)]
+    [InlineData(3, MapSymmetry.Mirror)]
+    [InlineData(4, MapSymmetry.Repeat)]
+    public void Many_treasures_put_a_hoard_of_gold_and_weapons_in_the_middle(int players, MapSymmetry symmetry)
+    {
+        var map = RandomMapGenerator.Generate(new RandomMapSettings(players, symmetry, Treasures: TreasureLevel.Many), 4);
+        int middle = (map.Area.Size - 1) / 2;
+        var hoard = map.Stacks.Where(s => PathFinder.Distance(new GridPoint(s.X, s.Y), new GridPoint(middle, middle)) <= 2).ToList();
+        Assert.Equal(19, hoard.Count);
+        Assert.All(hoard, s => Assert.Equal(8, s.Count));
+        var goods = hoard.Select(s => Materials.FromOriginalStack(s.Type)).ToHashSet();
+        Assert.Contains(Material.Gold, goods);
+        Assert.Contains(Material.Sword, goods);
+
+        var normal = RandomMapGenerator.Generate(new RandomMapSettings(players, symmetry), 4);
+        Assert.DoesNotContain(normal.Stacks, s => PathFinder.Distance(new GridPoint(s.X, s.Y), new GridPoint(middle, middle)) <= 2 && s.Count == 8);
+    }
+
+    [Theory]
+    [InlineData(2, MapSymmetry.None, 1)]
+    [InlineData(5, MapSymmetry.None, 9)]
+    [InlineData(6, MapSymmetry.Repeat, 3)]
+    public void Free_maps_are_one_landmass(int players, MapSymmetry symmetry, int seed)
+    {
+        var area = RandomMapGenerator.Generate(new RandomMapSettings(players, symmetry), seed).Area;
+        bool IsLand(int i) => area.Landscape[i] > 7;
+        int first = Enumerable.Range(0, area.Size * area.Size).First(IsLand);
+        var reached = new HashSet<int> { first };
+        var queue = new Queue<int>([first]);
+        while (queue.Count > 0)
+        {
+            int i = queue.Dequeue();
+            int x = i % area.Size, y = i / area.Size;
+            foreach (var (dx, dy) in new[] { (1, 0), (1, 1), (0, 1), (-1, 0), (-1, -1), (0, -1) })
+                if ((uint)(x + dx) < (uint)area.Size && (uint)(y + dy) < (uint)area.Size
+                    && IsLand(area.Index(x + dx, y + dy)) && reached.Add(area.Index(x + dx, y + dy)))
+                    queue.Enqueue(area.Index(x + dx, y + dy));
+        }
+        Assert.Equal(Enumerable.Range(0, area.Size * area.Size).Count(IsLand), reached.Count);
     }
 
     [Fact]

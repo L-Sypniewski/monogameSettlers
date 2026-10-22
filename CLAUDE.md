@@ -189,9 +189,11 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   (getötet/gefallen, Gebäude erobert/verloren, fertiggestellt/zerstört); für den Statistik-Bildschirm.
 - `OriginalScenario`: Karte → Welt (Gebäude, Stapel, Siedler; Siedlertyp 23 = Späher/Dieb). Karten ohne Gebäude (Mehrspieler, auch Einzelspieler wie Beginner I/III): `StartSetup` gibt jedem Spieler die Ausstattung aus `data/start.json` (Startturm will nur Infanterie, Bogenschützen warten draußen).
 - `Map/Generation/RandomMapGenerator`: Zufallskarten als `OriginalMap` (`OriginalMap.Create`), gleiche `RandomMapSettings` + Seed = gleiche Karte,
-  Werte `data/randommap.json`, Größe nach Spielerzahl. Insel in der Mitte (in Rastergeometrie ein Kreis). Jeder Start gleich: flache Startfläche,
+  Werte `data/randommap.json`, Größe nach Spielerzahl. Eine Landmasse mit zerklüfteter Küste (verzerrtes Rauschen, halb Kreis, halb Raute;
+  Abgetrenntes versinkt, abgeschnittene Starts bekommen eine Landbrücke zur Mitte); gespiegelt ein Kreis in Rastergeometrie. Jeder Start gleich: flache Startfläche,
   Berg mit Kohle/Eisen/Gold, Teich mit Bach (Wasserwerke brauchen Flüsse), Wald, Steine. Dazu Gebirge, Seen, Flüsse zum Meer, Sümpfe (mind. einer),
-  Wälder, Steinfelder, Erzadern, Fisch, Deko, Schätze (Warenstapel ≥ 32 Felder von Starts). Symmetrie: `Mirror` (Keilfläche; exakt bei 2/3/4/6,
+  Wälder, Steinfelder, Erzadern, Fisch, Deko, Schätze (Warenstapel ≥ 32 Felder von Starts; „Viel“: dazu ein Hort voller Stapel Gold/Waffen in der
+  Kartenmitte, `hoard`). Flüsse als stetig drehender Verlauf in Halbfeld-Schritten (bergab, Mäander per Rauschen), stromab breiter; Grasland leicht uneben. Symmetrie: `Mirror` (Keilfläche; exakt bei 2/3/4/6,
   5 gerundet), `Repeat` (Startkachel `homeRadius` kopiert). Landschaftsbytes zuletzt aus Bodenklassen (Wassertiefe, Strand, Ränder je ein Feld,
   damit jedes Dreieck eine Original-Übergangskachel hat – Merkmale halten Abstand). Starts ohne Verbindung → neu würfeln.
 
