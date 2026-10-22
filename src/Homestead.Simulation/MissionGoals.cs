@@ -8,13 +8,12 @@ public enum MissionOutcome { Open, Won, Lost }
 /// with settlers only, who found the settlement first); won once no other player has one (destroyed or captured).
 /// Decided once, then it stays; the game goes on.
 /// </summary>
-public sealed class MissionGoals
+public sealed class MissionGoals : IGameGoals
 {
     public const int Player = 0;
 
     public MissionOutcome Outcome { get; private set; }
 
-    /// <summary>The tick the outcome was decided; −1 while open.</summary>
     public long DecidedAt { get; private set; } = -1;
 
     /// <summary>The own player has had a building (so losing the last one loses the mission).</summary>
@@ -39,7 +38,9 @@ public sealed class MissionGoals
             Decide(MissionOutcome.Won, world.Tick);
     }
 
-    /// <summary>Decides the mission (also the cheat menu's); a decided one stays as it is.</summary>
+    /// <summary>Computer players never give up in missions.</summary>
+    public bool IsDefeated(int player) => false;
+
     public void Decide(MissionOutcome outcome, long tick)
     {
         if (Outcome != MissionOutcome.Open || outcome == MissionOutcome.Open)

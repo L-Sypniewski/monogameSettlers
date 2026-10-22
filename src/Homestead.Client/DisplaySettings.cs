@@ -41,6 +41,9 @@ public sealed record DisplaySettings
     /// <summary>Loudness of the sound effects in percent (0 = off).</summary>
     public int EffectsVolume { get; init; } = 100;
 
+    /// <summary>Saves the running game into the last slot every 15 minutes and on quitting (off by default: it overwrites that slot).</summary>
+    public bool AutoSave { get; init; }
+
     /// <summary>The settings in the file (default: the user's); missing or unreadable values keep their default.</summary>
     public static DisplaySettings Load(string? path = null)
     {
@@ -60,6 +63,7 @@ public sealed record DisplaySettings
             EffectsVolume = Percent("effectsVolume", settings.EffectsVolume),
             HardwareCursor = Flag("hardwareCursor", settings.HardwareCursor),
             FullScreen = Flag("fullScreen", settings.FullScreen),
+            AutoSave = Flag("autoSave", settings.AutoSave),
             Language = display.TryGetProperty("language", out var language) && language.ValueKind == JsonValueKind.String
                 ? language.GetString() == "en" ? Language.English : Language.German
                 : settings.Language,
@@ -81,5 +85,6 @@ public sealed record DisplaySettings
             ["musicVolume"] = MusicVolume,
             ["peopleMusic"] = PeopleMusic,
             ["effectsVolume"] = EffectsVolume,
+            ["autoSave"] = AutoSave,
         }, path);
 }

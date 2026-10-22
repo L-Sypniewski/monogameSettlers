@@ -18,11 +18,18 @@ public sealed class ControlGroups
 
     private readonly List<Settler>[] _groups = Enumerable.Range(0, Count).Select(_ => new List<Settler>()).ToArray();
 
-    /// <summary>Stores the selection as group <paramref name="index"/> (an empty selection clears it).</summary>
+    /// <summary>
+    /// Stores the selection as group <paramref name="index"/> (an empty selection clears it). A settler is in one
+    /// group at most: the members leave their other groups.
+    /// </summary>
     public void Store(int index, IEnumerable<Settler> selection)
     {
+        var members = selection.ToList();
+        var moved = members.ToHashSet();
+        foreach (var group in _groups)
+            group.RemoveAll(moved.Contains);
         _groups[index].Clear();
-        _groups[index].AddRange(selection);
+        _groups[index].AddRange(members);
     }
 
     /// <summary>The living members of a group.</summary>

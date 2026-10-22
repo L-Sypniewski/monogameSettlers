@@ -13,6 +13,7 @@
   },
   "title": {
     "buttons": {
+      "continue": "Continue",
       "campaign": "Campaign",
       "missionCd": "Mission CD",
       "amazonCampaign": "Amazon campaign",
@@ -49,7 +50,7 @@
     "saveName": "{0}: {1}, mission {2}",
     "won": "Game won",
     "lost": "Game lost",
-    "wonHint": "Quit the game (or Esc → statistics) to go on to the next mission.",
+    "wonHint": "Quit the game to go on to the next mission.",
     "lostHint": "Esc: leave the game – the mission starts over.",
     "chooseMission": "Choose a mission",
     "missionDone": "accomplished",
@@ -286,7 +287,9 @@
     "save": "Save game",
     "quit": "Quit game",
     "paused": "Paused",
-    "pausedHint": "P: resume",
+    "pausedHint": "P or Esc: resume",
+    "wonHint": "Every opponent defeated – play on or quit the game.",
+    "lostHint": "Every military building lost. Esc: leave the game.",
     "quitQuestion": "Really quit the game?"
   },
   "start": {
@@ -410,7 +413,9 @@
       "peopleMusic": "Music per people",
       "peopleMusicHint": "Yes: only the pieces of the own people. No: all pieces shuffled.",
       "effects": "Effects",
-      "effectsHint": "Volume of the sounds, e.g. in battle."
+      "effectsHint": "Volume of the sounds, e.g. in battle.",
+      "autoSave": "Autosave",
+      "autoSaveHint": "Yes: every 15 minutes and on quitting into slot 8 (overwriting it)."
     }
   },
   "install": {
@@ -554,5 +559,12 @@
     "soldiers": "{0}/{1} soldiers",
     "soldiersOnTheWay": ", {0} on the way",
     "door": ", door {0} %"
+  },
+  "info": {
+    "defeated": "{0} has been defeated.",
+    "saved": "Game saved into slot {0}.",
+    "autoSaved": "Saved automatically into slot {0}.",
+    "saveFailed": "Saving into slot {0} failed.",
+    "notSaved": "Not saved for {0} minutes."
   }
 }

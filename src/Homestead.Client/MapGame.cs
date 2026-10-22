@@ -78,6 +78,19 @@ public sealed class MapGame : Game
     /// <summary>The decided outcome already noted (progress saved, own selection dropped).</summary>
     private MissionOutcome _outcomeNoted;
 
+    /// <summary>Notes at the bottom left of the game view.</summary>
+    private readonly InfoFeed _info = new();
+    /// <summary>The computer players whose defeat is told already (or was, before the game was loaded).</summary>
+    private readonly HashSet<int> _defeatNoted = new();
+    /// <summary>Real seconds played since the game was saved, started or loaded (autosave, reminders).</summary>
+    private double _sinceSave;
+    /// <summary>The next reminder of an unsaved game, in minutes of <see cref="_sinceSave"/>.</summary>
+    private int _nextSaveReminder = SaveReminderMinutes;
+    private const int SaveReminderMinutes = 30;
+    private const int AutoSaveMinutes = 15;
+    /// <summary>The slot autosave writes into: the last.</summary>
+    private const int AutoSaveSlot = SaveSlots.Count - 1;
+
     /// <summary>The chosen side of the campaign.</summary>
     private CampaignSide Side => CampaignConfig.Load().Campaigns[_campaign][_campaignSide];
     private readonly GameInstallation _installation;
@@ -254,7 +267,11 @@ public sealed class MapGame : Game
     private TimeSpan _time;
 
     /// <summary>Fog of war for player 1 (key V switches it off and on); capture runs only with HOMESTEAD_CAPTURE_FOG=1.</summary>
-    private bool _fogOn;
+    /// <summary>The fog of war as chosen (V); see <see cref="FogOn"/>.</summary>
+    private bool _fogChosen;
+
+    /// <summary>The fog of war shown: as chosen, gone once the game is won (the whole map uncovered).</summary>
+    private bool FogOn => _fogChosen && Outcome != MissionOutcome.Won;
     private Vision _vision = null!;
     private FogLayer? _fog;
     private BasicEffect _fogEffect = null!;
@@ -327,7 +344,7 @@ public sealed class MapGame : Game
         _peoples = peoples;
         _characters = characters ?? [];
         _captureDirectory = captureDirectory;
-        _fogOn = captureDirectory is null || Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOG") == "1";
+        _fogChosen = captureDirectory is null || Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOG") == "1";
         _mapFiles = installation.MapFiles.ToArray();
         _randomMap = mapName is null ? null : RandomMapSettings.ParseName(mapName, defaultSeed: Random.Shared.Next());
         // Default: the first multiplayer map (equal start equipment for every player).
@@ -588,6 +605,9 @@ public sealed class MapGame : Game
             hardcore: _hardcore.Where(p => p < _map.Players.Count),
             positions: _positions?.Length == _map.Players.Count ? _positions : null,
             production: GameSettings.Load(production).Apply(production));
+        // A free game is won by defeating everybody else (a mission brings its own goals).
+        _world.Goals = new ConquestGoals();
+        BeginSession();
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
         _world.SoundCues = _audio is null ? null : new();
@@ -599,7 +619,7 @@ public sealed class MapGame : Game
         _fog.SetTargets(_vision);
         _minimap?.Dispose();
         _minimap = new Minimap(GraphicsDevice, _map.Area);
-        _minimap.Update(_vision, all: !_fogOn, _gameMap);
+        _minimap.Update(_vision, all: !FogOn, _gameMap);
         _nextVision = _time + VisionInterval;
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         // Every other player is a computer player.
@@ -651,11 +671,15 @@ public sealed class MapGame : Game
         _fog.SetTargets(_vision);
         _minimap?.Dispose();
         _minimap = new Minimap(GraphicsDevice, _map.Area);
-        _minimap.Update(_vision, all: !_fogOn, _gameMap);
+        _minimap.Update(_vision, all: !FogOn, _gameMap);
         _nextVision = _time + VisionInterval;
         PlayerColors.Restore(game.Client.GetValueOrDefault("colors"));
         _mission = MissionRef.Parse(game.Client.GetValueOrDefault("mission"));
+        // Free games saved before they had goals get them now.
+        if (_mission is null)
+            _world.Goals ??= new ConquestGoals();
         _outcomeNoted = MissionOutcome.Open;
+        BeginSession();
         _playerCatalogs = game.Catalogs;
         UsePeople(Own, force: true);
         // The computer players' notes go to the screen again; the own player's AI (I) goes on if it was on.
@@ -679,8 +703,43 @@ public sealed class MapGame : Game
         _message = $"game loaded ({_map.Name})";
     }
 
-    /// <summary>Saves the game into a slot (overwriting it); the list shows it right away.</summary>
-    private void SaveGameTo(int slot)
+    /// <summary>A game started or loaded: no notes yet, defeats before it untold, the time since saving from 0.</summary>
+    private void BeginSession()
+    {
+        _info.Clear();
+        _defeatNoted.Clear();
+        foreach (var ai in _world.AiPlayers)
+            if (_world.Goals?.IsDefeated(ai.Player) == true)
+                _defeatNoted.Add(ai.Player);
+        _sinceSave = 0;
+        _nextSaveReminder = SaveReminderMinutes;
+    }
+
+    /// <summary>
+    /// Once a frame in the game: computer players newly defeated are told in the info feed; with autosave on the game is
+    /// saved every <see cref="AutoSaveMinutes"/>, otherwise reminded of every <see cref="SaveReminderMinutes"/> unsaved
+    /// (not once lost, nor in capture runs).
+    /// </summary>
+    private void NoteNews(TimeSpan real)
+    {
+        if (_world.Goals is { } goals)
+            foreach (var ai in _world.AiPlayers.OrderBy(a => a.Player))
+                if (ai.Player != 0 && goals.IsDefeated(ai.Player) && _defeatNoted.Add(ai.Player))
+                    _info.Add(Lang.T("info.defeated", $"{Lang.T("start.player", ai.Player + 1)} ({_aiNames.Character(ai.Character.Id)})"), _now);
+        if (_captureDirectory is not null || Outcome == MissionOutcome.Lost)
+            return;
+        _sinceSave += real.TotalSeconds;
+        if (_display.AutoSave && _sinceSave >= AutoSaveMinutes * 60)
+            SaveGameTo(AutoSaveSlot, auto: true);
+        else if (_sinceSave >= _nextSaveReminder * 60)
+        {
+            _info.Add(Lang.T("info.notSaved", _nextSaveReminder), _now);
+            _nextSaveReminder += SaveReminderMinutes;
+        }
+    }
+
+    /// <summary>Saves the game into a slot (overwriting it); the list shows it right away, the info feed tells it.</summary>
+    private void SaveGameTo(int slot, bool auto = false)
     {
         var info = new SaveInfo(_map.Name, Own.Civilization.ToString(), DateTime.Now, _world.Tick, _mission?.ToString());
         var game = new SaveGame
@@ -702,12 +761,17 @@ public sealed class MapGame : Game
             var watch = System.Diagnostics.Stopwatch.StartNew();
             SaveSlots.Save(slot, info, game);
             _message = $"saved into slot {slot + 1} ({watch.ElapsedMilliseconds} ms)";
+            _info.Add(Lang.T(auto ? "info.autoSaved" : "info.saved", slot + 1), _now);
         }
         catch (Exception e)
         {
             Console.WriteLine(e);
             _message = $"saving failed: {e.Message}";
+            _info.Add(Lang.T("info.saveFailed", slot + 1), _now);
         }
+        // Also after a failure: autosave tries again next time, not every frame.
+        _sinceSave = 0;
+        _nextSaveReminder = SaveReminderMinutes;
         _systemMenu.Refresh();
     }
 
@@ -728,11 +792,11 @@ public sealed class MapGame : Game
             _ => _map.Name,
         };
         _statistics = new StatisticsScreen(GraphicsDevice, _gfx, _world, name, _goodsGrid, _aiNames, canResume && outcome != MissionOutcome.Lost,
-            outcome == MissionOutcome.Open ? null : Lang.T("campaign.next"));
+            outcome == MissionOutcome.Open || _mission is null ? null : Lang.T("campaign.next"));
     }
 
-    /// <summary>The campaign mission's outcome; open in free games.</summary>
-    private MissionOutcome Outcome => _mission is not null && _world.Goals is { } goals ? goals.Outcome : MissionOutcome.Open;
+    /// <summary>The outcome of the campaign mission or the free game.</summary>
+    private MissionOutcome Outcome => _world.Goals?.Outcome ?? MissionOutcome.Open;
 
     /// <summary>The statistics screen; a capture run saves every page as <c>stats_N.png</c> and quits.</summary>
     private void DrawStatistics()
@@ -822,6 +886,26 @@ public sealed class MapGame : Game
         _loadList = new ListScreen(GraphicsDevice, _gfx, Lang.T("title.buttons.load"), rows);
     }
 
+    /// <summary>Loads a saved game from the title screen (behind the loading screen); one that does not load is told there.</summary>
+    private void LoadSlot(int slot)
+    {
+        SaveGame game;
+        try
+        {
+            game = SaveSlots.Load(slot);
+        }
+        catch (Exception exception)
+        {
+            var failure = SaveLoadFailure.Of(exception);
+            Console.Error.WriteLine($"Loading slot {slot + 1} failed ({failure.Code}): {exception}");
+            _title!.ShowLoadFailure(failure);
+            return;
+        }
+        _title!.Dispose();
+        _title = null;
+        ShowLoading(MissionRef.Parse(game.Client.GetValueOrDefault("mission"))?.Campaign, () => LoadGame(game));
+    }
+
     /// <summary>Back from the list of saved games to the title screen.</summary>
     private void CloseLoadList()
     {
@@ -863,7 +947,9 @@ public sealed class MapGame : Game
                 Console.WriteLine($"Campaign progress not saved: {e.Message}");
             }
         }
-        else if (outcome == MissionOutcome.Lost)
+        if (outcome == MissionOutcome.Won)
+            _minimap!.Update(_vision, all: !FogOn, _gameMap); // the fog lifts from the whole map
+        if (outcome == MissionOutcome.Lost)
         {
             _placing = _aiming = false;
             _selected = null;
@@ -1002,24 +1088,8 @@ public sealed class MapGame : Game
                 CloseLoadList();
             else if (_loadList.Chosen is { } slot)
             {
-                SaveGame game;
-                try
-                {
-                    game = SaveSlots.Load(slot);
-                }
-                catch (Exception exception)
-                {
-                    var failure = SaveLoadFailure.Of(exception);
-                    Console.Error.WriteLine($"Loading slot {slot + 1} failed ({failure.Code}): {exception}");
-                    CloseLoadList();
-                    _title!.ShowLoadFailure(failure);
-                    return;
-                }
-                _loadList.Dispose();
-                _loadList = null;
-                _title!.Dispose();
-                _title = null;
-                ShowLoading(MissionRef.Parse(game.Client.GetValueOrDefault("mission"))?.Campaign, () => LoadGame(game));
+                CloseLoadList();
+                LoadSlot(slot);
                 return;
             }
             _previousKeys = Keyboard.GetState();
@@ -1069,6 +1139,8 @@ public sealed class MapGame : Game
         _previousMouse = Mouse.GetState();
         if (action == TitleAction.Quit)
             Exit();
+        else if (action == TitleAction.Continue && SaveSlots.Latest() is { } latest)
+            LoadSlot(latest);
         else if (action == TitleAction.Load)
             OpenLoadList();
         else if (action == TitleAction.Settings)
@@ -1212,7 +1284,7 @@ public sealed class MapGame : Game
         foreach (var occupied in new[] { false, true })
             foreach (var building in _world.Buildings)
                 if (building.Exists && _world.Military.IsOccupied(building) == occupied
-                    && (!_fogOn || (building.Player == 0 ? _vision.IsExplored(building.Position.Y * _gameMap.Size + building.Position.X)
+                    && (!FogOn || (building.Player == 0 ? _vision.IsExplored(building.Position.Y * _gameMap.Size + building.Position.X)
                         : _vision.IsVisible(building.Position))))
                     _minimapDots.Add(new MinimapDot(building.Position,
                         !occupied ? Color.Black : building.Player == 0 ? Color.White : Color.Red, Building: true));
@@ -1226,7 +1298,7 @@ public sealed class MapGame : Game
     private bool OnMinimap(Settler settler) =>
         settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Pioneer or Profession.Scout
         && !settler.IsDead && !settler.IsInside
-        && (settler.Player == 0 || (settler.IsRevealedTo(0) && (!_fogOn || _vision.IsVisible(settler.Position))));
+        && (settler.Player == 0 || (settler.IsRevealedTo(0) && (!FogOn || _vision.IsVisible(settler.Position))));
 
     private Vector2 ToWorld(GridPoint p) => ScreenProjection.ToWorld(p.X, p.Y, _terrain.HeightAt(p.X, p.Y));
 
@@ -1295,7 +1367,7 @@ public sealed class MapGame : Game
 
         // Capture runs use fixed frame times at 4x speed, so long processes fit into a short run.
         var elapsed = _captureDirectory is null ? gameTime.ElapsedGameTime : TimeSpan.FromSeconds(4 / 60.0);
-        // Paused (P): the world stands still; the camera, the panel and orders still work.
+        // Paused (P or Esc): the world stands still; the camera, the panel and orders still work.
         if (_paused)
             elapsed = TimeSpan.Zero;
         // F12 held: the game runs at FastForward times its speed.
@@ -1313,6 +1385,7 @@ public sealed class MapGame : Game
         }
         _perf.EndSimulation();
         NoteOutcome();
+        NoteNews(gameTime.ElapsedGameTime);
         if (_audio is not null && _world.SoundCues is { } cues)
         {
             _audio.BeginFrame(Hearing);
@@ -1333,7 +1406,7 @@ public sealed class MapGame : Game
         {
             _vision.Update(_world);
             _fog!.SetTargets(_vision);
-            _minimap!.Update(_vision, all: !_fogOn, _gameMap);
+            _minimap!.Update(_vision, all: !FogOn, _gameMap);
             _nextVision = _time + VisionInterval;
         }
         _fog!.Advance((float)elapsed.TotalSeconds);
@@ -1394,7 +1467,7 @@ public sealed class MapGame : Game
     /// </summary>
     private (float X, float Y)? Hearing(GridPoint p)
     {
-        if (!_gameMap.Contains(p) || (_fogOn && !_vision.IsVisible(p)))
+        if (!_gameMap.Contains(p) || (FogOn && !_vision.IsVisible(p)))
             return null;
         var viewport = GraphicsDevice.Viewport;
         var at = ToWorld(p) - _camera;
@@ -1448,124 +1521,27 @@ public sealed class MapGame : Game
         bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
         var cursorScreen = mouse.Position.ToVector2();
 
-        // A lost mission leaves no control: only leaving (Esc → statistics) and the window keys.
-        if (Outcome == MissionOutcome.Lost)
+        // A lost game leaves no command: the camera, the minimap, the events and the computer menu (save, quit) still work;
+        // Esc leaves (→ statistics).
+        bool lost = Outcome == MissionOutcome.Lost;
+        if (lost)
         {
             if (Pressed(Keys.Escape))
+            {
                 OpenStatistics(canResume: false);
+                _previousKeys = keys;
+                _previousMouse = mouse;
+                return;
+            }
             if (Pressed(Keys.F11))
                 ToggleFullScreen();
             if (Pressed(Keys.F3))
                 _showPerf = !_showPerf;
-            _previousKeys = keys;
-            _previousMouse = mouse;
-            return;
+            if (Pressed(Keys.T))
+                _showClock = !_showClock;
         }
-
-        if (Pressed(Keys.Escape))
-        {
-            if (_aiming)
-                _aiming = false;
-            else if (_placing)
-                _placing = false;
-            else
-                OpenStatistics(canResume: true);
-        }
-        if (Pressed(Keys.F2))
-        {
-            _scaling = (Scaling)(((int)_scaling + 1) % Enum.GetValues<Scaling>().Length);
-            _scalingShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
-        }
-        if (Pressed(Keys.F3))
-            _showPerf = !_showPerf;
-        if (Pressed(Keys.T))
-            _showClock = !_showClock;
-        if (Pressed(Keys.F11))
-            ToggleFullScreen();
-        // Groups: Ctrl+1-9 stores the selection, 1-9 selects the group again; pressed twice the camera flies to it.
-        bool control = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
-        for (int i = 0; i < ControlGroups.Count; i++)
-        {
-            if (!Pressed(Keys.D1 + i) && !Pressed(Keys.NumPad1 + i))
-                continue;
-            if (control)
-            {
-                _controlGroups.Store(i, _group);
-                _message = _group.Count > 0 ? $"group {i + 1}: {_group.Count} selected" : $"group {i + 1} cleared";
-            }
-            else
-            {
-                SelectGroup(i);
-                if (_lastGroupKey == i && _now - _lastGroupAt <= GroupDoublePressSeconds && _group.Count > 0)
-                {
-                    float alpha = TickAlpha;
-                    _flightFrom = _camera;
-                    _flightTo = _group.Aggregate(Vector2.Zero, (sum, s) => sum + SettlerRenderer.Anchor(s, _terrain, alpha)) / _group.Count;
-                    _flightStart = _now;
-                }
-                _lastGroupKey = i;
-                _lastGroupAt = _now;
-            }
-        }
-        if (Pressed(Keys.P))
-            _paused = !_paused;
-        if (_placing && Pressed(Keys.E))
-            _placeIndex = (_placeIndex + 1) % _placeable.Length;
-        if (_placing && Pressed(Keys.Q))
-            _placeIndex = (_placeIndex - 1 + _placeable.Length) % _placeable.Length;
-        if (Pressed(Keys.PageDown))
-            LoadMap(_mapIndex + 1);
-        if (Pressed(Keys.PageUp))
-            LoadMap(_mapIndex - 1);
-        if (Pressed(Keys.B))
-            _showBlocked = !_showBlocked;
-        if (Pressed(Keys.V))
-        {
-            _fogOn = !_fogOn;
-            _minimap!.Update(_vision, all: !_fogOn, _gameMap);
-            _message = _fogOn ? "fog of war on (V)" : "fog of war off (V)";
-        }
-        if (Pressed(Keys.O))
-            _showObjects = !_showObjects;
-        if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen), Profession.Carrier) is { } spawned)
-            _selected = spawned;
-        if (Pressed(Keys.I))
-        {
-            if (_ownAi is null && _playerCatalogs.Count > 0)
-            {
-                _ownAi = NewAi(0);
-                _world.AiPlayers.Add(_ownAi);
-                _message = "the AI plays for you (I: stop)";
-            }
-            else if (_ownAi is not null)
-            {
-                _world.AiPlayers.Remove(_ownAi);
-                _ownAi = null;
-                _message = "you play again";
-            }
-        }
-        if (Pressed(Keys.L))
-        {
-            foreach (var ai in _world.AiPlayers.OrderBy(a => a.Player))
-            {
-                Console.WriteLine($"-- AI player {ai.Player + 1}, land {ai.Land}");
-                foreach (string line in ai.Log)
-                    Console.WriteLine("   " + line);
-            }
-            _message = "AI decisions written to the console";
-        }
-        if (Pressed(Keys.G))
-            _message = DemoEconomy.Create(_world, Own, ScreenToGrid(cursorScreen), _random);
-        if (Pressed(Keys.M))
-            SpawnWanderers(ScreenToGrid(cursorScreen));
-        if (Pressed(Keys.F) && _world.BuildingAt(ScreenToGrid(cursorScreen)) is { } target)
-        {
-            // F: attack the enemy military building under the cursor with player 1's soldiers nearby.
-            int sent = _world.Military.Attack(0, target);
-            _message = sent > 0 ? $"{sent} soldiers attack {target.Definition.Name}" : "no soldiers in range or not an enemy military building";
-        }
-        if (Pressed(Keys.C))
-            _cheats.IsOpen = !_cheats.IsOpen;
+        else
+            HandleKeys(keys, cursorScreen, gameTime);
         // Space: to the newest event not looked at yet; once all are, nothing. Held, it goes on faster and
         // faster: from SpaceFirstRepeat between events down to SpaceFastRepeat after SpaceRampSeconds.
         if (Pressed(Keys.Space))
@@ -1581,17 +1557,6 @@ public sealed class MapGame : Game
             _nextSpace = _now + MathHelper.Lerp(SpaceFirstRepeat, SpaceFastRepeat, ramp);
             if (_eventButtons.Look(_world, 0, null) is { } unseen)
                 LookAt(unseen);
-        }
-        if (Pressed(Keys.K))
-        {
-            // Test soldiers: two of each kind, for player 0 (with Shift for player 1).
-            int player = keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift) ? 1 : 0;
-            int soldiers = 0;
-            foreach (var type in Enum.GetValues<SoldierType>())
-                for (int i = 0; i < 2; i++)
-                    if (_world.SpawnSoldier(ScreenToGrid(cursorScreen), type, player: player) is not null)
-                        soldiers++;
-            _message = $"{soldiers} soldiers for player {player + 1}";
         }
 
         // The menu at the left edge: the build menu (a click chooses a category or the building to place).
@@ -1615,7 +1580,7 @@ public sealed class MapGame : Game
             if (mouse.RightButton == ButtonState.Pressed && _previousMouse.RightButton == ButtonState.Released && IsActive)
                 _minimapRightPress = cursorScreen;
             if (mouse.RightButton == ButtonState.Released && _previousMouse.RightButton == ButtonState.Pressed
-                && _minimapRightPress is { } press && Vector2.Distance(press, cursorScreen) < DragThreshold && _group.Count > 0)
+                && _minimapRightPress is { } press && Vector2.Distance(press, cursorScreen) < DragThreshold && _group.Count > 0 && !lost)
                 Command(onMinimap);
         }
         if (mouse.RightButton == ButtonState.Released)
@@ -1639,11 +1604,11 @@ public sealed class MapGame : Game
         float panelScale = SidePanel.Scale(GraphicsDevice.Viewport.Height);
         int? groupIcon = _controlGroups.GroupAt(cursorScreen, GraphicsDevice.Viewport.Width, panelScale);
         _cheats.Top = ControlGroups.Bottom(panelScale) + 8;
-        if (groupIcon is { } clickedGroup && released)
+        if (groupIcon is { } clickedGroup && released && !lost)
             SelectGroup(clickedGroup);
         onMenu |= groupIcon is not null;
         // The cheat menu below them (C).
-        if (released)
+        if (released && !lost)
             _cheats.Click(cursorScreen, GraphicsDevice.Viewport.Width);
         onMenu |= _cheats.Contains(cursorScreen, GraphicsDevice.Viewport.Width);
         if (!PriestsSelected)
@@ -1668,7 +1633,7 @@ public sealed class MapGame : Game
             _selectedBuilding = null;
             _placing = _aiming = false;
         }
-        bool onTab = onMenu && _tabs.TabAt(panelCursor) is not null;
+        bool onTab = onMenu && _tabs.TabAt(panelCursor) is not null && !lost;
         if (onMenu && _tabs.NameAt(panelCursor) is { } tabName)
             _message = tabName;
         if (onTab && released)
@@ -1763,9 +1728,15 @@ public sealed class MapGame : Game
                     SaveGameTo(_systemMenu.ChosenSlot);
                     break;
                 case SystemAction.Quit:
+                    if (_display.AutoSave && Outcome != MissionOutcome.Lost && _captureDirectory is null)
+                        SaveGameTo(AutoSaveSlot, auto: true);
                     OpenStatistics(canResume: false);
                     return;
             }
+        }
+        else if (lost)
+        {
+            // Lost: the other menus only show.
         }
         else if (!ShowsSelection && _tabs.Current != PanelTab.Build)
         {
@@ -1854,7 +1825,7 @@ public sealed class MapGame : Game
 
         // Left button: a click on release, or a selection box when dragged.
         if (mouse.LeftButton == ButtonState.Pressed && _previousMouse.LeftButton == ButtonState.Released
-            && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position) && !onMenu)
+            && IsActive && GraphicsDevice.Viewport.Bounds.Contains(mouse.Position) && !onMenu && !lost)
             _dragStart = cursorScreen;
         if (mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is { } dragStart)
         {
@@ -1908,7 +1879,7 @@ public sealed class MapGame : Game
             _camera -= (mouse.Position - _previousMouse.Position).ToVector2() / _zoom;
         if (mouse.RightButton == ButtonState.Released && _previousMouse.RightButton == ButtonState.Pressed && _rightStart is { } rightStart)
         {
-            if (Vector2.Distance(rightStart, cursorScreen) < DragThreshold)
+            if (Vector2.Distance(rightStart, cursorScreen) < DragThreshold && !lost)
                 Command(cursorScreen);
             _rightStart = null;
         }
@@ -1930,6 +1901,127 @@ public sealed class MapGame : Game
 
         _previousKeys = keys;
         _previousMouse = mouse;
+    }
+
+    /// <summary>The game's keys (not once the game is lost): pause, view, groups, placing, debugging and cheats.</summary>
+    private void HandleKeys(KeyboardState keys, Vector2 cursorScreen, GameTime gameTime)
+    {
+        bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
+        if (Pressed(Keys.Escape))
+        {
+            if (_aiming)
+                _aiming = false;
+            else if (_placing)
+                _placing = false;
+            else
+                _paused = !_paused;
+        }
+        if (Pressed(Keys.F2))
+        {
+            _scaling = (Scaling)(((int)_scaling + 1) % Enum.GetValues<Scaling>().Length);
+            _scalingShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
+        }
+        if (Pressed(Keys.F3))
+            _showPerf = !_showPerf;
+        if (Pressed(Keys.T))
+            _showClock = !_showClock;
+        if (Pressed(Keys.F11))
+            ToggleFullScreen();
+        // Groups: Ctrl+1-9 stores the selection, 1-9 selects the group again; pressed twice the camera flies to it.
+        bool control = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
+        for (int i = 0; i < ControlGroups.Count; i++)
+        {
+            if (!Pressed(Keys.D1 + i) && !Pressed(Keys.NumPad1 + i))
+                continue;
+            if (control)
+            {
+                _controlGroups.Store(i, _group);
+                _message = _group.Count > 0 ? $"group {i + 1}: {_group.Count} selected" : $"group {i + 1} cleared";
+            }
+            else
+            {
+                SelectGroup(i);
+                if (_lastGroupKey == i && _now - _lastGroupAt <= GroupDoublePressSeconds && _group.Count > 0)
+                {
+                    float alpha = TickAlpha;
+                    _flightFrom = _camera;
+                    _flightTo = _group.Aggregate(Vector2.Zero, (sum, s) => sum + SettlerRenderer.Anchor(s, _terrain, alpha)) / _group.Count;
+                    _flightStart = _now;
+                }
+                _lastGroupKey = i;
+                _lastGroupAt = _now;
+            }
+        }
+        if (Pressed(Keys.P))
+            _paused = !_paused;
+        if (_placing && Pressed(Keys.E))
+            _placeIndex = (_placeIndex + 1) % _placeable.Length;
+        if (_placing && Pressed(Keys.Q))
+            _placeIndex = (_placeIndex - 1 + _placeable.Length) % _placeable.Length;
+        if (Pressed(Keys.PageDown))
+            LoadMap(_mapIndex + 1);
+        if (Pressed(Keys.PageUp))
+            LoadMap(_mapIndex - 1);
+        if (Pressed(Keys.B))
+            _showBlocked = !_showBlocked;
+        if (Pressed(Keys.V))
+        {
+            _fogChosen = !_fogChosen;
+            _minimap!.Update(_vision, all: !FogOn, _gameMap);
+            _message = _fogChosen ? "fog of war on (V)" : "fog of war off (V)";
+        }
+        if (Pressed(Keys.O))
+            _showObjects = !_showObjects;
+        if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen), Profession.Carrier) is { } spawned)
+            _selected = spawned;
+        if (Pressed(Keys.I))
+        {
+            if (_ownAi is null && _playerCatalogs.Count > 0)
+            {
+                _ownAi = NewAi(0);
+                _world.AiPlayers.Add(_ownAi);
+                _message = "the AI plays for you (I: stop)";
+            }
+            else if (_ownAi is not null)
+            {
+                _world.AiPlayers.Remove(_ownAi);
+                _ownAi = null;
+                _message = "you play again";
+            }
+        }
+        if (Pressed(Keys.L))
+        {
+            foreach (var ai in _world.AiPlayers.OrderBy(a => a.Player))
+            {
+                Console.WriteLine($"-- AI player {ai.Player + 1}, land {ai.Land}");
+                foreach (string line in ai.Log)
+                    Console.WriteLine("   " + line);
+            }
+            _message = "AI decisions written to the console";
+        }
+        if (Pressed(Keys.G))
+            _message = DemoEconomy.Create(_world, Own, ScreenToGrid(cursorScreen), _random);
+        if (Pressed(Keys.M))
+            SpawnWanderers(ScreenToGrid(cursorScreen));
+        if (Pressed(Keys.F) && _world.BuildingAt(ScreenToGrid(cursorScreen)) is { } target)
+        {
+            // F: attack the enemy military building under the cursor with player 1's soldiers nearby.
+            int sent = _world.Military.Attack(0, target);
+            _message = sent > 0 ? $"{sent} soldiers attack {target.Definition.Name}" : "no soldiers in range or not an enemy military building";
+        }
+        if (Pressed(Keys.C))
+            _cheats.IsOpen = !_cheats.IsOpen;
+        if (Pressed(Keys.K))
+        {
+            // Test soldiers: two of each kind, for player 0 (with Shift for player 1).
+            int player = keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift) ? 1 : 0;
+            int soldiers = 0;
+            foreach (var type in Enum.GetValues<SoldierType>())
+                for (int i = 0; i < 2; i++)
+                    if (_world.SpawnSoldier(ScreenToGrid(cursorScreen), type, player: player) is not null)
+                        soldiers++;
+            _message = $"{soldiers} soldiers for player {player + 1}";
+        }
     }
 
     /// <summary>The next wheel step in or out from <paramref name="zoom"/>, which may lie between steps (e.g. from an old save).</summary>
@@ -2001,10 +2093,14 @@ public sealed class MapGame : Game
         bool adding = ShiftDown(Keyboard.GetState());
         if (hit is { Player: 0 } && Selectable(hit))
         {
-            // Ctrl: every own settler of that kind (soldiers: of that type, whatever their rank).
-            var clicked = ControlDown(Keyboard.GetState())
-                ? _world.Settlers.Where(s => s.Player == 0 && !s.IsInside && Selectable(s)
-                                             && s.Profession == hit.Profession && s.SoldierType == hit.SoldierType).ToList()
+            // On screen: Ctrl every own settler of that kind (soldiers: all of them), Alt of that type
+            // (soldiers: of that type, whatever their rank).
+            var keys = Keyboard.GetState();
+            bool control = ControlDown(keys), alt = AltDown(keys);
+            var clicked = control || alt
+                ? OnScreen().Where(s => s.Player == 0 && !s.IsInside && Selectable(s) && s.Profession == hit.Profession
+                                        && (control && s.Profession == Profession.Soldier || s.SoldierType == hit.SoldierType))
+                    .Append(hit).Distinct().ToList()
                 : [hit];
             var selection = ByPriority(adding ? _group.Concat(clicked) : clicked);
             ClearSelection();
@@ -2235,6 +2331,20 @@ public sealed class MapGame : Game
 
     private static bool ShiftDown(KeyboardState keys) => keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift);
 
+    private static bool AltDown(KeyboardState keys) => keys.IsKeyDown(Keys.LeftAlt) || keys.IsKeyDown(Keys.RightAlt);
+
+    /// <summary>The settlers whose body lies in the visible part of the map (the panel's side excluded).</summary>
+    private IEnumerable<Settler> OnScreen()
+    {
+        var inverse = Matrix.Invert(View);
+        var viewport = GraphicsDevice.Viewport;
+        var min = Vector2.Transform(new Vector2(SidePanel.Width * SidePanel.Scale(viewport.Height), 0), inverse);
+        var max = Vector2.Transform(new Vector2(viewport.Width, viewport.Height), inverse);
+        float alpha = TickAlpha;
+        return _world.Settlers.Where(s => SettlerRenderer.Anchor(s, _terrain, alpha) - new Vector2(0, 10) is var p
+                                          && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y);
+    }
+
     /// <summary>Own settlers that can be selected: soldiers, priests, geologists, scouts and pioneers (not carriers).</summary>
     private static bool Selectable(Settler s) =>
         s.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer;
@@ -2268,8 +2378,8 @@ public sealed class MapGame : Game
         });
         void Decide(string key, MissionOutcome outcome) => _cheats.Add(Lang.T("cheats." + key), () =>
         {
-            if (_mission is null || _world.Goals is null)
-                _message = "cheat: not a campaign mission";
+            if (_world.Goals is null)
+                _message = "cheat: no goals in this game";
             else
                 _world.Goals.Decide(outcome, _world.Tick);
         });
@@ -2646,14 +2756,14 @@ public sealed class MapGame : Game
             foreach (var settler in settlersByRow[y])
             {
                 // Under the fog, other players' settlers are seen only where player 1 sees now.
-                if (_fogOn && settler.Player != 0 && !_vision.IsVisible(settler.Position))
+                if (FogOn && settler.Player != 0 && !_vision.IsVisible(settler.Position))
                     continue;
                 // Scouts in disguise look like one of player 1's carriers.
                 _settlerRenderer.Draw(_spriteBatch, settler, _terrain, _world.Tick, alpha,
                     PlayerColors.Of(settler.IsRevealedTo(0) ? settler.Player : 0), disguised: !settler.IsRevealedTo(0));
             }
             foreach (var ghost in ghostsByRow[y])
-                if (!_fogOn || _vision.IsVisible(ghost.Position))
+                if (!FogOn || _vision.IsVisible(ghost.Position))
                     _economyRenderer.DrawGhost(_spriteBatch, ghost.Position, (_world.Tick - ghost.Tick + alpha) / World.GhostTicks, _terrain,
                         PlayerColors.Of(ghost.Player));
         }
@@ -2661,7 +2771,7 @@ public sealed class MapGame : Game
         foreach (var cloud in _world.DustClouds)
             _economyRenderer.DrawDustCloud(_spriteBatch, cloud.Position, (_world.Tick - cloud.Tick + alpha) / World.DustCloudTicks, _terrain);
         DrawArrows(alpha);
-        if (_fogOn)
+        if (FogOn)
         {
             // Over the world, under markers and previews: black, transparent where seen.
             _spriteBatch.End();
@@ -2778,6 +2888,8 @@ public sealed class MapGame : Game
             Mouse.GetState().Position.ToVector2());
         _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, Mouse.GetState().Position.ToVector2());
         DrawOutcome(viewport);
+        _info.Draw(_spriteBatch, _font, SidePanel.Width * SidePanel.Scale(viewport.Height) + 12, viewport.Height - 10,
+            Math.Max(14, viewport.Height / 48), _now);
         // Bottom right, stacked upwards: performance (F3), then the game time (T).
         int bottom = viewport.Height;
         if (_showPerf)
@@ -2807,7 +2919,7 @@ public sealed class MapGame : Game
     private const float HitHeight = 10;
 
     /// <summary>A text box at the bottom right, ending at <paramref name="bottom"/>; returns its top.</summary>
-    /// <summary>A decided mission: "Spiel gewonnen" or "Spiel verloren" in white at the top of the map, how to go on below.</summary>
+    /// <summary>A decided game: "Spiel gewonnen" or "Spiel verloren" in white at the top of the map, how to go on below.</summary>
     private void DrawOutcome(Viewport viewport)
     {
         var outcome = Outcome;
@@ -2815,7 +2927,8 @@ public sealed class MapGame : Game
             DrawBanner(viewport, Lang.T("system.paused"), Lang.T("system.pausedHint"));
         else if (outcome != MissionOutcome.Open)
             DrawBanner(viewport, Lang.T(outcome == MissionOutcome.Won ? "campaign.won" : "campaign.lost"),
-                Lang.T(outcome == MissionOutcome.Won ? "campaign.wonHint" : "campaign.lostHint"));
+                _mission is not null ? Lang.T(outcome == MissionOutcome.Won ? "campaign.wonHint" : "campaign.lostHint")
+                    : Lang.T(outcome == MissionOutcome.Won ? "system.wonHint" : "system.lostHint"));
     }
 
     /// <summary>White text with a shadow at the top of the game view, a smaller hint under it (game won/lost, pause).</summary>
@@ -3287,7 +3400,7 @@ public sealed class MapGame : Game
                 _world.Step();
         _vision.Update(_world);
         _fog!.SetTargets(_vision);
-        _minimap!.Update(_vision, all: !_fogOn, _gameMap);
+        _minimap!.Update(_vision, all: !FogOn, _gameMap);
         Console.WriteLine($"benchmark: {_world.Tick / World.TicksPerSecond / 60} min played in {clock.Elapsed.TotalSeconds:F0} s, {_world.Settlers.Count} settlers, " +
                           $"{_world.Buildings.Count(b => b.Exists)} buildings");
         // HOMESTEAD_CAPTURE_VIEW=economy: the camera stays on player 1's home; battle: it follows the biggest fight.

@@ -34,6 +34,8 @@ public class StartSetupTests(ITestOutputHelper output)
             {
                 Assert.True(world.Military.IsOccupied(tower), $"{original.Name}: tower of player {tower.Player + 1} occupied");
                 Assert.Equal(tower.Player, world.Map!.OwnerAt(tower.Position));
+                // Bowmen wait outside: the tower takes them in only when the player asks.
+                Assert.Equal(0, world.Military.Wanted(tower, SoldierType.Bowman));
             }
             // Equal conditions: the same number of settlers for everyone.
             var perPlayer = world.Settlers.GroupBy(s => s.Player).Select(g => g.Count()).Distinct().ToList();

@@ -145,8 +145,8 @@ public sealed partial class World
     /// </summary>
     public Dictionary<string, (long Total, long Max)>? StepProfile { get; set; }
 
-    /// <summary>Victory and defeat of a campaign mission; null in free games.</summary>
-    public MissionGoals? Goals { get; set; }
+    /// <summary>Victory and defeat: of a campaign mission (<see cref="MissionGoals"/>) or a free game (<see cref="ConquestGoals"/>); null without.</summary>
+    public IGameGoals? Goals { get; set; }
 
     public void Step()
     {
@@ -193,7 +193,8 @@ public sealed partial class World
             Trails.Tick();
             Measure("idling", ref mark);
             foreach (var ai in AiPlayers)
-                ai.Tick();
+                if (Goals?.IsDefeated(ai.Player) != true)
+                    ai.Tick();
             Measure("ai", ref mark);
             History.Tick();
             Goals?.Tick(this);

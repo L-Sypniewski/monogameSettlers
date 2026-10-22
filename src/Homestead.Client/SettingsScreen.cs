@@ -89,6 +89,7 @@ public sealed class SettingsScreen : IDisposable
             Display("music", VolumeValues, d => d.MusicVolume, (d, v) => d with { MusicVolume = v }),
             Display("peopleMusic", YesNo, d => d.PeopleMusic ? 1 : 0, (d, v) => d with { PeopleMusic = v == 1 }),
             Display("effects", VolumeValues, d => d.EffectsVolume, (d, v) => d with { EffectsVolume = v }),
+            Display("autoSave", YesNo, d => d.AutoSave ? 1 : 0, (d, v) => d with { AutoSave = v == 1 }),
         ], "settings.notes.immediately"),
     ];
 

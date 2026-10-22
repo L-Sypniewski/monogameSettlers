@@ -58,7 +58,8 @@ public sealed class StartSetup
         if (tower is null)
             return null;
 
-        // Soldiers at the door: the tower wants as many as fit, so they occupy it right away.
+        // Soldiers at the door: the tower wants as many infantry as fit, so they occupy it right away; bowmen stay
+        // outside (wanted in the tower only when the player says so).
         var military = world.Military;
         int infantryPlaces = definition.Occupiers.Count(o => !o.ForBowman);
         foreach (var type in Enum.GetValues<SoldierType>())
@@ -66,8 +67,8 @@ public sealed class StartSetup
             {
                 world.SpawnSoldier(tower.Door, type, player: player);
                 // The swordsman every building wants at first counts; pikemen do not replace swordsmen.
-                bool fits = type == SoldierType.Bowman
-                    || military.Wanted(tower, SoldierType.Swordsman) + military.Wanted(tower, SoldierType.Pikeman) < infantryPlaces;
+                bool fits = type != SoldierType.Bowman
+                    && military.Wanted(tower, SoldierType.Swordsman) + military.Wanted(tower, SoldierType.Pikeman) < infantryPlaces;
                 if ((type != SoldierType.Swordsman || i > 0) && fits)
                     military.ChangeWanted(tower, type, +1);
             }
