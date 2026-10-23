@@ -100,8 +100,12 @@ You need your own copy of "The Settlers III" – and .NET 9 only to build it you
 
 ### Download
 
-Linux and Windows builds are on the [releases page](../../releases) (no installation: unpack and start
-`Homestead.Client` or `Homestead.Client.exe`). Versions follow [docs/VERSIONING.md](docs/VERSIONING.md).
+Linux, Windows and macOS builds are on the [releases page](../../releases) (no installation: unpack and start
+`Homestead.Client`, `Homestead.Client.exe` or `monoSettlers.app`). Versions follow [docs/VERSIONING.md](docs/VERSIONING.md).
+
+The macOS app (`osx-arm64` for Apple Silicon, `osx-x64` for Intel Macs) is not notarized, so Gatekeeper refuses to open
+it ("damaged" or "unidentified developer"). Remove the quarantine flag once after unpacking:
+`xattr -dr com.apple.quarantine monoSettlers.app`. Nobody has tried the macOS build on a Mac yet – reports welcome.
 
 ### Getting the original game
 

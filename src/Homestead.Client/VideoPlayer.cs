@@ -96,14 +96,18 @@ public sealed class VideoPlayer : IDisposable
         }
     }
 
-    /// <summary>The ffmpeg program: <c>HOMESTEAD_FFMPEG</c>, next to the program (also in a folder <c>ffmpeg</c>), or on the PATH.</summary>
+    /// <summary>
+    /// The ffmpeg program: <c>HOMESTEAD_FFMPEG</c>, next to the program (also in a folder <c>ffmpeg</c>), or on the PATH;
+    /// on macOS also where Homebrew puts it (an app started from the Finder does not get the shell's PATH).
+    /// </summary>
     public static string? FindFfmpeg()
     {
         string name = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
         if (Environment.GetEnvironmentVariable("HOMESTEAD_FFMPEG") is { Length: > 0 } configured && File.Exists(configured))
             return configured;
         var places = new[] { AppContext.BaseDirectory, Path.Combine(AppContext.BaseDirectory, "ffmpeg") }
-            .Concat((Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries));
+            .Concat((Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+            .Concat(OperatingSystem.IsMacOS() ? ["/opt/homebrew/bin", "/usr/local/bin"] : []);
         return places.Select(p => Path.Combine(p, name)).FirstOrDefault(File.Exists);
     }
 

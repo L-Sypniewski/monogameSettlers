@@ -555,7 +555,7 @@
     "goods": "Waren",
     "material": "Baumaterial",
     "demolish": "Abreißen",
-    "demolishQuestion": "Wirklich abreißen?",
+    "demolishQuestion": "Wollen Sie dieses Gebäude wirklich abreißen?",
     "soldiers": "{0}/{1} Soldaten",
     "soldiersOnTheWay": ", {0} unterwegs",
     "door": ", Tür {0} %"
@@ -565,6 +565,7 @@
     "saved": "Spiel in Slot {0} gespeichert.",
     "autoSaved": "Automatisch in Slot {0} gespeichert.",
     "saveFailed": "Speichern in Slot {0} fehlgeschlagen.",
-    "notSaved": "Seit {0} Minuten nicht gespeichert."
+    "notSaved": "Seit {0} Minuten nicht gespeichert.",
+    "lastTower": "Dies ist der letzte Turm"
   }
 }

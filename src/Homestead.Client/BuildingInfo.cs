@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
@@ -11,8 +12,8 @@ namespace Homestead.Client;
 /// <summary>
 /// Shown at the left edge instead of the build menu while a building is selected: its name and image;
 /// for own buildings also its state, the goods in its piles (construction sites: material delivered
-/// of needed) and a mine's hit rate, and at the bottom a button to tear it down (asks first), above it for
-/// production buildings one to stop or restart them. A finished
+/// of needed) and a mine's hit rate, at the top right the original's tear-down icon (then only the image stays, the question over it),
+/// at the bottom for production buildings a button to stop or restart them. A finished
 /// military building also offers its garrison per soldier type with buttons for more or fewer (the soldier
 /// upgrades are in Siedler › Krieger, <see cref="SoldiersMenu"/>). Names and states come from <c>data/ui.json</c>.
 /// </summary>
@@ -34,12 +35,34 @@ public sealed partial class BuildingInfo
     /// <summary>The building whose tear-down button was pressed: the panel asks whether to go on.</summary>
     private Building? _confirming;
 
+    /// <summary>The building the panel asks about tearing down, if any.</summary>
+    public Building? Asking => _confirming;
+
+    /// <summary>Drops the tear-down question (the player did something else).</summary>
+    public void Cancel() => _confirming = null;
+
+    /// <summary>The tear-down icon (GUI image of file 03, <c>buildingInfo.demolish</c> in <c>ui.json</c>; set by <see cref="LoadIcons"/>).</summary>
+    private Texture2D? _demolishIcon;
+
+    private int _demolishImage;
+
     public BuildingInfo()
     {
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
         var root = document.RootElement;
         foreach (var state in root.GetProperty("status").EnumerateArray())
             _states.Add((state[0].GetString()!, state[1].GetString()!));
+        _demolishImage = root.GetProperty("buildingInfo").GetProperty("demolish").GetInt32();
+    }
+
+    /// <summary>Loads the tear-down icon (once; the same for every people).</summary>
+    public void LoadIcons(GraphicsDevice device, GfxDirectory gfx)
+    {
+        if (_demolishIcon is not null)
+            return;
+        var bitmap = gfx.Open(3).ReadGui(_demolishImage);
+        _demolishIcon = new Texture2D(device, bitmap.Width, bitmap.Height);
+        _demolishIcon.SetData(bitmap.Pixels);
     }
 
     /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>
@@ -58,18 +81,16 @@ public sealed partial class BuildingInfo
     private bool OffersStorehouse(Building building) =>
         StorehouseGoods is not null && building.State == BuildingState.Finished && building.Piles.Any(p => p.Role == PileRole.Storage);
 
-    private int StorehouseTop => DemolishButton(0).Y - 6 - (StorehouseGoods!.Goods.Max(g => g.Row) + 1) * StorehouseRow;
+    private int StorehouseTop => Bottom - (StorehouseGoods!.Goods.Max(g => g.Row) + 1) * StorehouseRow;
 
     /// <summary>Where the buttons and rows at the bottom of an own building's panel begin.</summary>
     private int BlockTop(World world, Building building)
     {
-        if (_confirming == building)
-            return Bottom - 50 - 4;
         if (OffersStorehouse(building))
             return StorehouseTop - 4;
         if (OffersGarrison(building))
             return GarrisonRowRect(0, 0).Y - 16 - 4;
-        return OffersPause(world, building) ? PauseButton(0).Y - 6 : DemolishButton(0).Y - 6;
+        return OffersPause(world, building) ? PauseButton(0).Y - 6 : Bottom;
     }
 
     /// <summary>Text with a dark shadow, readable on the blue panel.</summary>
@@ -78,9 +99,9 @@ public sealed partial class BuildingInfo
 
     private const int GarrisonRow = 38;
 
-    /// <summary>The garrison rows of a military building, one per soldier type, above the tear-down button.</summary>
+    /// <summary>The garrison rows of a military building, one per soldier type, at the bottom.</summary>
     private static Rectangle GarrisonRowRect(int height, int index) =>
-        new(Left, Bottom - 28 - 10 - (Enum.GetValues<SoldierType>().Length - index) * (GarrisonRow + 2), Inner, GarrisonRow);
+        new(Left, Bottom - 4 - (Enum.GetValues<SoldierType>().Length - index) * (GarrisonRow + 2), Inner, GarrisonRow);
 
     /// <summary>The up/down spinner of a garrison row (as in Waren › Herstellung): upper half one more, lower half one fewer.</summary>
     private static Rectangle GarrisonSpinner(int height, int index)
@@ -153,10 +174,17 @@ public sealed partial class BuildingInfo
 
     public string NameOf(BuildingDefinition definition) => Lang.Find("buildings." + definition.Name) ?? definition.Name;
 
-    private static Rectangle DemolishButton(int height) => new(Left, Bottom - 28, Inner, 28);
+    private const int DemolishSize = 30;
 
-    /// <summary>The button stopping or restarting production, above the tear-down button.</summary>
-    private static Rectangle PauseButton(int height) => new(Left, Bottom - 28 - 6 - 28, Inner, 28);
+    /// <summary>The tear-down icon at the top right, next to the name (as in the original).</summary>
+    private static Rectangle DemolishButton(int height) => new(Left + Inner - DemolishSize, Top, DemolishSize, DemolishSize);
+
+    /// <summary>Whether the screen point is on the tear-down icon of an own building (for its hover text).</summary>
+    public bool DemolishAt(Vector2 screen, int height, Building building, int ownPlayer) =>
+        building.Player == ownPlayer && _confirming != building && DemolishButton(height).Contains(screen);
+
+    /// <summary>The button stopping or restarting production, at the bottom.</summary>
+    private static Rectangle PauseButton(int height) => new(Left, Bottom - 28, Inner, 28);
 
     private static bool OffersPause(World world, Building building) =>
         world.Production.CanPause(building) && !OffersGarrison(building);
@@ -165,13 +193,14 @@ public sealed partial class BuildingInfo
     public bool PauseAt(Vector2 screen, int height, World world, Building building, int ownPlayer) =>
         building.Player == ownPlayer && _confirming != building && OffersPause(world, building) && PauseButton(height).Contains(screen);
 
-    private static Rectangle YesButton(int height) => new(Left, Bottom - 28, Inner / 2 - 2, 28);
+    // Plain "Ja"/"Nein" at the bottom corners, as in "Spiel beenden" (SystemMenu).
+    private static Rectangle YesButton(int height) => new(Left, Bottom - 28, 70, 24);
 
-    private static Rectangle NoButton(int height) => new(Left + Inner / 2 + 2, Bottom - 28, Inner / 2 - 2, 28);
+    private static Rectangle NoButton(int height) => new(Left + Inner - 70, Bottom - 28, 70, 24);
 
     /// <summary>
     /// A left click on the panel. True if it confirmed tearing down <paramref name="building"/>: first the
-    /// button, then "Ja"; "Nein" goes back.
+    /// icon, then "Ja"; any other click (as "Nein") goes back.
     /// </summary>
     public bool Click(Vector2 screen, int height, Building building, int ownPlayer)
     {
@@ -180,7 +209,10 @@ public sealed partial class BuildingInfo
         if (_confirming != building)
         {
             if (DemolishButton(height).Contains(screen))
+            {
                 _confirming = building;
+                UiSounds.Demolish();
+            }
             return false;
         }
         if (YesButton(height).Contains(screen))
@@ -188,22 +220,27 @@ public sealed partial class BuildingInfo
             _confirming = null;
             return true;
         }
-        if (NoButton(height).Contains(screen))
-            _confirming = null;
+        _confirming = null;
         return false;
     }
 
     public void Draw(SpriteBatch batch, Texture2D pixel, int height, UiFont font, EconomyRenderer economy, SettlerRenderer settlers,
         Civilization people, World world, Building building, int ownPlayer, Vector2 cursor)
     {
+        // Asking whether to tear it down: only the image stays where it is, the question over the rest (as in the original).
+        bool asking = _confirming == building;
         int y = Top;
-        foreach (string line in font.Wrap(NameOf(building.Definition), Inner, 16))
+        bool own = building.Player == ownPlayer;
+        // Own buildings: the name gives the tear-down icon room.
+        foreach (string line in font.Wrap(NameOf(building.Definition), own ? Inner - DemolishSize - 4 : Inner, 16))
         {
-            Write(batch, font, line, new Vector2(Left, y), Text, 16);
+            if (!asking)
+                Write(batch, font, line, new Vector2(Left, y), Text, 16);
             y += 19;
         }
+        if (own)
+            y = Math.Max(y, Top + DemolishSize);
         y += 4;
-        bool own = building.Player == ownPlayer;
         var state = StateOf(world, building);
         double? chance = world.Production.MineChance(building);
         var goods = own && !OffersStorehouse(building) ? Goods(world, building) : [];
@@ -219,14 +256,19 @@ public sealed partial class BuildingInfo
         var imageBox = new Rectangle(Left, y, Inner, imageHeight);
         economy.DrawBuildingImage(batch, building.Definition, imageBox, PlayerColors.Of(building.Player));
         y = imageBox.Bottom + 8;
+        if (asking)
+        {
+            DrawQuestion(batch, height, font, cursor);
+            return;
+        }
         if (!own)
             return;
         DrawDemolish(batch, pixel, height, font, building, cursor);
-        if (OffersPause(world, building) && _confirming != building)
+        if (OffersPause(world, building))
             Button(batch, pixel, font, PauseButton(height), Lang.T(building.IsPaused ? "building.resume" : "building.pause"), cursor);
-        if (OffersGarrison(building) && _confirming != building)
+        if (OffersGarrison(building))
             DrawGarrison(batch, pixel, height, font, settlers, people, world, building, cursor);
-        if (OffersStorehouse(building) && _confirming != building)
+        if (OffersStorehouse(building))
             DrawStorehouse(batch, pixel, world, building, cursor);
 
         // State.
@@ -315,18 +357,31 @@ public sealed partial class BuildingInfo
             : $"{good.Name}: click to take only this here";
     }
 
-    /// <summary>The tear-down button at the bottom, or the question whether to go on.</summary>
+    /// <summary>The tear-down icon at the top right.</summary>
     private void DrawDemolish(SpriteBatch batch, Texture2D pixel, int height, UiFont font, Building building, Vector2 cursor)
     {
-        if (_confirming != building)
-        {
-            Button(batch, pixel, font, DemolishButton(height), Lang.T("building.demolish"), cursor);
-            return;
-        }
-        string question = Lang.T("building.demolishQuestion");
-        Write(batch, font, question, new Vector2(Left + (Inner - font.Measure(question).X) / 2, Bottom - 50), Text);
-        Button(batch, pixel, font, YesButton(height), Lang.T("common.yes"), cursor);
-        Button(batch, pixel, font, NoButton(height), Lang.T("common.no"), cursor);
+        var icon = DemolishButton(height);
+        if (_demolishIcon is not null)
+            batch.Draw(_demolishIcon, icon, Color.White);
+        if (icon.Contains(cursor))
+            batch.Draw(pixel, icon, HoverColor);
+    }
+
+    private const int QuestionSize = 18;
+    private const int QuestionLine = 22;
+
+    /// <summary>
+    /// Asking whether to tear the building down, as in the original: everything but the building's image gives way,
+    /// the question at the bottom and "Ja"/"Nein" below it.
+    /// </summary>
+    private static void DrawQuestion(SpriteBatch batch, int height, UiFont font, Vector2 cursor)
+    {
+        var lines = font.Wrap(Lang.T("building.demolishQuestion"), Inner, QuestionSize).ToList();
+        int top = YesButton(height).Y - 10 - lines.Count * QuestionLine;
+        for (int i = 0; i < lines.Count; i++)
+            SystemMenu.Centered(batch, font, lines[i], new Rectangle(Left, top + i * QuestionLine, Inner, QuestionLine), QuestionSize, false);
+        SystemMenu.Centered(batch, font, Lang.T("common.yes"), YesButton(height), QuestionSize, YesButton(height).Contains(cursor));
+        SystemMenu.Centered(batch, font, Lang.T("common.no"), NoButton(height), QuestionSize, NoButton(height).Contains(cursor));
     }
 
     private static void Button(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle rect, string label, Vector2 cursor) =>

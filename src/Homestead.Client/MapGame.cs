@@ -250,6 +250,12 @@ public sealed class MapGame : Game
 
     /// <summary>The side panel shows the selected settlers (not the open menu).</summary>
     private bool ShowsSelection => _group.Count > 0 && !_menuOverSelection;
+
+    /// <summary>Whether the building is its player's only finished military building (as counted by <see cref="ConquestGoals"/>).</summary>
+    private bool IsLastMilitaryBuilding(Building building) =>
+        IsMilitary(building) && !_world.Buildings.Any(b => b != building && b.Player == building.Player && IsMilitary(b));
+
+    private static bool IsMilitary(Building b) => b.Exists && b.State == BuildingState.Finished && b.Definition.Occupiers.Count > 0;
     private Vector2? _dragStart;
     private Vector2? _rightStart;
     private const float DragThreshold = 6;
@@ -575,6 +581,7 @@ public sealed class MapGame : Game
         _manufactureMenu?.Dispose();
         _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid);
         _buildingInfo.Spinner = _manufactureMenu.SpinnerImage;
+        _buildingInfo.LoadIcons(GraphicsDevice, _gfx);
         _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf);
         _transportMenu?.Dispose();
         _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid);
@@ -727,7 +734,8 @@ public sealed class MapGame : Game
         if (_world.Goals is { } goals)
             foreach (var ai in _world.AiPlayers.OrderBy(a => a.Player))
                 if (ai.Player != 0 && goals.IsDefeated(ai.Player) && _defeatNoted.Add(ai.Player))
-                    _info.Add(Lang.T("info.defeated", $"{Lang.T("start.player", ai.Player + 1)} ({_aiNames.Character(ai.Character.Id)})"), _now);
+                    _info.Add(Lang.T("info.defeated", $"{Lang.T("start.player", ai.Player + 1)} ({_aiNames.Character(ai.Character.Id)})"), _now,
+                        PlayerColors.Of(ai.Player));
         if (_captureDirectory is not null || Outcome == MissionOutcome.Lost)
             return;
         _sinceSave += real.TotalSeconds;
@@ -1602,6 +1610,12 @@ public sealed class MapGame : Game
             }
         }
         bool released = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is null;
+        // The tear-down question gives way to anything else: a click outside the panel (on release, so the building's
+        // overview does not flash up in between), another selection.
+        if (_buildingInfo.Asking is { } asking
+            && (asking != _selectedBuilding || !ShowsBuildingInfo || ShowsSelection
+                || !onMenu && mouse.RightButton == ButtonState.Released && _previousMouse.RightButton == ButtonState.Pressed))
+            _buildingInfo.Cancel();
         // The group icons at the top right: a click selects the group.
         _controlGroups.Update();
         float panelScale = SidePanel.Scale(GraphicsDevice.Viewport.Height);
@@ -1724,8 +1738,15 @@ public sealed class MapGame : Game
                 _message = storeHover;
             if (onMenu && released && _buildingInfo.StorehouseClick(panelCursor, _world, _selectedBuilding!, 0) is { } stored)
                 _message = stored;
-            // The info panel's tear-down button (asks first).
-            if (onMenu && released && _buildingInfo.Click(panelCursor, SidePanel.ContentHeight, _selectedBuilding!, 0))
+            // The info panel's tear-down icon (the crack, then it asks).
+            if (onMenu && _buildingInfo.DemolishAt(panelCursor, SidePanel.ContentHeight, _selectedBuilding!, 0))
+                _message = "tear down (asks first)";
+            bool asked = _buildingInfo.Asking == _selectedBuilding;
+            bool demolish = onMenu && released && _buildingInfo.Click(panelCursor, SidePanel.ContentHeight, _selectedBuilding!, 0);
+            // Asking about the own last military building: losing it loses the game (ConquestGoals).
+            if (!asked && _buildingInfo.Asking == _selectedBuilding && IsLastMilitaryBuilding(_selectedBuilding!))
+                _info.Add(Lang.T("info.lastTower"), _now, PlayerColors.Of(_selectedBuilding!.Player));
+            if (demolish)
             {
                 _message = $"{_buildingInfo.NameOf(_selectedBuilding!.Definition)} torn down";
                 _world.RemoveBuilding(_selectedBuilding);
@@ -1925,6 +1946,8 @@ public sealed class MapGame : Game
         {
             if (_aiming)
                 _aiming = false;
+            else if (_buildingInfo.Asking is not null)
+                _buildingInfo.Cancel();
             else if (_placing)
                 _placing = false;
             else
@@ -2137,10 +2160,12 @@ public sealed class MapGame : Game
         // The selection gets its orders by right click; a left click elsewhere deselects it (not with Shift).
         if (_group.Count > 0 && adding)
             return;
+        // A click into the empty landscape deselects and empties the panel (as in the original).
         if (_group.Count > 0)
         {
             ClearSelection();
             _selected = null;
+            _tabs.Current = PanelTab.None;
             _message = "";
             return;
         }
@@ -2156,12 +2181,16 @@ public sealed class MapGame : Game
         if (_selectedBuilding is not null && _selected is null)
         {
             _selectedBuilding = null;
+            _tabs.Current = PanelTab.None;
             _message = "";
             return;
         }
 
         if (_selected is null)
+        {
+            _tabs.Current = PanelTab.None;
             return;
+        }
         var target = ScreenToGrid(screen);
         _wanderers.Remove(_selected.Id);
         _message = _world.WalkTo(_selected, target) ? $"walking to {target.X},{target.Y}" : "unreachable";
@@ -2461,7 +2490,7 @@ public sealed class MapGame : Game
         var priests = _group.Where(s => s.Profession == Profession.Priest && !_world.Magic.IsBusy(s)).ToList();
         if (priests.Count > 0)
         {
-            int walking = priests.Count(p => _world.WalkTo(p, clicked));
+            int walking = priests.Count(p => _world.CommandTarget(p, clicked) is { } to && _world.WalkTo(p, to));
             if (walking > 0)
                 PlayCommand();
             _message = walking > 0 ? $"{walking} priests to {clicked.X},{clicked.Y}" : "no way there";
@@ -2874,6 +2903,10 @@ public sealed class MapGame : Game
             _systemMenu.Draw(_spriteBatch, _font, panelMouse);
         else if (_tabs.Current == PanelTab.Event)
             DrawEventPage();
+        else if (_tabs.Current == PanelTab.None)
+        {
+            // Empty after a click into the landscape.
+        }
         else if (_tabs.Current == PanelTab.Build)
             _buildMenu!.Draw(_spriteBatch, _pixel, _font, _placing ? _placeable[_placeIndex] : null, panelMouse, OwnBuildingCounts());
         else
@@ -2907,7 +2940,7 @@ public sealed class MapGame : Game
             Mouse.GetState().Position.ToVector2());
         _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, Mouse.GetState().Position.ToVector2());
         DrawOutcome(viewport);
-        _info.Draw(_spriteBatch, _font, SidePanel.Width * SidePanel.Scale(viewport.Height) + 12, viewport.Height - 10,
+        _info.Draw(_spriteBatch, _pixel, _font, SidePanel.Width * SidePanel.Scale(viewport.Height) + 12, viewport.Height - 10,
             Math.Max(14, viewport.Height / 48), _now);
         // Bottom right, stacked upwards: performance (F3), then the game time (T).
         int bottom = viewport.Height;

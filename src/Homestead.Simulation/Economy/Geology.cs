@@ -158,6 +158,9 @@ public sealed class Geology
     private int Move(List<Settler> geologists, GridPoint target)
     {
         var map = _world.Map!;
+        // Unreachable (sea, another island): around the reachable point nearest to it.
+        if (geologists.Count > 0 && _world.CommandTarget(geologists[0], target) is { } reachable)
+            target = reachable;
         var spots = new List<GridPoint>();
         for (int r = 0; r <= 12 && spots.Count < geologists.Count; r++)
             for (int dy = -r; dy <= r && spots.Count < geologists.Count; dy++)
@@ -172,6 +175,7 @@ public sealed class Geology
         {
             var geologist = geologists[i];
             var spot = spots.Count > i ? spots[i] : target;
+            spot = _world.CommandTarget(geologist, spot) ?? spot;
             if (spot != geologist.Position && !_world.WalkTo(geologist, spot))
                 continue;
             var job = new Job(geologist, spot) { Phase = Phase.Moving, LastPosition = geologist.Position, LastProgress = _world.Tick };

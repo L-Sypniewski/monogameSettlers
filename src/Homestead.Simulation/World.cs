@@ -259,6 +259,13 @@ public sealed partial class World
         return true;
     }
 
+    /// <summary>
+    /// Where an ordered unit goes for <paramref name="target"/>: the target, or if it cannot get there the reachable
+    /// point nearest to it (see <see cref="PathFinder.NearestReachable"/>); null if it can go nowhere.
+    /// </summary>
+    public GridPoint? CommandTarget(Settler settler, GridPoint target) =>
+        PathFinder!.NearestReachable(settler.StepTarget, target, LandOf(settler));
+
     /// <summary>Whether the player's people can walk from a to b (on its own land with territory rules).</summary>
     internal bool Reachable(int player, GridPoint a, GridPoint b) => PathFinder!.AreConnected(a, b, TerritoryRules ? player : null);
 

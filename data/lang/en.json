@@ -555,7 +555,7 @@
     "goods": "Goods",
     "material": "Building material",
     "demolish": "Demolish",
-    "demolishQuestion": "Really demolish?",
+    "demolishQuestion": "Do you really want to tear down this building?",
     "soldiers": "{0}/{1} soldiers",
     "soldiersOnTheWay": ", {0} on the way",
     "door": ", door {0} %"
@@ -565,6 +565,7 @@
     "saved": "Game saved into slot {0}.",
     "autoSaved": "Saved automatically into slot {0}.",
     "saveFailed": "Saving into slot {0} failed.",
-    "notSaved": "Not saved for {0} minutes."
+    "notSaved": "Not saved for {0} minutes.",
+    "lastTower": "This is the last tower"
   }
 }

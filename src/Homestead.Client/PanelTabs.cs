@@ -17,6 +17,9 @@ public enum PanelTab
 
     /// <summary>The text of the event looked at last (event buttons, space): no tab pressed, no sub-menus.</summary>
     Event,
+
+    /// <summary>Nothing (as in the original after a click into the empty landscape): no tab pressed, an empty panel.</summary>
+    None,
 }
 
 /// <summary>
@@ -66,8 +69,8 @@ public sealed class PanelTabs : IDisposable
     /// <summary>The id of the sub-menu shown in the current tab (null for the build tab).</summary>
     public string? CurrentMenu => HasTab && _tabs[(int)Current].Menus is { Count: > 0 } menus ? menus[_menu[(int)Current]].Id : null;
 
-    /// <summary>Whether one of the main tabs is shown (not the computer menu or an event).</summary>
-    private bool HasTab => Current is not (PanelTab.System or PanelTab.Event);
+    /// <summary>Whether one of the main tabs is shown (not the computer menu, an event or nothing).</summary>
+    private bool HasTab => Current is not (PanelTab.System or PanelTab.Event or PanelTab.None);
 
     private static Rectangle TabRect(int i) => new(TabPositions[i].X, TabPositions[i].Y, 55, 55);
 

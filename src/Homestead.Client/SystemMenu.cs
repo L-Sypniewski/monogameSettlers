@@ -148,7 +148,8 @@ public sealed class SystemMenu
     private static void Write(SpriteBatch batch, UiFont font, string text, Vector2 at, bool over) =>
         SelectionPanel.Shadowed(batch, font, text, at, 15, over ? Hover : Text);
 
-    private static void Centered(SpriteBatch batch, UiFont font, string text, Rectangle rect, int size, bool over)
+    /// <summary>Plain text centered in the rectangle, lighter under the mouse (also the tear-down question in <see cref="BuildingInfo"/>).</summary>
+    internal static void Centered(SpriteBatch batch, UiFont font, string text, Rectangle rect, int size, bool over)
     {
         var measured = font.Measure(text, size);
         SelectionPanel.Shadowed(batch, font, text, new Vector2(rect.Center.X - measured.X / 2, rect.Center.Y - measured.Y / 2), size,

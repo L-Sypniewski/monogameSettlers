@@ -16,6 +16,9 @@ public static class UiSounds
 
     public static void WorkArea() => Play("workArea");
 
+    /// <summary>The tear-down icon clicked (before the question): the crack.</summary>
+    public static void Demolish() => Play("demolish");
+
     private static void Play(string name)
     {
         if (Audio is { } audio && audio.Config.Ui.TryGetValue(name, out var sound))

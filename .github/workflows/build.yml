@@ -1,4 +1,4 @@
-# Build, test and package monoSettlers for Linux and Windows (no macOS).
+# Build, test and package monoSettlers for Linux, Windows and macOS.
 #
 # - Every push to main and every pull request: build and tests; the packages are kept as workflow artifacts.
 # - A tag vX.Y.Z (docs/VERSIONING.md): the same, plus a GitHub release with both packages
@@ -6,6 +6,8 @@
 #
 # The version comes from the git tags (MinVer, see Directory.Build.props), so the checkout needs the full history.
 # The packages hold no original assets: the game asks for an installation of The Settlers III on the first start.
+# macOS: an app bundle, ad-hoc signed only (no Apple developer account): Gatekeeper blocks it until the quarantine
+# flag is removed (README). Nobody has tried it on a Mac yet.
 name: Build
 
 on:
@@ -40,13 +42,21 @@ jobs:
 
   package:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - rid: linux-x64
+            os: ubuntu-latest
             archive: tar.gz
           - rid: win-x64
+            os: ubuntu-latest
+            archive: zip
+          - rid: osx-arm64
+            os: macos-latest
+            archive: zip
+          - rid: osx-x64
+            os: macos-latest
             archive: zip
     steps:
       - uses: actions/checkout@v4
@@ -66,13 +76,35 @@ jobs:
         id: package
         working-directory: publish
         run: |
-          name="monoSettlers-${{ steps.version.outputs.version }}-${{ matrix.rid }}"
-          cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
-          if [ "${{ matrix.archive }}" = "zip" ]; then
+          version="${{ steps.version.outputs.version }}"
+          name="monoSettlers-$version-${{ matrix.rid }}"
+          case "${{ matrix.rid }}" in
+          osx-*)
+            # monoSettlers.app with the published folder as Contents/MacOS (the program finds data/ next to itself).
+            app="monoSettlers.app"
+            mkdir -p "$app/Contents/Resources"
+            mv "$name" "$app/Contents/MacOS"
+            # macOS wants plain numbers: without a pre-release suffix.
+            sed "s/VERSION/${version%%-*}/g" ../packaging/macos/Info.plist > "$app/Contents/Info.plist"
+            mkdir icon.iconset
+            sips -s format png ../src/Homestead.Client/Icon.bmp --out icon.iconset/icon_256x256.png
+            iconutil -c icns icon.iconset -o "$app/Contents/Resources/monoSettlers.icns"
+            codesign --force --deep --sign - "$app" || echo "::warning::ad-hoc signing failed"
+            mkdir "$name"
+            mv "$app" "$name/"
+            cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
+            # ditto keeps the bundle's attributes and signature, unlike zip.
+            ditto -c -k --keepParent "$name" "$name.zip"
+            ;;
+          win-*)
+            cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
             zip -qr "$name.zip" "$name"
-          else
+            ;;
+          *)
+            cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
             tar -czf "$name.tar.gz" "$name"
-          fi
+            ;;
+          esac
           echo "file=publish/$name.${{ matrix.archive }}" >> "$GITHUB_OUTPUT"
           echo "name=$name" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4

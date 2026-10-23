@@ -53,6 +53,7 @@ Fett: im Spiel genutzt (`data/sound.json`). „Gehört“: vom Projektinhaber am
 | **22** | **Arbeitsbereich versetzt** (gehört) | 69/70 | Vögel |
 | **24** | Geologe; **Varianten 1–3: großes Vorkommen** (gehört) | 71 | Fluss |
 | **25** | **Variante 1: Pionier setzt Grenzpfosten** (gehört; JSettlers: Bogenschütze) | 72 | Sumpf |
+| **51** | **Klick aufs Abriss-Icon** („crack“, gehört) | | |
 | **30** | **Schwertkämpfer** (Schlag) | 73/74 | Wind |
 | 31 | ? | **75** | **Zaubern** (gehört; JSettlers: Donner) |
 | **32** | **Bogenschuss der Ägypter** (gehört) | 76 | Regen |

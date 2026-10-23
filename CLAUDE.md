@@ -37,6 +37,8 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   Ferne Ziele etappenweise (`FindRoute`, von `WalkTo`/`Replan`; nicht auf eigenes Land Beschränkte über `ExactDistance` (96)): grobe Route über
   `Clusters` (16×16-Zellen, je Zelle ihre zusammenhängenden Teile, Nachbarn gecacht, geänderte Zellen neu), exakt nur bis in den Teil
   `LegNodes` (4) Zellen voraus; `Settler.PathIsLeg` → am Etappenende plant `World` die nächste. Nahe am Ziel exakt.
+  Unerreichbares Befehlsziel (Meer, andere Insel): nächster erreichbarer Punkt (`PathFinder.NearestReachable`, Ring für Ring;
+  `World.CommandTarget` für Soldaten, Geologen/Späher/Pioniere, Priester).
 - `World`/`Settler`: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf (Kommentar in `World`).
   `Settler.StepProgress` in `World.StepUnits`; Tempo je Zielfeld: Gebirge ×0,8, Trampelpfad ×1,2 (`walking` in `production.json`);
   dazu Soldaten je Typ `speed` in `military.json` (Schwertkämpfer ×1,1, Pikeniere ×1,05, Bogenschützen ×1); `armor` (Pikeniere 0,5):
@@ -72,7 +74,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     Minen: Nahrungsstapel max. `mineFood.pileCapacity` (4); erste `mineFood.freeRuns` (8) Gänge je Gebäude gratis; Erfolgschance =
     Resterz im Umkreis gegen `resources.fullAmount` (8) je Feld (leere/fremde Felder = Nieten, jeder Fund senkt sie; `MineChance`); Niete kostet Zeit und Nahrung.
     Sammler: Wasserwerk nur an Flüssen; Bauer, Weinbauer, Reisbauer, Imker nach `crops` – Getreide macht Ackerland (`GroundCover.Farmland`,
-    begehbar, bis Abriss/Verlust der Farm), wächst 200 s; Wein am Hang schneller; Reis nur auf Sumpf; Reben/Bienenstöcke wachsen nach.
+    begehbar, bis Abriss/Verlust der Farm), Getreide/Wein/Reis wachsen 600 s wie im Original; Wein am Hang schneller; Reis nur auf Sumpf; Reben/Bienenstöcke wachsen nach.
   - `Healing`: Lazarett-Heiler ruft den schwächsten (wenigste LP, Gleichstand: nächster) verwundeten untätigen eigenen Soldaten im Umkreis
     `hospital.callRadius` (40) auf den Heilplatz vor der Tür (`HealSpotOf`; Haltende nicht); wer still neben Tür, Heilerplatz oder Heilplatz steht,
     wird ohne Ruf geheilt (der schwächste zuerst),
@@ -310,7 +312,9 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
     vier Pfeile `arrowSeconds` auf Gebäude bzw. lebende Figur. `dates`: Grüße an Kalendertagen (MM-dd), einmal im Jahr
     (`~/.config/homestead/events-shown.json`; `HOMESTEAD_EVENT_DATE=12-25` täuscht vor).
   - Info-Feld (`InfoFeed`): weiße Notizen unten links im Spielbereich, neue gleiten von unten ein und schieben ältere hoch (höchstens 6), je 60 s;
-    Texte `info.*`: KI-Spieler besiegt (`ConquestGoals.IsDefeated`, vor dem Laden Besiegte nicht), gespeichert/automatisch/fehlgeschlagen,
+    mit Spielerbezug runder Punkt in Spielerfarbe davor (`InfoFeed.Add(…, dot)`);
+    Texte `info.*`: KI-Spieler besiegt (`ConquestGoals.IsDefeated`, vor dem Laden Besiegte nicht; seine Farbe), Abriss-Rückfrage am eigenen
+    letzten fertigen Militärgebäude „Dies ist der letzte Turm“ (eigene Farbe), gespeichert/automatisch/fehlgeschlagen,
     „Seit n Minuten nicht gespeichert“ alle 30 min Echtzeit seit Speichern/Start/Laden (`MapGame.NoteNews`).
   - Computer-Button unten links (`SystemMenu`, `PanelTab.System`): „Spiel speichern“ (8 Slots mit Karte, Datum, Volk; leere gestrichelt;
     Klick speichert, auch überschreibend), „Spiel beenden“ mit Rückfrage (Ja unten links → Statistik, Nein unten rechts).
@@ -334,7 +338,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
       Warenauswahl `GoodsGrid` (mit Lagerbestand geteilt: Icons `goodsGrid` in `ui.json`, Indizes aus JSettlers' EMaterialType, nicht herstellbar dunkel);
       gezählt in `World.Statistics` (`ProductionStatistics`, 30-s-Abschnitte).
   - Gebäude-Klick ersetzt das Baumenü (ohne eigenen Hintergrund): Name, Bild (unskaliert, unten zentriert, beschnitten –
-    `EconomyRenderer.DrawBuildingImage`; bei Enge erst Waren weg, dann Bild niedriger), bei eigenen Status, „Abreißen“ mit Rückfrage;
+    `EconomyRenderer.DrawBuildingImage`; bei Enge erst Waren weg, dann Bild niedriger), bei eigenen Status, oben rechts Abriss-Icon wie im Original (Datei 03 GUI 199, `buildingInfo` in `ui.json`) mit Rückfrage wie im Original (nur das Gebäudebild bleibt an seinem Platz, Frage unten, Ja/Nein als helle Texte; jede andere Aktion – Klick daneben beim Loslassen, andere Auswahl, Esc – bricht ab);
     Produktion: „Anhalten“/„Fortsetzen“ (`World.SetPaused`: Arbeit fertig, dann drinnen); Militär: Besatzung je Typ (da/Soll, +/−);
     Lagerhaus: alle Waren (`GoodsGrid`; Punkt = allgemeine Regel, Klick spezialisiert – roter Rahmen –, nochmal hebt auf); Waren/Baumaterial,
     Minen-Erfolgschance; Arbeitsbereich (Rechtsklick versetzt, `World.SetWorkCenter`, max. `MaxWorkCenterDistance` = 20, sonst nächstes erlaubtes
@@ -354,7 +358,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   im Inhaltsbereich (`BuildMenu.Content`). Strg+1–9 speichert Gruppe (jede Figur in höchstens einer – sie verlässt ihre alte; Porträt des ersten Mitglieds wie im `SelectionPanel`, gleich groß, oben rechts, gewählte gelb gerahmt; Klick oder 1–9 wählt, zweimal binnen 0,5 s: Kameraflug zum Mittelpunkt; Tote, Gebäude Betretende, Bekehrte fallen raus; im Spielstand als Client-Wert `groups`).
   Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungen ohne Kampf. Geologen: Rechtsklick hin, auf Gebirge suchen.
   Priester: Zaubermenü (Name, Kosten, Mana), Zauber wählen, dann Ziel (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
-  Träger umwandeln nur über Siedler › Berufe. Linksklick abwählen; rechts ziehen verschiebt die Karte.
+  Träger umwandeln nur über Siedler › Berufe. Linksklick ins Leere wählt ab (Figuren, Gebäude, Menüs) und leert das Panel wie im Original
+  (`PanelTab.None`, kein Reiter gedrückt); rechts ziehen verschiebt die Karte.
 - **Tasten**: Esc bricht Platzieren/Zielen ab, sonst Pause wie P; N Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), C Cheat-Menü (`CheatMenu`: Soldaten je Typ/Stufe, Priester, Geologen,
   Späher, Pioniere, Träger, +50 Mana), F Angriff aufs feindliche Militärgebäude unter der Maus, V Fog of War (Sicht 1×/s, `FogLayer` blendet weich,
   klingt über `SoftFields` (3) aus; unerkundet schwarz, erkundet dunkel, fremde Figuren nur in Sicht), F11 Vollbild (nur für die Sitzung; Vorgabe in den Einstellungen),
@@ -372,7 +377,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   `minAmount` 24/1–3, Aussaat Bauer 8; Tabelle `docs/formate/snd.md`; `SoundRef`: Nummer oder `{sound, variants}`), Variante zufällig, nur in Sicht (Fog), im Bild voll, außerhalb bis `hearing` halbe Bildbreiten leiser,
   links/rechts gepannt, höchstens `maxVoices` gleichzeitig und `perFrame` je Geräusch und Frame. Aus der Bildmitte: Befehl an steuerbare Einheiten (Laufen/Angriff, Suchen, Stehlen, Land einnehmen, Zaubern; `command` 57),
   Event-Meldung (`events`: Kampf 109, sonst 110), Panel über `UiSounds` (`ui`: Auftrag/Anteil/Besatzung/Transportreihenfolge hoch 47/runter 48,
-  Schalter wie Rekrutierung, Anhalten, Einlagern, Lager-Spezialisierung 54, Arbeitsbereich versetzt 22). `WorkSounds`: Arbeit draußen je `Activity` (`work`: Fällen 0, Planieren 2, Bauen 1, Steinmetz 3,
+  Schalter wie Rekrutierung, Anhalten, Einlagern, Lager-Spezialisierung 54, Arbeitsbereich versetzt 22, Klick aufs Abriss-Icon 51). `WorkSounds`: Arbeit draußen je `Activity` (`work`: Fällen 0, Planieren 2, Bauen 1, Steinmetz 3,
   Angeln 16) im Takt der Arbeitsanimation (Moment `at` je Runde, `SettlerRenderer.WorkRoundFrames`); Werkstätten (`workshops`: Sägewerk 5,
   Werkzeug-/Waffenschmied 6/7, Eisen-/Goldschmelze 37/38) etwa alle `everySeconds`, solange `Production.IsProducing`. `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis gestreamt)
   aus `Tracks` (`SoundConfig.TracksFor`: Liste des eigenen Volks, `music.tracks`, nach Gehör zugeordnet; „Musik je Volk“ aus: alle, eigene zuerst),
@@ -430,8 +435,9 @@ Lokal: `~/Games/gog/the-settlers-iii-ultimate-collection/drive_c/GOG Games/Settl
 ## Versionen und Pipeline
 - Version aus Git-Tags `vX.Y.Z` (MinVer in `Directory.Build.props`; ohne Tag `0.1.0-alpha.0.<n>`), Titelbildschirm unten rechts.
   Regeln: `docs/VERSIONING.md` (unter 1.0: PATCH Fixes/Balancing/Übersetzungen, MINOR Features oder Spielstand-/Settings-Bruch).
-- `.github/workflows/build.yml`: Push auf main/PR → Build + Tests, Pakete linux-x64 (`tar.gz`) und win-x64 (`zip`), self-contained, als Artefakte;
-  Tag `v*` → zusätzlich GitHub-Release (`gh release create`, Suffix → Vorabversion). Kein macOS.
+- `.github/workflows/build.yml`: Push auf main/PR → Build + Tests, Pakete linux-x64 (`tar.gz`), win-x64 (`zip`) und osx-arm64/osx-x64
+  (auf `macos-latest`: `monoSettlers.app`, Programmordner als `Contents/MacOS`, `packaging/macos/Info.plist`, nur ad-hoc signiert,
+  `zip` per `ditto`; ungetestet), self-contained, als Artefakte; Tag `v*` → zusätzlich GitHub-Release (`gh release create`, Suffix → Vorabversion).
 
 ## Bauen/Starten
 - `dotnet build Homestead.sln`

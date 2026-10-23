@@ -240,6 +240,39 @@ public sealed class PathFinder
         return steps;
     }
 
+    /// <summary>
+    /// The walkable point nearest to <paramref name="target"/> that a settler at <paramref name="from"/> can reach
+    /// (the target itself if it can), searched ring by ring up to <paramref name="maxRadius"/>; null if there is none.
+    /// A click into the sea or onto another island sends units to the shore instead of nowhere.
+    /// </summary>
+    public GridPoint? NearestReachable(GridPoint from, GridPoint target, int? ownLandOf = null, int maxRadius = 128)
+    {
+        if (!_map.Contains(from))
+            return null;
+        if (_map.Contains(target) && AreConnected(from, target, ownLandOf))
+            return target;
+        for (int r = 1; r <= maxRadius; r++)
+        {
+            // The ring: from the north-west corner r steps along each of the six directions (in order).
+            GridPoint? best = null;
+            int bestSquare = int.MaxValue;
+            var p = new GridPoint(target.X - r, target.Y - r);
+            for (int side = 0; side < DirectionExtensions.Count; side++)
+            {
+                var delta = ((Direction)side).Delta();
+                for (int i = 0; i < r; i++, p = new GridPoint(p.X + delta.X, p.Y + delta.Y))
+                {
+                    int dx = p.X - target.X, dy = p.Y - target.Y, square = dx * dx + dy * dy - dx * dy;
+                    if (square < bestSquare && _map.Contains(p) && AreConnected(from, p, ownLandOf))
+                        (best, bestSquare) = (p, square);
+                }
+            }
+            if (best is not null)
+                return best;
+        }
+        return null;
+    }
+
     /// <summary>Whether a settler at <paramref name="a"/> could in principle walk to <paramref name="b"/>.</summary>
     public bool AreConnected(GridPoint a, GridPoint b) =>
         _map.Contains(a) && _map.IsWalkable(b) && (a == b || MayBeConnected(a, b));

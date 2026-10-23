@@ -73,6 +73,8 @@
   "_startScreenComment":"Start screen on the original's map selection background: GUI images of file 02 – background (800 × 600, list, slanted preview window, panel), marble around it, rowBar (stone bar under the selected row), scroll bar groove (top, track, bottom); from the sheet (GUI image 0) the oval button up and pressed and the scroll handle – [x, y, width, height].",
   "startScreen": { "file": 2, "background": 8, "marble": 29, "sheet": 0, "rowBar": 1, "scrollTop": 2, "scrollTrack": 3, "scrollBottom": 4,
     "oval": [ 182, 0, 83, 46 ], "ovalPressed": [ 285, 0, 83, 46 ], "handle": [ 0, 0, 20, 480 ] },
+  "_buildingInfoComment": "The building panel: GUI image of file 03 for the tear-down icon at the top right (a building collapsing in dust; 198-200 small to large).",
+  "buildingInfo": { "demolish": 199 },
   "_professionsMenuComment": "Siedler > Berufe: GUI images of file 03 – the up/down spinner of the shares, the find buttons ([all on the map, all on the screen, the next one]) and the convert buttons ([5, 1]).",
   "professionsMenu": {
     "spinner": 233,

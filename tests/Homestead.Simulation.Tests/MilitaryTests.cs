@@ -1013,6 +1013,26 @@ public class MilitaryTests(ITestOutputHelper output)
         Assert.Equal([config.Damage(SoldierType.Pikeman, 1) * strength], dealt.Select(d => (float)Math.Round(d, 3)));
     }
 
+    [Fact]
+    public void Soldiers_sent_into_a_lake_walk_to_its_shore()
+    {
+        var map = new GameMap(70);
+        for (int y = 30; y < 50; y++)
+        for (int x = 30; x < 50; x++)
+            map.SetTerrain(new GridPoint(x, y), TerrainType.Water);
+        var world = new World(map, TestConfig.NoTools);
+        SpawnSoldiers(world, SoldierType.Swordsman, 3, new GridPoint(10, 40));
+        var soldiers = world.Settlers.Where(s => s.Profession == Profession.Soldier).ToList();
+
+        // Near the west shore: they gather on it, next to the shore field nearest to the target.
+        world.Military.Move(soldiers, new GridPoint(32, 40));
+        Run(world, 3_000, stopWhen: () => soldiers.All(s => s.Destination is null && s.Position.X >= 25));
+
+        // Idle soldiers keep a field apart.
+        Assert.All(soldiers, s => Assert.InRange(PathFinder.Distance(s.Position, new GridPoint(29, 40)), 0, 4));
+        Assert.All(soldiers, s => Assert.True(s.Position.X < 30 || s.Position.Y < 30 || s.Position.Y >= 50));
+    }
+
     private static void SpawnSoldiers(World world, SoldierType type, int count, GridPoint near)
     {
         for (int i = 0; i < count; i++)

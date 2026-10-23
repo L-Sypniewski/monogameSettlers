@@ -106,11 +106,15 @@ public sealed partial class Military
     public void Move(IEnumerable<Settler> soldiers, GridPoint destination, bool forced = false, bool hold = false)
     {
         var list = Commandable(soldiers);
+        // Unreachable (sea, another island): the reachable point nearest to it.
+        if (list.Count > 0 && _world.CommandTarget(list[0], destination) is { } reachable)
+            destination = reachable;
         var spots = FreeSpotsAround(destination, list.Count);
         for (int i = 0; i < list.Count; i++)
         {
             var soldier = list[i];
-            _fighters[soldier.Id] = new Fighter(soldier) { MoveTo = spots.Count > i ? spots[i] : destination, Forced = forced, Hold = hold };
+            var spot = spots.Count > i ? spots[i] : destination;
+            _fighters[soldier.Id] = new Fighter(soldier) { MoveTo = _world.CommandTarget(soldier, spot) ?? spot, Forced = forced, Hold = hold };
             soldier.HasTask = true;
         }
     }

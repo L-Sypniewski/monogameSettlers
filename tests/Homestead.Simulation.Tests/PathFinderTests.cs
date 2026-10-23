@@ -31,6 +31,40 @@ public class PathFinderTests
     }
 
     [Fact]
+    public void Unreachable_target_gives_the_reachable_point_nearest_to_it()
+    {
+        // A lake with an island in it: the island and the water are out of reach from the west shore.
+        var map = new GameMap(40);
+        for (int y = 10; y < 30; y++)
+        for (int x = 10; x < 30; x++)
+            map.SetTerrain(new GridPoint(x, y), TerrainType.Water);
+        for (int y = 18; y < 22; y++)
+        for (int x = 18; x < 22; x++)
+            map.SetTerrain(new GridPoint(x, y), TerrainType.Grass);
+        var finder = new PathFinder(map);
+        var from = new GridPoint(3, 20);
+
+        Assert.Equal(new GridPoint(5, 5), finder.NearestReachable(from, new GridPoint(5, 5)));
+        // In the water near the west shore, on the island: a shore field, none reachable nearer to the target.
+        foreach (var target in new[] { new GridPoint(11, 20), new GridPoint(20, 12), new GridPoint(20, 20) })
+            AssertNearestReachable(map, finder, from, target);
+        // From the island nothing outside it.
+        var back = finder.NearestReachable(new GridPoint(20, 20), new GridPoint(3, 20));
+        Assert.Equal(18, back!.Value.X);
+        Assert.Null(new PathFinder(map).NearestReachable(new GridPoint(20, 20), new GridPoint(3, 20), maxRadius: 5));
+    }
+
+    private static void AssertNearestReachable(GameMap map, PathFinder finder, GridPoint from, GridPoint target)
+    {
+        var found = finder.NearestReachable(from, target);
+        Assert.NotNull(found);
+        Assert.NotNull(finder.FindPath(from, found.Value));
+        var steps = Reference.Distances(map, from);
+        int nearest = Enumerable.Range(0, map.PointCount).Where(i => steps[i] != Reference.Unreachable).Min(i => PathFinder.Distance(map.Point(i), target));
+        Assert.Equal(nearest, PathFinder.Distance(found.Value, target));
+    }
+
+    [Fact]
     public void Path_leads_through_the_gap_in_a_wall()
     {
         var map = new GameMap(30);
