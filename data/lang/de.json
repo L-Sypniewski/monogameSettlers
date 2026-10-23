@@ -251,7 +251,12 @@
     "residentsComing": "Bewohner ziehen ein",
     "inhabited": "Bewohnt",
     "storehouse": "Lager",
-    "noFunction": "Ohne Funktion"
+    "noFunction": "Ohne Funktion",
+    "enoughDonkeys": "Genug Esel",
+    "noDestination": "Kein Ziel",
+    "donkeysOnTheWay": "Esel unterwegs",
+    "waitingForDonkey": "Wartet auf einen Esel",
+    "waitingForTradeGoods": "Wartet auf Waren"
   },
   "events": {
     "texts": {
@@ -262,7 +267,8 @@
       "buildingLost": "{building} wurde vom Feind erobert!",
       "buildingCaptured": "Du hast {building} erobert.",
       "mineExhausted": "{building} ist erschöpft.",
-      "noResources": "{building} findet nichts mehr."
+      "noResources": "{building} findet nichts mehr.",
+      "donkeyRobbed": "Esel überfallen: Die Ware liegt am Boden!"
     },
     "categories": {
       "info": "Info",
@@ -546,6 +552,7 @@
     "missionLost": "Mission verloren"
   },
   "building": {
+    "trade": "Handel – Land",
     "garrison": "Besatzung (da / Soll)",
     "resume": "Fortsetzen",
     "pause": "Anhalten",

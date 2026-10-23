@@ -186,6 +186,7 @@ public sealed partial class World
             Housing.Tick();
             Geology.Tick();
             Theft.Tick();
+            Trade.Tick();
             Pioneering.Tick();
             Magic.Tick();
             Measure("housing/geology/magic", ref mark);
@@ -269,9 +270,9 @@ public sealed partial class World
     /// <summary>Whether the player's people can walk from a to b (on its own land with territory rules).</summary>
     internal bool Reachable(int player, GridPoint a, GridPoint b) => PathFinder!.AreConnected(a, b, TerritoryRules ? player : null);
 
-    /// <summary>Soldiers, priests, geologists, scouts and pioneers may go and stay outside the own land.</summary>
+    /// <summary>Soldiers, priests, geologists, scouts, pioneers and donkeys may go and stay outside the own land.</summary>
     internal static bool RoamsFreely(Settler settler) =>
-        settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer;
+        settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer or Profession.Donkey;
 
     /// <summary>
     /// Whether the settler can walk to <paramref name="target"/> (see <see cref="LandOf"/>). Never for a

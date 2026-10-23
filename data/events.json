@@ -29,6 +29,12 @@
       "cooldownSeconds": 60,
       "enabled": true
     },
+    "donkeyRobbed": {
+      "_comment": "An enemy struck one of the player's loaded donkeys: it dropped its goods and turns home.",
+      "category": "trade",
+      "cooldownSeconds": 30,
+      "enabled": true
+    },
     "buildingAttacked": {
       "_comment": "The door of one of the player's military buildings or its guard in front of it is struck or shot at.",
       "category": "combat",

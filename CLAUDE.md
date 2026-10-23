@@ -28,9 +28,10 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
 
 ### `src/Homestead.Simulation` – Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`)
 - `Map/GameMap`: Gelände, Objekte, Begehbarkeit, Bodenschätze (`ResourceAt`).
-  `Map/Vision`: Fog of War je Spieler – Sicht eigener Figuren draußen (Soldaten `Sight`, Späher `scouts.sight` 26, sonst `SettlerSight`)
-  und Gebäude (`Military.SightOfBuilding`: fertige mit `buildingSight` in `military.json`, Aussichtsturm 45; besetzte Militärgebäude
-  Gebietsradius + `militarySightMargin` (3)); eigenes Land selbst sieht nichts (abgerissen/von Pionieren genommen → Schatten);
+  `Map/Vision`: Fog of War je Spieler – Sicht eigener Figuren draußen (Soldaten `Sight`, Späher `scouts.sight` 26, Esel `trade.sight` 3
+  – keine Späher –, sonst `SettlerSight`) und Gebäude (`Military.SightOfBuilding`: fertige mit `buildingSight` in `military.json`,
+  Aussichtsturm 45; besetzte Militärgebäude Gebietsradius + `militarySightMargin` (3), leere nichts; alle anderen fertigen Gebäude
+  `otherBuildingSight` (5), auch Wohnhäuser/Lager; Baustellen nichts); eigenes Land selbst sieht nichts (abgerissen/von Pionieren genommen → Schatten);
   Erkundetes bleibt erkundet; KI nutzt es nicht.
 - `Pathfinding/PathFinder`: A*; Erreichbarkeit über `Regions` (führen Begehbarkeitsänderungen nach). Schrittkosten nach Laufzeit
   (`SetStepCosts`: Pfad 8, eben 10, Gebirge 13); Landgebiete je Besitzer.
@@ -103,6 +104,15 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     `claimSeconds` (2) Pfosten, dann gehört ihm das Feld samt unbegehbaren Nachbarn (`Military.TakeLand`, ungeschützte fremde Gebäude fallen).
     Im geschützten Feindland Richtung freies Land, sonst Ende. Vollständig umschlossenes freies Land (nicht Kartenrand/fremdes Land) wird
     auf einmal genommen (bis 4096 Felder). Land ungeschützt.
+  - `Trade`: Landhandel. Eselzucht (`trade` in `production.json`: Getreide + Wasser → ein Esel, `Profession.Donkey`, keine Ware) züchtet,
+    solange der Spieler weniger als `keepIdle` (4) Esel ohne Auftrag hat. Esel: nicht steuerbar, unsterblich, laufen überall, zählen nicht
+    für Wohnraum/Berufe-Anteile. Markt (`market_place`): 6 Stapel `PileRole.Trade` (nie Angebot); je Markt Ziel = Punkt (`Reachable`:
+    begehbar und vom Markt aus erreichbar, auf einem Gebäude dessen Tür; neues Ziel löscht die Stopps), optional bis zu 3 Stopps;
+    je Ware Menge (`Remaining`, ∞ = `Trade.Unlimited`, sinkt je Ankunft am Markt). Träger bringen nur mit Ziel (Logistik: Markt immer
+    Anteil 1, auch aus dem Ziel selbst – mit ∞ eine Endlosschleife wie im Original). Jede Einheit am Markt ruft den nächsten freien Esel;
+    er lädt bis `load` (2), läuft die Stopps (Watchdog überspringt), legt am Ziel ab (an der Tür eines eigenen Lagers in dessen Stapel),
+    zurück dieselben Stopps rückwärts. Feindlicher Soldat (auch Turm-Bogenschütze) schlägt einen beladenen Esel einmal: Ware fällt,
+    Esel kehrt um (`Struck`, Event `donkeyRobbed`, Handel); leere Esel greift niemand an (nur beladene sind `_combatants`). Ziel unerreichbar → mit Ladung heim, neben den Markt.
 - `Military/`: Kaserne bildet an der Tür aus (Träger wird dort im selben Moment Soldat, geht nicht hinein), Rekruten laufen zum Sammelpunkt.
   Je Waffe ein Träger zugleich (soweit die Träger-Reserve reicht, Laufende aller Kasernen zählen), jeder wird an der Tür oder direkt daneben ausgebildet. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
   nie über Infanterie-/Bogenplätze; „+“ bei vollen Infanterieplätzen ersetzt die andere Infanterieart; Überzählige kehren um oder kommen
@@ -340,7 +350,10 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   - Gebäude-Klick ersetzt das Baumenü (ohne eigenen Hintergrund): Name, Bild (unskaliert, unten zentriert, beschnitten –
     `EconomyRenderer.DrawBuildingImage`; bei Enge erst Waren weg, dann Bild niedriger), bei eigenen Status, oben rechts Abriss-Icon wie im Original (Datei 03 GUI 199, `buildingInfo` in `ui.json`) mit Rückfrage wie im Original (nur das Gebäudebild bleibt an seinem Platz, Frage unten, Ja/Nein als helle Texte; jede andere Aktion – Klick daneben beim Loslassen, andere Auswahl, Esc – bricht ab);
     Produktion: „Anhalten“/„Fortsetzen“ (`World.SetPaused`: Arbeit fertig, dann drinnen); Militär: Besatzung je Typ (da/Soll, +/−);
-    Lagerhaus: alle Waren (`GoodsGrid`; Punkt = allgemeine Regel, Klick spezialisiert – roter Rahmen –, nochmal hebt auf); Waren/Baumaterial,
+    Lagerhaus: alle Waren (`GoodsGrid`; Punkt = allgemeine Regel, Klick spezialisiert – roter Rahmen –, nochmal hebt auf);
+    Markt (`BuildingInfo.Market`, „Handel – Land“, ohne Bild): Leiste ×1 ×2 ×3 Paket (Datei 03 GUI 374, `market` in `ui.json`; nicht gesetzt
+    dunkel): Knopf wählen (weiß gerahmt; Stopps erst mit Ziel; gewählter Stopp nochmal = löschen), dann Linksklick auf die Karte setzt
+    ihn (Fahne als Vorschau am Mauszeiger, nur wo Esel hinkommen; Rechtsklick/Esc bricht ab), Route wie der Sammelpunkt der Kaserne; Waren mit Menge darunter, ∞ (386)/0 (389)/Pfeile ±5/±1 für die gewählte Ware; Waren/Baumaterial,
     Minen-Erfolgschance; Arbeitsbereich (Rechtsklick versetzt, `World.SetWorkCenter`, max. `MaxWorkCenterDistance` = 20, sonst nächstes erlaubtes
     Feld; Sammler nehmen das Ziel nächst der Mitte; Kaserne: Sammelpunkt überall, `Building.HasGatheringPoint`, Pfad mit Fahne).
     Deutsche Namen/Zustände in `data/ui.json`; Text per FontStashSharp mit Systemschrift.
@@ -392,7 +405,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   `ZOOM=4`; `EVERY=<n>` (PNG alle n Frames, sonst 120); `SIZE=1920x1080` (sonst 960×600); `SCALING=<Sharp|Linear|CatmullRom|Lanczos2>`;
   `FOCUS=<gebäude>` (`site`: frische Baustelle; `temple`: kleiner Tempel mit Mana; Militärgebäude wie `castle`: voll besetzt); `FOG=1`;
   `EVENT=1` (springt zu Events); `BATTLE=1` (Stufe-3-Feinde greifen das fokussierte Militärgebäude an, sonst den Startturm; `=big`: zwei Armeen à 30 treffen sich südlich des Starts; `=open`: 40 gegen 40 auf freiem Feld; `=town[:n]`: n (90) gegen n mitten im Dorf; mit `ZOOM` Kamera darauf); `COLORS=2,4` (Palettenfarben je Spieler); `STRIKE=1` (Abriss des fokussierten Gebäudes + 10 Träger ohne Wohnraum);
-  `GEOLOGISTS=1`; `PIONEERS=1`; `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
+  `GEOLOGISTS=1`; `PIONEERS=1`; `TRADE=1` (Markt mit Lagertür als Ziel, Stopp, Planken ∞, Steine 12, drei Esel, Eselzucht; mit `FOCUS=market_place`); `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
   `TAB=system[:save|quit]` bzw. `goods|settlers[:<untermenü>[:manual|<ware>]]` (z. B. `settlers:soldiers:manual`, `goods:distribution:bread`);
   `STORE=<ware>` (mit `FOCUS=stock`); `PLACE=<gebäude>`; `START=<tab>[:color]` (nur `start.png` des Startscreens, 3: Zufallsgenerator; `:color` mit offener Farbauswahl von Spieler 1);
   `MAGIC=1` (großer Tempel, Mana-Kette, Priester zaubert in einen Kampf; `=summon`: Waren herbeirufen);

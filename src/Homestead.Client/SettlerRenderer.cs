@@ -291,6 +291,7 @@ public sealed class SettlerRenderer
         Profession.Priest => "MAGE",
         Profession.Scout => "THIEF",
         Profession.Pioneer => "PIONEER",
+        Profession.Donkey => "DONKEY",
         _ => null,
     };
 

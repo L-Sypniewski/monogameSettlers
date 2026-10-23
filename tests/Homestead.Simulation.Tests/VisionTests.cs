@@ -104,4 +104,36 @@ public class VisionTests
             Assert.True(PathFinder.InCircle(center, p, Vision.SettlerSight) == vision.IsVisible(p), $"{x},{y}");
         }
     }
+
+    [Fact]
+    public void Donkeys_hardly_see_so_they_are_no_scouts()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools);
+        world.Spawn(new GridPoint(40, 40), Profession.Donkey);
+        var vision = new Vision(80, player: 0);
+
+        vision.Update(world);
+
+        Assert.True(vision.IsVisible(new GridPoint(43, 40)));
+        Assert.False(vision.IsVisible(new GridPoint(44, 40)));
+    }
+
+    [Fact]
+    public void Every_other_finished_building_sees_a_little_houses_and_storehouses_too()
+    {
+        var romans = BuildingCatalog.Load(Civilization.Roman);
+        var world = new World(new GameMap(120), TestConfig.NoTools);
+        var site = world.PlaceConstructionSite(romans["sawmill"], 0, new GridPoint(90, 90))!;
+        var vision = new Vision(120, player: 0);
+        foreach (var name in new[] { "sawmill", "stock", "small_livinghouse" })
+        {
+            var building = world.PlaceBuilding(romans[name], 0, new GridPoint(60, 30 + 30 * Array.IndexOf(new[] { "sawmill", "stock", "small_livinghouse" }, name)))!;
+            vision.Update(world);
+            Assert.Equal(5, world.Military.SightOfBuilding(building));
+            Assert.True(vision.IsVisible(new GridPoint(building.Position.X + 5, building.Position.Y)), name);
+            Assert.False(vision.IsVisible(new GridPoint(building.Position.X + 6, building.Position.Y)), name);
+        }
+        Assert.Null(world.Military.SightOfBuilding(site));
+        Assert.False(vision.IsVisible(site.Position), "a construction site sees nothing");
+    }
 }

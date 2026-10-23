@@ -40,9 +40,9 @@ public sealed class Recruitment
     /// <summary>Sets a share (clamped to 0–1, rounded to whole percent).</summary>
     public void SetShare(int player, Share share, double value) => _shares[(player, share)] = Math.Round(Math.Clamp(value, 0, 1), 2);
 
-    /// <summary>The player's carriers and specialists (soldiers and priests not counted), the base of the shares.</summary>
+    /// <summary>The player's carriers and specialists (soldiers, priests and donkeys not counted), the base of the shares.</summary>
     public int Civilians(int player) =>
-        _world.Settlers.Count(s => s.Player == player && s.Profession is not (Profession.Soldier or Profession.Priest));
+        _world.Settlers.Count(s => s.Player == player && s.Profession is not (Profession.Soldier or Profession.Priest or Profession.Donkey));
 
     /// <summary>Most diggers or builders the player may have (<see cref="Share.Diggers"/>, <see cref="Share.Builders"/>), at least one.</summary>
     public int MaxOf(int player, Share share) => Math.Max(1, (int)(ShareOf(player, share) * Civilians(player) + 1e-9));
@@ -65,7 +65,7 @@ public sealed class Recruitment
         var recruited = _active.Count == 0 ? null : _active.Select(r => r.Settler).ToHashSet();
         foreach (var s in _world.Settlers)
         {
-            if (s.Player != player || s.Profession is Profession.Soldier or Profession.Priest)
+            if (s.Player != player || s.Profession is Profession.Soldier or Profession.Priest or Profession.Donkey)
                 continue;
             if (s.IsCarrier && recruited?.Contains(s) != true)
                 carriers++;

@@ -70,6 +70,11 @@ public sealed partial class Production
 
     public ProductionConfig Config => _config;
 
+    private TradeRules Trade => _config.Trade ?? TradeRules.Default;
+
+    /// <summary>Donkeys the donkey farms brought out.</summary>
+    public int DonkeysBred { get; private set; }
+
     public int Produced { get; private set; }
     public int TreesCut { get; private set; }
     public int StonesCut { get; private set; }
@@ -105,7 +110,8 @@ public sealed partial class Production
     public bool CanPause(Building building) => _workplaces.ContainsKey(building.Id);
 
     private bool Produces(string name) =>
-        _config.Workshops.ContainsKey(name) || _config.Smiths.ContainsKey(name) || _config.Mines.ContainsKey(name) || _config.Gatherers.ContainsKey(name);
+        _config.Workshops.ContainsKey(name) || _config.Smiths.ContainsKey(name) || _config.Mines.ContainsKey(name) || _config.Gatherers.ContainsKey(name)
+        || name == Trade.DonkeyFarm;
 
     /// <summary>What the workplace is doing or waiting for (null for buildings without production).</summary>
     public string? Status(Building building)
@@ -209,7 +215,9 @@ public sealed partial class Production
             if (!building.Exists || building.State != BuildingState.Finished || _workplaces.ContainsKey(building.Id))
                 continue;
             string name = building.Definition.Name;
-            if (_config.Workshops.TryGetValue(name, out var workshop))
+            if (name == Trade.DonkeyFarm)
+                _workplaces[building.Id] = new Workplace(building, new WorkshopRecipe(Trade.FarmInputs, [], Trade.FarmTicks), null) { Breeds = true };
+            else if (_config.Workshops.TryGetValue(name, out var workshop))
                 _workplaces[building.Id] = new Workplace(building, workshop, null);
             else if (_config.Smiths.TryGetValue(name, out var smith))
                 _workplaces[building.Id] = new Workplace(building, new WorkshopRecipe(smith.Inputs, [], smith.Ticks), null) { Smith = smith };
@@ -483,6 +491,14 @@ public sealed partial class Production
                 {
                     ToolsMade++;
                 }
+                else if (w.Breeds)
+                {
+                    // A donkey is no good to carry out: it walks out of the door by itself, the farmer stays inside.
+                    if (_world.Spawn(w.Building.Door, Profession.Donkey, w.Building.Player) is not null)
+                        DonkeysBred++;
+                    Rest(w, 1);
+                    break;
+                }
                 else
                 {
                     Produced++;
@@ -660,6 +676,16 @@ public sealed partial class Production
             if (w.Product is null)
             {
                 w.Waiting = "everything in stock, resting";
+                w.TicksLeft = RetryTicks;
+                return;
+            }
+        }
+        else if (w.Breeds)
+        {
+            // Like a full output pile: enough donkeys stand around without a job.
+            if (_world.Trade.IdleDonkeys(w.Building.Player).Count() >= Trade.KeepIdle)
+            {
+                w.Waiting = "enough donkeys, resting";
                 w.TicksLeft = RetryTicks;
                 return;
             }
@@ -1225,6 +1251,9 @@ public sealed partial class Production
         public GathererRecipe? Gatherer { get; } = gatherer;
         public MineRecipe? Mine { get; init; }
         public SmithRecipe? Smith { get; init; }
+
+        /// <summary>Donkey farm: makes donkeys instead of goods.</summary>
+        public bool Breeds { get; init; }
         public HospitalState? Hospital { get; init; }
 
         /// <summary>Why the last cycle could not start (shown to the player), null while working.</summary>

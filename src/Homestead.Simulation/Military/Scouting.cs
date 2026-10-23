@@ -73,14 +73,21 @@ public sealed partial class Military
             return null;
         if (_config.BuildingSight.TryGetValue(building.Definition.Name, out int sight))
             return sight;
-        return IsOccupied(building) && TerritoryRadius(building) is var radius and > 0
-            ? (int)Math.Ceiling(radius) + _config.MilitarySightMargin
-            : null;
+        if (building.Definition.Occupiers.Count > 0)
+            return IsOccupied(building) && TerritoryRadius(building) is var radius and > 0
+                ? (int)Math.Ceiling(radius) + _config.MilitarySightMargin
+                : null;
+        // Every other building (houses and storehouses too).
+        return _config.BuildingSightRadius ?? 5;
     }
 
-    /// <summary>How far a settler sees (soldiers as far as they notice enemies, scouts further, others <see cref="Vision.SettlerSight"/>).</summary>
+    /// <summary>
+    /// How far a settler sees (soldiers as far as they notice enemies, scouts further, donkeys hardly, others
+    /// <see cref="Vision.SettlerSight"/>).
+    /// </summary>
     internal int SightOf(Settler settler) =>
         settler.SoldierType is { } type ? _config.Sight(type)
         : settler.Profession == Profession.Scout ? ScoutRules.Sight
+        : settler.Profession == Profession.Donkey ? (_world.Production.Config.Trade ?? Economy.TradeRules.Default).Sight
         : Vision.SettlerSight;
 }

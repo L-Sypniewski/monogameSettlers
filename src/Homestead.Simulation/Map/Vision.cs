@@ -2,8 +2,8 @@ namespace Homestead.Simulation.Map;
 
 /// <summary>
 /// What one player sees of the map (fog of war): everything within sight of their settlers outside the buildings
-/// and of buildings with a sight (<see cref="Military.Military.SightOfBuilding"/>: the lookout tower, occupied
-/// military buildings a little beyond their land) is visible – the own land itself sees nothing; what was visible once stays explored. Recomputed on demand (<see cref="Update"/>),
+/// (donkeys hardly) and of buildings with a sight (<see cref="Military.Military.SightOfBuilding"/>: the lookout tower, occupied
+/// military buildings a little beyond their land, every other finished building a little) is visible – the own land itself sees nothing; what was visible once stays explored. Recomputed on demand (<see cref="Update"/>),
 /// not every tick. The simulation itself does not use it: computer players know the whole map (scouts stay revealed
 /// while in sight, <see cref="Military.Military.Sees"/>).
 /// </summary>

@@ -15,7 +15,8 @@ namespace Homestead.Client;
 /// of needed) and a mine's hit rate, at the top right the original's tear-down icon (then only the image stays, the question over it),
 /// at the bottom for production buildings a button to stop or restart them. A finished
 /// military building also offers its garrison per soldier type with buttons for more or fewer (the soldier
-/// upgrades are in Siedler › Krieger, <see cref="SoldiersMenu"/>). Names and states come from <c>data/ui.json</c>.
+/// upgrades are in Siedler › Krieger, <see cref="SoldiersMenu"/>); a market its trade route and goods (BuildingInfo.Market).
+/// Names and states come from <c>data/ui.json</c>.
 /// </summary>
 public sealed partial class BuildingInfo
 {
@@ -60,9 +61,11 @@ public sealed partial class BuildingInfo
     {
         if (_demolishIcon is not null)
             return;
-        var bitmap = gfx.Open(3).ReadGui(_demolishImage);
+        var gui = gfx.Open(3);
+        var bitmap = gui.ReadGui(_demolishImage);
         _demolishIcon = new Texture2D(device, bitmap.Width, bitmap.Height);
         _demolishIcon.SetData(bitmap.Pixels);
+        LoadMarketIcons(device, gui);
     }
 
     /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>
@@ -232,7 +235,9 @@ public sealed partial class BuildingInfo
         int y = Top;
         bool own = building.Player == ownPlayer;
         // Own buildings: the name gives the tear-down icon room.
-        foreach (string line in font.Wrap(NameOf(building.Definition), own ? Inner - DemolishSize - 4 : Inner, 16))
+        // A market's own title (as in the original).
+        string title = own && OffersMarket(world, building) ? Lang.T("building.trade") : NameOf(building.Definition);
+        foreach (string line in font.Wrap(title, own ? Inner - DemolishSize - 4 : Inner, 16))
         {
             if (!asking)
                 Write(batch, font, line, new Vector2(Left, y), Text, 16);
@@ -241,6 +246,13 @@ public sealed partial class BuildingInfo
         if (own)
             y = Math.Max(y, Top + DemolishSize);
         y += 4;
+        // A market shows its trade route and goods instead of the image (as in the original).
+        if (own && !asking && OffersMarket(world, building))
+        {
+            DrawDemolish(batch, pixel, height, font, building, cursor);
+            DrawMarket(batch, pixel, font, world, building, cursor);
+            return;
+        }
         var state = StateOf(world, building);
         double? chance = world.Production.MineChance(building);
         var goods = own && !OffersStorehouse(building) ? Goods(world, building) : [];

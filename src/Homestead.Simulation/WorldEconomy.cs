@@ -55,6 +55,11 @@ public sealed partial class World
     /// <summary>Pioneers taking land (created on first use: games saved before there were pioneers have none).</summary>
     public Pioneering Pioneering => _pioneering ??= new Pioneering(this);
 
+    private Trade? _trade;
+
+    /// <summary>Markets and donkeys (created on first use in games saved before there were any).</summary>
+    public Trade Trade => _trade ??= new Trade(this);
+
     public Military.Military Military { get; }
 
     /// <summary>
@@ -110,6 +115,8 @@ public sealed partial class World
             return magic;
         if (Production.Status(building) is { } status)
             return status;
+        if (Trade.Status(building) is { } trade)
+            return trade;
         if (Housing.ResidentsLeft(building) is { } left)
             return left > 0 ? $"{left} residents still to come" : "all residents moved out";
         var stored = building.Piles.Where(p => p.Role == PileRole.Storage && p.Count > 0 && p.Material is not null)
@@ -712,9 +719,10 @@ public sealed partial class World
         var definition = building.Definition;
         foreach (var pile in definition.RequestPiles)
         {
-            var role = pile.Material is null ? PileRole.Storage : PileRole.Request;
+            // Piles for any material: a market's take the goods it trades, a storehouse's store them.
+            var role = pile.Material is not null ? PileRole.Request : Trade.IsMarket(building) ? PileRole.Trade : PileRole.Storage;
             // Mines take only food; each food pile holds a few units, so the food spreads over more mines.
-            int capacity = role == PileRole.Storage ? Production.Config.StoragePileCapacity
+            int capacity = role is PileRole.Storage or PileRole.Trade ? Production.Config.StoragePileCapacity
                 : Production.Config.Mines.ContainsKey(definition.Name) ? Production.Config.MineFoodPileCapacity
                 : Materials.MaxPileSize;
             AddPile(new Pile(_nextPileId++, building.Position + pile.Offset, role, pile.Material, capacity, building), building);

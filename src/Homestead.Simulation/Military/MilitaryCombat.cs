@@ -215,7 +215,8 @@ public sealed partial class Military
         // fighter is what made long games slow.
         _combatants.Clear();
         foreach (var settler in _world.Settlers)
-            if (settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer && !settler.IsInside && !settler.IsDead)
+            if ((settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer
+                 || IsLoadedDonkey(settler)) && !settler.IsInside && !settler.IsDead)
                 _combatants.Add(settler);
         if (_world.Tick % EngageInterval == 0)
             EngageIdleSoldiers();
@@ -226,7 +227,10 @@ public sealed partial class Military
             Advance(fighter);
     }
 
-    /// <summary>Soldiers, priests, geologists and scouts outside the buildings at the start of this tick.</summary>
+    /// <summary>A donkey carrying goods: enemies strike it once to make it drop them (it cannot die).</summary>
+    private static bool IsLoadedDonkey(Settler settler) => settler is { Profession: Profession.Donkey, Carrying: not null };
+
+    /// <summary>Soldiers, priests, geologists, scouts and loaded donkeys outside the buildings at the start of this tick.</summary>
     private readonly List<Settler> _combatants = new();
 
     /// <summary>
@@ -784,7 +788,8 @@ public sealed partial class Military
     {
         var soldier = f.Soldier;
         // Gone, inside, or won over by a spell: look for another one.
-        if (f.Enemy is { } current && (current.IsDead || current.IsInside || current.Player == soldier.Player || PathFinder.Distance(soldier.Position, current.Position) > _config.Sight(soldier.SoldierType!.Value) + 4))
+        if (f.Enemy is { } current && (current.IsDead || current.IsInside || current.Player == soldier.Player
+                                       || current.Profession == Profession.Donkey && !IsLoadedDonkey(current) || PathFinder.Distance(soldier.Position, current.Position) > _config.Sight(soldier.SoldierType!.Value) + 4))
             f.Enemy = null;
 
         int currentDistance = f.Enemy is { } e ? PathFinder.Distance(soldier.Position, e.Position) : int.MaxValue;
@@ -928,6 +933,13 @@ public sealed partial class Military
         }
         _world.Cue(new SoundCue(SoundCueKind.Strike, tower?.Position ?? attacker.Position, attacker.Player, attacker.SoldierType,
             attacker.People ?? _world.PeopleOf(attacker.Player)));
+        if (enemy.Profession == Profession.Donkey)
+        {
+            // One strike and it drops its load and turns home; it takes no harm.
+            _world.Trade.Struck(enemy);
+            _world.Events.Raise("donkeyRobbed", enemy.Player, enemy.Position, settler: enemy);
+            return;
+        }
         float damage = _config.Damage(attacker.SoldierType!.Value, attacker.Level) * CombatStrengthOf(attacker);
         enemy.Health -= enemy.SoldierType is { } type ? _config.Soldiers[type].Taken(damage) : damage;
         var home = DefendedBy(enemy);

@@ -37,6 +37,12 @@ public enum Profession
 
     /// <summary>Takes free and unprotected land, field by field (see <see cref="Economy.Pioneering"/>).</summary>
     Pioneer,
+
+    /// <summary>
+    /// Bred in the donkey farm, carries goods along the trade routes of markets (see <see cref="Economy.Trade"/>). Nobody
+    /// commands it; it cannot die and walks on any land.
+    /// </summary>
+    Donkey,
 }
 
 public enum SoldierType

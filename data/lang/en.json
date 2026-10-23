@@ -251,7 +251,12 @@
     "residentsComing": "Residents moving in",
     "inhabited": "Inhabited",
     "storehouse": "Storage",
-    "noFunction": "No function"
+    "noFunction": "No function",
+    "enoughDonkeys": "Enough donkeys",
+    "noDestination": "No destination",
+    "donkeysOnTheWay": "Donkeys on the way",
+    "waitingForDonkey": "Waiting for a donkey",
+    "waitingForTradeGoods": "Waiting for goods"
   },
   "events": {
     "texts": {
@@ -262,7 +267,8 @@
       "buildingLost": "{building} was taken by the enemy!",
       "buildingCaptured": "You captured {building}.",
       "mineExhausted": "{building} is exhausted.",
-      "noResources": "{building} finds nothing more."
+      "noResources": "{building} finds nothing more.",
+      "donkeyRobbed": "A donkey was robbed: its goods lie on the ground!"
     },
     "categories": {
       "info": "Info",
@@ -546,6 +552,7 @@
     "missionLost": "Mission lost"
   },
   "building": {
+    "trade": "Trade – land",
     "garrison": "Garrison (present / wanted)",
     "resume": "Resume",
     "pause": "Pause",

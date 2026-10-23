@@ -1187,9 +1187,9 @@ public sealed class MapGame : Game
     }
 
     /// <summary>Work area marks by grid row, computed once per selected building (too slow for every frame).</summary>
-    private ILookup<int, (GridPoint Point, int Ring)> WorkAreaMarksByRow()
+    private ILookup<int, (GridPoint Point, int Ring, Color? Tint)> WorkAreaMarksByRow()
     {
-        var key = (_selectedBuilding, _selectedBuilding?.Exists ?? false, _selectedBuilding?.WorkCenter);
+        var key = (_selectedBuilding, _selectedBuilding?.Exists ?? false, _selectedBuilding?.WorkCenter, RouteKey());
         if (_marks is null || _marksKey != key)
         {
             _marks = WorkAreaMarks().ToLookup(m => m.Point.Y);
@@ -1198,15 +1198,33 @@ public sealed class MapGame : Game
         return _marks;
     }
 
-    private ILookup<int, (GridPoint Point, int Ring)>? _marks;
-    private (Building?, bool, GridPoint?) _marksKey;
+    private ILookup<int, (GridPoint Point, int Ring, Color? Tint)>? _marks;
+    private (Building?, bool, GridPoint?, string) _marksKey;
+
+    /// <summary>The selected market's route, to notice when it changes.</summary>
+    private string RouteKey() =>
+        _selectedBuilding is { Exists: true } market && _world.Trade.IsMarket(market) ? string.Join(";", _world.Trade.Route(market)) : "";
 
     /// <summary>
     /// Work area of the selected building as in the original: posts on the borders of four circles at
     /// a quarter, half, three quarters and the full work radius around the work center.
     /// </summary>
-    private IEnumerable<(GridPoint Point, int Ring)> WorkAreaMarks()
+    private IEnumerable<(GridPoint Point, int Ring, Color? Tint)> WorkAreaMarks()
     {
+        // An own market: its route from the door over the stops to the destination, a flag at each; the legs colored
+        // green, after the first stop yellow, after the second orange, after the third red.
+        if (_selectedBuilding is { Exists: true, Player: 0 } market && _world.Trade.IsMarket(market))
+        {
+            var from = market.Door;
+            var route = _world.Trade.Route(market);
+            for (int leg = 0; leg < route.Count; leg++)
+            {
+                foreach (var (point, ring, _) in GatheringPathMarks(from, route[leg]))
+                    yield return (point, ring, RouteLegColors[Math.Min(leg, RouteLegColors.Length - 1)]);
+                from = route[leg];
+            }
+            yield break;
+        }
         if (_selectedBuilding is not { Exists: true } building || building.Definition.WorkRadius is not { } radius || radius <= 0)
             yield break;
         var center = building.WorkCenter;
@@ -1223,9 +1241,12 @@ public sealed class MapGame : Game
             foreach (var p in PathFinder.Circle(center, r))
                 if (_gameMap.Contains(p) && Enumerable.Range(0, DirectionExtensions.Count)
                         .Any(d => !PathFinder.InCircle(center, p.Neighbor((Direction)d), r)))
-                    yield return (p, ring);
+                    yield return (p, ring, null);
         }
     }
+
+    /// <summary>Colors of a market's route legs: to the first stop, after it, after the second, after the third.</summary>
+    private static readonly Color[] RouteLegColors = [new(60, 220, 60), new(255, 230, 40), new(255, 140, 20), new(230, 30, 30)];
 
     /// <summary>Marks the <see cref="WorkAreaMarks"/> use for the flag at the end of a gathering path.</summary>
     private const int GatheringFlag = -1;
@@ -1234,7 +1255,7 @@ public sealed class MapGame : Game
     /// A gathering point (barracks): an inner-ring post on every second field of the way there, the flag
     /// at its end. Where there is no way, the posts go straight.
     /// </summary>
-    private IEnumerable<(GridPoint Point, int Ring)> GatheringPathMarks(GridPoint from, GridPoint to)
+    private IEnumerable<(GridPoint Point, int Ring, Color? Tint)> GatheringPathMarks(GridPoint from, GridPoint to)
     {
         var points = new List<GridPoint>();
         if (_world.PathFinder?.FindPath(from, to) is { } path)
@@ -1253,8 +1274,8 @@ public sealed class MapGame : Game
             }
         }
         for (int i = 1; i < points.Count - 1; i += 2)
-            yield return (points[i], 0);
-        yield return (to, GatheringFlag);
+            yield return (points[i], 0, null);
+        yield return (to, GatheringFlag, null);
     }
 
     /// <summary>Border posts of grid row <paramref name="y"/>: owned points next to land of another owner.</summary>
@@ -1733,6 +1754,11 @@ public sealed class MapGame : Game
                 UiSounds.Toggle();
                 _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)} {(_selectedBuilding.IsPaused ? "stopped" : "restarted")}";
             }
+            // A market's route and goods.
+            if (onMenu && _buildingInfo.MarketHover(panelCursor, _world, _selectedBuilding!, 0) is { } marketHover)
+                _message = marketHover;
+            if (onMenu && released && _buildingInfo.MarketClick(panelCursor, _world, _selectedBuilding!, 0) is { } traded)
+                _message = traded;
             // A storehouse's goods: specialize it on one, or back to the general rule.
             if (onMenu && _buildingInfo.StorehouseHover(panelCursor, _world, _selectedBuilding!, 0) is { } storeHover)
                 _message = storeHover;
@@ -1864,7 +1890,7 @@ public sealed class MapGame : Game
             _dragStart = cursorScreen;
         if (mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is { } dragStart)
         {
-            if (!_placing && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
+            if (!_placing && !_buildingInfo.AimsRoute(_selectedBuilding) && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
                 SelectInBox(dragStart, cursorScreen);
             else
                 Click(cursorScreen);
@@ -1946,6 +1972,8 @@ public sealed class MapGame : Game
         {
             if (_aiming)
                 _aiming = false;
+            else if (_buildingInfo.AimsRoute(_selectedBuilding))
+                _buildingInfo.CancelRoute();
             else if (_buildingInfo.Asking is not null)
                 _buildingInfo.Cancel();
             else if (_placing)
@@ -2094,6 +2122,13 @@ public sealed class MapGame : Game
                 _placing = false;
                 _buildSpotChecks.Clear();
             }
+            return;
+        }
+
+        // A market's route button chosen: the click sets that point.
+        if (_buildingInfo.AimsRoute(_selectedBuilding) && _selectedBuilding is { Exists: true } market)
+        {
+            _message = _buildingInfo.MarketCommand(_world, market, ScreenToGrid(screen));
             return;
         }
 
@@ -2475,6 +2510,13 @@ public sealed class MapGame : Game
             _message = "";
             return;
         }
+        // Setting a market's route point: cancelled.
+        if (_buildingInfo.AimsRoute(_selectedBuilding))
+        {
+            _buildingInfo.CancelRoute();
+            _message = "";
+            return;
+        }
         // A selected own building with a work area: move the work area there (at most 20 steps away, a gathering point anywhere).
         if (_selectedBuilding is { Exists: true, Player: 0, HasWorkArea: true } worksite)
         {
@@ -2778,12 +2820,12 @@ public sealed class MapGame : Game
         for (int y = firstRow; y < firstRow + rows; y++)
         {
             DrawBorderRow(y, visible);
-            foreach (var (point, ring) in marksByRow[y])
+            foreach (var (point, ring, tint) in marksByRow[y])
             {
                 if (ring == GatheringFlag)
                     _economyRenderer.DrawGatheringFlag(_spriteBatch, point, _terrain, PlayerColors.Of(_selectedBuilding!.Player), _time);
                 else
-                    _economyRenderer.DrawWorkAreaMark(_spriteBatch, point, ring, _terrain);
+                    _economyRenderer.DrawWorkAreaMark(_spriteBatch, point, ring, _terrain, tint);
             }
             foreach (var pile in pilesByRow[y])
                 _economyRenderer.DrawPile(_spriteBatch, pile, _terrain);
@@ -3064,6 +3106,10 @@ public sealed class MapGame : Game
     private void DrawMagic(float alpha)
     {
         int radius = _world.Magic.Config.Radius;
+        // Setting a market's route point: a flag where the click would put it.
+        if (_buildingInfo.AimsRoute(_selectedBuilding) && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height)
+            && _world.Trade.Reachable(_selectedBuilding!, ScreenToGrid(Mouse.GetState().Position.ToVector2())) is { } routePoint)
+            _economyRenderer.DrawGatheringFlag(_spriteBatch, routePoint, _terrain, PlayerColors.Of(0), _time);
         if (_aiming && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height))
         {
             var target = ScreenToGrid(Mouse.GetState().Position.ToVector2());
@@ -3363,6 +3409,36 @@ public sealed class MapGame : Game
     }
 
     /// <summary>
+    /// HOMESTEAD_CAPTURE_TRADE=1: a market near the start with a storehouse as destination and a stop on the way, all planks
+    /// and stones to send, three donkeys and a donkey farm; the market is selected (the route shows on the map).
+    /// </summary>
+    private void CaptureTrade(GridPoint start)
+    {
+        Building? Place(string name) => PathFinder.Circle(start, 30).OrderBy(p => PathFinder.Distance(start, p))
+            .Where(p => _world.CanPlace(Own[name], p, out _)).Select(p => _world.PlaceBuilding(Own[name], 0, p)).FirstOrDefault(b => b is not null);
+        var market = Place("market_place");
+        Place("donkey_farm");
+        var stock = _world.Buildings.Where(b => b.Player == 0 && b.Exists && b.Piles.Any(p => p.Role == Simulation.Economy.PileRole.Storage))
+            .MaxBy(b => market is null ? 0 : PathFinder.Distance(b.Position, market.Position)) ?? Place("stock");
+        if (market is null || stock is null)
+        {
+            Console.WriteLine("trade: no room for a market or no storehouse");
+            return;
+        }
+        _world.Trade.SetDestination(market, stock.Door);
+        // Three stops in a wide loop, so the colored legs show.
+        int stop = 0;
+        foreach (var offset in new[] { new GridPoint(12, 0), new GridPoint(14, 12), new GridPoint(2, 16) })
+            if (stop < Simulation.Economy.Trade.Stops && _world.Trade.SetStop(market, stop, new GridPoint(market.Door.X + offset.X, market.Door.Y + offset.Y)))
+                stop++;
+        _world.Trade.SetRemaining(market, Simulation.Economy.Material.Plank, Simulation.Economy.Trade.Unlimited);
+        _world.Trade.SetRemaining(market, Simulation.Economy.Material.Stone, 12);
+        for (int i = 0; i < 3; i++)
+            _world.Spawn(market.Door, Profession.Donkey);
+        Console.WriteLine($"trade: market at {market.Position}, destination {stock.Definition.Name} at {stock.Position}");
+    }
+
+    /// <summary>
     /// HOMESTEAD_CAPTURE_PIONEERS=1: two pioneers appear at the edge of the own land nearest to the start,
     /// selected („Land einnehmen“ shows), and take land there; the camera looks at them.
     /// </summary>
@@ -3578,6 +3654,9 @@ public sealed class MapGame : Game
                     for (int i = 0; i < fort.Occupiers.Count; i++)
                         _world.SpawnSoldier(placed.Door, i % 2 == 0 ? SoldierType.Bowman : SoldierType.Swordsman);
                 }
+                // HOMESTEAD_CAPTURE_TRADE=1: a market sending all planks and stones by donkey over a stop to a storehouse (focused).
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TRADE") == "1")
+                    CaptureTrade(start);
                 _selectedBuilding = _world.Buildings.FirstOrDefault(b => b.Definition.Name == (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") ?? "lumberjack"));
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB") is not null)
                     _selectedBuilding = null; // the tab's menu, not the building

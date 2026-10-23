@@ -208,11 +208,11 @@ public sealed class EconomyRenderer
     }
 
     /// <summary>One post of a work area marking; <paramref name="ring"/> 0 (inner) to 3 (outer).</summary>
-    public void DrawWorkAreaMark(SpriteBatch batch, GridPoint p, int ring, TerrainMesh terrain)
+    public void DrawWorkAreaMark(SpriteBatch batch, GridPoint p, int ring, TerrainMesh terrain, Color? tint = null)
     {
         var sprites = Sprites(WorkAreaFile, WorkAreaSequence);
         if (sprites.FrameCount > 0)
-            sprites.Draw(batch, Math.Min(ring, sprites.FrameCount - 1), Anchor(p, terrain), 1, Color.White);
+            sprites.Draw(batch, Math.Min(ring, sprites.FrameCount - 1), Anchor(p, terrain), 1, Color.White, tint: tint);
     }
 
     /// <summary>

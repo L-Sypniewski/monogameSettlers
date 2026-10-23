@@ -90,6 +90,9 @@ public sealed record MilitaryConfig
     /// <summary>Fog of war: occupied military buildings see this many fields beyond their land.</summary>
     public int MilitarySightMargin { get; init; } = 3;
 
+    /// <summary>Fog of war: sight of every other finished building, not military (null in older games: 5).</summary>
+    public int? BuildingSightRadius { get; init; }
+
     /// <summary>Near the enemy, ways are planned locally within this radius around everyone standing.</summary>
     public required int CombatPathRadius { get; init; }
 
@@ -166,6 +169,7 @@ public sealed record MilitaryConfig
                 ? buildingSight.EnumerateObject().ToDictionary(b => b.Name, b => b.Value.GetInt32())
                 : new Dictionary<string, int>(),
             MilitarySightMargin = root.TryGetProperty("militarySightMargin", out var sightMargin) ? sightMargin.GetInt32() : 3,
+            BuildingSightRadius = root.TryGetProperty("otherBuildingSight", out var otherSight) ? otherSight.GetInt32() : 5,
             CombatPathRadius = root.GetProperty("combatPathRadius").GetInt32(),
             AttackRange = root.GetProperty("attackRange").GetInt32(),
             CombatStrength = root.TryGetProperty("combatStrength", out var strength) ? CombatStrengthConfig.Parse(strength) : CombatStrengthConfig.None,

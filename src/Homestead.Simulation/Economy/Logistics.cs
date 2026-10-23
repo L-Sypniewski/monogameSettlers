@@ -228,12 +228,12 @@ public sealed class Logistics
 
         var users = candidates.Where(c => c.Role != PileRole.Storage).ToList();
         if (users.Count > 0 && !AllZero(users[0].Owner!.Player, material))
-            users = users.Where(u => ShareOf(u.Owner!.Player, material, TargetOf(u)) > 0).ToList();
+            users = users.Where(u => Share(u.Owner!.Player, TargetOf(u)) > 0).ToList();
         if (users.Count > 0)
         {
             int player = users[0].Owner!.Player;
             var types = users.Select(TargetOf).Distinct().ToList();
-            string type = DrawType(types, t => ShareOf(player, material, t));
+            string type = DrawType(types, t => Share(player, t));
             if (Nearest(users.Where(u => TargetOf(u) == type)) is { } drawn)
                 return drawn;
             if (Nearest(users) is { } nearest)
@@ -246,10 +246,16 @@ public sealed class Logistics
             .FirstOrDefault(t => _world.Reachable(t.Owner!.Player, offer.Position, t.Position));
 
         static string TargetOf(Pile request) => request.Owner!.State == BuildingState.Finished ? request.Owner.Definition.Name : Construction;
+
+        // Markets get what the player sends there (their panel), not by the shares of Waren › Verteilung.
+        double Share(int player, string target) => target == (_world.Production.Config.Trade ?? TradeRules.Default).Market ? 1 : ShareOf(player, material, target);
     }
 
     private bool Allowed(Pile offer, Pile request, Material material)
     {
+        if (request.Role == PileRole.Trade)
+            return _world.Trade.Wants(request, material) && !(request.Material is null && request.Owner!.Piles.Any(o =>
+                o != request && o.Role == PileRole.Trade && o.Material == material && o.Space > 0));
         if (request.Role != PileRole.Storage)
             return true;
         if (!StoresHere(request.Owner!, material))
@@ -376,6 +382,8 @@ public sealed class Logistics
                 job.Target.Incoming--;
                 job.Target.Count++;
                 job.Target.Material = job.Material;
+                if (job.Target.Role == PileRole.Trade)
+                    _world.Trade.Arrived(job.Target, job.Material);
                 carrier.Carrying = null;
                 carrier.HasTask = false;
                 _jobs.Remove(carrier.Id);

@@ -120,6 +120,9 @@ public sealed record ProductionConfig
     public GeologistRules Geologists { get; init; } = new(10, 3 * World.TicksPerSecond, 2 * World.TicksPerSecond,
         4 * 60 * World.TicksPerSecond, 9 * 60 * World.TicksPerSecond);
 
+    /// <summary>Donkey farms, markets and donkeys (see <see cref="Trade"/>); null in games saved before there were any: <see cref="TradeRules.Default"/>.</summary>
+    public TradeRules? Trade { get; init; }
+
     /// <summary>Walking speed by ground and how trails form (see <see cref="Trails"/>); <see cref="WalkingRules.Plain"/>: same speed everywhere, no trails.</summary>
     public WalkingRules Walking { get; init; } = WalkingRules.Plain;
 
@@ -294,6 +297,11 @@ public sealed record ProductionConfig
                 ? new WalkingRules(walking.GetProperty("trailSpeed").GetDouble(), walking.GetProperty("mountainSpeed").GetDouble(),
                     walking.GetProperty("trailSteps").GetInt32(), Ticks(walking, "trailFadeSeconds"))
                 : WalkingRules.Plain,
+            Trade = root.TryGetProperty("trade", out var trade)
+                ? new TradeRules(trade.GetProperty("donkeyFarm").GetString()!, MaterialList(trade.GetProperty("farmInputs")), Ticks(trade, "farmSeconds"),
+                    trade.GetProperty("keepIdle").GetInt32(), trade.GetProperty("market").GetString()!, trade.GetProperty("load").GetInt32(),
+                    Ticks(trade, "loadSeconds"), trade.GetProperty("sight").GetInt32())
+                : TradeRules.Default,
             DemolitionPayback = root.TryGetProperty("demolition", out var demolition) ? demolition.GetProperty("payback").GetDouble() : 0.5,
             Depletion = root.TryGetProperty("depletion", out var depletion)
                 ? new Depletion(depletion.GetProperty("stone").GetInt32(), depletion.GetProperty("mountain").GetInt32(), depletion.GetProperty("fish").GetInt32())
@@ -311,6 +319,19 @@ public sealed record Depletion(int Stone, int Mountain, int Fish);
 /// <paramref name="SignMinTicks"/> and <paramref name="SignMaxTicks"/>.
 /// </summary>
 public sealed record GeologistRules(int SearchRadius, int SurveyTicks, int SignTicks, int SignMinTicks, int SignMaxTicks);
+
+/// <summary>
+/// Land trade: the <paramref name="DonkeyFarm"/> makes a donkey of its <paramref name="FarmInputs"/> every
+/// <paramref name="FarmTicks"/> while the player has fewer than <paramref name="KeepIdle"/> donkeys without a job;
+/// a <paramref name="Market"/>'s donkey carries up to <paramref name="Load"/> units, each taking <paramref name="LoadTicks"/>
+/// to load or unload. A donkey sees <paramref name="Sight"/> fields (fog of war; little, so it is no scout).
+/// </summary>
+public sealed record TradeRules(string DonkeyFarm, IReadOnlyList<Material> FarmInputs, int FarmTicks, int KeepIdle, string Market, int Load,
+    int LoadTicks, int Sight)
+{
+    public static TradeRules Default { get; } = new("donkey_farm", [Material.Crop, Material.Water], 20 * World.TicksPerSecond, 4, "market_place", 2,
+        World.TicksPerSecond / 2, 3);
+}
 
 /// <summary>
 /// Walking speed by ground: <paramref name="TrailSpeed"/> times as fast on a trail, <paramref name="MountainSpeed"/>

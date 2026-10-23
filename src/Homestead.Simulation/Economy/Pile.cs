@@ -15,6 +15,12 @@ public enum PileRole
 
     /// <summary>Storehouse pile: takes any material (one at a time) and hands it out again.</summary>
     Storage,
+
+    /// <summary>
+    /// Market pile: takes the goods the player sends along the market's trade route (one material at a time); only
+    /// donkeys take them away (see <see cref="Economy.Trade"/>).
+    /// </summary>
+    Trade,
 }
 
 /// <summary>
@@ -50,7 +56,7 @@ public sealed class Pile
     public Material? AcceptedMaterial => Role switch
     {
         PileRole.Request => _accepted,
-        PileRole.Storage => null,
+        PileRole.Storage or PileRole.Trade => null,
         _ => Material,
     };
 
@@ -65,10 +71,10 @@ public sealed class Pile
 
     public Building? Owner { get; }
 
-    private bool Receives => Role is PileRole.Request or PileRole.Storage;
+    private bool Receives => Role is PileRole.Request or PileRole.Storage or PileRole.Trade;
 
     /// <summary>Units carriers may still be sent to pick up.</summary>
-    public int Available => Role == PileRole.Request ? 0 : Count - Reserved;
+    public int Available => Role is PileRole.Request or PileRole.Trade ? 0 : Count - Reserved;
 
     /// <summary>Units carriers may still bring.</summary>
     public int Space => Receives ? Capacity - Count - Incoming : 0;
@@ -82,7 +88,7 @@ public sealed class Pile
     internal bool MayAccept(Material material) => Role switch
     {
         PileRole.Request => (_accepted ?? material) == material,
-        PileRole.Storage => Material is null || Material == material || Count == 0,
+        PileRole.Storage or PileRole.Trade => Material is null || Material == material || Count == 0,
         _ => false,
     };
 
