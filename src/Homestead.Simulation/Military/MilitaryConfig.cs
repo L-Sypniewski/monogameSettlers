@@ -189,9 +189,10 @@ public sealed record MilitaryConfig
 }
 
 /// <summary>
-/// Combat strength (Kampfkraft): away from own land it starts at 1 / number of players; goods on own
-/// land (weighted per people) raise it without limit (2 = soldiers hit twice as hard). Each <see cref="StepPercent"/> points of bonus
-/// cost <see cref="UnitsPerPercent"/>[i] units per point, the last value going on.
+/// Combat strength (Kampfkraft): away from own land it starts at <see cref="StartPercent"/> for the number of players;
+/// goods on own land (weighted per people) raise it without limit (2 = soldiers hit twice as hard). Each point of strength within the
+/// i-th band of <see cref="StepPercent"/> points (counted from 0 %, not from the start) costs <see cref="UnitsPerPercent"/>[i]
+/// units, the last value going on.
 /// </summary>
 public sealed record CombatStrengthConfig(float StepPercent, IReadOnlyList<float> UnitsPerPercent, IReadOnlyDictionary<Material, float> Goods,
     IReadOnlyDictionary<Civilization, IReadOnlyDictionary<Material, float>> Civilizations)
@@ -201,19 +202,32 @@ public sealed record CombatStrengthConfig(float StepPercent, IReadOnlyList<float
     /// <summary>What each unit of the goods counts for a player of the people.</summary>
     public IReadOnlyDictionary<Material, float> GoodsOf(Civilization people) => Civilizations.GetValueOrDefault(people) ?? Goods;
 
-    /// <summary>The bonus (1 = 100 percentage points) the units buy.</summary>
-    public float Bonus(float units)
+    /// <summary>Start in percent for 1, 2, … players; more players than listed start at the last value.</summary>
+    public IReadOnlyList<float> StartPercent { get; init; } = [];
+
+    /// <summary>The strength (1 = 100 %) away from own land without goods (1 / number of players if nothing is listed).</summary>
+    public float Start(int players) => StartPercent.Count == 0
+        ? 1f / Math.Max(1, players)
+        : StartPercent[Math.Clamp(players, 1, StartPercent.Count) - 1] / 100;
+
+    /// <summary>
+    /// The strength (1 = 100 %) the units raise <paramref name="start"/> to: each further percent costs what the band of
+    /// the strength reached so far asks, so the same goods buy more from a lower start.
+    /// </summary>
+    public float Raise(float start, float units)
     {
+        float percent = start * 100;
         if (UnitsPerPercent.Count == 0 || units <= 0)
-            return 0;
-        float percent = 0;
-        for (int step = 0; ; step++)
+            return start;
+        while (true)
         {
-            float cost = UnitsPerPercent[Math.Min(step, UnitsPerPercent.Count - 1)];
-            if (step >= UnitsPerPercent.Count - 1 || units <= cost * StepPercent)
+            int band = (int)(percent / StepPercent);
+            float cost = UnitsPerPercent[Math.Min(band, UnitsPerPercent.Count - 1)];
+            float next = (band + 1) * StepPercent;
+            if (band >= UnitsPerPercent.Count - 1 || units <= (next - percent) * cost)
                 return (percent + units / cost) / 100;
-            percent += StepPercent;
-            units -= cost * StepPercent;
+            units -= (next - percent) * cost;
+            percent = next;
         }
     }
 
@@ -226,7 +240,10 @@ public sealed record CombatStrengthConfig(float StepPercent, IReadOnlyList<float
             Weights(element.GetProperty("goods")),
             element.TryGetProperty("civilizations", out var civilizations)
                 ? civilizations.EnumerateObject().ToDictionary(c => Enum.Parse<Civilization>(c.Name), c => Weights(c.Value))
-                : new Dictionary<Civilization, IReadOnlyDictionary<Material, float>>());
+                : new Dictionary<Civilization, IReadOnlyDictionary<Material, float>>())
+        {
+            StartPercent = element.TryGetProperty("startPercent", out var start) ? start.EnumerateArray().Select(v => v.GetSingle()).ToArray() : [],
+        };
     }
 }
 

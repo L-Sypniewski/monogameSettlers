@@ -344,7 +344,7 @@ public class MilitaryTests(ITestOutputHelper output)
         var blocker = world.SpawnSoldier(a.StepTarget.Neighbor(Direction.East), SoldierType.Pikeman, player: 1)!;
         float bowmanHealth = far.Health;
 
-        Run(world, 400, stopWhen: () => blocker.IsDead);
+        Run(world, 1_000, stopWhen: () => blocker.IsDead);
 
         Assert.True(blocker.IsDead, "the soldier fought the enemy next to it");
         Assert.Equal(bowmanHealth, far.Health);
@@ -891,22 +891,22 @@ public class MilitaryTests(ITestOutputHelper output)
         world.AddLooseGoods(new GridPoint(20, 40), Material.Gold, 8); // not on own land
         world.AddLooseGoods(new GridPoint(22, 5), Material.Gems, 8);  // Romans have no use for gems
         world.Step();
-        Assert.Equal(0.58f, world.Military.CombatStrength(0), 4); // 1 % per bar at first
+        Assert.Equal(0.5308f, world.Military.CombatStrength(0), 4); // 2.6 bars per point from 50 %
 
         // Egyptians: gold counts half, gems double.
         world.AddLooseGoods(new GridPoint(20, 20), Material.Gold, 4);
         world.AddLooseGoods(new GridPoint(22, 20), Material.Gems, 3);
         world.Step();
-        Assert.Equal(0.58f, world.Military.CombatStrength(1), 4); // 4 × 0.5 + 3 × 2
+        Assert.Equal(0.5308f, world.Military.CombatStrength(1), 4); // 4 × 0.5 + 3 × 2
 
-        // No upper limit: 115 bars buy 100 %, 305 bars 130 %, then 10 bars per point.
+        // No upper limit: 466 bars buy 100 %, then 20 bars per point.
         for (int x = 0; x < 50; x++)
         {
             world.AddLooseGoods(new GridPoint(5 + x, 8), Material.Gold, 8);
             world.AddLooseGoods(new GridPoint(5 + x, 10), Material.Gold, 8);
         }
         world.Step();
-        Assert.Equal(1.803f, world.Military.CombatStrength(0), 4); // 808 bars: 130 % + 503 / 10
+        Assert.Equal(1.171f, world.Military.CombatStrength(0), 4); // 808 bars: 100 % + 342 / 20
     }
 
     [Fact]
@@ -914,12 +914,27 @@ public class MilitaryTests(ITestOutputHelper output)
     {
         var strength = new CombatStrengthConfig(10, [1, 2, 4], new Dictionary<Material, float>(), new Dictionary<Civilization, IReadOnlyDictionary<Material, float>>());
 
-        Assert.Equal(0.05f, strength.Bonus(5), 4);
-        Assert.Equal(0.10f, strength.Bonus(10), 4);
-        Assert.Equal(0.15f, strength.Bonus(20), 4);  // 10 + 5 × 2
-        Assert.Equal(0.25f, strength.Bonus(50), 4);  // 10 + 20 + 5 × 4 (the last step goes on)
-        Assert.Equal(1.375f, strength.Bonus(500), 4);   // no upper limit: 20 + 470 / 4
-        Assert.Equal(0f, strength.Bonus(0), 4);
+        Assert.Equal(0.05f, strength.Raise(0, 5), 4);
+        Assert.Equal(0.10f, strength.Raise(0, 10), 4);
+        Assert.Equal(0.15f, strength.Raise(0, 20), 4);  // 10 + 5 × 2
+        Assert.Equal(0.25f, strength.Raise(0, 50), 4);  // 10 + 20 + 5 × 4 (the last band goes on)
+        Assert.Equal(1.375f, strength.Raise(0, 500), 4);   // no upper limit: 20 + 470 / 4
+        Assert.Equal(0.3f, strength.Raise(0.3f, 0), 4);
+        // The bands count from 0 %: a lower start buys more with the same goods.
+        Assert.Equal(0.125f, strength.Raise(0.05f, 10), 4); // 5 × 1, then 5 / 2
+        Assert.Equal(0.20f, strength.Raise(0.15f, 10), 4);  // 5 × 2
+    }
+
+    [Fact]
+    public void Combat_strength_starts_by_the_number_of_players_as_listed()
+    {
+        var strength = CombatStrengthConfig.None with { StartPercent = [100, 50, 42, 37] };
+
+        Assert.Equal(1f, strength.Start(1), 4);
+        Assert.Equal(0.42f, strength.Start(3), 4);
+        Assert.Equal(0.37f, strength.Start(4), 4);
+        Assert.Equal(0.37f, strength.Start(9), 4); // more players than listed: the last value
+        Assert.Equal(0.25f, CombatStrengthConfig.None.Start(4), 4); // nothing listed: 1 / players
     }
 
     [Fact]

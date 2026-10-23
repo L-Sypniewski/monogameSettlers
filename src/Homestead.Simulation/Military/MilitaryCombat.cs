@@ -885,9 +885,10 @@ public sealed partial class Military
     }
 
     /// <summary>
-    /// Combat strength of the player away from own land (neutral or enemy land): 1 / number of players,
+    /// Combat strength of the player away from own land (neutral or enemy land): a start by the number of players
+    /// (<see cref="CombatStrengthConfig.StartPercent"/>),
     /// raised by the goods (gold; Egyptians: gems count double) lying on the player's own land, each
-    /// further percent dearer (<see cref="CombatStrengthConfig.Bonus"/>), without limit (2 = twice the
+    /// further percent dearer (<see cref="CombatStrengthConfig.Raise"/>), without limit (2 = twice the
     /// damage away from home, which pushes a rich player to attack), plus the flat
     /// <see cref="Hardcore.CombatStrengthBonus"/> of hardcore players. Recomputed at most once per tick.
     /// </summary>
@@ -895,17 +896,12 @@ public sealed partial class Military
     {
         if (_strengths.TryGetValue(player, out var cached) && cached.Tick == _world.Tick)
             return cached.Strength;
-        float strength = 1;
-        if (_world.PlayerCount > 1)
-        {
-            var goods = _config.CombatStrength.GoodsOf(_world.PeopleOf(player));
-            var map = _world.Map!;
-            float units = _world.Piles
-                .Where(p => p.Count > 0 && p.Material is { } m && goods.ContainsKey(m) && map.OwnerAt(p.Position) == player)
-                .Sum(p => p.Count * goods[p.Material!.Value]);
-            float start = 1f / _world.PlayerCount;
-            strength = start + _config.CombatStrength.Bonus(units);
-        }
+        var goods = _config.CombatStrength.GoodsOf(_world.PeopleOf(player));
+        var map = _world.Map!;
+        float units = _world.Piles
+            .Where(p => p.Count > 0 && p.Material is { } m && goods.ContainsKey(m) && map.OwnerAt(p.Position) == player)
+            .Sum(p => p.Count * goods[p.Material!.Value]);
+        float strength = _config.CombatStrength.Raise(_config.CombatStrength.Start(_world.PlayerCount), units);
         strength += HardcoreBonus(player);
         _strengths[player] = (_world.Tick, strength);
         return strength;

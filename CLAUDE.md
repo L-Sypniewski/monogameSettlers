@@ -119,8 +119,8 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     „Position halten“ (`Military.Hold`, Auswahl-Panel bei Soldaten, an der Stelle von „Land einnehmen“; `Move(…, hold: true)` erst hinlaufen):
     nicht untätig (kein Gebäude ruft ihn), kämpft nur gegen Feinde in Reichweite, verfolgt niemanden, kehrt auf den Platz zurück, bis zum nächsten Befehl
     (`HoldTarget`/`Holds`; das Lazarett ruft Haltende nicht). KI: Verwundete, geparkte Nahkämpfer, Bogenschützen der Schlachtordnung.
-  - Kampfkraft (`CombatStrength`): eigenes Land 100 %, sonst 100 % / Spielerzahl; plus Gold im eigenen Land (nach Landbesitz; Ägypter: Gold
-    halb, Edelsteine doppelt), progressiv (`unitsPerPercent` je `stepPercent`), ohne Obergrenze (200 % = doppelter Schaden außerhalb; zwingt Reiche zum Angriff). KI kennt alle Werte und bewertet den Kampfort.
+  - Kampfkraft (`CombatStrength`): eigenes Land 100 %, sonst Startwert je Spielerzahl (`startPercent`, im Original gemessen: 1 → 54 % (wie dort, obwohl sinnlos), 2 → 50 %, 4 → 37 %, 8 → 25 %, 16 → 14 %); plus Gold im eigenen Land (nach Landbesitz; Ägypter: Gold
+    halb, Edelsteine doppelt), jeder weitere Prozentpunkt kostet nach erreichter Kampfkraft (Bänder `stepPercent` ab 0 %, `unitsPerPercent`, im Original gemessen: bis 50 % 1,2 Barren, ab 90 % 20; niedriger Start steigt schneller), ohne Obergrenze (200 % = doppelter Schaden außerhalb; zwingt Reiche zum Angriff). KI kennt alle Werte und bewertet den Kampfort.
   - Werte: `data/military.json`; Gebietsradien aus Originalkarten gemessen.
 - `Ai/` – `AiPlayer`: gleiche Befehle wie ein Mensch, kennt die ganze Karte. `World.AiPlayers` jeden Tick angestoßen. `MapSurvey`: Kartenüberblick in Zellen.
   - Bauen nach `data/ai.json` und Bedarf: Wohnhaus, solange Träger ≤ 3 × Produktionsgebäude (Größe nach fertigen Sägewerken/Steinmetzen
