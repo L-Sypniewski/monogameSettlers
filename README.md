@@ -148,7 +148,7 @@ Internal project name and namespaces: *Homestead*.
 
 ## Roadmap to 1.0
 
-- More sounds nature
+- ~~More sounds nature~~
 - ~~Single-player maps~~
 - All the original spells
 - More AI variation

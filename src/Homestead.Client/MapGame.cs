@@ -97,6 +97,9 @@ public sealed class MapGame : Game
     // Sound effects and music; none in capture runs.
     private GameAudio? _audio;
     private readonly WorkSounds _workSounds = new();
+    private readonly Ambience _ambience = new();
+    private readonly SwampBubbles _bubbles = new();
+    private readonly SoundConfig _soundConfig = SoundConfig.Load();
     /// <summary>Hardware cursor, full screen, language (<c>display</c> in settings.json).</summary>
     /// <summary>HOMESTEAD_THEME=normal|gold|classic|amazons overrides the settings' theme (capture runs).</summary>
     private DisplaySettings _display = Enum.TryParse<Theme>(Environment.GetEnvironmentVariable("HOMESTEAD_THEME"), ignoreCase: true, out var theme)
@@ -396,7 +399,7 @@ public sealed class MapGame : Game
             SetFullScreen(true);
         if (_captureDirectory is null)
         {
-            _audio = new GameAudio(_installation, SoundConfig.Load());
+            _audio = new GameAudio(_installation, _soundConfig);
             UiSounds.Audio = _audio;
             ApplyVolumes(_display);
         }
@@ -1373,6 +1376,9 @@ public sealed class MapGame : Game
             base.Update(gameTime);
             return;
         }
+        // The land falls silent outside the game.
+        if (_title is not null || _startScreen is not null || _statistics is not null)
+            _ambience.Silence();
         if (_title is not null)
         {
             UpdateTitle();
@@ -1435,7 +1441,11 @@ public sealed class MapGame : Game
             _audio.Play(cues);
             cues.Clear();
             _workSounds.Update(_world, _settlerRenderer, _audio, _time.TotalSeconds);
+            _ambience.Update(_gameMap, ViewRect(), p => !FogOn || _vision.IsExplored(p.Y * _gameMap.Size + p.X), _audio,
+                (float)gameTime.ElapsedGameTime.TotalSeconds);
         }
+        _bubbles.Update(_gameMap, ViewRect(), p => !FogOn || _vision.IsVisible(p), _soundConfig.Ambience.Bubbles, _audio,
+            _time.TotalSeconds, (float)elapsed.TotalSeconds);
         if (_eventButtons.Update(_world, 0, _now) is { } raised)
         {
             if (_audio is not null)
@@ -1502,6 +1512,14 @@ public sealed class MapGame : Game
             return;
         _audio.EffectsVolume = display.EffectsVolume / 100f;
         _audio.Music.Volume = display.MusicVolume / 100f;
+    }
+
+    /// <summary>The view in world pixels.</summary>
+    private RectangleF ViewRect()
+    {
+        var viewport = GraphicsDevice.Viewport;
+        return new RectangleF(_camera.X - viewport.Width / 2f / _zoom, _camera.Y - viewport.Height / 2f / _zoom,
+            viewport.Width / _zoom, viewport.Height / _zoom);
     }
 
     /// <summary>
@@ -2920,6 +2938,7 @@ public sealed class MapGame : Game
         _waves.Draw(GraphicsDevice, _effect, visible, (float)_time.TotalSeconds);
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldView);
+        _bubbles.Draw(_spriteBatch, _economyRenderer, _terrain, _time.TotalSeconds);
         if (_selected is not null)
             DrawPath(_selected);
 
@@ -4088,6 +4107,7 @@ public sealed class MapGame : Game
         _atlas.Dispose();
         _effect.Dispose();
         UiSounds.Audio = null;
+        _ambience.Dispose();
         _audio?.Dispose();
         base.UnloadContent();
     }

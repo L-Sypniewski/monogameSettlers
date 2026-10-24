@@ -7,6 +7,10 @@ public sealed record SoundClip(short[] Samples, int SampleRate, int Channels)
 {
     public TimeSpan Duration => TimeSpan.FromSeconds((double)Samples.Length / Channels / SampleRate);
 
+    /// <summary>The clip <paramref name="gain"/> times as loud (clipped at full scale) – for quiet recordings.</summary>
+    public SoundClip Amplified(float gain) => gain == 1 ? this
+        : this with { Samples = Samples.Select(s => (short)Math.Clamp(s * gain, short.MinValue, short.MaxValue)).ToArray() };
+
     /// <summary>The samples as little-endian bytes, as audio APIs take them.</summary>
     public byte[] ToBytes()
     {

@@ -207,6 +207,17 @@ public sealed class EconomyRenderer
             sprites.Draw(batch, Math.Min(frame, sprites.FrameCount - 1), position, 1, Color.White);
     }
 
+    /// <summary>Swamp bubbles in the object file: growing, sinking back, growing on and bursting.</summary>
+    public const int BubbleRises = 106, BubbleSinks = 107, BubbleBursts = 108;
+
+    /// <summary>A frame of a swamp bubble (<see cref="BubbleRises"/>, …) at a world position.</summary>
+    public void DrawBubble(SpriteBatch batch, Vector2 position, int sequence, int frame)
+    {
+        var sprites = Sprites(ArrowFile, sequence);
+        if (frame < sprites.FrameCount)
+            sprites.Draw(batch, frame, position, 1, Color.White);
+    }
+
     /// <summary>One post of a work area marking; <paramref name="ring"/> 0 (inner) to 3 (outer).</summary>
     public void DrawWorkAreaMark(SpriteBatch batch, GridPoint p, int ring, TerrainMesh terrain, Color? tint = null)
     {

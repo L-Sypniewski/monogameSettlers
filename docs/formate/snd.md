@@ -48,13 +48,13 @@ Fett: im Spiel genutzt (`data/sound.json`). „Gehört“: vom Projektinhaber am
 | 13 | Feuer | **54** | **Schalter an/aus** (gehört) |
 | 14 | Schlachter | **57** | **Befehl an Soldaten** (gehört; 58/59 gleiche Aufnahme) |
 | 15–17 | Fischer (**16** genutzt) | 62 | Klick |
-| 20 | Werft | 67 | Wüste |
-| **21** | **Lazarett: Heilen** (gehört) | 68 | Meer |
-| **22** | **Arbeitsbereich versetzt** (gehört) | 69/70 | Vögel |
-| **24** | Geologe; **Varianten 1–3: großes Vorkommen** (gehört) | 71 | Fluss |
-| **25** | **Variante 1: Pionier setzt Grenzpfosten** (gehört; JSettlers: Bogenschütze) | 72 | Sumpf |
+| 20 | Werft | **67** | **Wüste** (Ambiente) |
+| **21** | **Lazarett: Heilen** (gehört) | **68** | **Meer** (Ambiente) |
+| **22** | **Arbeitsbereich versetzt** (gehört) | **69/70** | **Vögel** (Ambiente) |
+| **24** | Geologe; **Varianten 1–3: großes Vorkommen** (gehört) | **71** | **Fluss** (Ambiente) |
+| **25** | **Variante 1: Pionier setzt Grenzpfosten** (gehört; JSettlers: Bogenschütze) | **72** | **Sumpf** (platzende Blase) |
 | **51** | **Klick aufs Abriss-Icon** („crack“, gehört) | | |
-| **30** | **Schwertkämpfer** (Schlag) | 73/74 | Wind |
+| **30** | **Schwertkämpfer** (Schlag) | **73/74** | **Wind** (Ambiente, Gebirge) |
 | 31 | ? | **75** | **Zaubern** (gehört; JSettlers: Donner) |
 | **32** | **Bogenschuss der Ägypter** (gehört) | 76 | Regen |
 | **33** | **Bogenschütze** (Schuss, außer Ägypter; gehört) | 80 | „Ihr werdet angegriffen“ |

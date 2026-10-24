@@ -15,6 +15,8 @@
     "events": { "combat": 109, "other": 110 }
   },
   "volume": { "strike": 0.55, "death": 0.8, "treeFalls": 0.6, "buildingFalls": 0.8, "spell": 0.8, "healing": 0.7, "claiming": 0.6, "geologistFinds": 0.8, "sowing": 0.6, "command": 0.7, "ui": 0.7, "events": 0.8, "work": 0.45 },
+  "_gainComment": "Recordings much quieter than the rest, amplified this many times when loaded (by sound number; a volume cannot go above 1): the swamp's blub.",
+  "gain": { "72": 7 },
   "maxVoices": 24,
   "perFrame": 2,
   "hearing": 1.6,
@@ -32,6 +34,20 @@
     "weaponsmith": { "sound": 7, "everySeconds": 1.8 },
     "ironmelt": { "sounds": [ 37, 38 ], "everySeconds": 5 },
     "goldmelt": { "sounds": [ 37, 38 ], "everySeconds": 5 }
+  },
+  "_ambienceComment": "Sounds of the land in view, by its ground (terrain names as in TerrainType). The view is sampled every sampleStep fields (and margin half view sizes beyond its edges, where a field counts less and less); a kind is as loud as its share of the samples, full from fullShare, times volume, gliding there in fadeSeconds – so the sea fades quickly as the view leaves the coast. Unexplored ground under the fog is silent. With overlap, one variant follows the other without a pause (the next starts this many seconds before the last ends), panned towards where the ground lies; with everySeconds (min, max), single calls now and then from one field of that ground (at least minShare of the view). bubbles: swamp bubbles (file 1, sequences 106-108) rise on these grounds (the green swamp, not the brown mud), on average one per field every perFieldSeconds; the bursting ones sound.",
+  "ambience": {
+    "sampleStep": 2,
+    "margin": 0.3,
+    "fadeSeconds": 0.8,
+    "kinds": {
+      "sea": { "sound": 68, "ground": [ "Water" ], "volume": 0.45, "fullShare": 0.35, "overlap": 0.5 },
+      "river": { "sound": 71, "ground": [ "River" ], "volume": 0.35, "fullShare": 0.08, "overlap": 0.25 },
+      "desert": { "sound": 67, "ground": [ "Desert", "DesertBorder", "DesertBorderOuter" ], "volume": 0.4, "fullShare": 0.4, "overlap": 0.4 },
+      "wind": { "sounds": [ 73, 74 ], "ground": [ "Mountain", "MountainBorder", "Snow", "SnowBorder", "SnowBorderOuter" ], "volume": 0.4, "fullShare": 0.4, "overlap": 0.8 },
+      "birds": { "sounds": [ 69, 70 ], "ground": [ "Grass" ], "volume": 0.15, "fullShare": 0.5, "minShare": 0.15, "everySeconds": [ 2, 8 ] }
+    },
+    "bubbles": { "sound": 72, "ground": [ "Moor", "MoorBorder" ], "volume": 0.6, "perFieldSeconds": 90 }
   },
   "_musicComment": "Background music: MUSIC/TrackNN.ogg (the former CD audio tracks), starting with the first of the own people's list, then shuffled from it (all tracks if the player turns that off), pauseSeconds (min, max) of silence between two pieces, fadeSeconds to fade out when the list changes. Tracks per people assigned by ear by the project owner.",
   "music": {

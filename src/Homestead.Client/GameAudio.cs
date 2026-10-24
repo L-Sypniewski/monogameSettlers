@@ -3,6 +3,7 @@ using Homestead.Assets;
 using Homestead.Assets.Sound;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
+using Homestead.Simulation.Map;
 using Microsoft.Xna.Framework.Audio;
 
 namespace Homestead.Client;
@@ -25,6 +26,44 @@ public sealed record WorkSound(SoundRef Sound, float At);
 /// <summary>A workshop's sound (one of them) while its worker works inside, about every <see cref="EverySeconds"/>.</summary>
 public sealed record WorkshopSound(SoundRef[] Sounds, float EverySeconds);
 
+/// <summary>
+/// A kind of sound of the land (<c>ambience.kinds</c>): as loud as its <see cref="Ground"/> fills the view. With
+/// <see cref="Overlap"/> its variants follow each other without a pause, otherwise single calls every
+/// <see cref="MinEvery"/>–<see cref="MaxEvery"/> seconds.
+/// </summary>
+public sealed record AmbientKind(string Name, SoundRef[] Sounds, TerrainType[] Ground, float Volume, float FullShare, float MinShare,
+    float? Overlap, float MinEvery, float MaxEvery);
+
+/// <summary>Swamp bubbles (<c>ambience.bubbles</c>): where they rise, how often, the sound of a bursting one.</summary>
+public sealed record BubbleConfig(SoundRef Sound, TerrainType[] Ground, float Volume, float PerFieldSeconds);
+
+/// <summary>The sounds of the land in view (<c>ambience</c> in <c>sound.json</c>).</summary>
+public sealed record AmbienceConfig(int SampleStep, float Margin, float FadeSeconds, AmbientKind[] Kinds, BubbleConfig Bubbles)
+{
+    public static AmbienceConfig Parse(JsonElement e)
+    {
+        static TerrainType[] Ground(JsonElement e) => e.GetProperty("ground").EnumerateArray().Select(g => Enum.Parse<TerrainType>(g.GetString()!)).ToArray();
+        static SoundRef[] Sounds(JsonElement e) =>
+            e.TryGetProperty("sounds", out var sounds) ? sounds.EnumerateArray().Select(SoundRef.Parse).ToArray() : [SoundRef.Parse(e)];
+        var bubbles = e.GetProperty("bubbles");
+        return new AmbienceConfig(
+            e.GetProperty("sampleStep").GetInt32(),
+            e.GetProperty("margin").GetSingle(),
+            e.GetProperty("fadeSeconds").GetSingle(),
+            e.GetProperty("kinds").EnumerateObject().Select(p =>
+            {
+                var every = p.Value.TryGetProperty("everySeconds", out var seconds) ? seconds.EnumerateArray().Select(s => s.GetSingle()).ToArray() : [0f, 0f];
+                return new AmbientKind(p.Name, Sounds(p.Value), Ground(p.Value), p.Value.GetProperty("volume").GetSingle(),
+                    p.Value.GetProperty("fullShare").GetSingle(),
+                    p.Value.TryGetProperty("minShare", out var min) ? min.GetSingle() : 0,
+                    p.Value.TryGetProperty("overlap", out var overlap) ? overlap.GetSingle() : null,
+                    every[0], every[1]);
+            }).ToArray(),
+            new BubbleConfig(SoundRef.Parse(bubbles), Ground(bubbles), bubbles.GetProperty("volume").GetSingle(),
+                bubbles.GetProperty("perFieldSeconds").GetSingle()));
+    }
+}
+
 /// <summary>The values of <c>data/sound.json</c>.</summary>
 public sealed record SoundConfig(
     IReadOnlyDictionary<SoldierType, SoundRef> Strike,
@@ -45,6 +84,8 @@ public sealed record SoundConfig(
     float Hearing,
     IReadOnlyDictionary<Activity, WorkSound> Work,
     IReadOnlyDictionary<string, WorkshopSound> Workshops,
+    AmbienceConfig Ambience,
+    IReadOnlyDictionary<int, float> Gain,
     IReadOnlyDictionary<Civilization, int[]> Music,
     float MusicVolume,
     float MinPause,
@@ -97,6 +138,8 @@ public sealed record SoundConfig(
                 p => p.Name, p => new WorkshopSound(
                     p.Value.TryGetProperty("sounds", out var sounds) ? sounds.EnumerateArray().Select(SoundRef.Parse).ToArray() : [SoundRef.Parse(p.Value)],
                     p.Value.GetProperty("everySeconds").GetSingle())),
+            AmbienceConfig.Parse(root.GetProperty("ambience")),
+            root.GetProperty("gain").EnumerateObject().ToDictionary(p => int.Parse(p.Name), p => p.Value.GetSingle()),
             music.GetProperty("tracks").EnumerateObject().ToDictionary(
                 p => Enum.Parse<Civilization>(p.Name), p => p.Value.EnumerateArray().Select(t => t.GetInt32()).ToArray()),
             music.GetProperty("volume").GetSingle(),
@@ -219,17 +262,42 @@ public sealed class GameAudio : IDisposable
     /// <summary>Plays the sound as from the middle of the screen (answers to the player).</summary>
     public void Play(SoundRef sound, float volume) => Start(sound, volume, 0);
 
-    private void Start(SoundRef reference, float volume, float pan)
+    /// <summary>
+    /// The sound (one of its variants) for the caller to play, steer and dispose – sounds that last, like the sea;
+    /// its volume is not yet times <see cref="EffectsVolume"/>. Null if it cannot sound.
+    /// </summary>
+    public (SoundEffectInstance Instance, TimeSpan Duration)? CreateInstance(SoundRef reference)
+    {
+        if (_file is null || EffectsVolume <= 0 || EffectOf(reference) is not { } effect)
+            return null;
+        try
+        {
+            return (effect.CreateInstance(), effect.Duration);
+        }
+        catch (Exception e) when (e is InstancePlayLimitException or NoAudioHardwareException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>One of the sound's variants (any, or one of those it names).</summary>
+    private SoundEffect? EffectOf(SoundRef reference)
     {
         int sound = reference.Sound;
-        if (_file is null || EffectsVolume <= 0 || _file.Variants(sound) == 0 || _playing.Count >= Config.MaxVoices
-            || _startedThisFrame.GetValueOrDefault(sound) >= Config.PerFrame)
-            return;
+        if (_file is null || _file.Variants(sound) == 0)
+            return null;
         var variants = reference.Variants?.Where(v => v >= 0 && v < _file.Variants(sound)).ToArray();
         int variant = variants is null ? _random.Next(_file.Variants(sound))
             : variants.Length > 0 ? variants[_random.Next(variants.Length)]
             : -1;
-        if (variant < 0 || Effect(sound, variant) is not { } effect)
+        return variant < 0 ? null : Effect(sound, variant);
+    }
+
+    private void Start(SoundRef reference, float volume, float pan)
+    {
+        int sound = reference.Sound;
+        if (_file is null || EffectsVolume <= 0 || _playing.Count >= Config.MaxVoices
+            || _startedThisFrame.GetValueOrDefault(sound) >= Config.PerFrame || EffectOf(reference) is not { } effect)
             return;
         try
         {
@@ -253,7 +321,7 @@ public sealed class GameAudio : IDisposable
             return effect;
         try
         {
-            var clip = _file!.Read(sound, variant);
+            var clip = _file!.Read(sound, variant).Amplified(Config.Gain.GetValueOrDefault(sound, 1));
             effect = clip.Samples.Length == 0
                 ? null
                 : new SoundEffect(clip.ToBytes(), clip.SampleRate, clip.Channels == 2 ? AudioChannels.Stereo : AudioChannels.Mono);

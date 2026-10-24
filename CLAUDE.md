@@ -424,7 +424,11 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   Event-Meldung (`events`: Kampf 109, sonst 110), Panel über `UiSounds` (`ui`: Auftrag/Anteil/Besatzung/Transportreihenfolge hoch 47/runter 48,
   Schalter wie Rekrutierung, Anhalten, Einlagern, Lager-Spezialisierung 54, Arbeitsbereich versetzt 22, Klick aufs Abriss-Icon 51). `WorkSounds`: Arbeit draußen je `Activity` (`work`: Fällen 0, Planieren 2, Bauen 1, Steinmetz 3,
   Angeln 16) im Takt der Arbeitsanimation (Moment `at` je Runde, `SettlerRenderer.WorkRoundFrames`); Werkstätten (`workshops`: Sägewerk 5,
-  Werkzeug-/Waffenschmied 6/7, Eisen-/Goldschmelze 37/38) etwa alle `everySeconds`, solange `Production.IsProducing`. `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis gestreamt)
+  Werkzeug-/Waffenschmied 6/7, Eisen-/Goldschmelze 37/38) etwa alle `everySeconds`, solange `Production.IsProducing`. `Ambience` (`ambience` in `sound.json`): Gelände im Bild alle 0,1 s abgetastet (jedes `sampleStep`-te Feld, `margin` über den Rand hinaus
+  ausblendend, Unerkundetes still), je Art laut nach Anteil (voll ab `fullShare`, gleitet in `fadeSeconds`): Meer 68, Fluss 71, Wüste 67, Wind 73/74
+  (Gebirge, Schnee) als Varianten ohne Pause aneinander (`overlap`), zur Seite des Geländes gepannt; Vögel 69/70 auf Gras einzeln alle `everySeconds`
+  von einem Feld im Bild; läuft in der Pause weiter, außerhalb des Spiels still. `SwampBubbles` (nur Darstellung, nicht gespeichert): Blasen auf grünem Sumpf (`Moor`, nicht braunem
+  Schlamm `Mud`) im Bild (je Feld eine alle `bubbles.perFieldSeconds`, nur in Sicht): Datei 1 Sequenz 106 (wächst), dann 107 (sinkt) oder 108 (platzt, Blubbern 72 – leise Aufnahme, `gain` verstärkt sie beim Laden). `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis gestreamt)
   aus `Tracks` (`SoundConfig.TracksFor`: Liste des eigenen Volks, `music.tracks`, nach Gehör zugeordnet; „Musik je Volk“ aus: alle, eigene zuerst),
   neue Liste beginnt mit ihrem ersten Stück, dann gemischt, Pause dazwischen, neue Liste ohne das laufende Stück blendet aus; in Menüs vor dem Spiel still. Musik/Musik je Volk/Effekte in den Einstellungen
   (Darstellung, `DisplaySettings`).
