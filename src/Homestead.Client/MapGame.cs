@@ -217,6 +217,7 @@ public sealed class MapGame : Game
     private SpriteBatch _spriteBatch = null!;
     private Texture2D _pixel = null!;
     private SpriteLibrary _sprites = null!;
+    private StatusIcons _statusIcons = null!;
     private ShipRenderer _shipRenderer = null!;
     private SettlerRenderer _settlerRenderer = null!;
     private EconomyRenderer _economyRenderer = null!;
@@ -436,6 +437,7 @@ public sealed class MapGame : Game
             PlayerColors.Assign(captureColors.Split(',').Select(c => int.TryParse(c, out int color) ? color : (int?)null).ToArray(), _random);
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
         _shipRenderer = new ShipRenderer(_sprites);
+        _statusIcons = new StatusIcons(_sprites);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
         _economyRenderer = new EconomyRenderer(_sprites);
@@ -3325,23 +3327,10 @@ public sealed class MapGame : Game
             };
             DrawRing(effect.Target, Math.Max(1, (int)Math.Round(effect.Radius * Math.Min(1, age * 2))), color * (1 - age));
         }
+        // Spells working on units: the original's status symbols over their heads (only those the player sees).
         foreach (var settler in _world.Settlers)
-        {
-            if (settler.IsInside)
-                continue;
-            long tick = _world.Tick;
-            var mark = settler.FrozenUntil > tick ? Color.DeepSkyBlue
-                : settler.IsCharmed(SpellKind.Haste, tick) ? Color.OrangeRed
-                : settler.IsCharmed(SpellKind.Strengthen, tick) ? Color.Gold
-                : settler.IsCharmed(SpellKind.Shield, tick) || settler.IsCharmed(SpellKind.CursedArrows, tick) ? Color.LightGreen
-                : settler.IsCharmed(SpellKind.Fear, tick) ? Color.MediumPurple
-                : (Color?)null;
-            if (mark is { } c)
-            {
-                var anchor = SettlerRenderer.Anchor(settler, _terrain, alpha);
-                _spriteBatch.Draw(_pixel, new Rectangle((int)anchor.X - 2, (int)anchor.Y - 36, 5, 5), c);
-            }
-        }
+            if (!settler.IsInside && !settler.IsDead && (settler.Player == 0 || !FogOn || _vision.IsVisible(settler.Position)))
+                _statusIcons.Draw(_spriteBatch, settler, _world.Tick, SettlerRenderer.Anchor(settler, _terrain, alpha));
     }
 
     /// <summary>Dots on the points at <paramref name="radius"/> from <paramref name="center"/>.</summary>

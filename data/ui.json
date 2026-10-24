@@ -93,6 +93,8 @@
     "ships": { "Roman": [ 14, 272 ], "Egyptian": [ 24, 266 ], "Asian": [ 34, 281 ], "Amazon": [ 44, 275 ] },
     "shipSteps": [ 0, 3, 6, 9 ]
   },
+  "_statusIconsComment": "Small black squares over units a spell works on (file, settler sequence per spell, one frame each; side by side when several work). Sequences 134/135 of file 1 (red circle, red !) mark very uneven and even more uneven ground for levelling, 136-138 (i, !, arrow) info texts – not used yet.",
+  "statusIcons": { "file": 1, "Haste": 128, "Strengthen": 129, "Fear": 130, "Shield": 131, "CursedArrows": 132, "Freeze": 133 },
   "_spellMenuComment": "The priests' spell menu: per people [file, index] of the large icon of the top spell; the spells' icons lie in the 24 GUI images before the ships, three sizes each (small to large), the menu's top spell last – each further spell three lower. Order and spells: menu in data/magic.json.",
   "spellMenu": { "Roman": [ 14, 269 ], "Egyptian": [ 24, 263 ], "Asian": [ 34, 278 ], "Amazon": [ 44, 272 ] },
   "_professionsMenuComment": "Siedler > Berufe: GUI images of file 03 – the up/down spinner of the shares, the find buttons ([all on the map, all on the screen, the next one]) and the convert buttons ([5, 1]).",
