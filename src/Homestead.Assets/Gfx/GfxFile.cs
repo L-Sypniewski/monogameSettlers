@@ -214,27 +214,31 @@ public sealed class GfxFile
 
         if (shadowGap == 26 && torsos == 0)
         {
-            // Amazon buildings (43): in order up to the market place, then shifted. Our own pairing
-            // (body and shadow outlines compared); JSettlers treats 43 like 13, which puts the
-            // weaponsmith's large shadow under the goldmelt.
-            shadow[34] = 36; // hospital
-            shadow[35] = 34; // temple
-            shadow[36] = 35; // big temple
+            // Amazon buildings (43): in order up to the market place, whose shadow is part of its image;
+            // the buildings after it use the shadow one earlier, the shipyard and the harbor the last two.
+            // Our own pairing (a shadow fits snugly around its body without covering it); JSettlers treats
+            // 43 like 13, which puts the weaponsmith's large shadow under the goldmelt.
+            shadow[33] = -1; // market place
+            for (int i = 34; i <= 38; i++)
+                shadow[i] = i - 1;
             for (int i = 39; i < settlers; i++)
                 shadow[i] = -1;
-            shadow[47] = 39; // dockyard
+            shadow[47] = 38; // dockyard
+            shadow[48] = 39; // harbor
         }
         else if (shadowGap == 11 && settlers is 48 or 50)
         {
             // Egyptian (23) and Asian (33) buildings: in order up to the market place, whose shadow is
-            // part of its image; the buildings after it use the shadow one earlier. Our own pairing
-            // (bottom edges of body and shadow compared); JSettlers keeps them in order.
+            // part of its image; the buildings after it use the shadow one earlier, the shipyard and the
+            // harbor the last two. Our own pairing (body and shadow outlines compared); JSettlers keeps them in order.
             int market = settlers == 48 ? 28 : 31, last = settlers == 48 ? 35 : 37;
             shadow[market] = -1;
             for (int i = market + 1; i <= last; i++)
                 shadow[i] = i - 1;
             for (int i = last + 1; i < settlers; i++)
                 shadow[i] = -1;
+            shadow[last + 10] = last; // dockyard
+            shadow[last + 11] = last + 1; // harbor
         }
         else if (shadowGap == 26)
         {
@@ -243,6 +247,7 @@ public sealed class GfxFile
                 shadow[i] = shadow[i + 3];
             for (int i = 27; i < 36; i++)
                 shadow[i] = shadow[i + 2];
+            shadow[27] = 30;
             shadow[28] = -1; // market place has its shadow baked in
             shadow[44] = shadow[38]; // dockyard
             shadow[45] = shadow[39]; // harbor
@@ -251,12 +256,24 @@ public sealed class GfxFile
             for (int i = 46; i < settlers; i++)
                 shadow[i] = -1;
         }
-        else if (shadowGap == 28)
+        else if (settlers == 35 && shadows == 7 || settlers == 10 && shadows == 2)
         {
-            // Ships (36).
-            shadow[4] = shadow[1];
-            shadow[6] = -1;
-            shadow[2] = -1;
+            // Ships (36; 46 the Amazons'): four sequences per ship (deck, an empty one, the parts in front of
+            // the deck, the whole ship without sail), then the sails; shadow k belongs to ship k. The front
+            // part is drawn over the deck and gets none.
+            for (int i = 0; i < settlers; i++)
+                shadow[i] = i < 4 * shadows && i % 4 is 0 or 3 ? i / 4 : -1;
+        }
+        else if (settlers == 140 && shadows == 107)
+        {
+            // Map objects (1): in order up to the wine; the water sparkles (26) have none, the decoration,
+            // wrecks and stones after them use the shadow one earlier. Further on the order is broken
+            // (unused). Our own pairing: frame counts and outlines match.
+            shadow[26] = -1;
+            for (int i = 27; i <= 31; i++)
+                shadow[i] = i - 1;
+            for (int i = 32; i < settlers; i++)
+                shadow[i] = -1;
         }
         else if (shadowGap == 0 && settlers == 239)
         {
@@ -268,22 +285,23 @@ public sealed class GfxFile
         {
             // Egyptian soldiers (22; JSettlers' ShadowMapping22).
             for (int i = 0; i < settlers; i++)
-                shadow[i] = i is 1 or (>= 8 and <= 13) ? -1 : i == 0 ? 19 : i < 14 ? i + 18 : i - 14;
+                shadow[i] = i is 1 or (>= 8 and <= 13) or > 32 ? -1 : i == 0 ? 19 : i < 14 ? i + 18 : i - 14;
         }
         else if (shadows == 26 && settlers == 34)
         {
             // Roman (12) and Asian (32) soldiers, laid out like the Egyptian ones: the soldiers from 9 on
             // (frame counts match shadow for shadow), the sequences 0 and 2–7 at the end. Our own pairing;
             // JSettlers shifts the soldiers by 8, which gives bowmen the shadows of their neighbors.
+            // The infantry in tower windows (the last six, also in 22 and 42) have no shadow.
             for (int i = 0; i < settlers; i++)
-                shadow[i] = i is 1 or 8 ? -1 : i == 0 ? 19 : i < 8 ? i + 18 : i - 9;
+                shadow[i] = i is 1 or 8 or > 27 ? -1 : i == 0 ? 19 : i < 8 ? i + 18 : i - 9;
         }
         else if (shadows == 26 && settlers == 32)
         {
             // Amazon soldiers (42): the soldiers from 7 on, the sequences 0–6 at the end. Our own pairing
             // (frame counts match); JSettlers' ShadowMapping42 shifts the soldiers by 6.
             for (int i = 0; i < settlers; i++)
-                shadow[i] = i <= 6 ? i + 19 : i - 7;
+                shadow[i] = i > 25 ? -1 : i <= 6 ? i + 19 : i - 7;
         }
 
         for (int i = 0; i < settlers; i++)
