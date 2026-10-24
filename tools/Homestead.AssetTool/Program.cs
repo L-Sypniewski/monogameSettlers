@@ -8,6 +8,7 @@ using Homestead.AssetTool;
 //   AssetTool scan                                   decode every image of every GFX file, report errors
 //   AssetTool export <file> <kind> <index> <outDir>  write PNGs (kind: settler|torso|shadow|landscape|gui)
 //   AssetTool sheet <file> <kind> <out.png>          contact sheet of the first frame of every entry
+//   AssetTool frames <file> <kind> <first> <last> <out.png>  every frame of those sequences, a row each
 //   AssetTool maps                                   parse every map, report sizes and unknown landscape values
 //   AssetTool resources                              resource byte statistics (type nibble per landscape group)
 //   AssetTool minimap <map name> <out.png>           landscape overview of one map
@@ -25,6 +26,9 @@ switch (args.FirstOrDefault())
         break;
     case "sheet" when args.Length == 4:
         ContactSheet.Write(gfx.Open(int.Parse(args[1])), args[2], args[3]);
+        break;
+    case "frames" when args.Length == 6:
+        ContactSheet.WriteFrames(gfx.Open(int.Parse(args[1])), args[2], int.Parse(args[3]), int.Parse(args[4]), args[5]);
         break;
     case "maps":
         MapReport.Scan(installation);

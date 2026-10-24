@@ -22,6 +22,7 @@ public static class MapObjectCatalog
     private const int RiceSequence = 24;        // 0-5 growing (seen in the file)
     private const int WineSequence = 25;        // 0 dead, 1-2 growing, 3 with grapes (JSettlers' MapObjectDrawer, MIT)
     private const int FirstFlower = 15;         // flowers 1-3 in the decoration sequence (codes 50-52)
+    private const int DockSequence = 112;       // one piece of a pier (planks, as on the original's docks)
 
     public static MapObjectSprite? Resolve(byte code) => code switch
     {
@@ -48,6 +49,8 @@ public static class MapObjectCatalog
         214 => new(RiceSequence, 5, false),
         // Beehives: no image found yet; flowers stand in for them.
         >= 215 and <= 218 => new(DecorationSequence, FirstFlower + Math.Min(2, code - 215), false),
+        // A shipyard's pier: Homestead's own code, one piece per water field.
+        219 => new(DockSequence, 0, false),
         // 192 occurs often but is unknown; 85-110 never occur.
         _ => null,
     };

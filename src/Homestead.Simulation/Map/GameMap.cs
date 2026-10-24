@@ -228,12 +228,15 @@ public sealed class GameMap
         int index = Index(p);
         var oldKind = MapObjectKinds.FromOriginal(_objects[index]);
         var newKind = MapObjectKinds.FromOriginal(code);
+        bool pier = _objects[index] == MapObjectCodes.Dock || code == MapObjectCodes.Dock;
         _objects[index] = code;
         if (oldKind != newKind)
         {
             ChangeFootprint(p, oldKind, -1);
             ChangeFootprint(p, newKind, +1);
         }
+        if (pier)
+            UpdateWalkable(index);
         PointChanged?.Invoke(p);
     }
 
@@ -276,5 +279,7 @@ public sealed class GameMap
         WalkabilityVersion++;
     }
 
-    private bool ComputeWalkable(int index) => _terrain[index].IsWalkable() && _blockers[index] == 0;
+    /// <summary>Walkable ground, or a pier over the water (<see cref="MapObjectCodes.Dock"/>), with nothing on it.</summary>
+    private bool ComputeWalkable(int index) =>
+        (_terrain[index].IsWalkable() || _objects[index] == MapObjectCodes.Dock) && _blockers[index] == 0;
 }

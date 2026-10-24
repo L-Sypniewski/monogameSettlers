@@ -71,5 +71,12 @@ public sealed class MapObjectLayer
         }
     }
 
+    /// <summary>Draws the (still image of the) object of <paramref name="code"/> at a point, e.g. a preview in a tint.</summary>
+    public void DrawCode(SpriteBatch batch, int x, int y, byte code, Color color)
+    {
+        if (MapObjectCatalog.Resolve(code) is { } sprite)
+            Sequence(sprite.Sequence).Draw(batch, sprite.Frame, ScreenProjection.ToWorld(x, y, _terrain.HeightAt(x, y)), 1, color);
+    }
+
     private SettlerSprites Sequence(int sequence) => _library.Sequence(MapObjectCatalog.GfxFile, sequence);
 }

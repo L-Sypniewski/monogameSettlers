@@ -59,6 +59,20 @@
     "loadSeconds": 0.5,
     "sight": 3
   },
+  "shipping": {
+    "_comment": "Shipyards first need a dock: the player clicks into the water, the pier (dockLength fields of open water, straight out from a free shore field) goes at once where its end is nearest the click, within dockDistance of the shipyard on own land.",
+    "dockyard": "dockyard",
+    "dockLength": 4,
+    "dockDistance": 20,
+    "_shipsComment": "One ship at a time on a shipyard's stocks: carriers bring its cost, the worker carries unit by unit along the pier and hammers each in for buildSeconds. Costs guessed, not measured in the original. stepSeconds: a ship from one field to the next; sight: how far it sees.",
+    "ships": {
+      "ferry": { "cost": { "PLANK": 6, "IRON": 2 } },
+      "tradeShip": { "cost": { "PLANK": 8, "IRON": 3 } }
+    },
+    "buildSeconds": 4,
+    "stepSeconds": 0.5,
+    "sight": 8
+  },
   "smiths": {
     "_comment": "One product per cycle: what the player ordered (Waren > Herstellung) first, then tools somebody waits for (and nobody has), otherwise by shares (the player's bars, these are the defaults; 0 = only on order or need) while the product has fewer than keepInStock units around (0 = no limit); otherwise the smith rests. The toolsmith makes only what is needed right now unless the player gives it shares.",
     "toolsmith": { "inputs": [ "IRON", "COAL" ], "products": [ "AXE", "PICK", "SAW", "HAMMER", "BLADE", "SCYTHE", "FISHINGROD" ], "seconds": 10, "keepInStock": 0, "shares": {} },

@@ -113,6 +113,17 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     er lädt bis `load` (2), läuft die Stopps (Watchdog überspringt), legt am Ziel ab (an der Tür eines eigenen Lagers in dessen Stapel),
     zurück dieselben Stopps rückwärts. Feindlicher Soldat (auch Turm-Bogenschütze) schlägt einen beladenen Esel einmal: Ware fällt,
     Esel kehrt um (`Struck`, Event `donkeyRobbed`, Handel); leere Esel greift niemand an (nur beladene sind `_combatants`). Ziel unerreichbar → mit Ladung heim, neben den Markt.
+  - `Shipping`: Werft (`shipping` in `production.json`) braucht erst einen Steg (`Dock`: Uferfeld + Richtung, `dockLength` (4) Felder):
+    `PlaceDock` setzt ihn sofort dorthin, wo sein Ende dem Klick am nächsten ist – freies, begehbares eigenes Ufer bis `dockDistance` (20)
+    von der Werft, von ihrer Tür erreichbar, Steg über eigenes offenes Wasser (ab dem zweiten Feld ringsum Wasser), neuer ersetzt den alten,
+    geht mit der Werft. Gezeichnet als Kartenobjekt `MapObjectCodes.Dock` (219, Datei 1 Sequenz 112 je Feld), begehbar (`GameMap.ComputeWalkable`).
+    Schiffbau (`Order`, je Werft eins zugleich, `ships` mit Kosten geraten): Logistik liefert an die Werft nur, was das Schiff noch braucht
+    (`Wants`); Schiffbauer (`DOCKWORKER`, Hammer, Bauarbeiter-Grafik; `Production`-Teil `Shipbuilding.cs`) holt je Einheit eine vom Stapel, trägt sie
+    zum Stegende, hämmert `buildSeconds` (4); jede Einheit lässt den Rumpf wachsen (`Progress`), die letzte lässt das Schiff zu Wasser
+    (`Berth`: zwei Felder hinter dem Stegende, quer zum Steg). Abriss der Werft verwirft den Auftrag. `Launch`: sofort fertig (Captures).
+    `Ship` (eigene Liste, keine Siedler): fährt wie ein Soldat gesteuert (`Move`, Breitensuche übers Wasser zum nächsten erreichbaren Punkt),
+    nur auf `IsNavigable` (Wasser mit `ShoreClearance` (3) Wasser ringsum, kein Steg), hält `Spacing` (6) zu anderen Schiffen (wartet, dann Umweg),
+    `stepSeconds` (0,5) je Feld, Sicht `sight` (8). Noch ohne Ladung/Passagiere, Kampf.
 - `Military/`: Kaserne bildet an der Tür aus (Träger wird dort im selben Moment Soldat, geht nicht hinein), Rekruten laufen zum Sammelpunkt.
   Je Waffe ein Träger zugleich (soweit die Träger-Reserve reicht, Laufende aller Kasernen zählen), jeder wird an der Tür oder direkt daneben ausgebildet. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
   nie über Infanterie-/Bogenplätze; „+“ bei vollen Infanterieplätzen ersetzt die andere Infanterieart; Überzählige kehren um oder kommen
@@ -356,6 +367,10 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
     ihn (Fahne als Vorschau am Mauszeiger, nur wo Esel hinkommen; Rechtsklick/Esc bricht ab), Route wie der Sammelpunkt der Kaserne; Waren mit Menge darunter, ∞ (386)/0 (389)/Pfeile ±5/±1 für die gewählte Ware; Waren/Baumaterial,
     Minen-Erfolgschance; Arbeitsbereich (Rechtsklick versetzt, `World.SetWorkCenter`, max. `MaxWorkCenterDistance` = 20, sonst nächstes erlaubtes
     Feld; Sammler nehmen das Ziel nächst der Mitte; Kaserne: Sammelpunkt überall, `Building.HasGatheringPoint`, Pfad mit Fahne).
+    Werft (`BuildingInfo.Dockyard`, `dockyard` in `ui.json`): links Fähre und Handelsschiff (letzte 12 GUI-Bilder der Volksdatei; mit Steg
+    klickbar → Auftrag, der Knopf bleibt eingedrückt (dunkles Bild), beide gesperrt bis zum Stapellauf; unten Baumaterial geliefert/nötig),
+    rechts Hammer (Datei 03 GUI 392) → nächster Linksklick ins Wasser setzt den Steg (blasse Vorschau am Mauszeiger; Rechtsklick/Esc bricht ab;
+    während des Baus gesperrt).
     Deutsche Namen/Zustände in `data/ui.json`; Text per FontStashSharp mit Systemschrift.
 - **Statistik** (`StatisticsScreen`; „Spiel beenden“, nach verlorenem Spiel Esc; Spiel steht still): blauer Marmor (`statisticsBackground`, Datei 02 GUI 29),
   Seiten Übersicht (Tabelle, Landanteil), Wirtschaft, Militär, Waren (jede Ware je Minute), Gesellschaft – Diagramme `Charts` (Linien mit Werten
@@ -369,7 +384,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   runder Punkt mit schwarzem Rand grün→gelb→rot nach LP (`DrawSelectionMarker`).
   `SelectionPanel` je Art (Typ/Stufe und Volk – Bekehrte zeigen ihres) Porträt (`Portraits`, `ui.json` `portraits`; andere Völker `MapGame.PortraitsOf`) + Anzahl (zu viele: gestaucht, mehr Spalten oder kleiner), unten Kampfkraft – wie Zaubermenü
   im Inhaltsbereich (`BuildMenu.Content`). Strg+1–9 speichert Gruppe (jede Figur in höchstens einer – sie verlässt ihre alte; Porträt des ersten Mitglieds wie im `SelectionPanel`, gleich groß, oben rechts, gewählte gelb gerahmt; Klick oder 1–9 wählt, zweimal binnen 0,5 s: Kameraflug zum Mittelpunkt; Tote, Gebäude Betretende, Bekehrte fallen raus; im Spielstand als Client-Wert `groups`).
-  Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungen ohne Kampf. Geologen: Rechtsklick hin, auf Gebirge suchen.
+  Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungen ohne Kampf. Schiffe (`_ships`, statt Siedlern; Klick, Strg: alle im Bild,
+  Rahmen ohne Siedler darin): Rechtsklick fährt hin; Panel: je Art Knopfbild, Name, Anzahl (`BuildingInfo.DrawShips`). Geologen: Rechtsklick hin, auf Gebirge suchen.
   Priester: Zaubermenü (Name, Kosten, Mana), Zauber wählen, dann Ziel (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
   Träger umwandeln nur über Siedler › Berufe. Linksklick ins Leere wählt ab (Figuren, Gebäude, Menüs) und leert das Panel wie im Original
   (`PanelTab.None`, kein Reiter gedrückt); rechts ziehen verschiebt die Karte.
@@ -396,7 +412,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   aus `Tracks` (`SoundConfig.TracksFor`: Liste des eigenen Volks, `music.tracks`, nach Gehör zugeordnet; „Musik je Volk“ aus: alle, eigene zuerst),
   neue Liste beginnt mit ihrem ersten Stück, dann gemischt, Pause dazwischen, neue Liste ohne das laufende Stück blendet aus; in Menüs vor dem Spiel still. Musik/Musik je Volk/Effekte in den Einstellungen
   (Darstellung, `DisplaySettings`).
-- **Darstellung**: Figuren nach Volk; Tote: Geist in Spielerfarbe (Datei 12 Seq. 27, `World.Ghosts`); Stehende ohne Aufgabe wechseln alle 2–30 s
+- **Darstellung**: Schiffe (`ShipRenderer`, `ships` in `ui.json`): Datei 36, je Schiff 4 Sequenzen (Deck, Schatten, Vorderteil, ganz ohne Segel)
+  à 6 Richtungen, Segel 28–34 mit Spielerfarbe; im Bau der Rumpf von unten wachsend. Figuren nach Volk; Tote: Geist in Spielerfarbe (Datei 12 Seq. 27, `World.Ghosts`); Stehende ohne Aufgabe wechseln alle 2–30 s
   die Blickrichtung (nur Darstellung); Turm-Bogenschützen mit Schussanimation im Takt, ohne Schatten (wie im Original), Infanterie im Turm als Fensterbild; Gebäude: Ebene 0, Besatzung, dann weitere Ebenen (Fensterrahmen/Brüstungen davor); in 8-px-Streifen gezeichnet, jeder in der vordersten Sperrfeld-Reihe seiner Spalte (`EconomyRenderer.Strip`, sonst verdeckt ein hohes Gebäude, was seitlich davor steht); Pfeile im flachen Bogen
   (`docs/formate/gfx.md`). `SettlerAnimations` löst Typ/Aktion/Ware/Richtung über `data/settlers.json` (generiert mit
   `tools/data-import/convert_jsettlers_movables.py`, nicht von Hand ändern). Baustellen zeigen Schild und Pfosten.
@@ -405,7 +422,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   `ZOOM=4`; `EVERY=<n>` (PNG alle n Frames, sonst 120); `SIZE=1920x1080` (sonst 960×600); `SCALING=<Sharp|Linear|CatmullRom|Lanczos2>`;
   `FOCUS=<gebäude>` (`site`: frische Baustelle; `temple`: kleiner Tempel mit Mana; Militärgebäude wie `castle`: voll besetzt); `FOG=1`;
   `EVENT=1` (springt zu Events); `BATTLE=1` (Stufe-3-Feinde greifen das fokussierte Militärgebäude an, sonst den Startturm; `=big`: zwei Armeen à 30 treffen sich südlich des Starts; `=open`: 40 gegen 40 auf freiem Feld; `=town[:n]`: n (90) gegen n mitten im Dorf; mit `ZOOM` Kamera darauf); `COLORS=2,4` (Palettenfarben je Spieler); `STRIKE=1` (Abriss des fokussierten Gebäudes + 10 Träger ohne Wohnraum);
-  `GEOLOGISTS=1`; `PIONEERS=1`; `TRADE=1` (Markt mit Lagertür als Ziel, Stopp, Planken ∞, Steine 12, drei Esel, Eselzucht; mit `FOCUS=market_place`); `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
+  `GEOLOGISTS=1`; `PIONEERS=1`; `DOCK=1` (Werft am nächsten offenen Meer, Land dort eigen, mit Steg; `=none` ohne; `=build`: Fähre im Bau, Material daneben; `=ships`: Fähre und
+  Handelsschiff fertig, gewählt, losgeschickt (mit `FOCUS=none`); sonst mit `FOCUS=dockyard`); `TRADE=1` (Markt mit Lagertür als Ziel, Stopp, Planken ∞, Steine 12, drei Esel, Eselzucht; mit `FOCUS=market_place`); `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
   `TAB=system[:save|quit]` bzw. `goods|settlers[:<untermenü>[:manual|<ware>]]` (z. B. `settlers:soldiers:manual`, `goods:distribution:bread`);
   `STORE=<ware>` (mit `FOCUS=stock`); `PLACE=<gebäude>`; `START=<tab>[:color]` (nur `start.png` des Startscreens, 3: Zufallsgenerator; `:color` mit offener Farbauswahl von Spieler 1);
   `MAGIC=1` (großer Tempel, Mana-Kette, Priester zaubert in einen Kampf; `=summon`: Waren herbeirufen);
@@ -423,13 +441,13 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
 - `tools/trait-tournament.py run|report` – Turnier der KI-Charaktere/-Züge über die Arena (jede Paarung, Karte, Volk, beide Startpositionen;
   parallel, fortsetzbar); `--preset traits|peoples`, `egyptian:hothead` nur mit seinem Volk, `--against`, `--vary pfad=a/b/c`;
   Ergebnisse `tournament-results/<preset>.csv` (nicht im Repo).
-- `tools/Homestead.AssetTool` – `scan`, `export`, `sheet` (PNG), `maps`, `resources`, `minimap`.
+- `tools/Homestead.AssetTool` – `scan`, `export`, `sheet` (PNG), `frames` (alle Bilder einiger Sequenzen, je Zeile eine), `maps`, `resources`, `minimap`.
 
 ## Kartenobjekte
 `GameMap` speichert je Feld den Original-Objektcode (`MapObjectCodes`); Begehbarkeit und Grafik leiten sich daraus ab.
 Laufzeit: Baumstumpf 41 (verschwindet nach `trees.stumpSeconds`), Setzling 84, Felsgrößen 115→127 (Geröll).
 Bodenbelag (`GroundCover`, nur auf Gras): Ackerland (als Erde, Original-Übergänge zu Gras), Trampelpfad (als Sand, Sand-Gras-Übergänge).
-Eigene Anbau-Codes: Getreide 200–207 (207 reif), Wein 208–210, Reis 211–214, Bienenstöcke 215–218 (Bild vorerst Blumen).
+Eigene Anbau-Codes: Getreide 200–207 (207 reif), Wein 208–210, Reis 211–214, Bienenstöcke 215–218 (Bild vorerst Blumen); Steg 219.
 
 ## Grafik-Konventionen
 - Raster → Pixel: `x*16 - y*8`, `y*9 - höhe*HeightStep` (Zeilen halb versetzt), 6 Nachbarn. Original HeightStep 2, wir 1 (`ScreenProjection.HeightStep`).

@@ -60,6 +60,9 @@ public static class MapObjectCodes
     /// <summary>Last of Homestead's own field codes.</summary>
     public const byte LastField = FullHive;
 
+    /// <summary>A field of a shipyard's pier (Homestead's own code, in the water; see <see cref="Economy.Shipping"/>).</summary>
+    public const byte Dock = 219;
+
     public static bool IsAdultTree(byte code) => code is >= FirstTree and <= LastTree;
 
     /// <summary>Stone units left in a quarry stone (0 for anything else).</summary>
@@ -87,6 +90,7 @@ public static class MapObjectKinds
         >= 115 and <= 126 => MapObjectKind.ResourceStone,
         127 => MapObjectKind.Decoration,
         >= MapObjectCodes.FirstGrain and <= MapObjectCodes.LastField => MapObjectKind.Field,
+        MapObjectCodes.Dock => MapObjectKind.Decoration,
         _ => MapObjectKind.Unknown,
     };
 }

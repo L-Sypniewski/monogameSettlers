@@ -123,6 +123,9 @@ public sealed record ProductionConfig
     /// <summary>Donkey farms, markets and donkeys (see <see cref="Trade"/>); null in games saved before there were any: <see cref="TradeRules.Default"/>.</summary>
     public TradeRules? Trade { get; init; }
 
+    /// <summary>Shipyards and docks (see <see cref="Shipping"/>); null in games saved before there were any: <see cref="ShippingRules.Default"/>.</summary>
+    public ShippingRules? Shipping { get; init; }
+
     /// <summary>Walking speed by ground and how trails form (see <see cref="Trails"/>); <see cref="WalkingRules.Plain"/>: same speed everywhere, no trails.</summary>
     public WalkingRules Walking { get; init; } = WalkingRules.Plain;
 
@@ -302,6 +305,19 @@ public sealed record ProductionConfig
                     trade.GetProperty("keepIdle").GetInt32(), trade.GetProperty("market").GetString()!, trade.GetProperty("load").GetInt32(),
                     Ticks(trade, "loadSeconds"), trade.GetProperty("sight").GetInt32())
                 : TradeRules.Default,
+            Shipping = root.TryGetProperty("shipping", out var shipping)
+                ? new ShippingRules(shipping.GetProperty("dockyard").GetString()!, shipping.GetProperty("dockLength").GetInt32(),
+                    shipping.GetProperty("dockDistance").GetInt32())
+                {
+                    Costs = shipping.GetProperty("ships").EnumerateObject().ToDictionary(
+                        k => Enum.Parse<ShipKind>(k.Name, ignoreCase: true),
+                        k => (IReadOnlyDictionary<Material, int>)k.Value.GetProperty("cost").EnumerateObject()
+                            .ToDictionary(c => Materials.Parse(c.Name)!.Value, c => c.Value.GetInt32())),
+                    BuildTicks = Ticks(shipping, "buildSeconds"),
+                    ShipStepTicks = Ticks(shipping, "stepSeconds"),
+                    ShipSight = shipping.GetProperty("sight").GetInt32(),
+                }
+                : ShippingRules.Default,
             DemolitionPayback = root.TryGetProperty("demolition", out var demolition) ? demolition.GetProperty("payback").GetDouble() : 0.5,
             Depletion = root.TryGetProperty("depletion", out var depletion)
                 ? new Depletion(depletion.GetProperty("stone").GetInt32(), depletion.GetProperty("mountain").GetInt32(), depletion.GetProperty("fish").GetInt32())
@@ -331,6 +347,32 @@ public sealed record TradeRules(string DonkeyFarm, IReadOnlyList<Material> FarmI
 {
     public static TradeRules Default { get; } = new("donkey_farm", [Material.Crop, Material.Water], 20 * World.TicksPerSecond, 4, "market_place", 2,
         World.TicksPerSecond / 2, 3);
+}
+
+/// <summary>
+/// Shipping: a <paramref name="Dockyard"/>'s dock is a pier <paramref name="DockLength"/> fields long from a shore field
+/// at most <paramref name="DockDistance"/> from the shipyard.
+/// </summary>
+public sealed record ShippingRules(string Dockyard, int DockLength, int DockDistance)
+{
+    public static ShippingRules Default { get; } = new("dockyard", 4, 20);
+
+    /// <summary>The material of each kind of ship.</summary>
+    public IReadOnlyDictionary<ShipKind, IReadOnlyDictionary<Material, int>> Costs { get; init; } =
+        new Dictionary<ShipKind, IReadOnlyDictionary<Material, int>>
+        {
+            [ShipKind.Ferry] = new Dictionary<Material, int> { [Material.Plank] = 6, [Material.Iron] = 2 },
+            [ShipKind.TradeShip] = new Dictionary<Material, int> { [Material.Plank] = 8, [Material.Iron] = 3 },
+        };
+
+    /// <summary>How long the worker hammers one unit into the hull.</summary>
+    public int BuildTicks { get; init; } = 4 * World.TicksPerSecond;
+
+    /// <summary>Ticks a ship takes from one field to the next.</summary>
+    public int ShipStepTicks { get; init; } = 10;
+
+    /// <summary>How far a ship sees (fog of war).</summary>
+    public int ShipSight { get; init; } = 8;
 }
 
 /// <summary>

@@ -60,6 +60,11 @@ public sealed partial class World
     /// <summary>Markets and donkeys (created on first use in games saved before there were any).</summary>
     public Trade Trade => _trade ??= new Trade(this);
 
+    private Shipping? _shipping;
+
+    /// <summary>Shipyards and their docks (created on first use in games saved before there were any).</summary>
+    public Shipping Shipping => _shipping ??= new Shipping(this);
+
     public Military.Military Military { get; }
 
     /// <summary>
@@ -113,6 +118,8 @@ public sealed partial class World
             return military;
         if (Magic.Status(building) is { } magic)
             return magic;
+        if (Shipping.Status(building) is { } shipping)
+            return shipping;
         if (Production.Status(building) is { } status)
             return status;
         if (Trade.Status(building) is { } trade)
@@ -497,6 +504,7 @@ public sealed partial class World
         var map = RequireMap();
         DropLevelling(building);
         Production.RemoveFarmland(building);
+        _shipping?.RemoveDock(building);
         foreach (var p in building.BlockedPoints)
         {
             _footprints.Remove(map.Index(p));

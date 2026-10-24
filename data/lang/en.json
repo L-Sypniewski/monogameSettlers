@@ -228,6 +228,10 @@
       "summoner": "Goods summoner"
     }
   },
+  "ships": {
+    "ferry": "Ferry",
+    "tradeShip": "Trade ship"
+  },
   "buildingStatus": {
     "active": "Active",
     "pausing": "Pausing",
@@ -256,7 +260,13 @@
     "noDestination": "No destination",
     "donkeysOnTheWay": "Donkeys on the way",
     "waitingForDonkey": "Waiting for a donkey",
-    "waitingForTradeGoods": "Waiting for goods"
+    "waitingForTradeGoods": "Waiting for goods",
+    "noDock": "No dock",
+    "noShipOrdered": "No ship ordered",
+    "waitingForShipMaterial": "Waiting for ship material",
+    "fetchingShipMaterial": "Fetching ship material",
+    "bringingToShip": "Bringing material to the ship",
+    "buildingShip": "Building the ship"
   },
   "events": {
     "texts": {

@@ -44,6 +44,9 @@ public sealed class Vision
                 continue;
             See(settler.Position, world.Military.SightOf(settler));
         }
+        foreach (var ship in world.Shipping.Ships)
+            if (ship.Player == Player)
+                See(ship.Position, world.Shipping.Rules.ShipSight);
         foreach (var building in world.Buildings)
             if (building.Player == Player && world.Military.SightOfBuilding(building) is { } sight)
                 See(building.Position, sight);

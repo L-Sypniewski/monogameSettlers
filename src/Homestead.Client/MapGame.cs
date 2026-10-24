@@ -213,6 +213,7 @@ public sealed class MapGame : Game
     private SpriteBatch _spriteBatch = null!;
     private Texture2D _pixel = null!;
     private SpriteLibrary _sprites = null!;
+    private ShipRenderer _shipRenderer = null!;
     private SettlerRenderer _settlerRenderer = null!;
     private EconomyRenderer _economyRenderer = null!;
 
@@ -226,6 +227,9 @@ public sealed class MapGame : Game
 
     /// <summary>Soldiers selected with a selection box; a click then sends them (or attacks).</summary>
     private readonly List<Settler> _group = new();
+
+    /// <summary>Selected own ships (instead of settlers; sent like soldiers, over the water only).</summary>
+    private readonly List<Homestead.Simulation.Economy.Ship> _ships = new();
 
     /// <summary>Carriers converted in Siedler › Berufe that join the selection once they have delivered and converted.</summary>
     private readonly List<Settler> _joining = new();
@@ -245,11 +249,12 @@ public sealed class MapGame : Game
     private void ClearSelection()
     {
         _group.Clear();
+        _ships.Clear();
         _menuOverSelection = false;
     }
 
-    /// <summary>The side panel shows the selected settlers (not the open menu).</summary>
-    private bool ShowsSelection => _group.Count > 0 && !_menuOverSelection;
+    /// <summary>The side panel shows the selected settlers or ships (not the open menu).</summary>
+    private bool ShowsSelection => (_group.Count > 0 || _ships.Count > 0) && !_menuOverSelection;
 
     /// <summary>Whether the building is its player's only finished military building (as counted by <see cref="ConquestGoals"/>).</summary>
     private bool IsLastMilitaryBuilding(Building building) =>
@@ -426,6 +431,7 @@ public sealed class MapGame : Game
         if (_captureDirectory is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_COLORS") is { } captureColors)
             PlayerColors.Assign(captureColors.Split(',').Select(c => int.TryParse(c, out int color) ? color : (int?)null).ToArray(), _random);
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
+        _shipRenderer = new ShipRenderer(_sprites);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
         _economyRenderer = new EconomyRenderer(_sprites);
@@ -1759,6 +1765,11 @@ public sealed class MapGame : Game
                 _message = marketHover;
             if (onMenu && released && _buildingInfo.MarketClick(panelCursor, _world, _selectedBuilding!, 0) is { } traded)
                 _message = traded;
+            // A shipyard's dock and ships.
+            if (onMenu && _buildingInfo.DockyardHover(panelCursor, _world, _selectedBuilding!, 0) is { } dockHover)
+                _message = dockHover;
+            if (onMenu && released && _buildingInfo.DockyardClick(panelCursor, _world, _selectedBuilding!, 0) is { } docked)
+                _message = docked;
             // A storehouse's goods: specialize it on one, or back to the general rule.
             if (onMenu && _buildingInfo.StorehouseHover(panelCursor, _world, _selectedBuilding!, 0) is { } storeHover)
                 _message = storeHover;
@@ -1890,7 +1901,7 @@ public sealed class MapGame : Game
             _dragStart = cursorScreen;
         if (mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is { } dragStart)
         {
-            if (!_placing && !_buildingInfo.AimsRoute(_selectedBuilding) && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
+            if (!_placing && !_buildingInfo.AimsRoute(_selectedBuilding) && !_buildingInfo.AimsDock(_selectedBuilding) && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
                 SelectInBox(dragStart, cursorScreen);
             else
                 Click(cursorScreen);
@@ -1974,6 +1985,8 @@ public sealed class MapGame : Game
                 _aiming = false;
             else if (_buildingInfo.AimsRoute(_selectedBuilding))
                 _buildingInfo.CancelRoute();
+            else if (_buildingInfo.AimsDock(_selectedBuilding))
+                _buildingInfo.CancelDock();
             else if (_buildingInfo.Asking is not null)
                 _buildingInfo.Cancel();
             else if (_placing)
@@ -2132,6 +2145,13 @@ public sealed class MapGame : Game
             return;
         }
 
+        // A shipyard's hammer chosen: the click puts the dock near it.
+        if (_buildingInfo.AimsDock(_selectedBuilding) && _selectedBuilding is { Exists: true } dockyard)
+        {
+            _message = _buildingInfo.DockCommand(_world, dockyard, ScreenToGrid(screen));
+            return;
+        }
+
         if (_aiming)
         {
             _aiming = false;
@@ -2182,6 +2202,19 @@ public sealed class MapGame : Game
             _message = SelectionHint();
             return;
         }
+        // Own ships: Shift adds, Ctrl all own ships on the screen.
+        if (hit is null && ShipAt(world) is { Player: 0 } ship)
+        {
+            var keys = Keyboard.GetState();
+            var clicked = ControlDown(keys) ? _world.Shipping.Ships.Where(s => s.Player == 0 && OnScreen(s)).Append(ship).Distinct().ToList() : [ship];
+            var ships = adding ? _ships.Concat(clicked).Distinct().ToList() : clicked;
+            ClearSelection();
+            _ships.AddRange(ships);
+            _selected = null;
+            _selectedBuilding = null;
+            _message = $"{_ships.Count} ships: right click sends them (over the water)";
+            return;
+        }
         // Wanderers (debug, key M) can still be picked and sent around one by one.
         if (hit is { Profession: Profession.None } && _group.Count == 0)
         {
@@ -2193,10 +2226,10 @@ public sealed class MapGame : Game
         }
 
         // The selection gets its orders by right click; a left click elsewhere deselects it (not with Shift).
-        if (_group.Count > 0 && adding)
+        if ((_group.Count > 0 || _ships.Count > 0) && adding)
             return;
         // A click into the empty landscape deselects and empties the panel (as in the original).
-        if (_group.Count > 0)
+        if (_group.Count > 0 || _ships.Count > 0)
         {
             ClearSelection();
             _selected = null;
@@ -2229,6 +2262,25 @@ public sealed class MapGame : Game
         var target = ScreenToGrid(screen);
         _wanderers.Remove(_selected.Id);
         _message = _world.WalkTo(_selected, target) ? $"walking to {target.X},{target.Y}" : "unreachable";
+    }
+
+    /// <summary>Half the width and the height of a ship's body around which a click or a box picks it.</summary>
+    private static readonly Vector2 ShipReach = new(36, 22);
+
+    /// <summary>Where a ship's body is (its anchor lies at its waterline; the hull reaches up from it).</summary>
+    private Vector2 ShipCenter(Homestead.Simulation.Economy.Ship ship) =>
+        ShipRenderer.Anchor(ship, _terrain, _world.Shipping.ShipStepTicks, TickAlpha) - new Vector2(0, 14);
+
+    /// <summary>The ship whose body is at the world point (the nearest), if any.</summary>
+    private Homestead.Simulation.Economy.Ship? ShipAt(Vector2 world) => _world.Shipping.Ships
+        .Where(s => Math.Abs(ShipCenter(s).X - world.X) <= ShipReach.X && Math.Abs(ShipCenter(s).Y - world.Y) <= ShipReach.Y)
+        .OrderBy(s => Vector2.Distance(ShipCenter(s), world)).FirstOrDefault();
+
+    private bool OnScreen(Homestead.Simulation.Economy.Ship ship)
+    {
+        var viewport = GraphicsDevice.Viewport;
+        var p = ShipCenter(ship);
+        return Math.Abs(p.X - _camera.X) <= viewport.Width / 2f / _zoom && Math.Abs(p.Y - _camera.Y) <= viewport.Height / 2f / _zoom;
     }
 
     /// <summary>Selects the members of a group that can be selected now (not inside a building).</summary>
@@ -2517,6 +2569,22 @@ public sealed class MapGame : Game
             _message = "";
             return;
         }
+        // Setting a shipyard's dock: cancelled.
+        if (_buildingInfo.AimsDock(_selectedBuilding))
+        {
+            _buildingInfo.CancelDock();
+            _message = "";
+            return;
+        }
+        // Ships: over the water to the open water nearest the click.
+        if (_ships.Count > 0)
+        {
+            int sailing = _world.Shipping.Move(_ships, clicked);
+            if (sailing > 0)
+                PlayCommand();
+            _message = sailing > 0 ? $"{sailing} ships to {clicked.X},{clicked.Y}" : "no way there over the water";
+            return;
+        }
         // A selected own building with a work area: move the work area there (at most 20 steps away, a gathering point anywhere).
         if (_selectedBuilding is { Exists: true, Player: 0, HasWorkArea: true } worksite)
         {
@@ -2603,6 +2671,19 @@ public sealed class MapGame : Game
             .ToList();
         // Shift adds to the selection.
         var candidates = ShiftDown(Keyboard.GetState()) ? _group.Concat(inBox).ToList() : inBox;
+        // No settlers there: own ships.
+        var shipsInBox = _world.Shipping.Ships.Where(s => s.Player == 0 && ShipCenter(s) is var c
+                                                          && c.X >= min.X && c.X <= max.X && c.Y >= min.Y && c.Y <= max.Y).ToList();
+        if (candidates.Count == 0 && (shipsInBox.Count > 0 || ShiftDown(Keyboard.GetState()) && _ships.Count > 0))
+        {
+            var ships = (ShiftDown(Keyboard.GetState()) ? _ships.Concat(shipsInBox) : shipsInBox).Distinct().ToList();
+            ClearSelection();
+            _ships.AddRange(ships);
+            _selected = null;
+            _selectedBuilding = null;
+            _message = $"{_ships.Count} ships: right click sends them (over the water)";
+            return;
+        }
         if (candidates.Count == 0 && BuildingInBox(min, max) is { } building)
         {
             ClearSelection();
@@ -2815,6 +2896,9 @@ public sealed class MapGame : Game
         var pilesByRow = _world.Piles.ToLookup(p => p.Position.Y);
         var signsByRow = _world.Geology.Signs.ToLookup(s => s.Key.Y);
         var ghostsByRow = _world.Ghosts.ToLookup(g => g.Position.Y);
+        var shipsByRow = _world.Shipping.Ships.ToLookup(ShipRenderer.DepthRow);
+        var stocksByRow = _world.Buildings.Where(b => b.Exists && _world.Shipping.Building(b) is not null && _world.Shipping.DockOf(b) is not null)
+            .ToLookup(b => _world.Shipping.DockOf(b)!.Value.Berth.Y);
         var marksByRow = WorkAreaMarksByRow();
         int rows = _objects.RowCount(visible, out int firstRow);
         for (int y = firstRow; y < firstRow + rows; y++)
@@ -2851,6 +2935,20 @@ public sealed class MapGame : Game
                 // Scouts in disguise look like one of player 1's carriers.
                 _settlerRenderer.Draw(_spriteBatch, settler, _terrain, _world.Tick, alpha,
                     PlayerColors.Of(settler.IsRevealedTo(0) ? settler.Player : 0), disguised: !settler.IsRevealedTo(0));
+            }
+            foreach (var dockyard in stocksByRow[y])
+            {
+                var dock = _world.Shipping.DockOf(dockyard)!.Value;
+                _shipRenderer.DrawOnStocks(_spriteBatch, dockyard.Definition.Civilization, _world.Shipping.Building(dockyard)!.Value, dock.ShipFacing,
+                    ScreenProjection.ToWorld(dock.Berth.X, dock.Berth.Y, _terrain.HeightAt(dock.Berth.X, dock.Berth.Y)),
+                    _world.Shipping.Progress(dockyard) ?? 0, PlayerColors.Of(dockyard.Player));
+            }
+            foreach (var ship in shipsByRow[y])
+            {
+                if (FogOn && ship.Player != 0 && !_vision.IsVisible(ship.Position))
+                    continue;
+                _shipRenderer.Draw(_spriteBatch, ship, ShipRenderer.Anchor(ship, _terrain, _world.Shipping.ShipStepTicks, alpha),
+                    PlayerColors.Of(ship.Player));
             }
             foreach (var ghost in ghostsByRow[y])
                 if (!FogOn || _vision.IsVisible(ghost.Position))
@@ -2898,6 +2996,8 @@ public sealed class MapGame : Game
             DrawSelectionMarker(_selected, alpha);
         foreach (var settler in _group)
             DrawSelectionMarker(settler, alpha);
+        foreach (var ship in _ships)
+            DrawSelectionMarker(ShipCenter(ship) - new Vector2(0, 34 - SelectionMarkerTop), 1);
         if (_dragStart is { } boxStart && !_placing)
             DrawSelectionBox(boxStart, Mouse.GetState().Position.ToVector2());
         DrawMagic(alpha);
@@ -2927,6 +3027,8 @@ public sealed class MapGame : Game
         if (ShowsBuildingInfo)
             _buildingInfo.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _economyRenderer, _settlerRenderer, Own.Civilization, _world, _selectedBuilding!, 0,
                 panelMouse);
+        else if (ShowsSelection && _ships.Count > 0)
+            _buildingInfo.DrawShips(_spriteBatch, _font, _ships);
         else if (ShowsSelection)
         {
             // The selected units (below the spell menu for priests) and the combat strength.
@@ -3103,6 +3205,9 @@ public sealed class MapGame : Game
     private const float SummonFlameDelay = 0.2f;
     private const float SummonFlameSeconds = 1f;
 
+    /// <summary>Where the dock would go for the point under the cursor (computed again when either changes).</summary>
+    private (Building? Building, GridPoint At, Homestead.Simulation.Economy.Dock? Dock) _dockPreview;
+
     private void DrawMagic(float alpha)
     {
         int radius = _world.Magic.Config.Radius;
@@ -3110,6 +3215,16 @@ public sealed class MapGame : Game
         if (_buildingInfo.AimsRoute(_selectedBuilding) && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height)
             && _world.Trade.Reachable(_selectedBuilding!, ScreenToGrid(Mouse.GetState().Position.ToVector2())) is { } routePoint)
             _economyRenderer.DrawGatheringFlag(_spriteBatch, routePoint, _terrain, PlayerColors.Of(0), _time);
+        // Setting a shipyard's dock: the pier, faint, where the click would put it.
+        if (_buildingInfo.AimsDock(_selectedBuilding) && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height))
+        {
+            var under = ScreenToGrid(Mouse.GetState().Position.ToVector2());
+            if (_dockPreview.Building != _selectedBuilding || _dockPreview.At != under)
+                _dockPreview = (_selectedBuilding, under, _world.Shipping.DockSpot(_selectedBuilding!, under));
+            if (_dockPreview.Dock is { } dock)
+                foreach (var p in dock.Pier)
+                    _objects.DrawCode(_spriteBatch, p.X, p.Y, MapObjectCodes.Dock, Color.White * 0.6f);
+        }
         if (_aiming && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height))
         {
             var target = ScreenToGrid(Mouse.GetState().Position.ToVector2());
@@ -3240,9 +3355,11 @@ public sealed class MapGame : Game
     /// The mark above a selected settler as in the original: two white brackets (the top corners of a
     /// frame) above the head, between them a round dot green to red by health left.
     /// </summary>
-    private void DrawSelectionMarker(Settler settler, float alpha)
+    private void DrawSelectionMarker(Settler settler, float alpha) =>
+        DrawSelectionMarker(SettlerRenderer.Anchor(settler, _terrain, alpha), HealthLeft(settler));
+
+    private void DrawSelectionMarker(Vector2 anchor, float health)
     {
-        var anchor = SettlerRenderer.Anchor(settler, _terrain, alpha);
         int left = (int)anchor.X - SelectionMarkerWidth / 2, top = (int)anchor.Y - SelectionMarkerTop;
         for (int y = 0; y < SelectionBracketShape.Length; y++)
         for (int x = 0; x < SelectionBracketShape[y].Length; x++)
@@ -3251,7 +3368,7 @@ public sealed class MapGame : Game
                 _spriteBatch.Draw(_pixel, new Rectangle(left + x, top + y, 1, 1), Color.White);
                 _spriteBatch.Draw(_pixel, new Rectangle(left + SelectionMarkerWidth - 1 - x, top + y, 1, 1), Color.White);
             }
-        DrawDot((int)anchor.X - HealthDotShape[0].Length / 2, top - 1, HealthColor(HealthLeft(settler)), HealthDotShape);
+        DrawDot((int)anchor.X - HealthDotShape[0].Length / 2, top - 1, HealthColor(health), HealthDotShape);
     }
 
     /// <summary>A small round dot of <paramref name="body"/> color, lit from above, its top left corner given (a build spot unless another shape is given).</summary>
@@ -3436,6 +3553,48 @@ public sealed class MapGame : Game
         for (int i = 0; i < 3; i++)
             _world.Spawn(market.Door, Profession.Donkey);
         Console.WriteLine($"trade: market at {market.Position}, destination {stock.Definition.Name} at {stock.Position}");
+    }
+
+    private void CaptureDock(GridPoint start, string mode)
+    {
+        var definition = Own["dockyard"];
+        bool Water(GridPoint p) => _gameMap.Contains(p) && _gameMap.TerrainAt(p) == TerrainType.Water;
+        bool Sea(GridPoint p) => _gameMap.Contains(p) && PathFinder.Circle(p, 3).All(Water);
+        // The open water nearest the start (the land around it made own), then the place for a shipyard nearest it.
+        var sea = PathFinder.Circle(start, 120).Where(Sea).OrderBy(p => PathFinder.Distance(start, p)).Cast<GridPoint?>().FirstOrDefault();
+        if (sea is { } coast)
+            foreach (var p in PathFinder.Circle(coast, 34).Where(_gameMap.Contains))
+                _gameMap.SetOwner(p, 0);
+        var spot = sea is not { } shore ? null : PathFinder.Circle(shore, 24).Where(_gameMap.Contains).OrderBy(p => PathFinder.Distance(shore, p))
+            .Where(p => _world.CanPlace(definition, p, out _)).Cast<GridPoint?>().FirstOrDefault();
+        if (spot is not { } at || _world.PlaceBuilding(definition, 0, at) is not { } dockyard)
+        {
+            Console.WriteLine($"dock: no shipyard near the coast ({sea})");
+            return;
+        }
+        var water = PathFinder.Circle(at, 12).Where(Sea).OrderBy(p => PathFinder.Distance(at, p)).First();
+        bool placed = mode != "none" && _world.Shipping.PlaceDock(dockyard, water);
+        Console.WriteLine($"dock: shipyard at {at}, dock {(placed ? _world.Shipping.DockOf(dockyard).ToString() : "none")}");
+        _camera = ToWorld(at);
+        if (!placed || mode is not ("build" or "ships"))
+            return;
+        var near = PathFinder.Circle(dockyard.Door, 6).Where(p => _gameMap.IsWalkable(p) && _world.IsFreeGround(p)).ToList();
+        _world.AddLooseGoods(near[0], Simulation.Economy.Material.Plank, 8);
+        _world.AddLooseGoods(near[^1], Simulation.Economy.Material.Iron, 4);
+        for (int i = 0; i < 3; i++)
+            _world.Spawn(near[i * near.Count / 3], Profession.Carrier);
+        if (mode != "ships")
+        {
+            _world.Shipping.Order(dockyard, Simulation.Economy.ShipKind.Ferry);
+            return;
+        }
+        // Launched at once.
+        _world.Shipping.Launch(dockyard, Simulation.Economy.ShipKind.Ferry);
+        _world.Shipping.Launch(dockyard, Simulation.Economy.ShipKind.TradeShip);
+        ClearSelection();
+        _ships.AddRange(_world.Shipping.Ships);
+        _world.Shipping.Move(_ships, water + new GridPoint(10, 10));
+        Console.WriteLine($"dock: ships {string.Join(", ", _world.Shipping.Ships.Select(s => $"{s.Kind} at {s.Position} to {s.Destination}"))}");
     }
 
     /// <summary>
@@ -3657,6 +3816,10 @@ public sealed class MapGame : Game
                 // HOMESTEAD_CAPTURE_TRADE=1: a market sending all planks and stones by donkey over a stop to a storehouse (focused).
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TRADE") == "1")
                     CaptureTrade(start);
+                // HOMESTEAD_CAPTURE_DOCK=1: a shipyard at the own coast nearest the start with its dock (with FOCUS=dockyard); =none: without one;
+                // =build: building a ferry, its material lying next to it; =ships: a ferry and a trade ship launched, both selected, sent out.
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_DOCK") is { } withDock)
+                    CaptureDock(start, withDock);
                 _selectedBuilding = _world.Buildings.FirstOrDefault(b => b.Definition.Name == (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") ?? "lumberjack"));
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TAB") is not null)
                     _selectedBuilding = null; // the tab's menu, not the building

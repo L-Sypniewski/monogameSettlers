@@ -253,6 +253,8 @@ public sealed class Logistics
 
     private bool Allowed(Pile offer, Pile request, Material material)
     {
+        if (request.Role == PileRole.Request && request.Owner is { State: BuildingState.Finished } owner && _world.Shipping.IsDockyard(owner))
+            return _world.Shipping.Wants(request, material);
         if (request.Role == PileRole.Trade)
             return _world.Trade.Wants(request, material) && !(request.Material is null && request.Owner!.Piles.Any(o =>
                 o != request && o.Role == PileRole.Trade && o.Material == material && o.Space > 0));

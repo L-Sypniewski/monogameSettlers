@@ -228,6 +228,10 @@
       "summoner": "Warenzauber"
     }
   },
+  "ships": {
+    "ferry": "Fähre",
+    "tradeShip": "Handelsschiff"
+  },
   "buildingStatus": {
     "active": "Aktiv",
     "pausing": "Hält an",
@@ -256,7 +260,13 @@
     "noDestination": "Kein Ziel",
     "donkeysOnTheWay": "Esel unterwegs",
     "waitingForDonkey": "Wartet auf einen Esel",
-    "waitingForTradeGoods": "Wartet auf Waren"
+    "waitingForTradeGoods": "Wartet auf Waren",
+    "noDock": "Kein Steg",
+    "noShipOrdered": "Kein Schiff in Auftrag",
+    "waitingForShipMaterial": "Warte auf Material für das Schiff",
+    "fetchingShipMaterial": "Holt Material für das Schiff",
+    "bringingToShip": "Bringt Material zum Schiff",
+    "buildingShip": "Baut am Schiff"
   },
   "events": {
     "texts": {

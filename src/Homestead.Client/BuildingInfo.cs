@@ -66,6 +66,7 @@ public sealed partial class BuildingInfo
         _demolishIcon = new Texture2D(device, bitmap.Width, bitmap.Height);
         _demolishIcon.SetData(bitmap.Pixels);
         LoadMarketIcons(device, gui);
+        LoadDockyardIcons(device, gfx, gui);
     }
 
     /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>
@@ -253,6 +254,14 @@ public sealed partial class BuildingInfo
             DrawMarket(batch, pixel, font, world, building, cursor);
             return;
         }
+        // A shipyard: the ships and the dock's hammer, the image beside the ships (as in the original).
+        bool dockyard = own && OffersDockyard(world, building);
+        if (dockyard)
+        {
+            if (!asking)
+                DrawDockyard(batch, pixel, world, building, people, cursor);
+            y = DockyardImageTop;
+        }
         var state = StateOf(world, building);
         double? chance = world.Production.MineChance(building);
         var goods = own && !OffersStorehouse(building) ? Goods(world, building) : [];
@@ -265,9 +274,9 @@ public sealed partial class BuildingInfo
         if (goods.Count > 0)
             text += 24 + 32;
         int imageHeight = own ? Math.Clamp(limit - y - 8 - text - 4, MinImageHeight, ImageHeight) : ImageHeight;
-        var imageBox = new Rectangle(Left, y, Inner, imageHeight);
+        var imageBox = dockyard ? new Rectangle(DockyardImageLeft, y, Left + Inner - DockyardImageLeft, imageHeight) : new Rectangle(Left, y, Inner, imageHeight);
         economy.DrawBuildingImage(batch, building.Definition, imageBox, PlayerColors.Of(building.Player));
-        y = imageBox.Bottom + 8;
+        y = Math.Max(imageBox.Bottom, dockyard ? TradeShipButton.Bottom : 0) + 8;
         if (asking)
         {
             DrawQuestion(batch, height, font, cursor);
@@ -303,7 +312,7 @@ public sealed partial class BuildingInfo
         if (goods.Count == 0 || y + 8 + 16 + 30 > limit)
             return;
         y += 8;
-        Write(batch, font, Lang.T(building.State == BuildingState.Finished ? "building.goods" : "building.material"), new Vector2(Left, y), Label, 12);
+        Write(batch, font, Lang.T(building.State == BuildingState.Finished && world.Shipping.Building(building) is null ? "building.goods" : "building.material"), new Vector2(Left, y), Label, 12);
         y += 16;
         for (int i = 0; i < goods.Count; i++)
         {
@@ -415,6 +424,10 @@ public sealed partial class BuildingInfo
 
     private static List<(Material Material, string Text)> Goods(World world, Building building)
     {
+        // A shipyard building a ship: the ship's material, delivered of needed (as on a construction site).
+        if (world.Shipping.Building(building) is { } ship)
+            return world.Shipping.CostOf(ship).Select(c =>
+                (c.Key, $"{Math.Min(world.Shipping.Delivered(building, c.Key), c.Value)}/{c.Value}")).ToList();
         if (building.State != BuildingState.Finished)
         {
             // Construction piles count their capacity down as material is built in.

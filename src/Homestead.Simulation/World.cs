@@ -187,6 +187,7 @@ public sealed partial class World
             Geology.Tick();
             Theft.Tick();
             Trade.Tick();
+            Shipping.Tick();
             Pioneering.Tick();
             Magic.Tick();
             Measure("housing/geology/magic", ref mark);

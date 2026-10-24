@@ -82,6 +82,30 @@ internal static class ContactSheet
         return result | (outAlpha << 24);
     }
 
+    /// <summary>Every frame of the sequences <paramref name="first"/> to <paramref name="last"/>, one row each, unscaled (cut off at <paramref name="cell"/>).</summary>
+    public static void WriteFrames(GfxFile file, string kind, int first, int last, string outPath, int cell = 200)
+    {
+        var rows = Enumerable.Range(first, last - first + 1).Select(s => Frames(file, kind, s).Select(f => f.Bitmap).ToList()).ToList();
+        int columns = Math.Max(1, rows.Max(r => r.Count));
+        int sheetWidth = columns * cell;
+        var sheet = new uint[sheetWidth * rows.Count * cell];
+        Array.Fill(sheet, 0xff404040u);
+        for (int r = 0; r < rows.Count; r++)
+        for (int c = 0; c < rows[r].Count; c++)
+        {
+            var bmp = rows[r][c];
+            int ox = c * cell, oy = r * cell;
+            for (int y = 0; y < Math.Min(cell, bmp.Height); y++)
+            for (int x = 0; x < Math.Min(cell, bmp.Width); x++)
+            {
+                uint p = bmp.Pixels[y * bmp.Width + x];
+                if (p >> 24 != 0)
+                    sheet[(oy + y) * sheetWidth + ox + x] = p | 0xff000000;
+            }
+        }
+        Png.Write(outPath, new GfxBitmap(sheetWidth, rows.Count * cell, 0, 0, sheet));
+    }
+
     /// <summary>First frame of every entry, scaled down to fit a grid cell.</summary>
     public static void Write(GfxFile file, string kind, string outPath)
     {
