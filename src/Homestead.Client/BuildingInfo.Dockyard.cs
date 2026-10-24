@@ -146,8 +146,11 @@ public sealed partial class BuildingInfo
         return $"dock at {dock.Land.X},{dock.Land.Y}";
     }
 
-    /// <summary>The selected ships in the panel: per kind its button image, its name and how many.</summary>
-    public void DrawShips(SpriteBatch batch, UiFont font, IReadOnlyList<Ship> ships)
+    /// <summary>
+    /// The selected ships in the panel: per kind its button image, its name and how many, for ferries also how many are
+    /// on board; at the bottom „Schiff entladen“ while a selected ferry carries anybody.
+    /// </summary>
+    public void DrawShips(SpriteBatch batch, Texture2D pixel, UiFont font, World world, IReadOnlyList<Ship> ships, Vector2 cursor)
     {
         int y = Top;
         foreach (var group in ships.GroupBy(s => (s.People, s.Kind)).OrderBy(g => g.Key.Kind))
@@ -155,8 +158,21 @@ public sealed partial class BuildingInfo
             if ((_shipIcons.TryGetValue(group.Key.People, out var icons) || _shipIcons.TryGetValue(Civilization.Roman, out icons)))
                 batch.Draw(icons[group.Key.Kind == ShipKind.Ferry ? 0 : 2], new Rectangle(Left, y, 60, 40), Color.White);
             Write(batch, font, Lang.T(group.Key.Kind == ShipKind.Ferry ? "ships.ferry" : "ships.tradeShip"), new Vector2(Left + 66, y + 3), Text);
-            Write(batch, font, group.Count().ToString(), new Vector2(Left + 66, y + 21), Text);
+            string count = group.Count().ToString();
+            if (group.Sum(s => world.Shipping.Capacity(s)) is var capacity and > 0)
+                count += "   " + Lang.T("ships.passengers", group.Sum(s => s.Passengers.Count), capacity);
+            Write(batch, font, count, new Vector2(Left + 66, y + 21), Text);
             y += 46;
         }
+        if (OffersUnload(ships))
+            Button(batch, pixel, font, UnloadButton, Lang.T("ships.unload"), cursor);
     }
+
+    /// <summary>„Schiff entladen“ at the bottom, as the tear-down question's buttons.</summary>
+    private static Rectangle UnloadButton => new(Left, Bottom - 28, Inner, 28);
+
+    private static bool OffersUnload(IReadOnlyList<Ship> ships) => ships.Any(s => s.Passengers.Count > 0);
+
+    /// <summary>Whether the panel point is on „Schiff entladen“ of the selected ships.</summary>
+    public static bool UnloadAt(Vector2 panel, IReadOnlyList<Ship> ships) => OffersUnload(ships) && UnloadButton.Contains(panel);
 }

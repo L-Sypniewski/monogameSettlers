@@ -91,7 +91,10 @@ public static class SaveSlots
         ReadHeader(new BinaryReader(file));
         using var compressed = new GZipStream(file, CompressionMode.Decompress);
         using var buffered = new BufferedStream(compressed, 1 << 16);
-        return Snapshot.Read<SaveGame>(buffered);
+        var game = Snapshot.Read<SaveGame>(buffered);
+        // Walkability is derived: a game saved by a build with other rules (e.g. before piers could be walked on) follows these.
+        game.World.Map?.RefreshWalkable();
+        return game;
     }
 
     private static SaveInfo ReadHeader(BinaryReader reader)

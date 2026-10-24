@@ -45,6 +45,7 @@ public enum ShipKind
 public sealed class Ship
 {
     internal readonly Queue<Direction> Path = new();
+    internal readonly List<Settler> Aboard = new();
 
     internal Ship(int id, int player, ShipKind kind, Civilization people, GridPoint position, Direction facing)
     {
@@ -78,6 +79,9 @@ public sealed class Ship
     internal int WaitedTicks { get; set; }
 
     public bool IsMoving => StepTicks > 0 || Path.Count > 0;
+
+    /// <summary>The units on board (a ferry's, see <see cref="Shipping.Board"/>).</summary>
+    public IReadOnlyList<Settler> Passengers => Aboard;
 }
 
 /// <summary>
@@ -90,8 +94,9 @@ public sealed class Ship
 /// bring its material (<see cref="ShippingRules.Costs"/>) to the shipyard's piles (<see cref="Wants"/>); its worker takes
 /// one unit after the other along the pier to the hull at the berth and hammers it in (<see cref="Production"/>), and
 /// with every unit the hull grows (<see cref="Progress"/>). With the last one the ship is launched (<see cref="Ships"/>).
+/// A ferry takes units aboard and puts them ashore (<see cref="Board"/>, <see cref="Unload"/>).
 /// </remarks>
-public sealed class Shipping
+public sealed partial class Shipping
 {
     /// <summary>Most fields a ship's way is searched over.</summary>
     private const int MaxSearch = 150_000;
@@ -398,6 +403,7 @@ public sealed class Shipping
     {
         foreach (var ship in _ships)
             Sail(ship);
+        Embark();
     }
 
     private void Sail(Ship ship)
@@ -408,6 +414,8 @@ public sealed class Shipping
                 return;
             ship.Position = ship.Position.Neighbor(ship.Facing);
             ship.StepTicks = 0;
+            foreach (var passenger in ship.Aboard)
+                passenger.Position = ship.Position;
         }
         if (ship.Path.Count == 0)
         {

@@ -123,7 +123,10 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     (`Berth`: zwei Felder hinter dem Stegende, quer zum Steg). Abriss der Werft verwirft den Auftrag. `Launch`: sofort fertig (Captures).
     `Ship` (eigene Liste, keine Siedler): fährt wie ein Soldat gesteuert (`Move`, Breitensuche übers Wasser zum nächsten erreichbaren Punkt),
     nur auf `IsNavigable` (Wasser mit `ShoreClearance` (3) Wasser ringsum, kein Steg), hält `Spacing` (6) zu anderen Schiffen (wartet, dann Umweg),
-    `stepSeconds` (0,5) je Feld, Sicht `sight` (8). Noch ohne Ladung/Passagiere, Kampf.
+    `stepSeconds` (0,5) je Feld, Sicht `sight` (8). Fähre (`Ferries.cs`): nimmt `passengers` (7) Einheiten (Soldaten, Priester, Geologen, Späher,
+    Pioniere) auf, wenn sie still liegt und begehbares Land (Ufer, Steg) bis `landingDistance` (6) hat (`IsNearLand`); `Board`: jede läuft zum
+    nächsten erreichbaren Uferfeld (Soldaten erzwungen), steigt dort ein (`IsInside`, Position = Schiff, fährt mit); neuer Befehl bricht ab.
+    `Unload`: alle auf die freien Landfelder nächst dem Schiff (Breitensuche ab dem Ufer). Handelsschiff 0 Plätze. Noch ohne Ladung, Kampf.
 - `Military/`: Kaserne bildet an der Tür aus (Träger wird dort im selben Moment Soldat, geht nicht hinein), Rekruten laufen zum Sammelpunkt.
   Je Waffe ein Träger zugleich (soweit die Träger-Reserve reicht, Laufende aller Kasernen zählen), jeder wird an der Tür oder direkt daneben ausgebildet. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
   nie über Infanterie-/Bogenplätze; „+“ bei vollen Infanterieplätzen ersetzt die andere Infanterieart; Überzählige kehren um oder kommen
@@ -224,7 +227,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   Feldnamen – fehlende übersprungen, neue: Sammlungen/Klassen mit parameterlosem Konstruktor leer, nicht-nullbare Referenzen ohne solchen → inkompatibel, sonst Standardwert (nicht der Initialisierer!); Dictionary/HashSet mit innerem Aufbau, Hashes beim Laden neu → Partie läuft
   tickgenau weiter, `SaveTests`). Delegates nur mit Zielen in eigenen Assemblies (Client-Abos werden nach dem Laden neu gesetzt);
   `[NonSerialized]` lässt weg; fremde Typen brechen mit Pfad ab, `JsonElement` als Text. Neue Felder brauchen keinen Speichercode.
-  Typnamen ohne Assembly-Version aufgelöst; fehlender Typ/Methode → `SaveIncompatibleException`. `SaveLoadFailure.Of`: Art (inkompatibel/beschädigt/unlesbar)
+  `SaveSlots.Load` rechnet die Begehbarkeit nach (`GameMap.RefreshWalkable`; Stege früherer Builds). Typnamen ohne Assembly-Version aufgelöst; fehlender Typ/Methode → `SaveIncompatibleException`. `SaveLoadFailure.Of`: Art (inkompatibel/beschädigt/unlesbar)
   und Fehlercode `HS-<Art>-<FNV-Hash>`; Titelbildschirm zeigt ihn in der Meldungsbox (`ShowLoadFailure`), Konsole die Ausnahme.
   `SaveGame`: Welt, Kataloge, Karte, Sicht, Client-Werte. `SaveSlots`: 8 Slots `slot N.hsav` in `~/.config/homestead/saves`
   (`HOMESTEAD_SAVE_DIR`), Kopf `SaveInfo` (Karte, Volk, Zeit, Tick) unkomprimiert, Rest gzip, über temporäre Datei.
@@ -385,7 +388,9 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   `SelectionPanel` je Art (Typ/Stufe und Volk – Bekehrte zeigen ihres) Porträt (`Portraits`, `ui.json` `portraits`; andere Völker `MapGame.PortraitsOf`) + Anzahl (zu viele: gestaucht, mehr Spalten oder kleiner), unten Kampfkraft – wie Zaubermenü
   im Inhaltsbereich (`BuildMenu.Content`). Strg+1–9 speichert Gruppe (jede Figur in höchstens einer – sie verlässt ihre alte; Porträt des ersten Mitglieds wie im `SelectionPanel`, gleich groß, oben rechts, gewählte gelb gerahmt; Klick oder 1–9 wählt, zweimal binnen 0,5 s: Kameraflug zum Mittelpunkt; Tote, Gebäude Betretende, Bekehrte fallen raus; im Spielstand als Client-Wert `groups`).
   Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungen ohne Kampf. Schiffe (`_ships`, statt Siedlern; Klick, Strg: alle im Bild,
-  Rahmen ohne Siedler darin): Rechtsklick fährt hin; Panel: je Art Knopfbild, Name, Anzahl (`BuildingInfo.DrawShips`). Geologen: Rechtsklick hin, auf Gebirge suchen.
+  Rahmen ohne Siedler darin): Rechtsklick fährt hin; Panel: je Art Knopfbild, Name, Anzahl, Fähren „An Bord: n/7“, unten „Schiff entladen“ (`BuildingInfo.DrawShips`/`UnloadAt`).
+  Gewählte Einheiten: Rechtsklick auf eine eigene Fähre nahe Land → einsteigen; an Deck stehend gezeichnet (`ShipRenderer`: ganzes Schiff, Passagiere hinter
+  dem Mast, Vorderteil = Sequenz davor, Segel, Passagiere vor dem Mast). Geologen: Rechtsklick hin, auf Gebirge suchen.
   Priester: Zaubermenü (Name, Kosten, Mana), Zauber wählen, dann Ziel (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
   Träger umwandeln nur über Siedler › Berufe. Linksklick ins Leere wählt ab (Figuren, Gebäude, Menüs) und leert das Panel wie im Original
   (`PanelTab.None`, kein Reiter gedrückt); rechts ziehen verschiebt die Karte.
@@ -423,7 +428,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   `FOCUS=<gebäude>` (`site`: frische Baustelle; `temple`: kleiner Tempel mit Mana; Militärgebäude wie `castle`: voll besetzt); `FOG=1`;
   `EVENT=1` (springt zu Events); `BATTLE=1` (Stufe-3-Feinde greifen das fokussierte Militärgebäude an, sonst den Startturm; `=big`: zwei Armeen à 30 treffen sich südlich des Starts; `=open`: 40 gegen 40 auf freiem Feld; `=town[:n]`: n (90) gegen n mitten im Dorf; mit `ZOOM` Kamera darauf); `COLORS=2,4` (Palettenfarben je Spieler); `STRIKE=1` (Abriss des fokussierten Gebäudes + 10 Träger ohne Wohnraum);
   `GEOLOGISTS=1`; `PIONEERS=1`; `DOCK=1` (Werft am nächsten offenen Meer, Land dort eigen, mit Steg; `=none` ohne; `=build`: Fähre im Bau, Material daneben; `=ships`: Fähre und
-  Handelsschiff fertig, gewählt, losgeschickt (mit `FOCUS=none`); sonst mit `FOCUS=dockyard`); `TRADE=1` (Markt mit Lagertür als Ziel, Stopp, Planken ∞, Steine 12, drei Esel, Eselzucht; mit `FOCUS=market_place`); `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
+  Handelsschiff fertig, gewählt, losgeschickt (mit `FOCUS=none`); `=ferry`: Fähre am Steg, 8 Soldaten, 7 steigen ein, Fähre gewählt; sonst mit `FOCUS=dockyard`); `TRADE=1` (Markt mit Lagertür als Ziel, Stopp, Planken ∞, Steine 12, drei Esel, Eselzucht; mit `FOCUS=market_place`); `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
   `TAB=system[:save|quit]` bzw. `goods|settlers[:<untermenü>[:manual|<ware>]]` (z. B. `settlers:soldiers:manual`, `goods:distribution:bread`);
   `STORE=<ware>` (mit `FOCUS=stock`); `PLACE=<gebäude>`; `START=<tab>[:color]` (nur `start.png` des Startscreens, 3: Zufallsgenerator; `:color` mit offener Farbauswahl von Spieler 1);
   `MAGIC=1` (großer Tempel, Mana-Kette, Priester zaubert in einen Kampf; `=summon`: Waren herbeirufen);

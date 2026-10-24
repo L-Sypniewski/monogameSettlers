@@ -89,6 +89,13 @@ public sealed class SettlerRenderer
         sprites.Draw(batch, frame, anchor, 1, playerColor, shadow: false, clip: clip);
     }
 
+    /// <summary>A settler standing still at a screen position, looking to <paramref name="facing"/> (e.g. on a ship's deck), without a shadow.</summary>
+    public void DrawStanding(SpriteBatch batch, Settler settler, Vector2 anchor, Direction facing, Color playerColor)
+    {
+        var (sprites, frame) = Look(settler, "NO_ACTION", facing, a => a.Start, 0);
+        sprites.Draw(batch, frame, anchor, 1, playerColor, shadow: false);
+    }
+
     /// <summary>
     /// The shooting animation fitted to the bowman's shot interval, so that the arrow leaves the bow
     /// (<see cref="ReleaseFrame"/>) in the tick it is shot.

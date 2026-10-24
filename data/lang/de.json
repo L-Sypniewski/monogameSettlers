@@ -230,7 +230,9 @@
   },
   "ships": {
     "ferry": "Fähre",
-    "tradeShip": "Handelsschiff"
+    "tradeShip": "Handelsschiff",
+    "passengers": "An Bord: {0}/{1}",
+    "unload": "Schiff entladen"
   },
   "buildingStatus": {
     "active": "Aktiv",

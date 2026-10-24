@@ -264,6 +264,13 @@ public sealed class GameMap
         UpdateWalkable(index);
     }
 
+    /// <summary>Works out every point's walkability again (after loading a game saved by another build).</summary>
+    public void RefreshWalkable()
+    {
+        for (int i = 0; i < PointCount; i++)
+            UpdateWalkable(i);
+    }
+
     private void UpdateWalkable(int index)
     {
         bool walkable = ComputeWalkable(index);

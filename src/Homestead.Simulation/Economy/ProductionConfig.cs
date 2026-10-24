@@ -316,6 +316,10 @@ public sealed record ProductionConfig
                     BuildTicks = Ticks(shipping, "buildSeconds"),
                     ShipStepTicks = Ticks(shipping, "stepSeconds"),
                     ShipSight = shipping.GetProperty("sight").GetInt32(),
+                    Passengers = shipping.GetProperty("ships").EnumerateObject().ToDictionary(
+                        k => Enum.Parse<ShipKind>(k.Name, ignoreCase: true),
+                        k => k.Value.TryGetProperty("passengers", out var passengers) ? passengers.GetInt32() : 0),
+                    LandingDistance = shipping.GetProperty("landingDistance").GetInt32(),
                 }
                 : ShippingRules.Default,
             DemolitionPayback = root.TryGetProperty("demolition", out var demolition) ? demolition.GetProperty("payback").GetDouble() : 0.5,
@@ -373,6 +377,12 @@ public sealed record ShippingRules(string Dockyard, int DockLength, int DockDist
 
     /// <summary>How far a ship sees (fog of war).</summary>
     public int ShipSight { get; init; } = 8;
+
+    /// <summary>How many units each kind of ship takes aboard.</summary>
+    public IReadOnlyDictionary<ShipKind, int> Passengers { get; init; } = new Dictionary<ShipKind, int> { [ShipKind.Ferry] = 7 };
+
+    /// <summary>Land at most this far from a ship is near enough to board it and to unload it.</summary>
+    public int LandingDistance { get; init; } = 6;
 }
 
 /// <summary>

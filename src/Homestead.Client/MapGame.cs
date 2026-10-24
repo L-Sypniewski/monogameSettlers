@@ -1688,6 +1688,17 @@ public sealed class MapGame : Game
             _selectedBuilding = null;
             _placing = _aiming = false;
         }
+        else if (onMenu && ShowsSelection && _ships.Count > 0 && BuildingInfo.UnloadAt(panelCursor, _ships))
+        {
+            _message = "unload: everybody on board goes ashore (the ship must lie near land)";
+            if (released)
+            {
+                int ashore = _ships.Sum(ship => _world.Shipping.Unload(ship));
+                if (ashore > 0)
+                    PlayCommand();
+                _message = ashore > 0 ? $"{ashore} units went ashore" : "no free land near the ship";
+            }
+        }
         else if (PriestsSelected)
         {
             var spells = _world.Magic.SpellsOf(0);
@@ -2551,7 +2562,26 @@ public sealed class MapGame : Game
     /// Right click: the selected soldiers attack the enemy military building clicked on, otherwise go
     /// there (fighting enemies they meet on the way).
     /// </summary>
-    private void Command(Vector2 screen) => Command(ScreenToGrid(screen));
+    private void Command(Vector2 screen)
+    {
+        // Units onto an own ferry clicked on (lying near land).
+        if (_group.Count > 0 && !_placing && !_aiming && ShipAt(Vector2.Transform(screen, Matrix.Invert(View))) is { Player: 0 } ship)
+        {
+            if (_world.Shipping.Capacity(ship) == 0)
+                _message = "only a ferry takes units aboard";
+            else if (!_world.Shipping.IsNearLand(ship))
+                _message = "the ferry is too far from land to board";
+            else if (_world.Shipping.Board(_group, ship) is > 0 and var boarding)
+            {
+                PlayCommand();
+                _message = $"{boarding} units go aboard ({ship.Passengers.Count}/{_world.Shipping.Capacity(ship)} on board)";
+            }
+            else
+                _message = "the ferry is full (or nobody can get to it)";
+            return;
+        }
+        Command(ScreenToGrid(screen));
+    }
 
     private void Command(GridPoint clicked)
     {
@@ -2948,7 +2978,7 @@ public sealed class MapGame : Game
                 if (FogOn && ship.Player != 0 && !_vision.IsVisible(ship.Position))
                     continue;
                 _shipRenderer.Draw(_spriteBatch, ship, ShipRenderer.Anchor(ship, _terrain, _world.Shipping.ShipStepTicks, alpha),
-                    PlayerColors.Of(ship.Player));
+                    PlayerColors.Of(ship.Player), _settlerRenderer);
             }
             foreach (var ghost in ghostsByRow[y])
                 if (!FogOn || _vision.IsVisible(ghost.Position))
@@ -3028,7 +3058,7 @@ public sealed class MapGame : Game
             _buildingInfo.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _economyRenderer, _settlerRenderer, Own.Civilization, _world, _selectedBuilding!, 0,
                 panelMouse);
         else if (ShowsSelection && _ships.Count > 0)
-            _buildingInfo.DrawShips(_spriteBatch, _font, _ships);
+            _buildingInfo.DrawShips(_spriteBatch, _pixel, _font, _world, _ships, panelMouse);
         else if (ShowsSelection)
         {
             // The selected units (below the spell menu for priests) and the combat strength.
@@ -3576,16 +3606,30 @@ public sealed class MapGame : Game
         bool placed = mode != "none" && _world.Shipping.PlaceDock(dockyard, water);
         Console.WriteLine($"dock: shipyard at {at}, dock {(placed ? _world.Shipping.DockOf(dockyard).ToString() : "none")}");
         _camera = ToWorld(at);
-        if (!placed || mode is not ("build" or "ships"))
+        if (!placed || mode is not ("build" or "ships" or "ferry"))
             return;
         var near = PathFinder.Circle(dockyard.Door, 6).Where(p => _gameMap.IsWalkable(p) && _world.IsFreeGround(p)).ToList();
         _world.AddLooseGoods(near[0], Simulation.Economy.Material.Plank, 8);
         _world.AddLooseGoods(near[^1], Simulation.Economy.Material.Iron, 4);
         for (int i = 0; i < 3; i++)
             _world.Spawn(near[i * near.Count / 3], Profession.Carrier);
-        if (mode != "ships")
+        if (mode == "build")
         {
             _world.Shipping.Order(dockyard, Simulation.Economy.ShipKind.Ferry);
+            return;
+        }
+        if (mode == "ferry")
+        {
+            // A ferry at the dock, seven soldiers of all types (and one too many) going aboard; the ferry selected.
+            _world.Shipping.Launch(dockyard, Simulation.Economy.ShipKind.Ferry);
+            var ferry = _world.Shipping.Ships[^1];
+            var units = Enumerable.Range(0, 8)
+                .Select(i => _world.SpawnSoldier(near[(i * 5) % near.Count], (SoldierType)(i % 3), 1 + i % 3)).OfType<Settler>().ToList();
+            int boarding = _world.Shipping.Board(units, ferry);
+            ClearSelection();
+            _ships.Add(ferry);
+            _camera = ToWorld(ferry.Position);
+            Console.WriteLine($"dock: ferry at {ferry.Position}, {boarding} of {units.Count} soldiers going aboard");
             return;
         }
         // Launched at once.
