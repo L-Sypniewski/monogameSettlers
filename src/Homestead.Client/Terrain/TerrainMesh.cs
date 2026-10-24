@@ -176,8 +176,8 @@ public sealed class TerrainMesh : IDisposable
         for (int y = cy * ChunkSize; y < yEnd; y++)
         for (int x = cx * ChunkSize; x < xEnd; x++)
         {
-            AddTriangle(vertices, x, y, up: true, variant: x * 37 + y * 17);
-            AddTriangle(vertices, x, y, up: false, variant: x);
+            AddTriangle(vertices, x, y, up: true);
+            AddTriangle(vertices, x, y, up: false);
         }
 
         var buffer = new VertexBuffer(_device, VertexPositionColorTexture.VertexDeclaration,
@@ -190,9 +190,22 @@ public sealed class TerrainMesh : IDisposable
     /// <summary>
     /// Up triangle: apex (x, y), lower left (x, y+1), lower right (x+1, y+1).
     /// Down triangle: upper left (x, y), bottom (x+1, y+1), upper right (x+1, y).
-    /// "left", "a" and "right" follow JSettlers' naming for the corners used in the texture rules.
     /// </summary>
-    private void AddTriangle(List<VertexPositionColorTexture> vertices, int x, int y, bool up, int variant)
+    private void AddTriangle(List<VertexPositionColorTexture> vertices, int x, int y, bool up)
+    {
+        Span<Vector2> uv = stackalloc Vector2[3];
+        TriangleUv(x, y, up, uv);
+        AddVertex(vertices, (x, y), uv[0]);
+        AddVertex(vertices, up ? (x, y + 1) : (x + 1, y + 1), uv[1]);
+        AddVertex(vertices, up ? (x + 1, y + 1) : (x + 1, y), uv[2]);
+    }
+
+    /// <summary>
+    /// Atlas coordinates (0–1) of the corners of a terrain triangle, in the order (x, y), then
+    /// (up ? (x, y+1) : (x+1, y+1)), then (up ? (x+1, y+1) : (x+1, y)): the continuous texture or the transition tile
+    /// with its orientation. "left", "a" and "right" follow JSettlers' naming for the corners used in the texture rules.
+    /// </summary>
+    public void TriangleUv(int x, int y, bool up, Span<Vector2> uv)
     {
         (int X, int Y) left = up ? (x, y + 1) : (x, y);
         (int X, int Y) a = up ? (x, y) : (x + 1, y + 1);
@@ -202,24 +215,32 @@ public sealed class TerrainMesh : IDisposable
         var aKind = KindAt(a.X, a.Y);
         var rightKind = KindAt(right.X, right.Y);
 
-        int image;
-        float[] uv;
         if (aKind == leftKind && aKind == rightKind)
         {
-            image = aKind.ImageNumber();
-            uv = up ? ContinuousUp : ContinuousDown;
+            Uv(aKind.ImageNumber(), up ? ContinuousUp : ContinuousDown, x, y, uv);
+            return;
         }
+        int variant = up ? x * 37 + y * 17 : x;
+        int image = TransitionImage(leftKind, aKind, rightKind, variant) ?? leftKind.ImageNumber();
+        float[] corners;
+        if (leftKind == rightKind)
+            corners = up ? Bottom : Top;
+        else if (leftKind == aKind)
+            corners = up ? TopLeft : BottomLeft;
         else
-        {
-            image = TransitionImage(leftKind, aKind, rightKind, variant) ?? leftKind.ImageNumber();
-            if (leftKind == rightKind)
-                uv = up ? Bottom : Top;
-            else if (leftKind == aKind)
-                uv = up ? TopLeft : BottomLeft;
-            else
-                uv = up ? TopRight : BottomRight;
-        }
+            corners = up ? TopRight : BottomRight;
+        Uv(image, corners, x, y, uv);
+    }
 
+    /// <summary>
+    /// Atlas coordinates of a triangle (corner order as <see cref="TriangleUv"/>) showing the continuous texture of
+    /// landscape <paramref name="image"/> as if all its corners were of that kind.
+    /// </summary>
+    public static void ContinuousUv(int image, int x, int y, bool up, Span<Vector2> uv) =>
+        Uv(image, up ? ContinuousUp : ContinuousDown, x, y, uv);
+
+    private static void Uv(int image, float[] corners, int x, int y, Span<Vector2> uv)
+    {
         var (cellX, cellY, cells) = TerrainAtlas.Positions[image];
         float offsetU = cellX * TerrainAtlas.Cell, offsetV = cellY * TerrainAtlas.Cell;
         if (cells >= 2)
@@ -236,13 +257,11 @@ public sealed class TerrainMesh : IDisposable
         float minU = cellLeft + BorderOffset, minV = cellTop + BorderOffset;
         float maxU = cellLeft + cells * TerrainAtlas.Cell - BorderOffset;
         float maxV = cellTop + cells * TerrainAtlas.Cell - BorderOffset;
-        float U(int i) => Math.Clamp(uv[i] + offsetU, minU, maxU);
-        float V(int i) => Math.Clamp(uv[i] + offsetV, minV, maxV);
-
-        // Vertex order: first = (up ? apex : upper left), second = (up ? lower left : bottom), third = right.
-        AddVertex(vertices, up ? a : left, U(0), V(1));
-        AddVertex(vertices, up ? left : a, U(2), V(3));
-        AddVertex(vertices, right, U(4), V(5));
+        // Corner order: first = (up ? apex : upper left), second = (up ? lower left : bottom), third = right.
+        for (int i = 0; i < 3; i++)
+            uv[i] = new Vector2(
+                Math.Clamp(corners[i * 2] + offsetU, minU, maxU),
+                Math.Clamp(corners[i * 2 + 1] + offsetV, minV, maxV)) / TerrainAtlas.Size;
     }
 
     private static int? TransitionImage(TerrainKind left, TerrainKind a, TerrainKind right, int variant)
@@ -266,18 +285,23 @@ public sealed class TerrainMesh : IDisposable
         return null;
     }
 
-    private void AddVertex(List<VertexPositionColorTexture> vertices, (int X, int Y) p, float u, float v)
+    /// <summary>Slopes facing the viewer are lit, those facing away darker.</summary>
+    public float LightAt(int x, int y) => Light(HeightAt(x, y - 1), HeightAt(x, y));
+
+    /// <summary>The light of a point from its height and that of the point above it (x, y-1).</summary>
+    public static float Light(float heightAbove, float height) =>
+        Math.Clamp(0.875f + (heightAbove - height) * 0.0625f, 0.4f, 1f); // halved with the relief
+
+    private void AddVertex(List<VertexPositionColorTexture> vertices, (int X, int Y) p, Vector2 uv)
     {
         int height = HeightAt(p.X, p.Y);
-        // Slopes facing the viewer are lit, those facing away darker.
-        int dHeight = HeightAt(p.X, p.Y - 1) - height;
-        float light = Math.Clamp(0.875f + dHeight * 0.0625f, 0.4f, 1f); // halved with the relief
+        float light = LightAt(p.X, p.Y);
 
         var position = ScreenProjection.ToWorld(p.X, p.Y, height);
         vertices.Add(new VertexPositionColorTexture(
             new Vector3(position, 0),
             new Color(light, light, light),
-            new Vector2(u / TerrainAtlas.Size, v / TerrainAtlas.Size)));
+            uv));
     }
 
     private static int Modulo(int value, int modulo) => (value % modulo + modulo) % modulo;

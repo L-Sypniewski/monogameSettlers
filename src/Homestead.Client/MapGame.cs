@@ -206,6 +206,7 @@ public sealed class MapGame : Game
     private readonly (RandomMapSettings Settings, int Seed)? _randomMap;
     private OriginalMap _map = null!;
     private TerrainMesh _terrain = null!;
+    private WaveLayer _waves = null!;
     private MapObjectLayer _objects = null!;
     private GameMap _gameMap = null!;
     private Texture2D _atlas = null!;
@@ -616,6 +617,7 @@ public sealed class MapGame : Game
         _terrain?.Dispose();
         _map = map;
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
+        _waves = new WaveLayer(_terrain);
         var production = Homestead.Simulation.Economy.ProductionConfig.Load();
         (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples, random: _peopleDraw,
             hardcore: _hardcore.Where(p => p < _map.Players.Count),
@@ -672,6 +674,7 @@ public sealed class MapGame : Game
         _terrain?.Dispose();
         _map = game.Map;
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
+        _waves = new WaveLayer(_terrain);
         _world = game.World;
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
@@ -2914,6 +2917,7 @@ public sealed class MapGame : Game
         GraphicsDevice.BlendState = BlendState.Opaque;
         GraphicsDevice.DepthStencilState = DepthStencilState.None;
         _terrain.Draw(_effect, visible);
+        _waves.Draw(GraphicsDevice, _effect, visible, (float)_time.TotalSeconds);
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldView);
         if (_selected is not null)
@@ -2981,7 +2985,9 @@ public sealed class MapGame : Game
             {
                 if (FogOn && ship.Player != 0 && !_vision.IsVisible(ship.Position))
                     continue;
-                _shipRenderer.Draw(_spriteBatch, ship, ShipRenderer.Anchor(ship, _terrain, _world.Shipping.ShipStepTicks, alpha),
+                // The waves only lift the picture; the ship stays where it is.
+                float lift = _waves.LiftAt(ShipRenderer.GridAt(ship, _world.Shipping.ShipStepTicks, alpha), (float)_time.TotalSeconds);
+                _shipRenderer.Draw(_spriteBatch, ship, ShipRenderer.Anchor(ship, _terrain, _world.Shipping.ShipStepTicks, alpha) - new Vector2(0, lift),
                     PlayerColors.Of(ship.Player), _settlerRenderer, _economyRenderer, _world.Shipping.CargoOf(ship));
             }
             foreach (var ghost in ghostsByRow[y])

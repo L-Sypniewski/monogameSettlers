@@ -46,6 +46,16 @@ public sealed class ShipRenderer
         return Vector2.Lerp(from, to, Math.Clamp((ship.StepTicks + alpha) / stepTicks, 0, 1));
     }
 
+    /// <summary>Where a ship is in grid fields (fractional while it moves), as <see cref="Anchor"/>.</summary>
+    public static Vector2 GridAt(Ship ship, int stepTicks, float alpha)
+    {
+        var from = new Vector2(ship.Position.X, ship.Position.Y);
+        if (ship.StepTicks == 0)
+            return from;
+        var next = ship.Position.Neighbor(ship.Facing);
+        return Vector2.Lerp(from, new Vector2(next.X, next.Y), Math.Clamp((ship.StepTicks + alpha) / stepTicks, 0, 1));
+    }
+
     /// <summary>The row a ship is drawn in (with what lies in front of it drawn later).</summary>
     public static int DepthRow(Ship ship) =>
         ship.StepTicks > 0 ? Math.Max(ship.Position.Y, ship.Position.Neighbor(ship.Facing).Y) : ship.Position.Y;
