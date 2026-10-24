@@ -46,7 +46,7 @@ public enum CastResult
 /// where there is someone they work on (<see cref="HasTargets"/>); priests can be attacked like soldiers.
 /// Watchdog: a priest that does not get within range for <see cref="StallTicks"/> drops the order.
 /// </remarks>
-public sealed class Magic
+public sealed partial class Magic
 {
     public const int StallTicks = 400;
     private const int DiscoverInterval = 10;
@@ -255,7 +255,7 @@ public sealed class Magic
             or SpellKind.Haste or SpellKind.Strengthen or SpellKind.Shield or SpellKind.CursedArrows => Affected(spell, player, target).Any(),
         SpellKind.IronToGold or SpellKind.FishToMeat or SpellKind.StoneToIron or SpellKind.GoldToStone or SpellKind.SendGoods
             or SpellKind.CallGoods => GoodsIn(spell, player, target).Any(),
-        _ => true,
+        _ => HasLandTargets(spell, target),
     };
 
     /// <summary>
@@ -323,6 +323,8 @@ public sealed class Magic
             Advance(order);
         _effects.RemoveAll(e => _world.Tick - e.Tick > SpellEffect.ShowTicks);
         _sights.RemoveAll(v => v.Until <= _world.Tick);
+        if (_fires.Count > 0)
+            SpreadFire();
     }
 
     /// <summary>Big temples send priests, small temples turn drink into mana.</summary>
@@ -520,6 +522,10 @@ public sealed class Magic
                 break;
             case SpellKind.MagicEye or SpellKind.RevealMap:
                 _sights.Add(new SpellSight(player, target, spell.Radius, until));
+                break;
+            case SpellKind.ShrinkResources or SpellKind.Growth or SpellKind.Grassland or SpellKind.ForestFire or SpellKind.DrainSwamp
+                or SpellKind.Desertify or SpellKind.FishFlood or SpellKind.StoneCurse or SpellKind.MeltSnow or SpellKind.GrowForest:
+                effect = effect with { Points = ApplyToLand(spell, target) };
                 break;
         }
         _effects.Add(effect);

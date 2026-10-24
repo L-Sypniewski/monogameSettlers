@@ -429,6 +429,164 @@ public class MagicTests
         Assert.False(romans.Military.Sees(0, new GridPoint(40, 75)));
     }
 
+    [Fact]
+    public void Horus_heat_turns_grass_into_desert_with_borders_and_grassland_turns_it_back()
+    {
+        var world = TwoPeoples(out var priest, Egyptians);
+        var map = world.Map!;
+        var target = new GridPoint(45, 40);
+        world.Magic.AddMana(0, 200);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], target, Spell(world, SpellKind.Desertify)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+
+        Assert.Equal(TerrainType.Desert, map.TerrainAt(target));
+        // Every desert point next to grass is a border, with the outer border on the grass beyond.
+        for (int i = 0; i < map.PointCount; i++)
+        {
+            var p = map.Point(i);
+            var t = map.TerrainAt(p);
+            var around = Enumerable.Range(0, 6).Select(d => p.Neighbor((Direction)d)).Where(map.Contains).Select(map.TerrainAt).ToList();
+            if (t == TerrainType.Desert)
+                Assert.All(around, n => Assert.True(n is TerrainType.Desert or TerrainType.DesertBorder, $"{p}: {n} next to desert"));
+            if (t == TerrainType.DesertBorder)
+                Assert.All(around, n => Assert.True(n is TerrainType.Desert or TerrainType.DesertBorder or TerrainType.DesertBorderOuter, $"{p}: {n}"));
+        }
+        Assert.Contains(Enumerable.Range(0, map.PointCount), i => map.TerrainAt(i) == TerrainType.DesertBorderOuter);
+
+        var romans = TwoPeoples(out var romanPriest, Romans);
+        for (int i = 0; i < map.PointCount; i++)
+            romans.Map!.SetTerrain(map.Point(i), map.TerrainAt(i));
+        romans.Magic.AddMana(0, 100);
+        Assert.Equal(CastResult.Started, romans.Magic.Cast([romanPriest], target, Spell(romans, SpellKind.Grassland)));
+        Run(romans, 400, () => romans.Magic.SpellsCast > 0);
+        Assert.Equal(TerrainType.Grass, romans.Map!.TerrainAt(target));
+    }
+
+    [Fact]
+    public void Draining_the_swamp_makes_it_walkable_grass()
+    {
+        var world = TwoPeoples(out var priest, Egyptians);
+        var map = world.Map!;
+        var target = new GridPoint(40, 40);
+        foreach (var p in PathFinder.Circle(target, 3).Where(map.Contains))
+            map.SetTerrain(p, TerrainType.Moor);
+        Assert.False(map.IsWalkable(target));
+        world.Magic.AddMana(0, 100);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], target, Spell(world, SpellKind.DrainSwamp)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+
+        Assert.Equal(TerrainType.Grass, map.TerrainAt(target));
+        Assert.True(map.IsWalkable(target));
+    }
+
+    [Fact]
+    public void Forest_fire_burns_the_trees_in_the_area_and_those_right_next_to_them()
+    {
+        var world = TwoPeoples(out var priest, Egyptians);
+        var map = world.Map!;
+        var target = new GridPoint(40, 40);
+        for (int x = 34; x <= 52; x++)
+            map.SetObject(new GridPoint(x, 40), MapObjectKind.Tree); // a row of trees, 6 fields of them in the area
+        world.Magic.AddMana(0, 100);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], target, Spell(world, SpellKind.ForestFire)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+        Assert.Equal(MapObjectCodes.TreeStump, map.ObjectCodeAt(target));
+        Assert.True(MapObjectCodes.IsAdultTree(map.ObjectCodeAt(new GridPoint(47, 40))));
+
+        Run(world, Magic.Magic.FireSpreadTicks + 1);
+        Assert.Equal(MapObjectCodes.TreeStump, map.ObjectCodeAt(new GridPoint(47, 40))); // next to the area: caught fire
+        Assert.True(MapObjectCodes.IsAdultTree(map.ObjectCodeAt(new GridPoint(48, 40))));
+        Assert.True(MapObjectCodes.IsAdultTree(map.ObjectCodeAt(new GridPoint(52, 40))));
+    }
+
+    [Fact]
+    public void Forests_and_stones_appear_on_free_ground()
+    {
+        var world = TwoPeoples(out var priest, Amazons);
+        var map = world.Map!;
+        world.Magic.AddMana(0, 100);
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], new GridPoint(40, 40), Spell(world, SpellKind.GrowForest)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+        int trees = Enumerable.Range(0, map.PointCount).Count(i => MapObjectCodes.IsAdultTree(map.ObjectCodeAt(map.Point(i))));
+        Assert.InRange(trees, 60, 400);
+
+        var asians = TwoPeoples(out var monk, Asians);
+        asians.Magic.AddMana(0, 100);
+        Assert.Equal(CastResult.Started, asians.Magic.Cast([monk], new GridPoint(40, 40), Spell(asians, SpellKind.StoneCurse)));
+        Run(asians, 400, () => asians.Magic.SpellsCast > 0);
+        var stones = Enumerable.Range(0, map.PointCount).Select(asians.Map!.Point).Where(p => asians.Map.ObjectCodeAt(p) == MapObjectCodes.FullStone).ToList();
+        Assert.InRange(stones.Count, 20, 200);
+        Assert.All(stones, p => Assert.DoesNotContain(stones, q => q != p && PathFinder.Distance(p, q) <= 2));
+    }
+
+    [Fact]
+    public void Resources_shrink_and_fish_floods_the_water()
+    {
+        var world = TwoPeoples(out var priest, Romans);
+        var map = world.Map!;
+        map.SetResource(new GridPoint(40, 40), ResourceType.Coal, 15);
+        map.SetResource(new GridPoint(41, 40), ResourceType.GoldOre, 1);
+        world.Magic.AddMana(0, 100);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], new GridPoint(40, 40), Spell(world, SpellKind.ShrinkResources)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+        Assert.Equal((ResourceType.Coal, 7), map.ResourceAt(new GridPoint(40, 40)));
+        Assert.Equal((ResourceType.GoldOre, 0), map.ResourceAt(new GridPoint(41, 40)));
+
+        var asians = TwoPeoples(out var monk, Asians);
+        var lake = new GridPoint(40, 40);
+        foreach (var p in PathFinder.Circle(lake, 4).Where(asians.Map!.Contains))
+            asians.Map.SetTerrain(p, TerrainType.Water);
+        asians.Magic.AddMana(0, 100);
+        Assert.Equal(CastResult.Started, asians.Magic.Cast([monk], lake, Spell(asians, SpellKind.FishFlood)));
+        Run(asians, 400, () => asians.Magic.SpellsCast > 0);
+        Assert.InRange(asians.Map.ResourceAmount(lake, ResourceType.Fish), 1, 4);
+    }
+
+    [Fact]
+    public void Gorgeous_growth_ripens_crops_within_three_minutes()
+    {
+        var world = new World(new GameMap(90), TestConfig.NoTools) { Peoples = [Civilization.Roman, Civilization.Asian] };
+        world.PlaceBuilding(Romans["big_temple"], 0, new GridPoint(20, 40));
+        var farm = world.PlaceBuilding(Romans["farm"], 0, new GridPoint(40, 50))!;
+        for (int i = 0; i < 3; i++)
+            world.Spawn(new GridPoint(30 + i, 60), Profession.Carrier);
+        var map = world.Map!;
+        bool Sown() => Enumerable.Range(0, map.PointCount).Any(i => map.ObjectCodeAt(map.Point(i)) == MapObjectCodes.FirstGrain);
+        Run(world, 20_000, Sown);
+        var field = map.Point(Enumerable.Range(0, map.PointCount).First(i => map.ObjectCodeAt(map.Point(i)) == MapObjectCodes.FirstGrain));
+        var priest = world.Settlers.Single(s => s.Profession == Profession.Priest);
+        world.Magic.AddMana(0, 100);
+        var growth = world.Magic.SpellsOf(0).Single(s => s.Kind == SpellKind.Growth);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], field, growth));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+        Run(world, growth.Ticks + 40); // crops grow on every tenth tick: a few ticks late per stage
+
+        Assert.Equal(MapObjectCodes.RipeGrain, map.ObjectCodeAt(field));
+        Assert.NotNull(farm);
+    }
+
+    [Fact]
+    public void Snow_melts_into_mountain()
+    {
+        var world = TwoPeoples(out var priest, Asians);
+        var map = world.Map!;
+        var peak = new GridPoint(40, 40);
+        foreach (var p in PathFinder.Circle(peak, 8).Where(map.Contains))
+            map.SetTerrain(p, PathFinder.Distance(peak, p) <= 3 ? TerrainType.Snow : TerrainType.Mountain);
+        world.Magic.AddMana(0, 100);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], peak, Spell(world, SpellKind.MeltSnow)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+
+        Assert.Equal(TerrainType.Mountain, map.TerrainAt(peak));
+        Assert.True(map.IsWalkable(peak));
+    }
+
     private static Spell Spell(World world, SpellKind kind) => world.Magic.SpellsOf(0).Single(s => s.Kind == kind);
 
     [Fact]

@@ -232,7 +232,14 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   keine Soldaten eines Militärgebäudes (`Military.IsTowerBound`: Besatzung, Tür, unterwegs hinein); Zauber auf Soldaten für eine Zeit (`Settler.Charm`,
   `SpellCharm`: Samuraischwert nur Schwertkämpfer ×2 Tempo ×1,33 Schaden, Angst ×0,5 Schaden auf dem Land des Zaubernden, Stärken ×2 außerhalb des eigenen Lands,
   Schild ×0,67 erlittener Schaden, Verfluchte Pfeile kein Pfeilschaden; Einfrieren `FrozenUntil`) auch die (Turm-Bogenschützen eingefroren schießen nicht);
-  erneut gewirkt verlängert, addiert nicht (`Military.DamageOf`/`Taken`). Himmlische Geschenke (`SummonGoods`: 3–4 Stapel à 4–8 aus Nahrung, Waffen,
+  erneut gewirkt verlängert, addiert nicht (`Military.DamageOf`/`Taken`). Waren-Zauber (Midas, Fisch zu Fleisch, Stein zu Eisen, Gold zu Stein: bis 40 Einheiten
+  im Umkreis, egal wessen, lose/Ausgabe/Lager, nicht reserviert, `World.TakeUnits` → `DropGoods`; Waren rufen: vom eigenen Land zum Priester; Waren
+  versenden: an einen Zufallspunkt). Sicht (`SpellSight`, `Magic.Sights`: Auge Radius 32, Karte enthüllen ganz, 20 s; Fog of War und `Military.Sees`).
+  Land (`LandSpells.cs`): Boden wandeln (Grasland, Horus' Hitze, Sumpf trockenlegen – Moor und Schlamm –, Schneeschmelze → Gebirge) über Bodenklassen,
+  Ränder je ein Feld wie der Zufallskartengenerator (`Paint`, nicht unter Gebäuden/Stapeln, Ackerland/Pfade, die nicht mehr passen, weg; der Client zeichnet
+  `TerrainKinds.Of`, Minimap noch das Original); Rohstoffe halbieren, Fischflut (+1–4 je Wasserfeld, max. 15), Waldbrand (Bäume im Umkreis → Stümpfe,
+  nach `FireSpreadTicks` einmal die direkt daneben, Flammen), Waldgunst/Steinfluch (Bäume/volle Felsen auf freies Gras, Felsen mit 2 Feldern Abstand),
+  Wachstum (`Production.Hasten`: Getreide/Wein/Reis spätestens in 180 s reif). Himmlische Geschenke (`SummonGoods`: 3–4 Stapel à 4–8 aus Nahrung, Waffen,
   Werkzeug, Gold, Eisen, Kohle, Erz im Umkreis `SummonSpread`; Ägypter 50 % zusätzlich Steine; Flammen zeitversetzt). Priester angreifbar.
   Alte Spielstände übernehmen die aktuellen Regeln (`Magic.FollowRules`). Zwei Konten: Zauber verbrauchen `Mana`, Aufwertungen prüfen `ManaEarned`
   (`upgrades.manaEarned` je n-ter Aufwertung, Original: 10/30/60/110/170/200). `Upgrade`: braucht fertigen kleinen Tempel; erst alle drei Typen Stufe 2, dann 3;
@@ -453,7 +460,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   Handelsschiff fertig, gewählt, losgeschickt (mit `FOCUS=none`); `=ferry`: Fähre am Steg, 8 Soldaten, 7 steigen ein, Fähre gewählt; `=harbor` (mit `FOCUS=harbor`): Hafen mit Steg, Handelsschiff, Waren, Ziel; sonst mit `FOCUS=dockyard`); `TRADE=1` (Markt mit Lagertür als Ziel, Stopp, Planken ∞, Steine 12, drei Esel, Eselzucht; mit `FOCUS=market_place`); `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
   `TAB=system[:save|quit]` bzw. `goods|settlers[:<untermenü>[:manual|<ware>]]` (z. B. `settlers:soldiers:manual`, `goods:distribution:bread`);
   `STORE=<ware>` (mit `FOCUS=stock`); `PLACE=<gebäude>`; `START=<tab>[:color]` (nur `start.png` des Startscreens, 3: Zufallsgenerator; `:color` mit offener Farbauswahl von Spieler 1);
-  `MAGIC=1` (großer Tempel, Mana-Kette, Priester zaubert in einen Kampf; `=summon`: Himmlische Geschenke);
+  `MAGIC=1` (großer Tempel, Mana-Kette, Priester zaubert in einen Kampf; `=summon`: Himmlische Geschenke; `=<SpellKind>` dieser Zauber des eigenen Volks,
+  Land-Zauber auf die freieste Grasfläche, Konsole zeigt den Boden dort);
   `MINUTES=<n>` (Benchmark: KI auch für Spieler 1, n min ohne Zeichnen vorgespult, dann Kameraschwenk über die Karte, PNG alle 1200 Frames);
   `STATS=<frame>` (Statistik öffnet in diesem Frame, alle Seiten als `stats_N.png`, dann Ende);
   `VIEW=economy|battle` (statt Schwenk: Kamera auf Spieler 1 bzw. folgt dem größten Kampf; `battle` spult mit `MINUTES` bis zu 20 min weiter, bis ≥ 20 Soldaten an einem Kampf sind).

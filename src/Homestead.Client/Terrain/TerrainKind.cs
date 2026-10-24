@@ -1,3 +1,5 @@
+using Homestead.Simulation.Map;
+
 namespace Homestead.Client.Terrain;
 
 /// <summary>
@@ -83,6 +85,33 @@ public static class TerrainKinds
         TerrainKind.Road => 34,
         TerrainKind.DryEarth => 36,
         _ => 0,
+    };
+
+    /// <summary>
+    /// The kind drawn for a terrain type of the simulation (land spells change it); null for water and rivers, whose depth
+    /// and flow only the map knows.
+    /// </summary>
+    public static TerrainKind? Of(TerrainType terrain) => terrain switch
+    {
+        TerrainType.Grass => TerrainKind.Grass,
+        TerrainType.Sand => TerrainKind.Sand,
+        TerrainType.Mountain => TerrainKind.Mountain,
+        TerrainType.MountainBorder => TerrainKind.MountainBorder,
+        TerrainType.MountainBorderOuter => TerrainKind.MountainBorderOuter,
+        TerrainType.Desert => TerrainKind.Desert,
+        TerrainType.DesertBorder => TerrainKind.DesertBorder,
+        TerrainType.DesertBorderOuter => TerrainKind.DesertBorderOuter,
+        TerrainType.Moor => TerrainKind.Moor,
+        TerrainType.MoorBorder => TerrainKind.MoorBorder,
+        TerrainType.MoorBorderOuter => TerrainKind.MoorBorderOuter,
+        TerrainType.Snow => TerrainKind.Snow,
+        TerrainType.SnowBorder => TerrainKind.SnowBorder,
+        TerrainType.SnowBorderOuter => TerrainKind.SnowBorderOuter,
+        TerrainType.Mud => TerrainKind.Mud,
+        TerrainType.MudBorder => TerrainKind.MudBorder,
+        TerrainType.MudBorderOuter => TerrainKind.MudBorderOuter,
+        TerrainType.Flattened => TerrainKind.Flattened,
+        _ => null,
     };
 
     /// <summary>Maps the landscape byte of an original map. Table from JSettlers' OriginalLandscape (MIT).</summary>

@@ -1194,7 +1194,8 @@ public sealed class MapGame : Game
         {
             GroundCover.Farmland => TerrainKind.Earth,
             GroundCover.Trail => TerrainKind.Sand,
-            _ => _gameMap.TerrainAt(p) == TerrainType.Flattened ? TerrainKind.Flattened : _terrain.OriginalKindAt(p.X, p.Y),
+            // As loaded, unless a spell changed the ground (desert, swamp, snow); water keeps its depth.
+            _ => TerrainKinds.Of(_gameMap.TerrainAt(p)) ?? _terrain.OriginalKindAt(p.X, p.Y),
         };
         _terrain.Update(p.X, p.Y, _gameMap.HeightAt(p), kind);
         _objects?.SetCode(p.X, p.Y, _gameMap.ObjectCodeAt(p));
@@ -3302,7 +3303,7 @@ public sealed class MapGame : Game
         }
         foreach (var effect in _world.Magic.Effects)
         {
-            if (effect.Kind == SpellKind.SummonGoods)
+            if (effect.Kind is SpellKind.SummonGoods or SpellKind.ForestFire)
             {
                 // A flame over each pile, one after the other.
                 for (int i = 0; i < effect.Points.Count; i++)
@@ -3735,13 +3736,19 @@ public sealed class MapGame : Game
 
     /// <summary>
     /// HOMESTEAD_CAPTURE_MAGIC=1: a big temple and the own people's mana chain next to the start, mana,
-    /// a fight nearby, and the priest casts its spell there; =summon: no fight, the priest summons goods there.
+    /// a fight nearby, and the priest casts its spell there; =summon: no fight, the priest summons goods there;
+    /// =&lt;spell kind&gt; (e.g. Desertify, GrowForest; one of the own people's): that spell there, with a fight.
     /// </summary>
     private void CaptureMagic(int frame)
     {
         var battle = _world.Buildings.FirstOrDefault(b => b.Definition.Name == "big_temple") is { } temple
             ? temple.Position + new GridPoint(8, 6)
             : new GridPoint(_start.X + 16, _start.Y + 8);
+        // Spells on the land: the most open grass nearby, to see what they do.
+        if (frame >= 200 && CaptureSpell is SpellKind.Desertify or SpellKind.GrowForest or SpellKind.StoneCurse or SpellKind.ForestFire)
+            battle = _captureLand ??= PathFinder.Circle(battle, 24).Where(p => (p.X + p.Y) % 3 == 0 && _gameMap.Contains(p))
+                .MaxBy(p => PathFinder.Circle(p, 8).Count(q => _gameMap.Contains(q) && _world.IsFreeGround(q)
+                    && _gameMap.TerrainAt(q) == TerrainType.Grass && (CaptureSpell == SpellKind.ForestFire) == MapObjectCodes.IsAdultTree(_gameMap.ObjectCodeAt(q))));
         if (frame == 1)
         {
             // Before the demo economy takes the room.
@@ -3760,7 +3767,7 @@ public sealed class MapGame : Game
         else if (frame == 200)
         {
             _camera = ToWorld(battle);
-            if (CaptureSummon)
+            if (CaptureSpell is SpellKind.SummonGoods)
                 return;
             for (int i = 0; i < 10; i++)
             {
@@ -3773,12 +3780,28 @@ public sealed class MapGame : Game
         {
             ClearSelection();
             _group.AddRange(_world.Settlers.Where(s => s.Player == 0 && s.Profession == Profession.Priest));
-            var spell = CaptureSummon ? _world.Magic.SpellsOf(0).FirstOrDefault(s => s.Kind == SpellKind.SummonGoods) : null;
+            var spell = CaptureSpell is { } kind ? _world.Magic.SpellsOf(0).FirstOrDefault(s => s.Kind == kind) : null;
             Console.WriteLine($"magic: {_group.Count} priests, mana {_world.Magic.Mana(0)}, cast: {_world.Magic.Cast(_group, battle, spell)}");
+        }
+        else if (frame == 400 && CaptureSpell is not null)
+        {
+            _camera = ToWorld(battle);
+            Console.WriteLine("magic: ground around the target: " + string.Join(", ", PathFinder.Circle(battle, 10).Where(_gameMap.Contains)
+                .GroupBy(_gameMap.TerrainAt).Select(g => $"{g.Key} {g.Count()}")) + $" at {battle.X},{battle.Y}");
+            Console.WriteLine("magic: drawn as: " + string.Join(", ", PathFinder.Circle(battle, 10).Where(_gameMap.Contains)
+                .GroupBy(p => _terrain.KindAt(p.X, p.Y)).Select(g => $"{g.Key} {g.Count()}")));
         }
     }
 
-    private static bool CaptureSummon => Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MAGIC") == "summon";
+    private GridPoint? _captureLand;
+
+    /// <summary>The spell a capture run casts (null: the people's own).</summary>
+    private static SpellKind? CaptureSpell => Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MAGIC") switch
+    {
+        "summon" => SpellKind.SummonGoods,
+        var name when Enum.TryParse<SpellKind>(name, out var kind) => kind,
+        _ => null,
+    };
 
     /// <summary>The capture camera sweeps over the map (benchmark of a long game, see <see cref="StartBenchmark"/>).</summary>
     private bool _panning;
@@ -3857,7 +3880,7 @@ public sealed class MapGame : Game
         GraphicsDevice.SetRenderTarget(null);
         // HOMESTEAD_CAPTURE_STRIKE=1: the focused building comes down (dust), carriers without room strike.
         bool strike = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_STRIKE") == "1";
-        bool magic = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MAGIC") is "1" or "summon";
+        bool magic = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MAGIC") is "1" || CaptureSpell is not null;
         // HOMESTEAD_CAPTURE_EVERY=<n>: a picture every n frames instead of every 120 (arrows in flight).
         int every = int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVERY"), out int n) && n > 0 ? n : 120;
         if (_capturedFrames % every == every - 1 || strike && _capturedFrames is 1202 or 1206

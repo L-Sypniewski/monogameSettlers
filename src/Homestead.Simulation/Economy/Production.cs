@@ -261,6 +261,45 @@ public sealed partial class Production
         }
     }
 
+    /// <summary>A tree burns down (spell): a stump is left that rots away.</summary>
+    internal void BurnTree(GridPoint p)
+    {
+        var map = _world.Map!;
+        map.SetObjectCode(p, MapObjectCodes.TreeStump);
+        _growing[map.Index(p)] = _world.Tick + _config.StumpTicks;
+    }
+
+    /// <summary>
+    /// The growing crop on the point (grain, wine, rice) ripens within <paramref name="ticks"/> at the latest (spell): stages
+    /// it would not reach in time are skipped. False if there is none that would take longer.
+    /// </summary>
+    internal bool Hasten(GridPoint p, int ticks)
+    {
+        var map = _world.Map!;
+        byte code = map.ObjectCodeAt(p);
+        int index = map.Index(p);
+        if (_config.CropOf(code) is not { } crop || code >= crop.Ripe || !_growing.TryGetValue(index, out long due))
+            return false;
+        int stage = StageTicks(crop, p);
+        long left = due - _world.Tick + (long)(crop.Ripe - code - 1) * stage;
+        if (left <= ticks)
+            return false;
+        while (code + 1 < crop.Ripe && (long)(crop.Ripe - code - 1) * stage >= ticks)
+            code++;
+        map.SetObjectCode(p, code);
+        _growing[index] = _world.Tick + Math.Max(1, ticks - (long)(crop.Ripe - code - 1) * stage);
+        return true;
+    }
+
+    /// <summary>Whether a crop grows on the point that would take longer than <paramref name="ticks"/> to ripen.</summary>
+    internal bool GrowsSlowerThan(GridPoint p, int ticks)
+    {
+        var map = _world.Map!;
+        byte code = map.ObjectCodeAt(p);
+        return _config.CropOf(code) is { } crop && code < crop.Ripe && _growing.TryGetValue(map.Index(p), out long due)
+               && due - _world.Tick + (long)(crop.Ripe - code - 1) * StageTicks(crop, p) > ticks;
+    }
+
     /// <summary>Time for one growing stage of a crop at a point (faster on slopes for crops with a slope bonus).</summary>
     private int StageTicks(CropRecipe crop, GridPoint p)
     {
