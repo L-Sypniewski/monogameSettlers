@@ -431,6 +431,11 @@
       "fish": "Fischgründe",
       "fishHint": "Fischer: Anteil der Fänge, der den Fischbestand senkt. ∞: Fische gehen nie aus."
     },
+    "military": {
+      "spellCost": "Zauberkosten",
+      "spellCostHint": "Jeder Zauber macht den nächsten derselben Art um so viel teurer (aufgerundet). +25 % wie im Original (20, 25, 32, 40 …); Konstant: immer der Grundpreis.",
+      "spellCostConstant": "Konstant"
+    },
     "display": {
       "hardwareCursor": "Hardware-Cursor",
       "hardwareCursorHint": "An: der Mauszeiger des Systems. Aus: das Spiel zeichnet einen eigenen.",

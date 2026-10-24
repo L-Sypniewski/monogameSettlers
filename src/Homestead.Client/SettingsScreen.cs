@@ -3,6 +3,7 @@ using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
+using Homestead.Simulation.Magic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -16,7 +17,7 @@ namespace Homestead.Client;
 /// Shift+Tab switch); the chosen topic's settings fill the large dark area, one row of choices each. "Ok" (Enter)
 /// writes the <see cref="GameSettings"/> and <see cref="DisplaySettings"/> into <c>settings.json</c> (the game applies
 /// the latter, <see cref="Saved"/>), "Abbrechen" (Esc) drops the changes, "Standard" resets the open tab (game
-/// settings: <c>production.json</c>).
+/// settings: <c>production.json</c>, <c>magic.json</c>).
 /// </summary>
 public sealed class SettingsScreen : IDisposable
 {
@@ -79,7 +80,11 @@ public sealed class SettingsScreen : IDisposable
             Depletion("fish", d => d.Fish, (d, v) => d with { Fish = v }),
         ]),
         new("economy", []),
-        new("military", []),
+        new("military",
+        [
+            new("settings.military.spellCost", [("settings.military.spellCostConstant", 0), ("+10 %", 10), ("+25 %", 25), ("+50 %", 50)],
+                s => s.Game.SpellCostIncrease, (s, v) => s with { Game = s.Game with { SpellCostIncrease = v } }),
+        ]),
         new("display",
         [
             Display("hardwareCursor", OnOff, d => d.HardwareCursor ? 1 : 0, (d, v) => d with { HardwareCursor = v == 1 }),
@@ -153,8 +158,9 @@ public sealed class SettingsScreen : IDisposable
             return (Image(tabFile, icon[0].GetInt32()), Image(tabFile, icon[1].GetInt32()));
         }).ToArray();
         var production = ProductionConfig.Load();
-        _defaults = new State(GameSettings.Defaults(production), new DisplaySettings());
-        _state = new State(GameSettings.Load(production), DisplaySettings.Load());
+        var magic = MagicConfig.Load();
+        _defaults = new State(GameSettings.Defaults(production, magic), new DisplaySettings());
+        _state = new State(GameSettings.Load(production, magic), DisplaySettings.Load());
     }
 
     /// <summary>The display settings once "Ok" saved them, for the game to apply.</summary>

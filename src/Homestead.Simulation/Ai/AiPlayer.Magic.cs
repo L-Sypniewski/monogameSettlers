@@ -59,7 +59,8 @@ public sealed partial class AiPlayer
         var coming = _world.Settlers.Where(s => s.Player == Player && s.Profession == Profession.Priest && _world.Magic.IsBusy(s))
             .Select(s => _world.Magic.TargetOf(s)).OfType<GridPoint>().ToList();
         // The spells on their way pay first.
-        if (_world.Magic.Mana(Player) - coming.Count * spell.Cost < spell.Cost)
+        if (_world.Magic.Mana(Player) - Enumerable.Range(0, coming.Count).Sum(i => _world.Magic.CostOf(Player, spell, i))
+            < _world.Magic.CostOf(Player, spell, coming.Count))
             return null;
         var engaged = _world.Settlers
             .Where(s => s.Player == Player && s.Profession == Profession.Soldier && !s.IsInside && !s.IsDead

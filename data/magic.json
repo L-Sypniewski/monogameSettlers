@@ -1,5 +1,5 @@
 {
-  "_comment": "Homestead's own magic balancing. The big temple sends out a priest of its people as soon as it is finished and then every priestSeconds. Small temples turn their people's drink into mana for their player, one unit every templeSeconds (mana per unit below). Each people's priests know its own spell and the common spells; each costs a constant amount of mana (unlike the original). A spell works on the soldiers within radius of the point it is cast at; that point must be within rangeFactor times the bowmen's range of the priest (data/military.json) and someone it works on must be there (enemy soldiers; Freeze also enemy priests; Haste own soldiers; SummonGoods works anywhere). Priests can be attacked (health).",
+  "_comment": "Homestead's own magic balancing. The big temple sends out a priest of its people as soon as it is finished and then every priestSeconds. Small temples turn their people's drink into mana for their player, one unit every templeSeconds (mana per unit below). Each people's priests know its own spell and the common spells; each costs its cost in mana, growing with every cast of it (costIncrease). A spell works on the soldiers within radius of the point it is cast at; that point must be within rangeFactor times the bowmen's range of the priest (data/military.json) and someone it works on must be there (enemy soldiers; Freeze also enemy priests; Haste own soldiers; SummonGoods works anywhere). Priests can be attacked (health).",
   "bigTemple": "big_temple",
   "priestSeconds": 300,
   "temple": "temple",
@@ -9,6 +9,8 @@
   "radius": 5,
   "_rangeComment": "rangeFactor: spells are cast from up to this many times the bowmen's range (data/military.json).",
   "rangeFactor": 2.25,
+  "_costComment": "costIncrease: percent each cast of a spell makes the player's next one of the same spell dearer, rounded up (original: 25 – 20, 25, 32, 40 …; wiki.siedler3.net, Mana & Magie); 0 = constant. The settings (military tab) override it for new games.",
+  "costIncrease": 25,
   "_castComment": "castSeconds: how long the priest stands casting; the spell takes effect at once when it begins.",
   "castSeconds": 1.5,
   "_spellsComment": "name: shown in the menu. Convert: up to count enemy soldiers change sides (they keep their people, only the color changes). Haste: own soldiers strike factor times as fast for seconds. Freeze: every enemy soldier and priest stands still for seconds (neither walks nor fights). Scatter: up to count enemy soldiers are put on random free points of the map.",

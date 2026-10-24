@@ -622,10 +622,12 @@ public sealed class MapGame : Game
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
         _waves = new WaveLayer(_terrain);
         var production = Homestead.Simulation.Economy.ProductionConfig.Load();
+        var magic = Homestead.Simulation.Magic.MagicConfig.Load();
+        var settings = GameSettings.Load(production, magic);
         (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples, random: _peopleDraw,
             hardcore: _hardcore.Where(p => p < _map.Players.Count),
             positions: _positions?.Length == _map.Players.Count ? _positions : null,
-            production: GameSettings.Load(production).Apply(production));
+            production: settings.Apply(production), magic: settings.Apply(magic));
         // A free game is won by defeating everybody else (a mission brings its own goals).
         _world.Goals = new ConquestGoals();
         BeginSession();
@@ -1731,7 +1733,7 @@ public sealed class MapGame : Game
             {
                 var spell = menu[chosen].Spell!;
                 bool again = _aiming && _aimSpell == spell;
-                _aiming = !again && _world.Magic.Mana(0) >= spell.Cost;
+                _aiming = !again && _world.Magic.Mana(0) >= menu[chosen].Cost;
                 _aimSpell = spell;
                 _message = again ? "" : !_aiming ? "not enough mana"
                     : "click where the spell should work";

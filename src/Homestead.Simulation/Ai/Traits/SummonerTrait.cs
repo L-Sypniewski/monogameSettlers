@@ -48,8 +48,8 @@ internal sealed class SummonerTrait : AiTrait
         var magic = world.Magic;
         if (magic.SpellsOf(ai.Player).FirstOrDefault(s => s.Kind == SpellKind.SummonGoods) is not { } summon)
             return;
-        int reserve = magic.SpellOf(ai.Player) is { Kind: not SpellKind.SummonGoods } own ? own.Cost * _reserveSpells : 0;
-        if (magic.Mana(ai.Player) - summon.Cost < reserve)
+        int reserve = magic.SpellOf(ai.Player) is { Kind: not SpellKind.SummonGoods } own ? magic.CostOf(ai.Player, own) * _reserveSpells : 0;
+        if (magic.Mana(ai.Player) - magic.CostOf(ai.Player, summon) < reserve)
             return;
         var priests = world.Settlers.Where(s => s.Player == ai.Player && s.Profession == Profession.Priest && !s.IsDead && !s.IsInside).ToList();
         // One spell at a time (a fight needs the priests more).

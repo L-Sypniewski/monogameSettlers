@@ -2,12 +2,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Homestead.Assets;
 using Homestead.Simulation.Economy;
+using Homestead.Simulation.Magic;
 
 namespace Homestead.Simulation;
 
 /// <summary>
 /// The player's game settings: the <c>game</c> section of <c>settings.json</c> (<see cref="SettingsFile"/>), written by
-/// the settings screen. Whatever it leaves out keeps the value of <c>data/production.json</c>. New games start with
+/// the settings screen. Whatever it leaves out keeps the value of <c>data/production.json</c> (or <c>data/magic.json</c>). New games start with
 /// them (<see cref="Apply"/>); saved games keep their own.
 /// </summary>
 public sealed record GameSettings
@@ -17,13 +18,20 @@ public sealed record GameSettings
     /// <summary>Percent of the units taken that use up the ground (<c>depletion</c> in <c>production.json</c>).</summary>
     public required Depletion Depletion { get; init; }
 
-    /// <summary>The values of <paramref name="production"/>, as without a settings file.</summary>
-    public static GameSettings Defaults(ProductionConfig production) => new() { Depletion = production.Depletion };
+    /// <summary>Percent each cast of a spell makes the next one of its kind dearer (<c>costIncrease</c> in <c>magic.json</c>).</summary>
+    public required int SpellCostIncrease { get; init; }
 
-    /// <summary>The settings in the file (default: the user's), the rest from <paramref name="production"/>; an unreadable file counts as none.</summary>
-    public static GameSettings Load(ProductionConfig production, string? path = null)
+    /// <summary>The values of <paramref name="production"/> and <paramref name="magic"/>, as without a settings file.</summary>
+    public static GameSettings Defaults(ProductionConfig production, MagicConfig magic) =>
+        new() { Depletion = production.Depletion, SpellCostIncrease = magic.CostIncrease };
+
+    /// <summary>
+    /// The settings in the file (default: the user's), the rest from <paramref name="production"/> and <paramref name="magic"/>;
+    /// an unreadable file counts as none.
+    /// </summary>
+    public static GameSettings Load(ProductionConfig production, MagicConfig magic, string? path = null)
     {
-        var settings = Defaults(production);
+        var settings = Defaults(production, magic);
         if (SettingsFile.ReadSection(Section, path) is not { ValueKind: JsonValueKind.Object } game)
             return settings;
         if (game.TryGetProperty("depletion", out var depletion) && depletion.ValueKind == JsonValueKind.Object)
@@ -33,16 +41,22 @@ public sealed record GameSettings
             var d = settings.Depletion;
             settings = settings with { Depletion = new Depletion(Percent("stone", d.Stone), Percent("mountain", d.Mountain), Percent("fish", d.Fish)) };
         }
+        if (game.TryGetProperty("spellCostIncrease", out var increase) && increase.TryGetInt32(out int percent))
+            settings = settings with { SpellCostIncrease = Math.Clamp(percent, 0, 100) };
         return settings;
     }
 
     /// <summary><paramref name="production"/> with these settings.</summary>
     public ProductionConfig Apply(ProductionConfig production) => production with { Depletion = Depletion };
 
+    /// <summary><paramref name="magic"/> with these settings.</summary>
+    public MagicConfig Apply(MagicConfig magic) => magic with { CostIncrease = SpellCostIncrease };
+
     /// <summary>Writes the <c>game</c> section into the file (default: the user's), see <see cref="SettingsFile.WriteSection"/>.</summary>
     public void Save(string? path = null) =>
         SettingsFile.WriteSection(Section, new JsonObject
         {
             ["depletion"] = new JsonObject { ["stone"] = Depletion.Stone, ["mountain"] = Depletion.Mountain, ["fish"] = Depletion.Fish },
+            ["spellCostIncrease"] = SpellCostIncrease,
         }, path);
 }

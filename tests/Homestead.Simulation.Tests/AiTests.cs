@@ -977,7 +977,8 @@ public class AiTests(ITestOutputHelper output)
             }
         world.Magic.SpawnPriest(new GridPoint(60, 60), 0);
         world.Magic.SpawnPriest(new GridPoint(60, 100), 0);
-        world.Magic.AddMana(0, 60);
+        var freeze = world.Magic.SpellOf(0)!;
+        world.Magic.AddMana(0, world.Magic.CostOf(0, freeze) + world.Magic.CostOf(0, freeze, ahead: 1)); // the second one dearer
         var ai = new AiPlayer(world, Amazons, 0, character: "standard");
         world.AiPlayers.Add(ai);
 

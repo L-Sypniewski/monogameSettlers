@@ -1,6 +1,7 @@
 using Homestead.Assets.Maps;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
+using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map;
 
 namespace Homestead.Simulation;
@@ -64,9 +65,10 @@ public static class OriginalScenario
     /// entry i for player i, a permutation of the map's players. Without it player i takes map player i.
     /// </param>
     /// <param name="production">The production rules (e.g. with the player's <see cref="GameSettings"/>); default <c>production.json</c>.</param>
+    /// <param name="magic">The magic rules (e.g. with the player's <see cref="GameSettings"/>); default <c>magic.json</c>.</param>
     public static (World World, LoadReport Report) Load(OriginalMap original, string? dataDirectory = null,
         IReadOnlyList<Civilization>? freeChoice = null, Random? random = null, int seed = 0, IEnumerable<int>? hardcore = null,
-        IReadOnlyList<int>? positions = null, ProductionConfig? production = null)
+        IReadOnlyList<int>? positions = null, ProductionConfig? production = null, MagicConfig? magic = null)
     {
         int count = original.Players.Count;
         if (positions is not null && (positions.Count != count || positions.Distinct().Count() != count || positions.Any(p => p < 0 || p >= count)))
@@ -94,7 +96,7 @@ public static class OriginalScenario
                 }
             }
         }
-        var world = new World(map, production, seed: seed) { TerritoryRules = true };
+        var world = new World(map, production, magic: magic, seed: seed) { TerritoryRules = true };
         world.HardcorePlayers.UnionWith(hardcore ?? []);
         var catalogs = new Dictionary<Civilization, BuildingCatalog>();
         var skipped = new List<string>();

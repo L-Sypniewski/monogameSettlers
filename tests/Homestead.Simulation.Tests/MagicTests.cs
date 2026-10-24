@@ -118,6 +118,40 @@ public class MagicTests
     }
 
     [Fact]
+    public void Each_cast_makes_the_next_spell_of_its_kind_a_quarter_dearer_rounded_up()
+    {
+        var world = TwoPeoples(out var priest, Romans);
+        var summon = world.Magic.SpellsOf(0).Single(s => s.Kind == SpellKind.SummonGoods);
+        var own = world.Magic.SpellOf(0)!;
+        Assert.Equal(25, world.Magic.Config.CostIncrease);
+        world.Magic.AddMana(0, 200);
+        var paid = new List<int>();
+        for (int cast = 1; cast <= 3; cast++)
+        {
+            int before = world.Magic.Mana(0);
+            var target = new GridPoint(priest.Position.X + world.Magic.Range - cast * 3, priest.Position.Y);
+            Assert.Equal(CastResult.Started, world.Magic.Cast([priest], target, summon));
+            Run(world, 400, () => world.Magic.SpellsCast == cast && !world.Magic.IsBusy(priest));
+            paid.Add(before - world.Magic.Mana(0));
+        }
+
+        Assert.Equal([30, 38, 48], paid);
+        Assert.Equal(60, world.Magic.CostOf(0, summon));
+        Assert.Equal(60, world.Magic.MenuOf(0).Single(m => m.Spell == summon).Cost);
+        Assert.Equal(own.Cost, world.Magic.CostOf(0, own)); // only the kind cast grows
+        Assert.Equal(75, world.Magic.CostOf(0, summon, ahead: 1));
+    }
+
+    [Fact]
+    public void Without_cost_increase_spells_keep_their_price()
+    {
+        var magic = MagicConfig.Load() with { CostIncrease = 0 };
+        var world = new World(new GameMap(90), TestConfig.NoTools, magic: magic) { Peoples = [Civilization.Roman, Civilization.Asian] };
+        var summon = world.Magic.SpellsOf(0).Single(s => s.Kind == SpellKind.SummonGoods);
+        Assert.Equal(summon.Cost, world.Magic.CostOf(0, summon, ahead: 5));
+    }
+
+    [Fact]
     public void Spells_reach_more_than_twice_as_far_as_bowmen()
     {
         var world = TwoPeoples(out _, Romans);

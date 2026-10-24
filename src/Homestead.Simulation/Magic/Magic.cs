@@ -57,6 +57,7 @@ public sealed class Magic
     private readonly Dictionary<(int Player, SoldierType Type), int> _levels = new();
     private readonly Dictionary<int, long> _nextPriest = new();
     private readonly Dictionary<int, long> _nextMana = new();
+    private readonly Dictionary<(int Player, SpellKind Kind), int> _casts = new();
     private readonly Dictionary<int, CastOrder> _orders = new();
     private readonly List<SpellEffect> _effects = new();
     private readonly Random _random;
@@ -149,8 +150,24 @@ public sealed class Magic
     /// <summary>The spells the priests of a player's people know.</summary>
     public IReadOnlyList<Spell> SpellsOf(int player) => _config.Spells.GetValueOrDefault(_world.PeopleOf(player)) ?? [];
 
-    /// <summary>The spell menu of a player's priests, placeholders included.</summary>
-    public IReadOnlyList<MenuSpell> MenuOf(int player) => _config.Menus.GetValueOrDefault(_world.PeopleOf(player)) ?? [];
+    /// <summary>The spell menu of a player's priests, placeholders included, each spell with what it costs the player now.</summary>
+    public IReadOnlyList<MenuSpell> MenuOf(int player) =>
+        (_config.Menus.GetValueOrDefault(_world.PeopleOf(player)) ?? []).Select(m => m.Spell is { } spell ? m with { Cost = CostOf(player, spell) } : m).ToArray();
+
+    /// <summary>How often the player has cast spells of the kind.</summary>
+    public int Casts(int player, SpellKind kind) => _casts.GetValueOrDefault((player, kind));
+
+    /// <summary>
+    /// What the player's next spell of the kind costs, or with <paramref name="ahead"/> the one that many casts after it:
+    /// each cast of a kind makes the next <see cref="MagicConfig.CostIncrease"/> percent dearer, rounded up (like the original).
+    /// </summary>
+    public int CostOf(int player, Spell spell, int ahead = 0)
+    {
+        int cost = spell.Cost;
+        for (int i = Casts(player, spell.Kind) + ahead; i > 0 && _config.CostIncrease > 0; i--)
+            cost = (cost * (100 + _config.CostIncrease) + 99) / 100;
+        return cost;
+    }
 
     /// <summary>The own spell of a priest's people (its first).</summary>
     public Spell? SpellOf(Settler priest) => SpellsOf(priest).FirstOrDefault();
@@ -215,7 +232,7 @@ public sealed class Magic
         spell = spell is null ? SpellOf(priest) : SpellsOf(priest).First(s => s.Kind == spell.Kind);
         if (spell is null)
             return CastResult.NoSpell;
-        if (Mana(priest.Player) < spell.Cost)
+        if (Mana(priest.Player) < CostOf(priest.Player, spell))
             return CastResult.NoMana;
         if (!HasTargets(spell, priest.Player, target))
             return CastResult.NoTarget;
@@ -335,12 +352,13 @@ public sealed class Magic
             _world.WalkTo(priest, priest.StepTarget);
         if (priest.State == SettlerState.Stepping)
             return;
-        if (Mana(priest.Player) < order.Spell.Cost || !HasTargets(order.Spell, priest.Player, order.Target))
+        if (Mana(priest.Player) < CostOf(priest.Player, order.Spell) || !HasTargets(order.Spell, priest.Player, order.Target))
         {
             Finish(order);
             return;
         }
-        AddMana(priest.Player, -order.Spell.Cost);
+        AddMana(priest.Player, -CostOf(priest.Player, order.Spell));
+        _casts[(priest.Player, order.Spell.Kind)] = Casts(priest.Player, order.Spell.Kind) + 1;
         // At once: nobody walks out of the area while the priest raises its hands.
         Apply(order.Spell, priest.Player, order.Target);
         order.CastingUntil = _world.Tick + _config.CastTicks;

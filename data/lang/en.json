@@ -431,6 +431,11 @@
       "fish": "Fishing grounds",
       "fishHint": "Fishermen: share of the catches that lowers the fish stock. ∞: fish never run out."
     },
+    "military": {
+      "spellCost": "Spell costs",
+      "spellCostHint": "Each spell makes the next one of its kind this much dearer (rounded up). +25 % like the original (20, 25, 32, 40 …); Constant: always the base price.",
+      "spellCostConstant": "Constant"
+    },
     "display": {
       "hardwareCursor": "Hardware cursor",
       "hardwareCursorHint": "On: the system's mouse pointer. Off: the game draws its own.",

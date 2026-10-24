@@ -224,7 +224,8 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     Werte in `ai.json`, je Volk überschreibbar (`civilizations`, dort auch die Build-Order).
 - `Magic/`: Mana je Spieler. Kleiner Tempel: Wein/Met/Bier/Schnaps → Mana; großer Tempel schickt sofort und alle `priestSeconds` einen Priester.
   `Cast`: Priester läuft auf Bogenreichweite × `rangeFactor` (2,25), zaubert nur, wo jemand Betroffenes steht (`Magic.HasTargets`:
-  feindliche Soldaten; Einfrieren auch Priester; Samuraischwert eigene Soldaten), kein Kampf nötig, Kosten konstant; wirkt sofort bei Zauberbeginn (`castSeconds` nur die Geste).
+  feindliche Soldaten; Einfrieren auch Priester; Samuraischwert eigene Soldaten), kein Kampf nötig; Kosten je Spieler und Zauberart
+  mit jedem Wirken `costIncrease` % (25 wie im Original, aufgerundet: 20, 25, 32 …) teurer (`Magic.CostOf`, Menü zeigt den aktuellen Preis); wirkt sofort bei Zauberbeginn (`castSeconds` nur die Geste).
   Volkszauber: Bekehren (Seite wechseln, Volk bleibt – `Settler.People`), Samuraischwert, Einfrieren, Zerstreuen. Für alle (`commonSpells`):
   „Waren herbeirufen“ (`SummonGoods`: 3–4 Stapel à 4–8 aus Nahrung, Waffen, Werkzeug, Gold, Eisen, Kohle, Erz; Ägypter 50 % zusätzlich Steine;
   Flammen zeitversetzt). Priester angreifbar. Zwei Konten: Zauber verbrauchen `Mana`, Aufwertungen prüfen `ManaEarned`
@@ -312,15 +313,15 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   Nummer am Ende nimmt diese Mission (`won:next:8` → Sieg-Video, `video.png`) (mit `HOMESTEAD_SAVE_DIR` temporär!).
 - **Einstellungen** (`SettingsScreen`): Hintergrund Datei 02 GUI 14 (`settingsScreen` in `ui.json`, Marmor daneben); oben in den vier
   Kästchen Reiter mit Icons der Original-Statistikmenüs (Datei 03, dunkel = eingedrückt gewählt, sonst hell; Tab/Shift+Tab): Rohstoffe,
-  Wirtschaft, Militär (beide noch leer), Darstellung; je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch
-  100/75/50/25/10 %/∞; Darstellung: Hardware-Cursor, Vollbild, Sprache Deutsch/English,
+  Wirtschaft (noch leer), Militär, Darstellung; je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch
+  100/75/50/25/10 %/∞; Militär: Zauberkosten-Anstieg konstant/+10/+25/+50 % → `MagicConfig.CostIncrease`; Darstellung: Hardware-Cursor, Vollbild, Sprache Deutsch/English,
   Thema Normal/Gold/Classic/Amazonen (Titelbild und Ladebildschirm; `titleScreen.themes` in `ui.json` mit Gravurfarben, Normal = Gold; `HOMESTEAD_THEME` überstimmt), Musik/Effekte 100/75/50/25 %/aus, Musik je Volk, Bevorzugte Farbe (`DisplaySettings.PreferredColor`, Farbfelder, als Kennung gespeichert), Automatisch speichern
 (Ja/Nein, Vorgabe Nein: alle 15 min Echtzeit im Spiel und bei „Spiel beenden“ in Slot 8, nicht nach Verlust, nicht in Captures) – Musik ohne Wahl nach Systemsprache; `Lang.Use` setzt auch die Kultur;
 Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGUAGE=de|en` überstimmt, z. B. für Captures).
   Ok/Enter speichert `GameSettings` (Abschnitt `game`) und `DisplaySettings` (Client, Abschnitt `display`, sofort angewandt) in
   `~/.config/homestead/settings.json` (`SettingsFile`: je Abschnitt, Rest der Datei bleibt); Abbrechen/Esc verwirft, Standard setzt den offenen
   Reiter zurück (Spielwerte: `production.json`). Hardware-Cursor aus: eigener goldener Pfeil (`SoftwareCursor`, in `EndDraw`, nicht in Captures).
-  Neue Partien: `GameSettings.Load(…).Apply(…)` → `OriginalScenario.Load(production:)`; Spielstände behalten ihre Werte (Arena/Tests: nur `production.json`).
+  Neue Partien: `GameSettings.Load(…).Apply(…)` → `OriginalScenario.Load(production:, magic:)`; Spielstände behalten ihre Werte (Arena/Tests: nur `production.json`).
   Capture: `HOMESTEAD_CAPTURE_START=settings[:resources|economy|military|display]` → `settings.png`.
 - **Startscreen** (`StartScreen`): auf dem Kartenwahl-Hintergrund des Originals (`startScreen` in `ui.json`, Datei 02 GUI 8,
   im 800×600-Raster auf Fenstergröße skaliert, daneben Marmor; ovale Steinknöpfe, Steinleiste unter der Auswahl, Vorschau im schrägen Fenster): Kartenliste mit Vorschau, Tabs Einzelspieler/Mehrspieler/Eigene (Tab-Taste),

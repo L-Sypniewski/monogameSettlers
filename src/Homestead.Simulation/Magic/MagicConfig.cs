@@ -65,6 +65,9 @@ public sealed record MagicConfig
     /// <summary>Spells are cast from up to this many times the bowmen's range.</summary>
     public double RangeFactor { get; init; } = 1;
 
+    /// <summary>Percent each cast of a spell makes the player's next one of its kind dearer (rounded up); 0: constant costs.</summary>
+    public int CostIncrease { get; init; }
+
     /// <summary>The spells of each people: its own first, then the common ones.</summary>
     public IReadOnlyDictionary<Civilization, IReadOnlyList<Spell>> Spells { get; init; } = new Dictionary<Civilization, IReadOnlyList<Spell>>();
 
@@ -128,6 +131,7 @@ public sealed record MagicConfig
             Radius = root.GetProperty("radius").GetInt32(),
             CastTicks = Ticks(root.GetProperty("castSeconds").GetDouble()),
             RangeFactor = root.TryGetProperty("rangeFactor", out var rangeFactor) ? rangeFactor.GetDouble() : 1,
+            CostIncrease = root.TryGetProperty("costIncrease", out var costIncrease) ? costIncrease.GetInt32() : 0,
             Spells = spells,
             Menus = menus,
             UpgradeThresholds = root.TryGetProperty("upgrades", out var upgrades)
