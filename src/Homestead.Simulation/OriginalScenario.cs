@@ -81,6 +81,19 @@ public static class OriginalScenario
         var peoples = Enum.GetValues<Civilization>();
         var drawn = new Dictionary<int, Civilization>();
         var map = GameMap.FromOriginal(original.Area);
+        // The map's land belongs to map players, too.
+        if (positions is not null)
+        {
+            for (int y = 0; y < map.Size; y++)
+            {
+                for (int x = 0; x < map.Size; x++)
+                {
+                    var p = new GridPoint(x, y);
+                    if (map.OwnerAt(p) is int mapPlayer && mapPlayer < count)
+                        map.SetOwner(p, OwnerOf(mapPlayer));
+                }
+            }
+        }
         var world = new World(map, production, seed: seed) { TerritoryRules = true };
         world.HardcorePlayers.UnionWith(hardcore ?? []);
         var catalogs = new Dictionary<Civilization, BuildingCatalog>();

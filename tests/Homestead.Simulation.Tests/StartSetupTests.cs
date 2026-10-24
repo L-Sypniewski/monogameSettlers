@@ -84,6 +84,35 @@ public class StartSetupTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void The_maps_land_goes_with_its_player_to_the_other_start_position()
+    {
+        GameInstallation installation;
+        try { installation = GameInstallation.Locate(); }
+        catch (Exception) { output.WriteLine("No installation found, skipped."); return; }
+
+        // E.g. 576-2-benguns_isle: buildings and land given in the map; the own tower stood on the enemy's land.
+        var original = installation.MapFiles.Select(OriginalMap.Open)
+            .FirstOrDefault(m => !m.IsSinglePlayer && m.Buildings.Count > 0 && m.Players.Count >= 2 && m.Area.Owner.Any(o => o < m.Players.Count));
+        if (original is null)
+        {
+            output.WriteLine("No map with land of its own, skipped.");
+            return;
+        }
+        int count = original.Players.Count;
+        var positions = Enumerable.Range(0, count).Select(i => count - 1 - i).ToArray();
+        var (world, _) = OriginalScenario.Load(original, positions: positions);
+
+        var area = original.Area;
+        for (int i = 0; i < area.Owner.Length; i++)
+        {
+            if (area.Owner[i] < count)
+                Assert.Equal(Array.IndexOf(positions, area.Owner[i]), world.Map!.OwnerAt(i));
+        }
+        foreach (var building in world.Buildings)
+            Assert.Equal(building.Player, world.Map!.OwnerAt(building.Position));
+    }
+
+    [Fact]
     public void Single_player_maps_without_buildings_get_the_start_equipment()
     {
         GameInstallation installation;
