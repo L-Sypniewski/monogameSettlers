@@ -61,6 +61,7 @@ public sealed class Magic
     private readonly Dictionary<(int Player, SpellKind Kind), int> _casts = new();
     private readonly Dictionary<int, CastOrder> _orders = new();
     private readonly List<SpellEffect> _effects = new();
+    private readonly List<SpellSight> _sights = new();
     private readonly Random _random;
 
     internal Magic(World world, MagicConfig config)
@@ -83,6 +84,13 @@ public sealed class Magic
 
     public int PriestsSent { get; private set; }
     public int SpellsCast { get; private set; }
+
+    /// <summary>What players see by a spell (magic eye, the whole map) until its time is over.</summary>
+    public IReadOnlyList<SpellSight> Sights => _sights;
+
+    /// <summary>Whether the player sees the point by a spell.</summary>
+    public bool SeesBySpell(int player, GridPoint p) =>
+        _sights.Any(v => v.Player == player && v.Until > _world.Tick && (v.Radius == 0 || PathFinder.InCircle(v.Center, p, v.Radius)));
 
     /// <summary>Spells that took effect recently (for drawing), newest last.</summary>
     public IReadOnlyList<SpellEffect> Effects => _effects;
@@ -245,8 +253,25 @@ public sealed class Magic
     {
         SpellKind.Convert or SpellKind.Scatter or SpellKind.Reinforce or SpellKind.BowsToPioneers or SpellKind.Freeze or SpellKind.Fear
             or SpellKind.Haste or SpellKind.Strengthen or SpellKind.Shield or SpellKind.CursedArrows => Affected(spell, player, target).Any(),
+        SpellKind.IronToGold or SpellKind.FishToMeat or SpellKind.StoneToIron or SpellKind.GoldToStone or SpellKind.SendGoods
+            or SpellKind.CallGoods => GoodsIn(spell, player, target).Any(),
         _ => true,
     };
+
+    /// <summary>
+    /// The piles with goods the spell takes, nearest to the target first: goods lying around, in output piles and in
+    /// storehouses (nobody coming for them), of the material it changes – CallGoods only on the player's own land.
+    /// </summary>
+    private IEnumerable<Pile> GoodsIn(Spell spell, int player, GridPoint target)
+    {
+        var map = _world.Map!;
+        return _world.Piles
+            .Where(p => p.Available > 0 && p.Material is { } m && (spell.From is null || m == spell.From)
+                        && PathFinder.InCircle(target, p.Position, spell.Radius)
+                        && (spell.Kind != SpellKind.CallGoods || map.OwnerAt(p.Position) == player))
+            .OrderBy(p => PathFinder.Distance(target, p.Position)).ThenBy(p => p.Id)
+            .ToList();
+    }
 
     /// <summary>A short description for the player (null for buildings other than temples).</summary>
     public string? Status(Building building)
@@ -297,6 +322,7 @@ public sealed class Magic
         foreach (var order in _orders.Values.ToList())
             Advance(order);
         _effects.RemoveAll(e => _world.Tick - e.Tick > SpellEffect.ShowTicks);
+        _sights.RemoveAll(v => v.Until <= _world.Tick);
     }
 
     /// <summary>Big temples send priests, small temples turn drink into mana.</summary>
@@ -447,15 +473,13 @@ public sealed class Magic
                 foreach (var unit in affected)
                 {
                     Release(unit);
-                    var map = _world.Map!;
                     for (int attempt = 0; attempt < 1000; attempt++)
-                        if (_world.Teleport(unit, new GridPoint(_random.Next(map.Size), _random.Next(map.Size))))
+                        if (_world.Teleport(unit, RandomPoint()))
                             break;
                 }
                 break;
             case SpellKind.Reinforce:
-                var caster = _orders.Values.FirstOrDefault(o => o.Target == target && o.Spell == spell && o.Priest.Player == player)?.Priest;
-                var spots = FreePointsAround(caster?.Position ?? target).GetEnumerator();
+                var spots = FreePointsAround(CasterAt(spell, player, target)?.Position ?? target).GetEnumerator();
                 foreach (var unit in affected)
                 {
                     if (!spots.MoveNext())
@@ -483,8 +507,67 @@ public sealed class Magic
                 foreach (var soldier in affected)
                     soldier.Charm(spell.Kind, until, 1, spell.Factor, player);
                 break;
+            case SpellKind.IronToGold or SpellKind.FishToMeat or SpellKind.StoneToIron or SpellKind.GoldToStone:
+                effect = effect with { Points = MoveGoods(spell, player, target, _ => spell.To!.Value, p => p) };
+                break;
+            case SpellKind.SendGoods:
+                var far = RandomFreePoint();
+                effect = effect with { Points = MoveGoods(spell, player, target, m => m, _ => far) };
+                break;
+            case SpellKind.CallGoods:
+                var priest = CasterAt(spell, player, target)?.Position ?? target;
+                effect = effect with { Points = MoveGoods(spell, player, target, m => m, _ => priest) };
+                break;
+            case SpellKind.MagicEye or SpellKind.RevealMap:
+                _sights.Add(new SpellSight(player, target, spell.Radius, until));
+                break;
         }
         _effects.Add(effect);
+    }
+
+    /// <summary>The priest casting the spell at the target (it takes effect while the order is there).</summary>
+    private Settler? CasterAt(Spell spell, int player, GridPoint target) =>
+        _orders.Values.FirstOrDefault(o => o.Target == target && o.Spell == spell && o.Priest.Player == player)?.Priest;
+
+    private GridPoint RandomPoint() => new(_random.Next(_world.Map!.Size), _random.Next(_world.Map!.Size));
+
+    /// <summary>A random walkable point of the map without a building or pile on it (or the middle, if none is found).</summary>
+    private GridPoint RandomFreePoint()
+    {
+        var map = _world.Map!;
+        for (int attempt = 0; attempt < 1000; attempt++)
+            if (RandomPoint() is var p && map.IsWalkable(p) && _world.PileAt(p) is null && _world.BuildingAt(p) is null)
+                return p;
+        return new GridPoint(map.Size / 2, map.Size / 2);
+    }
+
+    /// <summary>
+    /// Takes up to <see cref="Spell.Count"/> units out of the piles the spell works on and drops them, as <paramref name="into"/>
+    /// makes of their material, near the point <paramref name="to"/> gives for each pile; returns where they went.
+    /// </summary>
+    private IReadOnlyList<GridPoint> MoveGoods(Spell spell, int player, GridPoint target, Func<Material, Material> into, Func<GridPoint, GridPoint> to)
+    {
+        int left = spell.Count;
+        var moved = new List<(GridPoint At, Material Material, int Count)>();
+        foreach (var pile in GoodsIn(spell, player, target))
+        {
+            if (left <= 0)
+                break;
+            var material = pile.Material!.Value;
+            int taken = _world.TakeUnits(pile, Math.Min(left, pile.Available));
+            left -= taken;
+            moved.Add((pile.Position, material, taken));
+        }
+        // Taken out first, dropped then: a pile turned into another material may lie where it was.
+        var points = new List<GridPoint>();
+        foreach (var (at, material, count) in moved)
+        {
+            var place = to(at);
+            for (int i = 0; i < count; i++)
+                _world.DropGoods(place, into(material));
+            points.Add(place);
+        }
+        return points.Distinct().ToList();
     }
 
     /// <summary>The unit leaves whatever it was doing (a spell moves or changes it).</summary>
@@ -594,3 +677,6 @@ public sealed record SpellEffect(SpellKind Kind, GridPoint Target, int Radius, l
     /// <summary>SummonGoods: where the piles appeared.</summary>
     public IReadOnlyList<GridPoint> Points { get; init; } = [];
 }
+
+/// <summary>The player sees the circle (<paramref name="Radius"/> 0: the whole map) by a spell until the tick.</summary>
+public sealed record SpellSight(int Player, GridPoint Center, int Radius, long Until);

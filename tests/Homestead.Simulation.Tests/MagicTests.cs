@@ -339,6 +339,96 @@ public class MagicTests
         Assert.All(world.Settlers.Where(s => s.Profession == Profession.Soldier), s => Assert.Equal(1, s.Player));
     }
 
+    [Fact]
+    public void Midas_turns_up_to_forty_iron_bars_lying_in_the_area_into_gold()
+    {
+        var world = TwoPeoples(out var priest, Romans);
+        for (int i = 0; i < 6; i++)
+            world.AddLooseGoods(new GridPoint(38 + 2 * (i % 3), 38 + 2 * (i / 3)), Material.Iron, 8); // 48 bars
+        world.AddLooseGoods(new GridPoint(40, 43), Material.Coal, 8);
+        world.Magic.AddMana(0, 100);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], new GridPoint(40, 39), Spell(world, SpellKind.IronToGold)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+
+        int Count(Material m) => world.Piles.Where(p => p.Material == m).Sum(p => p.Count);
+        Assert.Equal(40, Count(Material.Gold));
+        Assert.Equal(8, Count(Material.Iron));
+        Assert.Equal(8, Count(Material.Coal));
+    }
+
+    [Fact]
+    public void Amazons_turn_enemy_gold_into_stones()
+    {
+        var world = TwoPeoples(out var priest, Amazons);
+        world.Map!.SetOwner(new GridPoint(42, 40), 1);
+        var pile = world.AddLooseGoods(new GridPoint(42, 40), Material.Gold, 6)!;
+        world.Magic.AddMana(0, 100);
+        Assert.Equal(CastResult.NoTarget, world.Magic.Cast([priest], new GridPoint(70, 70), Spell(world, SpellKind.GoldToStone)));
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], pile.Position, Spell(world, SpellKind.GoldToStone)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+
+        Assert.DoesNotContain(world.Piles, p => p.Material == Material.Gold && p.Count > 0);
+        Assert.Equal(6, world.Piles.Where(p => p.Material == Material.Stone).Sum(p => p.Count));
+    }
+
+    [Fact]
+    public void Amazons_call_goods_from_their_land_to_the_priestess_and_send_others_away()
+    {
+        var world = TwoPeoples(out var priest, Amazons);
+        var map = world.Map!;
+        for (int y = 60; y < 80; y++)
+            for (int x = 60; x < 80; x++)
+                map.SetOwner(new GridPoint(x, y), 0);
+        world.AddLooseGoods(new GridPoint(70, 70), Material.Plank, 8);
+        world.AddLooseGoods(new GridPoint(10, 80), Material.Stone, 8); // nobody's land: not called
+        world.Magic.AddMana(0, 100);
+        Assert.Equal(CastResult.NoTarget, world.Magic.Cast([priest], new GridPoint(10, 80), Spell(world, SpellKind.CallGoods)));
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], new GridPoint(70, 70), Spell(world, SpellKind.CallGoods)));
+        Run(world, 10, () => world.Magic.SpellsCast > 0);
+        var planks = Assert.Single(world.Piles, p => p.Material == Material.Plank);
+        Assert.True(PathFinder.Distance(planks.Position, priest.Position) <= 2, $"{planks.Position}");
+
+        Run(world, 100);
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], planks.Position, Spell(world, SpellKind.SendGoods)));
+        Run(world, 400, () => world.Magic.SpellsCast > 1);
+        planks = Assert.Single(world.Piles, p => p.Material == Material.Plank);
+        Assert.Equal(8, planks.Count);
+        Assert.True(PathFinder.Distance(planks.Position, priest.Position) > 6, $"{planks.Position}");
+    }
+
+    [Fact]
+    public void The_magic_eye_and_revealing_the_map_let_the_caster_see_for_a_while()
+    {
+        var world = TwoPeoples(out var priest, Amazons);
+        var vision = new Vision(world.Map!.Size, 0);
+        var far = new GridPoint(80, 80);
+        world.Magic.AddMana(0, 100);
+        vision.Update(world);
+        Assert.False(vision.IsVisible(far));
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], priest.Position, Spell(world, SpellKind.RevealMap)));
+        Run(world, 10, () => world.Magic.SpellsCast > 0);
+        vision.Update(world);
+        Assert.True(vision.IsVisible(far));
+        Assert.True(world.Military.Sees(0, far));
+
+        Run(world, Spell(world, SpellKind.RevealMap).Ticks);
+        vision.Update(world);
+        Assert.False(vision.IsVisible(far));
+        Assert.True(vision.IsExplored(world.Map.Index(far)));
+
+        var romans = TwoPeoples(out var romanPriest, Romans);
+        romans.Magic.AddMana(0, 100);
+        var spot = new GridPoint(40, 40);
+        Assert.Equal(CastResult.Started, romans.Magic.Cast([romanPriest], spot, Spell(romans, SpellKind.MagicEye)));
+        Run(romans, 400, () => romans.Magic.SpellsCast > 0);
+        Assert.True(romans.Military.Sees(0, new GridPoint(40, 70))); // 30 fields from the eye
+        Assert.False(romans.Military.Sees(0, new GridPoint(40, 75)));
+    }
+
     private static Spell Spell(World world, SpellKind kind) => world.Magic.SpellsOf(0).Single(s => s.Kind == kind);
 
     [Fact]

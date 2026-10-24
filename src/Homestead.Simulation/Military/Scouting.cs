@@ -59,7 +59,7 @@ public sealed partial class Military
         foreach (var building in _world.Buildings)
             if (building.Player == player && SightOfBuilding(building) is { } sight && PathFinder.InCircle(building.Position, p, sight))
                 return true;
-        return false;
+        return _world.Magic.SeesBySpell(player, p);
     }
 
     /// <summary>

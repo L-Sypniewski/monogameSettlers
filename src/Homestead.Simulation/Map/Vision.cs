@@ -50,6 +50,14 @@ public sealed class Vision
         foreach (var building in world.Buildings)
             if (building.Player == Player && world.Military.SightOfBuilding(building) is { } sight)
                 See(building.Position, sight);
+        foreach (var sight in world.Magic.Sights)
+            if (sight.Player == Player && sight.Until > world.Tick)
+            {
+                if (sight.Radius == 0)
+                    Array.Fill(_visible, true);
+                else
+                    See(sight.Center, sight.Radius);
+            }
         for (int i = 0; i < _visible.Length; i++)
             _explored[i] |= _visible[i];
     }

@@ -696,6 +696,15 @@ public sealed partial class World
         return true;
     }
 
+    /// <summary>Takes up to <paramref name="count"/> units nobody is coming for out of a pile (spells); returns how many.</summary>
+    internal int TakeUnits(Pile pile, int count)
+    {
+        int taken = 0;
+        while (taken < count && StealFromPile(pile))
+            taken++;
+        return taken;
+    }
+
     internal void TakeFromPile(Pile pile)
     {
         pile.Count--;
