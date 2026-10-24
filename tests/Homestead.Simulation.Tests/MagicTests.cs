@@ -391,12 +391,16 @@ public class MagicTests
         var planks = Assert.Single(world.Piles, p => p.Material == Material.Plank);
         Assert.True(PathFinder.Distance(planks.Position, priest.Position) <= 2, $"{planks.Position}");
 
+        // Sending: the goods around the priestess go to the target, however far.
         Run(world, 100);
-        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], planks.Position, Spell(world, SpellKind.SendGoods)));
-        Run(world, 400, () => world.Magic.SpellsCast > 1);
+        var far = new GridPoint(85, 10);
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], far, Spell(world, SpellKind.SendGoods)));
+        Run(world, 10, () => world.Magic.SpellsCast > 1);
         planks = Assert.Single(world.Piles, p => p.Material == Material.Plank);
         Assert.Equal(8, planks.Count);
-        Assert.True(PathFinder.Distance(planks.Position, priest.Position) > 6, $"{planks.Position}");
+        Assert.True(PathFinder.Distance(planks.Position, far) <= 2, $"{planks.Position}");
+        Run(world, world.Magic.Config.CastTicks + 1);
+        Assert.Equal(CastResult.NoTarget, world.Magic.Cast([priest], far, Spell(world, SpellKind.SendGoods))); // nothing left around her
     }
 
     [Fact]
@@ -517,8 +521,10 @@ public class MagicTests
         asians.Magic.AddMana(0, 100);
         Assert.Equal(CastResult.Started, asians.Magic.Cast([monk], new GridPoint(40, 40), Spell(asians, SpellKind.StoneCurse)));
         Run(asians, 400, () => asians.Magic.SpellsCast > 0);
-        var stones = Enumerable.Range(0, map.PointCount).Select(asians.Map!.Point).Where(p => asians.Map.ObjectCodeAt(p) == MapObjectCodes.FullStone).ToList();
-        Assert.InRange(stones.Count, 20, 200);
+        var stones = Enumerable.Range(0, map.PointCount).Select(asians.Map!.Point)
+            .Where(p => MapObjectCodes.StoneLeft(asians.Map.ObjectCodeAt(p)) > 0).ToList();
+        Assert.InRange(stones.Count, 10, 20);
+        Assert.True(stones.Select(p => asians.Map.ObjectCodeAt(p)).Distinct().Count() > 1, "stones of different sizes");
         Assert.All(stones, p => Assert.DoesNotContain(stones, q => q != p && PathFinder.Distance(p, q) <= 2));
     }
 

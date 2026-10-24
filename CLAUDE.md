@@ -222,10 +222,10 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     (`general@attack.ratio=1.3@buildOrderMoves.barrack=-5`).
     Notizen eines Zugs beginnen mit seiner Kennung, erscheinen live (`AiPlayer.Noted`, `TraitOfNote`).
     Werte in `ai.json`, je Volk überschreibbar (`civilizations`, dort auch die Build-Order).
-- `Magic/`: Mana je Spieler. Kleiner Tempel: Wein/Met/Bier/Schnaps → Mana; großer Tempel schickt sofort und alle `priestSeconds` einen Priester.
+- `Magic/`: Mana je Spieler. Kleiner Tempel: Wein/Met/Bier/Schnaps → Mana (eine Einheit je `templeSeconds` 35,7 wie im Original, Schnaps 2 Mana); großer Tempel schickt sofort und alle `priestSeconds` einen Priester.
   Zauber wie im Original (Werte aus wiki.siedler3.net „Mana und Magie“): je Volk 8 im Menü (`menu`, Reihenfolge nach den Icons; `own` = Volkszauber
   der KI), je Zauber `cost`, `radius` (0 = ganze Karte), `count`, `seconds`, `factor`; `placeholder` = noch nicht umgesetzt (sichtbar, nicht wirkbar).
-  `Cast`: Priester läuft bis `range` (24) heran (`anywhere`: wirkt von der Stelle, z. B. Verstärkung; ohne Radius sofort beim Menüklick),
+  `Cast`: Priester läuft bis `range` (24) heran (`anywhere`: wirkt von der Stelle, unbegrenzt weit – Verstärkung, Waren rufen/versenden; ohne Radius sofort beim Menüklick),
   zaubert nur, wo etwas Betroffenes ist (`Magic.HasTargets`/`Affected`, nächste zuerst bis `count`), kein Kampf nötig; Kosten je Spieler und Zauberart
   mit jedem Wirken `costIncrease` % (25 wie im Original, aufgerundet: 20, 25, 32 …) teurer (`Magic.CostOf`, Menü zeigt den aktuellen Preis); wirkt sofort bei Zauberbeginn (`castSeconds` nur die Geste).
   Einheiten bewegende/verwandelnde Zauber (Bekehren, Verbannen, Verstärkung, Bogen zu Pionieren) nehmen Priester, Soldaten, Späher, Geologen, Pioniere draußen,
@@ -234,11 +234,11 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   Schild ×0,67 erlittener Schaden, Verfluchte Pfeile kein Pfeilschaden; Einfrieren `FrozenUntil`) auch die (Turm-Bogenschützen eingefroren schießen nicht);
   erneut gewirkt verlängert, addiert nicht (`Military.DamageOf`/`Taken`). Waren-Zauber (Midas, Fisch zu Fleisch, Stein zu Eisen, Gold zu Stein: bis 40 Einheiten
   im Umkreis, egal wessen, lose/Ausgabe/Lager, nicht reserviert, `World.TakeUnits` → `DropGoods`; Waren rufen: vom eigenen Land zum Priester; Waren
-  versenden: an einen Zufallspunkt). Sicht (`SpellSight`, `Magic.Sights`: Auge Radius 32, Karte enthüllen ganz, 20 s; Fog of War und `Military.Sees`).
+  versenden: die um den Priester zum Ziel; beide unbegrenzte Reichweite). Sicht (`SpellSight`, `Magic.Sights`: Auge Radius 32, Karte enthüllen ganz, 20 s; Fog of War und `Military.Sees`).
   Land (`LandSpells.cs`): Boden wandeln (Grasland, Horus' Hitze, Sumpf trockenlegen – Moor und Schlamm –, Schneeschmelze → Gebirge) über Bodenklassen,
   Ränder je ein Feld wie der Zufallskartengenerator (`Paint`, nicht unter Gebäuden/Stapeln, Ackerland/Pfade, die nicht mehr passen, weg; der Client zeichnet
   `TerrainKinds.Of`, Minimap noch das Original); Rohstoffe halbieren, Fischflut (+1–4 je Wasserfeld, max. 15), Waldbrand (Bäume im Umkreis → Stümpfe,
-  nach `FireSpreadTicks` einmal die direkt daneben, Flammen), Waldgunst/Steinfluch (Bäume/volle Felsen auf freies Gras, Felsen mit 2 Feldern Abstand),
+  nach `FireSpreadTicks` einmal die direkt daneben, Flammen), Waldgunst (ausgewachsene Bäume auf freies Gras), Steinfluch (10–20 Felsen verschiedener Größe, 2 Felder Abstand),
   Wachstum (`Production.Hasten`: Getreide/Wein/Reis spätestens in 180 s reif). Himmlische Geschenke (`SummonGoods`: 3–4 Stapel à 4–8 aus Nahrung, Waffen,
   Werkzeug, Gold, Eisen, Kohle, Erz im Umkreis `SummonSpread`; Ägypter 50 % zusätzlich Steine; Flammen zeitversetzt). Priester angreifbar.
   Alte Spielstände übernehmen die aktuellen Regeln (`Magic.FollowRules`). Zwei Konten: Zauber verbrauchen `Mana`, Aufwertungen prüfen `ManaEarned`

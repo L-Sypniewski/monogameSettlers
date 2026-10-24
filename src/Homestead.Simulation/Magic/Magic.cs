@@ -253,8 +253,9 @@ public sealed partial class Magic
     {
         SpellKind.Convert or SpellKind.Scatter or SpellKind.Reinforce or SpellKind.BowsToPioneers or SpellKind.Freeze or SpellKind.Fear
             or SpellKind.Haste or SpellKind.Strengthen or SpellKind.Shield or SpellKind.CursedArrows => Affected(spell, player, target).Any(),
-        SpellKind.IronToGold or SpellKind.FishToMeat or SpellKind.StoneToIron or SpellKind.GoldToStone or SpellKind.SendGoods
-            or SpellKind.CallGoods => GoodsIn(spell, player, target).Any(),
+        SpellKind.IronToGold or SpellKind.FishToMeat or SpellKind.StoneToIron or SpellKind.GoldToStone => GoodsIn(spell, player, target).Any(),
+        SpellKind.CallGoods => GoodsIn(spell, player, target).Any(),
+        SpellKind.SendGoods => _world.Map!.IsWalkable(target),
         _ => HasLandTargets(spell, target),
     };
 
@@ -287,6 +288,11 @@ public sealed partial class Magic
         return drink is { Count: > 0 } ? $"making mana ({Mana(building.Player)} mana)" : $"waiting for {drink?.Material} ({Mana(building.Player)} mana)";
     }
 
+    /// <summary>Whether the priest's spell would work at the target: sending goods takes those lying around the priest.</summary>
+    private bool Works(Spell spell, Settler priest, GridPoint target) =>
+        HasTargets(spell, priest.Player, target)
+        && (spell.Kind != SpellKind.SendGoods || GoodsIn(spell, priest.Player, priest.Position).Any());
+
     /// <summary>
     /// Orders one of the priests (the nearest to the target that is free and knows a spell of that kind) to
     /// cast a spell at the target: its own version of <paramref name="spell"/>, or its people's own spell.
@@ -304,7 +310,7 @@ public sealed partial class Magic
             return CastResult.NoSpell;
         if (Mana(priest.Player) < CostOf(priest.Player, spell))
             return CastResult.NoMana;
-        if (!HasTargets(spell, priest.Player, target))
+        if (!Works(spell, priest, target))
             return CastResult.NoTarget;
         var order = new CastOrder(priest, target, spell) { LastProgress = _world.Tick, Best = PathFinder.Distance(priest.Position, target) };
         if (!InRange(priest, order) && !WalkTowards(priest, target))
@@ -426,7 +432,7 @@ public sealed partial class Magic
             _world.WalkTo(priest, priest.StepTarget);
         if (priest.State == SettlerState.Stepping)
             return;
-        if (Mana(priest.Player) < CostOf(priest.Player, order.Spell) || !HasTargets(order.Spell, priest.Player, order.Target))
+        if (Mana(priest.Player) < CostOf(priest.Player, order.Spell) || !Works(order.Spell, priest, order.Target))
         {
             Finish(order);
             return;
@@ -513,8 +519,8 @@ public sealed partial class Magic
                 effect = effect with { Points = MoveGoods(spell, player, target, _ => spell.To!.Value, p => p) };
                 break;
             case SpellKind.SendGoods:
-                var far = RandomFreePoint();
-                effect = effect with { Points = MoveGoods(spell, player, target, m => m, _ => far) };
+                if (CasterAt(spell, player, target) is { } sender)
+                    effect = effect with { Points = MoveGoods(spell, player, sender.Position, m => m, _ => target) };
                 break;
             case SpellKind.CallGoods:
                 var priest = CasterAt(spell, player, target)?.Position ?? target;
@@ -536,16 +542,6 @@ public sealed partial class Magic
         _orders.Values.FirstOrDefault(o => o.Target == target && o.Spell == spell && o.Priest.Player == player)?.Priest;
 
     private GridPoint RandomPoint() => new(_random.Next(_world.Map!.Size), _random.Next(_world.Map!.Size));
-
-    /// <summary>A random walkable point of the map without a building or pile on it (or the middle, if none is found).</summary>
-    private GridPoint RandomFreePoint()
-    {
-        var map = _world.Map!;
-        for (int attempt = 0; attempt < 1000; attempt++)
-            if (RandomPoint() is var p && map.IsWalkable(p) && _world.PileAt(p) is null && _world.BuildingAt(p) is null)
-                return p;
-        return new GridPoint(map.Size / 2, map.Size / 2);
-    }
 
     /// <summary>
     /// Takes up to <see cref="Spell.Count"/> units out of the piles the spell works on and drops them, as <paramref name="into"/>

@@ -101,13 +101,23 @@ public sealed partial class Magic
                 foreach (var p in area)
                     _world.Production.Hasten(p, spell.Ticks);
                 break;
-            case SpellKind.GrowForest or SpellKind.StoneCurse:
-                bool trees = spell.Kind == SpellKind.GrowForest;
+            case SpellKind.GrowForest:
                 foreach (var p in area.OrderBy(_ => _random.Next()))
-                    if (Plantable(p, trees))
-                        map.SetObjectCode(p, trees
-                            ? (byte)(MapObjectCodes.FirstTree + _random.Next(MapObjectCodes.LastTree - MapObjectCodes.FirstTree + 1))
-                            : MapObjectCodes.FullStone);
+                    if (Plantable(p, trees: true))
+                        map.SetObjectCode(p, (byte)(MapObjectCodes.FirstTree + _random.Next(MapObjectCodes.LastTree - MapObjectCodes.FirstTree + 1)));
+                break;
+            case SpellKind.StoneCurse:
+                // A few stones of all sizes, spread over the area (piles: how many; amount: stone left in each).
+                int stones = _random.Next(spell.Piles.Min, spell.Piles.Max + 1);
+                foreach (var p in area.OrderBy(_ => _random.Next()))
+                {
+                    if (stones == 0)
+                        break;
+                    if (!Plantable(p, trees: false))
+                        continue;
+                    map.SetObjectCode(p, (byte)(MapObjectCodes.StoneRubble - _random.Next(spell.Amount.Min, spell.Amount.Max + 1)));
+                    stones--;
+                }
                 break;
         }
         return [];
