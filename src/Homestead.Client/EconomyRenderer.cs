@@ -282,12 +282,18 @@ public sealed class EconomyRenderer
 
     public void DrawPile(SpriteBatch batch, Pile pile, TerrainMesh terrain)
     {
-        if (pile.Count == 0 || pile.Material is not { } material || StackSequence(material) is not { } sequence)
+        if (pile.Material is { } material)
+            DrawStack(batch, material, pile.Count, ScreenProjection.ToWorld(pile.Position.X, pile.Position.Y,
+                terrain.HeightAt(pile.Position.X, pile.Position.Y)));
+    }
+
+    /// <summary>A pile of <paramref name="count"/> units of a good at a world position (e.g. on a ship's deck).</summary>
+    public void DrawStack(SpriteBatch batch, Material material, int count, Vector2 anchor)
+    {
+        if (count == 0 || StackSequence(material) is not { } sequence)
             return;
         var sprites = Sprites(PileFile, sequence);
-        int frame = Math.Min(pile.Count, sprites.FrameCount) - 1;
-        var anchor = ScreenProjection.ToWorld(pile.Position.X, pile.Position.Y, terrain.HeightAt(pile.Position.X, pile.Position.Y));
-        sprites.Draw(batch, frame, anchor, 1, Color.White);
+        sprites.Draw(batch, Math.Min(count, sprites.FrameCount) - 1, anchor, 1, Color.White);
     }
 
     /// <summary>

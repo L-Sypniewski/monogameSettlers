@@ -232,7 +232,8 @@
     "ferry": "Ferry",
     "tradeShip": "Trade ship",
     "passengers": "On board: {0}/{1}",
-    "unload": "Unload ship"
+    "unload": "Unload ship",
+    "cargo": "Cargo: {0}"
   },
   "buildingStatus": {
     "active": "Active",
@@ -565,6 +566,7 @@
   },
   "building": {
     "trade": "Trade – land",
+    "seaTrade": "Trade – sea",
     "garrison": "Garrison (present / wanted)",
     "resume": "Resume",
     "pause": "Pause",

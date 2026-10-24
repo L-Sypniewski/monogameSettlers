@@ -237,7 +237,8 @@ public sealed partial class BuildingInfo
         bool own = building.Player == ownPlayer;
         // Own buildings: the name gives the tear-down icon room.
         // A market's own title (as in the original).
-        string title = own && OffersMarket(world, building) ? Lang.T("building.trade") : NameOf(building.Definition);
+        string title = own && OffersMarket(world, building) ? Lang.T(world.Trade.IsHarbor(building) ? "building.seaTrade" : "building.trade")
+            : NameOf(building.Definition);
         foreach (string line in font.Wrap(title, own ? Inner - DemolishSize - 4 : Inner, 16))
         {
             if (!asking)

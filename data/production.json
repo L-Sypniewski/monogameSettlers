@@ -55,6 +55,7 @@
     "farmSeconds": 20,
     "keepIdle": 4,
     "market": "market_place",
+    "harbor": "harbor",
     "load": 2,
     "loadSeconds": 0.5,
     "sight": 3
@@ -71,8 +72,13 @@
     },
     "buildSeconds": 4,
     "stepSeconds": 0.5,
-    "sight": 8,
-    "landingDistance": 6
+    "sight": 16,
+    "landingDistance": 6,
+    "_seaTradeComment": "Sea trade: a harbor needs a dock like a shipyard; carriers bring the goods chosen in its panel, the nearest free trade ship sails to the dock, loads up to cargoPiles piles of pileSize units of one good each (loadSeconds a unit, waiting up to loadWaitSeconds for more while the harbor still wants goods), sails the stops to the destination and puts each pile down on the beach there.",
+    "cargoPiles": 3,
+    "pileSize": 8,
+    "loadSeconds": 0.5,
+    "loadWaitSeconds": 15
   },
   "smiths": {
     "_comment": "One product per cycle: what the player ordered (Waren > Herstellung) first, then tools somebody waits for (and nobody has), otherwise by shares (the player's bars, these are the defaults; 0 = only on order or need) while the product has fewer than keepInStock units around (0 = no limit); otherwise the smith rests. The toolsmith makes only what is needed right now unless the player gives it shares.",

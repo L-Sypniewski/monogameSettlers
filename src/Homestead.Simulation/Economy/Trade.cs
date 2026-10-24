@@ -17,6 +17,8 @@ namespace Homestead.Simulation.Economy;
 /// die; an enemy soldier striking a loaded one makes it drop its load where it stands and turn home
 /// (<see cref="Struck"/>). Watchdog: a stop the donkey makes no progress to for <see cref="StallTicks"/> is skipped; a
 /// destination out of reach sends it home with its load, which it puts down next to the market.
+/// A harbor (<see cref="TradeRules.Harbor"/>) has the same route and goods, its points on the water (the destination near
+/// a beach); trade ships carry its goods (<see cref="Shipping"/>).
 /// </remarks>
 public sealed class Trade
 {
@@ -47,6 +49,12 @@ public sealed class Trade
     public int Robbed { get; private set; }
 
     public bool IsMarket(Building building) => building.Definition.Name == Rules.Market;
+
+    /// <summary>Whether the building trades over the sea (with a dock and trade ships).</summary>
+    public bool IsHarbor(Building building) => building.Definition.Name == Rules.Harbor;
+
+    /// <summary>A market or a harbor: a route, goods to send.</summary>
+    public bool IsTradingPost(Building building) => IsMarket(building) || IsHarbor(building);
 
     /// <summary>The building that breeds donkeys.</summary>
     public bool IsDonkeyFarm(string building) => building == Rules.DonkeyFarm;
@@ -81,7 +89,7 @@ public sealed class Trade
     public bool SetStop(Building market, int index, GridPoint? point)
     {
         GridPoint? at = null;
-        if (point is { } p && (at = Reachable(market, p)) is null)
+        if (point is { } p && (at = Reachable(market, p, destination: false)) is null)
             return false;
         StateOf(market).Stops[index] = at;
         return true;
@@ -96,7 +104,7 @@ public sealed class Trade
     /// </summary>
     public bool SetDestination(Building market, GridPoint point)
     {
-        if (Reachable(market, point) is not { } at)
+        if (Reachable(market, point, destination: true) is not { } at)
             return false;
         var state = StateOf(market);
         state.Destination = at;
@@ -106,10 +114,14 @@ public sealed class Trade
 
     /// <summary>
     /// Where a donkey of the market goes for <paramref name="point"/>: on a building its door, else the point itself if walkable
-    /// and connected to the market's door (not on water, not cut off); null if it cannot go there.
+    /// and connected to the market's door (not on water, not cut off); null if it cannot go there. For a harbor: the open
+    /// water nearest the point its trade ships get to, as the <paramref name="destination"/> with a beach near (see
+    /// <see cref="Shipping.SeaPoint"/>).
     /// </summary>
-    public GridPoint? Reachable(Building market, GridPoint point)
+    public GridPoint? Reachable(Building market, GridPoint point, bool destination)
     {
+        if (IsHarbor(market))
+            return _world.Shipping.SeaPoint(market, point, destination);
         var map = _world.Map!;
         if (!map.Contains(point))
             return null;
@@ -144,10 +156,13 @@ public sealed class Trade
     /// <summary>What the market is doing, for the player (null for other buildings).</summary>
     public string? Status(Building market)
     {
-        if (!IsMarket(market) || market.State != BuildingState.Finished)
+        if (!IsTradingPost(market) || market.State != BuildingState.Finished)
             return null;
         if (DestinationOf(market) is null)
             return "trade: no destination";
+        if (IsHarbor(market))
+            return _world.Shipping.ShipsOf(market) is var ships and > 0 ? $"trade: {ships} ships on the way"
+                : market.Piles.Any(p => p.Role == PileRole.Trade && p.Count > 0) ? "trade: waiting for a ship" : "trade: waiting for goods";
         int donkeys = DonkeysOf(market);
         if (donkeys > 0)
             return $"trade: {donkeys} donkeys on the way";
@@ -169,6 +184,9 @@ public sealed class Trade
         int coming = market.Piles.Where(p => p.Role == PileRole.Trade && p.Material == material).Sum(p => p.Incoming);
         return remaining > coming;
     }
+
+    /// <summary>A trade ship put units down at its harbor's destination.</summary>
+    internal void ShippedBySea(int units) => Delivered += units;
 
     /// <summary>A carrier put a unit down at the market: one fewer to bring.</summary>
     internal void Arrived(Pile pile, Material material)

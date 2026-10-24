@@ -728,7 +728,7 @@ public sealed partial class World
         foreach (var pile in definition.RequestPiles)
         {
             // Piles for any material: a market's take the goods it trades, a storehouse's store them.
-            var role = pile.Material is not null ? PileRole.Request : Trade.IsMarket(building) ? PileRole.Trade : PileRole.Storage;
+            var role = pile.Material is not null ? PileRole.Request : Trade.IsTradingPost(building) ? PileRole.Trade : PileRole.Storage;
             // Mines take only food; each food pile holds a few units, so the food spreads over more mines.
             int capacity = role is PileRole.Storage or PileRole.Trade ? Production.Config.StoragePileCapacity
                 : Production.Config.Mines.ContainsKey(definition.Name) ? Production.Config.MineFoodPileCapacity

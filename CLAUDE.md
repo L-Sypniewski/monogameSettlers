@@ -123,10 +123,17 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     (`Berth`: zwei Felder hinter dem Stegende, quer zum Steg). Abriss der Werft verwirft den Auftrag. `Launch`: sofort fertig (Captures).
     `Ship` (eigene Liste, keine Siedler): fährt wie ein Soldat gesteuert (`Move`, Breitensuche übers Wasser zum nächsten erreichbaren Punkt),
     nur auf `IsNavigable` (Wasser mit `ShoreClearance` (3) Wasser ringsum, kein Steg), hält `Spacing` (6) zu anderen Schiffen (wartet, dann Umweg),
-    `stepSeconds` (0,5) je Feld, Sicht `sight` (8). Fähre (`Ferries.cs`): nimmt `passengers` (7) Einheiten (Soldaten, Priester, Geologen, Späher,
+    `stepSeconds` (0,5) je Feld, Sicht `sight` (16). Fähre (`Ferries.cs`): nimmt `passengers` (7) Einheiten (Soldaten, Priester, Geologen, Späher,
     Pioniere) auf, wenn sie still liegt und begehbares Land (Ufer, Steg) bis `landingDistance` (6) hat (`IsNearLand`); `Board`: jede läuft zum
     nächsten erreichbaren Uferfeld (Soldaten erzwungen), steigt dort ein (`IsInside`, Position = Schiff, fährt mit); neuer Befehl bricht ab.
-    `Unload`: alle auf die freien Landfelder nächst dem Schiff (Breitensuche ab dem Ufer). Handelsschiff 0 Plätze. Noch ohne Ladung, Kampf.
+    `Unload`: alle auf die freien Landfelder nächst dem Schiff (Breitensuche ab dem Ufer). Handelsschiff 0 Plätze. Noch ohne Kampf.
+    Seehandel (`SeaTrade.cs`): Hafen (`trade.harbor` = `harbor`, `Trade.IsHarbor`/`IsTradingPost`) wie Markt + Esel – Route, Ziel, Mengen in `Trade`
+    (Stapel `PileRole.Trade`, Logistik Anteil 1), braucht einen Steg wie die Werft (`HasDocks`); Routenpunkte auf offenem Wasser, das der Steg
+    erreicht (`SeaPoint`: nächstes in derselben Wasserfläche `SeaRegion`, nicht gespeichert; Ziel mit Strand bis `landingDistance`). Jede Ware
+    am Hafen ruft das nächste freie Handelsschiff (eins je Hafen zum Laden zugleich): fährt zum Steg, lädt bis `cargoPiles` (3) Stapel à
+    `pileSize` (8) einer Ware (`loadSeconds` je Einheit, wartet bis `loadWaitSeconds` auf mehr), fährt die Stopps, legt je Stapel einen losen
+    Stapel auf den Strand am Ziel (kein Steg dort), zurück dieselben Stopps. Watchdog: Punkt nach 3 Versuchen nicht erreicht → Stopp übersprungen,
+    Ziel → heim, Ladung neben den Steg. Handelsschiffe auf Fahrt nehmen keine Befehle (`HarborOf`, `CargoOf`).
 - `Military/`: Kaserne bildet an der Tür aus (Träger wird dort im selben Moment Soldat, geht nicht hinein), Rekruten laufen zum Sammelpunkt.
   Je Waffe ein Träger zugleich (soweit die Träger-Reserve reicht, Laufende aller Kasernen zählen), jeder wird an der Tür oder direkt daneben ausgebildet. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
   nie über Infanterie-/Bogenplätze; „+“ bei vollen Infanterieplätzen ersetzt die andere Infanterieart; Überzählige kehren um oder kommen
@@ -365,7 +372,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
     `EconomyRenderer.DrawBuildingImage`; bei Enge erst Waren weg, dann Bild niedriger), bei eigenen Status, oben rechts Abriss-Icon wie im Original (Datei 03 GUI 199, `buildingInfo` in `ui.json`) mit Rückfrage wie im Original (nur das Gebäudebild bleibt an seinem Platz, Frage unten, Ja/Nein als helle Texte; jede andere Aktion – Klick daneben beim Loslassen, andere Auswahl, Esc – bricht ab);
     Produktion: „Anhalten“/„Fortsetzen“ (`World.SetPaused`: Arbeit fertig, dann drinnen); Militär: Besatzung je Typ (da/Soll, +/−);
     Lagerhaus: alle Waren (`GoodsGrid`; Punkt = allgemeine Regel, Klick spezialisiert – roter Rahmen –, nochmal hebt auf);
-    Markt (`BuildingInfo.Market`, „Handel – Land“, ohne Bild): Leiste ×1 ×2 ×3 Paket (Datei 03 GUI 374, `market` in `ui.json`; nicht gesetzt
+    Markt (`BuildingInfo.Market`, „Handel – Land“, ohne Bild; Hafen „Handel – Meer“: Leiste GUI 377 `seaRoute`, Schiff vor ×1 setzt den Steg wie
+    der Hammer der Werft, Routenpunkte aufs Wasser, Route ab dem Liegeplatz): Leiste ×1 ×2 ×3 Paket (Datei 03 GUI 374, `market` in `ui.json`; nicht gesetzt
     dunkel): Knopf wählen (weiß gerahmt; Stopps erst mit Ziel; gewählter Stopp nochmal = löschen), dann Linksklick auf die Karte setzt
     ihn (Fahne als Vorschau am Mauszeiger, nur wo Esel hinkommen; Rechtsklick/Esc bricht ab), Route wie der Sammelpunkt der Kaserne; Waren mit Menge darunter, ∞ (386)/0 (389)/Pfeile ±5/±1 für die gewählte Ware; Waren/Baumaterial,
     Minen-Erfolgschance; Arbeitsbereich (Rechtsklick versetzt, `World.SetWorkCenter`, max. `MaxWorkCenterDistance` = 20, sonst nächstes erlaubtes
@@ -388,7 +396,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   `SelectionPanel` je Art (Typ/Stufe und Volk – Bekehrte zeigen ihres) Porträt (`Portraits`, `ui.json` `portraits`; andere Völker `MapGame.PortraitsOf`) + Anzahl (zu viele: gestaucht, mehr Spalten oder kleiner), unten Kampfkraft – wie Zaubermenü
   im Inhaltsbereich (`BuildMenu.Content`). Strg+1–9 speichert Gruppe (jede Figur in höchstens einer – sie verlässt ihre alte; Porträt des ersten Mitglieds wie im `SelectionPanel`, gleich groß, oben rechts, gewählte gelb gerahmt; Klick oder 1–9 wählt, zweimal binnen 0,5 s: Kameraflug zum Mittelpunkt; Tote, Gebäude Betretende, Bekehrte fallen raus; im Spielstand als Client-Wert `groups`).
   Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungen ohne Kampf. Schiffe (`_ships`, statt Siedlern; Klick, Strg: alle im Bild,
-  Rahmen ohne Siedler darin): Rechtsklick fährt hin; Panel: je Art Knopfbild, Name, Anzahl, Fähren „An Bord: n/7“, unten „Schiff entladen“ (`BuildingInfo.DrawShips`/`UnloadAt`).
+  Rahmen ohne Siedler darin): Rechtsklick fährt hin; Panel: je Art Knopfbild, Name, Anzahl, Fähren „An Bord: n/7“, Handelsschiffe „Ladung: n“, unten „Schiff entladen“ (`BuildingInfo.DrawShips`/`UnloadAt`).
   Gewählte Einheiten: Rechtsklick auf eine eigene Fähre nahe Land → einsteigen; an Deck stehend gezeichnet (`ShipRenderer`: ganzes Schiff, Passagiere hinter
   dem Mast, Vorderteil = Sequenz davor, Segel, Passagiere vor dem Mast). Geologen: Rechtsklick hin, auf Gebirge suchen.
   Priester: Zaubermenü (Name, Kosten, Mana), Zauber wählen, dann Ziel (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
@@ -418,7 +426,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   neue Liste beginnt mit ihrem ersten Stück, dann gemischt, Pause dazwischen, neue Liste ohne das laufende Stück blendet aus; in Menüs vor dem Spiel still. Musik/Musik je Volk/Effekte in den Einstellungen
   (Darstellung, `DisplaySettings`).
 - **Darstellung**: Schiffe (`ShipRenderer`, `ships` in `ui.json`): Datei 36, je Schiff 4 Sequenzen (Deck, Schatten, Vorderteil, ganz ohne Segel)
-  à 6 Richtungen, Segel 28–34 mit Spielerfarbe; im Bau der Rumpf von unten wachsend. Figuren nach Volk; Tote: Geist in Spielerfarbe (Datei 12 Seq. 27, `World.Ghosts`); Stehende ohne Aufgabe wechseln alle 2–30 s
+  à 6 Richtungen, Segel 28–34 mit Spielerfarbe; kleines Schiff = Fähre, großes = Handelsschiff (Römer im Spiel geprüft), Ladung als Stapel an Deck; im Bau der Rumpf von unten wachsend. Figuren nach Volk; Tote: Geist in Spielerfarbe (Datei 12 Seq. 27, `World.Ghosts`); Stehende ohne Aufgabe wechseln alle 2–30 s
   die Blickrichtung (nur Darstellung); Turm-Bogenschützen mit Schussanimation im Takt, ohne Schatten (wie im Original), Infanterie im Turm als Fensterbild; Gebäude: Ebene 0, Besatzung, dann weitere Ebenen (Fensterrahmen/Brüstungen davor); in 8-px-Streifen gezeichnet, jeder in der vordersten Sperrfeld-Reihe seiner Spalte (`EconomyRenderer.Strip`, sonst verdeckt ein hohes Gebäude, was seitlich davor steht); Pfeile im flachen Bogen
   (`docs/formate/gfx.md`). `SettlerAnimations` löst Typ/Aktion/Ware/Richtung über `data/settlers.json` (generiert mit
   `tools/data-import/convert_jsettlers_movables.py`, nicht von Hand ändern). Baustellen zeigen Schild und Pfosten.
@@ -428,7 +436,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   `FOCUS=<gebäude>` (`site`: frische Baustelle; `temple`: kleiner Tempel mit Mana; Militärgebäude wie `castle`: voll besetzt); `FOG=1`;
   `EVENT=1` (springt zu Events); `BATTLE=1` (Stufe-3-Feinde greifen das fokussierte Militärgebäude an, sonst den Startturm; `=big`: zwei Armeen à 30 treffen sich südlich des Starts; `=open`: 40 gegen 40 auf freiem Feld; `=town[:n]`: n (90) gegen n mitten im Dorf; mit `ZOOM` Kamera darauf); `COLORS=2,4` (Palettenfarben je Spieler); `STRIKE=1` (Abriss des fokussierten Gebäudes + 10 Träger ohne Wohnraum);
   `GEOLOGISTS=1`; `PIONEERS=1`; `DOCK=1` (Werft am nächsten offenen Meer, Land dort eigen, mit Steg; `=none` ohne; `=build`: Fähre im Bau, Material daneben; `=ships`: Fähre und
-  Handelsschiff fertig, gewählt, losgeschickt (mit `FOCUS=none`); `=ferry`: Fähre am Steg, 8 Soldaten, 7 steigen ein, Fähre gewählt; sonst mit `FOCUS=dockyard`); `TRADE=1` (Markt mit Lagertür als Ziel, Stopp, Planken ∞, Steine 12, drei Esel, Eselzucht; mit `FOCUS=market_place`); `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
+  Handelsschiff fertig, gewählt, losgeschickt (mit `FOCUS=none`); `=ferry`: Fähre am Steg, 8 Soldaten, 7 steigen ein, Fähre gewählt; `=harbor` (mit `FOCUS=harbor`): Hafen mit Steg, Handelsschiff, Waren, Ziel; sonst mit `FOCUS=dockyard`); `TRADE=1` (Markt mit Lagertür als Ziel, Stopp, Planken ∞, Steine 12, drei Esel, Eselzucht; mit `FOCUS=market_place`); `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
   `TAB=system[:save|quit]` bzw. `goods|settlers[:<untermenü>[:manual|<ware>]]` (z. B. `settlers:soldiers:manual`, `goods:distribution:bread`);
   `STORE=<ware>` (mit `FOCUS=stock`); `PLACE=<gebäude>`; `START=<tab>[:color]` (nur `start.png` des Startscreens, 3: Zufallsgenerator; `:color` mit offener Farbauswahl von Spieler 1);
   `MAGIC=1` (großer Tempel, Mana-Kette, Priester zaubert in einen Kampf; `=summon`: Waren herbeirufen);

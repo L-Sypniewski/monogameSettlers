@@ -139,7 +139,7 @@ public sealed partial class BuildingInfo
     public string DockCommand(World world, Building dockyard, GridPoint clicked)
     {
         if (!world.Shipping.PlaceDock(dockyard, clicked))
-            return "no place for a dock there (open water on own land near the shipyard)";
+            return "no place for a dock there (open water on own land near the building)";
         _dockAiming = null;
         UiSounds.WorkArea();
         var dock = world.Shipping.DockOf(dockyard)!.Value;
@@ -148,7 +148,7 @@ public sealed partial class BuildingInfo
 
     /// <summary>
     /// The selected ships in the panel: per kind its button image, its name and how many, for ferries also how many are
-    /// on board; at the bottom „Schiff entladen“ while a selected ferry carries anybody.
+    /// on board, for trade ships their cargo; at the bottom „Schiff entladen“ while a selected ferry carries anybody.
     /// </summary>
     public void DrawShips(SpriteBatch batch, Texture2D pixel, UiFont font, World world, IReadOnlyList<Ship> ships, Vector2 cursor)
     {
@@ -161,6 +161,8 @@ public sealed partial class BuildingInfo
             string count = group.Count().ToString();
             if (group.Sum(s => world.Shipping.Capacity(s)) is var capacity and > 0)
                 count += "   " + Lang.T("ships.passengers", group.Sum(s => s.Passengers.Count), capacity);
+            else if (group.Key.Kind == ShipKind.TradeShip)
+                count += "   " + Lang.T("ships.cargo", group.Sum(s => world.Shipping.CargoOf(s).Sum(c => c.Count)));
             Write(batch, font, count, new Vector2(Left + 66, y + 21), Text);
             y += 46;
         }

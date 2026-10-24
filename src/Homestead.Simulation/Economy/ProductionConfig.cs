@@ -304,6 +304,9 @@ public sealed record ProductionConfig
                 ? new TradeRules(trade.GetProperty("donkeyFarm").GetString()!, MaterialList(trade.GetProperty("farmInputs")), Ticks(trade, "farmSeconds"),
                     trade.GetProperty("keepIdle").GetInt32(), trade.GetProperty("market").GetString()!, trade.GetProperty("load").GetInt32(),
                     Ticks(trade, "loadSeconds"), trade.GetProperty("sight").GetInt32())
+                {
+                    Harbor = trade.TryGetProperty("harbor", out var harbor) ? harbor.GetString()! : "harbor",
+                }
                 : TradeRules.Default,
             Shipping = root.TryGetProperty("shipping", out var shipping)
                 ? new ShippingRules(shipping.GetProperty("dockyard").GetString()!, shipping.GetProperty("dockLength").GetInt32(),
@@ -320,6 +323,10 @@ public sealed record ProductionConfig
                         k => Enum.Parse<ShipKind>(k.Name, ignoreCase: true),
                         k => k.Value.TryGetProperty("passengers", out var passengers) ? passengers.GetInt32() : 0),
                     LandingDistance = shipping.GetProperty("landingDistance").GetInt32(),
+                    CargoPiles = shipping.GetProperty("cargoPiles").GetInt32(),
+                    CargoPileSize = shipping.GetProperty("pileSize").GetInt32(),
+                    CargoTicks = Ticks(shipping, "loadSeconds"),
+                    LoadWaitTicks = Ticks(shipping, "loadWaitSeconds"),
                 }
                 : ShippingRules.Default,
             DemolitionPayback = root.TryGetProperty("demolition", out var demolition) ? demolition.GetProperty("payback").GetDouble() : 0.5,
@@ -351,6 +358,9 @@ public sealed record TradeRules(string DonkeyFarm, IReadOnlyList<Material> FarmI
 {
     public static TradeRules Default { get; } = new("donkey_farm", [Material.Crop, Material.Water], 20 * World.TicksPerSecond, 4, "market_place", 2,
         World.TicksPerSecond / 2, 3);
+
+    /// <summary>The building trading over the sea with trade ships (<see cref="Shipping"/>).</summary>
+    public string Harbor { get; init; } = "harbor";
 }
 
 /// <summary>
@@ -376,13 +386,25 @@ public sealed record ShippingRules(string Dockyard, int DockLength, int DockDist
     public int ShipStepTicks { get; init; } = 10;
 
     /// <summary>How far a ship sees (fog of war).</summary>
-    public int ShipSight { get; init; } = 8;
+    public int ShipSight { get; init; } = 16;
 
     /// <summary>How many units each kind of ship takes aboard.</summary>
     public IReadOnlyDictionary<ShipKind, int> Passengers { get; init; } = new Dictionary<ShipKind, int> { [ShipKind.Ferry] = 7 };
 
     /// <summary>Land at most this far from a ship is near enough to board it and to unload it.</summary>
     public int LandingDistance { get; init; } = 6;
+
+    /// <summary>Piles of goods a trade ship carries (each of one good).</summary>
+    public int CargoPiles { get; init; } = 3;
+
+    /// <summary>Units in a pile a trade ship carries.</summary>
+    public int CargoPileSize { get; init; } = 8;
+
+    /// <summary>Ticks to load a unit onto a trade ship (unloading puts a whole pile down in that time).</summary>
+    public int CargoTicks { get; init; } = World.TicksPerSecond / 2;
+
+    /// <summary>How long a trade ship not yet full waits at the harbor for more goods the harbor still wants.</summary>
+    public int LoadWaitTicks { get; init; } = 15 * World.TicksPerSecond;
 }
 
 /// <summary>

@@ -219,6 +219,9 @@ public sealed partial class Shipping
 
     public bool IsDockyard(Building building) => building.Definition.Name == Rules.Dockyard;
 
+    /// <summary>Whether the building gets a dock: a shipyard or a harbor.</summary>
+    public bool HasDocks(Building building) => IsDockyard(building) || _world.Trade.IsHarbor(building);
+
     /// <summary>The shipyard's dock, if it has one.</summary>
     public Dock? DockOf(Building dockyard) => _docks.TryGetValue(dockyard.Id, out var dock) ? dock : null;
 
@@ -262,11 +265,12 @@ public sealed partial class Shipping
     /// </summary>
     public bool PlaceDock(Building dockyard, GridPoint clicked)
     {
-        if (!dockyard.Exists || dockyard.State != BuildingState.Finished || !IsDockyard(dockyard) || _orders.ContainsKey(dockyard.Id)
+        if (!dockyard.Exists || dockyard.State != BuildingState.Finished || !HasDocks(dockyard) || _orders.ContainsKey(dockyard.Id)
             || DockSpot(dockyard, clicked) is not { } dock)
             return false;
         RemoveDock(dockyard);
         _docks[dockyard.Id] = dock;
+        _seaRegions = null;
         foreach (var p in dock.Pier)
             _world.Map!.SetObjectCode(p, MapObjectCodes.Dock);
         return true;
@@ -278,14 +282,15 @@ public sealed partial class Shipping
         _orders.Remove(dockyard.Id);
         if (!_docks.Remove(dockyard.Id, out var dock))
             return;
+        _seaRegions = null;
         foreach (var p in dock.Pier)
             if (_world.Map!.ObjectCodeAt(p) == MapObjectCodes.Dock)
                 _world.Map.SetObjectCode(p, MapObjectCodes.None);
     }
 
-    /// <summary>"no dock" until the shipyard has one (then its work counts).</summary>
+    /// <summary>"no dock" until the shipyard (harbor) has one (then its work counts).</summary>
     public string? Status(Building dockyard) =>
-        IsDockyard(dockyard) && dockyard.State == BuildingState.Finished && DockOf(dockyard) is null ? "shipyard: no dock" : null;
+        HasDocks(dockyard) && dockyard.State == BuildingState.Finished && DockOf(dockyard) is null ? "shipyard: no dock" : null;
 
     /// <summary>
     /// Whether a ship can be on the point: water (not a pier) with water <see cref="ShoreClearance"/> around, so it keeps
@@ -321,9 +326,10 @@ public sealed partial class Shipping
 
     /// <summary>
     /// Sends the ships towards <paramref name="target"/>: each to the free point nearest it that it can get to over the water
-    /// (another sea, land: the nearest open water it can reach), apart from each other. Returns how many go.
+    /// (another sea, land: the nearest open water it can reach), apart from each other. Trade ships sailing for a harbor
+    /// do not take orders. Returns how many go.
     /// </summary>
-    public int Move(IEnumerable<Ship> ships, GridPoint target) => Move(ships, target, avoidMoving: false);
+    public int Move(IEnumerable<Ship> ships, GridPoint target) => Move(ships.Where(s => !_voyages.ContainsKey(s.Id)), target, avoidMoving: false);
 
     private int Move(IEnumerable<Ship> ships, GridPoint target, bool avoidMoving)
     {
@@ -404,6 +410,7 @@ public sealed partial class Shipping
         foreach (var ship in _ships)
             Sail(ship);
         Embark();
+        SeaTrade();
     }
 
     private void Sail(Ship ship)

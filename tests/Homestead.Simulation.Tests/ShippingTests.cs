@@ -295,4 +295,79 @@ public class ShippingTests
             loaded.Step();
         Assert.Contains(passengers, p => PathFinder.Distance(p.Position, new GridPoint(30, 20)) <= 3);
     }
+
+    [Fact]
+    public void A_harbor_sends_its_goods_by_trade_ship_three_piles_at_a_time_onto_the_beach_at_the_destination()
+    {
+        var world = Coast(out var dockyard);
+        var harbor = world.PlaceBuilding(Romans["harbor"], 0, new GridPoint(40, 20))!;
+        Assert.True(world.Trade.IsHarbor(harbor));
+        Assert.All(harbor.Piles, p => Assert.Equal(PileRole.Trade, p.Role));
+        Assert.Contains("no dock", world.StatusOf(harbor));
+        Assert.False(world.Trade.SetDestination(harbor, new GridPoint(49, 70))); // no dock yet
+        Assert.True(world.Shipping.PlaceDock(harbor, new GridPoint(53, 22)));
+        world.Shipping.PlaceDock(dockyard, new GridPoint(53, 42));
+        world.Shipping.Launch(dockyard, ShipKind.TradeShip);
+        world.Shipping.Launch(dockyard, ShipKind.Ferry); // ferries do not trade
+        var ship = world.Shipping.Ships.Single(s => s.Kind == ShipKind.TradeShip);
+
+        // The destination: open water near the beach the click is on; a stop on the way.
+        Assert.True(world.Trade.SetDestination(harbor, new GridPoint(47, 70)));
+        var destination = world.Trade.DestinationOf(harbor)!.Value;
+        Assert.True(world.Shipping.IsNavigable(destination));
+        Assert.True(PathFinder.Distance(destination, new GridPoint(49, 70)) <= 8);
+        Assert.True(world.Trade.SetStop(harbor, 0, new GridPoint(70, 50)));
+        Assert.False(world.Trade.SetStop(harbor, 1, new GridPoint(20, 20))); // far inland: no water near
+
+        world.AddLooseGoods(new GridPoint(30, 22), Material.Plank, 8);
+        world.AddLooseGoods(new GridPoint(30, 25), Material.Plank, 2);
+        world.AddLooseGoods(new GridPoint(32, 18), Material.Stone, 6);
+        world.AddLooseGoods(new GridPoint(28, 18), Material.Iron, 4);
+        world.AddLooseGoods(new GridPoint(28, 26), Material.Coal, 3);
+        for (int i = 0; i < 6; i++)
+            world.Spawn(new GridPoint(25 + i, 15), Profession.Carrier);
+        world.Trade.SetRemaining(harbor, Material.Plank, 10); // not ∞: the planks on the beach would go round for ever
+        world.Trade.SetRemaining(harbor, Material.Stone, 6);
+        world.Trade.SetRemaining(harbor, Material.Iron, 4);
+        world.Trade.SetRemaining(harbor, Material.Coal, 3);
+
+        int mostPiles = 0, voyages = 0;
+        bool sailing = false, past = false;
+        var near = (Pile p) => p.Role == PileRole.Loose && PathFinder.Distance(p.Position, new GridPoint(49, 70)) <= 12;
+        for (int t = 0; t < 60_000 && world.Piles.Where(near).Sum(p => p.Count) < 23; t++)
+        {
+            world.Step();
+            mostPiles = Math.Max(mostPiles, world.Shipping.CargoOf(ship).Count);
+            Assert.All(world.Shipping.CargoOf(ship), c => Assert.InRange(c.Count, 1, 8));
+            past |= PathFinder.Distance(ship.Position, new GridPoint(70, 50)) <= 12;
+            bool now = world.Shipping.HarborOf(ship) is not null;
+            if (now && !sailing)
+                voyages++;
+            sailing = now;
+        }
+        Assert.Equal(23, world.Piles.Where(near).Sum(p => p.Count));
+        Assert.Equal(3, mostPiles);
+        Assert.True(voyages >= 2);
+        Assert.True(past); // over the stop
+        Assert.All(world.Piles.Where(near), p => Assert.NotEqual(TerrainType.Water, world.Map!.TerrainAt(p.Position)));
+        Assert.Equal(10, world.Piles.Where(near).Where(p => p.Material == Material.Plank).Sum(p => p.Count));
+
+        // Saved on a voyage: it sails on.
+        world.AddLooseGoods(new GridPoint(30, 22), Material.Plank, 5);
+        world.Trade.SetRemaining(harbor, Material.Plank, 5);
+        for (int t = 0; t < 20_000 && world.Shipping.CargoOf(ship).Sum(c => c.Count) < 5; t++)
+            world.Step();
+        Assert.Equal(harbor, world.Shipping.HarborOf(ship));
+        Assert.Equal(1, world.Shipping.ShipsOf(harbor));
+        Assert.Equal(0, world.Shipping.Move([ship], new GridPoint(70, 20))); // on a voyage it takes no orders
+        var stream = new MemoryStream();
+        Snapshot.Write(stream, world);
+        stream.Position = 0;
+        var loaded = Snapshot.Read<World>(stream);
+        var loadedShip = loaded.Shipping.Ships.Single(s => s.Kind == ShipKind.TradeShip);
+        Assert.Equal(world.Shipping.CargoOf(ship), loaded.Shipping.CargoOf(loadedShip));
+        for (int t = 0; t < 20_000 && loaded.Piles.Where(near).Sum(p => p.Count) < 28; t++)
+            loaded.Step();
+        Assert.Equal(28, loaded.Piles.Where(near).Sum(p => p.Count));
+    }
 }

@@ -247,8 +247,10 @@ public sealed class Logistics
 
         static string TargetOf(Pile request) => request.Owner!.State == BuildingState.Finished ? request.Owner.Definition.Name : Construction;
 
-        // Markets get what the player sends there (their panel), not by the shares of Waren › Verteilung.
-        double Share(int player, string target) => target == (_world.Production.Config.Trade ?? TradeRules.Default).Market ? 1 : ShareOf(player, material, target);
+        // Markets and harbors get what the player sends there (their panel), not by the shares of Waren › Verteilung.
+        double Share(int player, string target) =>
+            (_world.Production.Config.Trade ?? TradeRules.Default) is var trade && (target == trade.Market || target == trade.Harbor)
+                ? 1 : ShareOf(player, material, target);
     }
 
     private bool Allowed(Pile offer, Pile request, Material material)

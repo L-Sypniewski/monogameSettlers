@@ -28,7 +28,7 @@ public sealed partial class Shipping
     /// Whether the ship lies near land: still, with a walkable field (shore or pier) within
     /// <see cref="ShippingRules.LandingDistance"/>.
     /// </summary>
-    public bool IsNearLand(Ship ship) => !ship.IsMoving && ShoreAround(ship).Any();
+    public bool IsNearLand(Ship ship) => !ship.IsMoving && ShoreAround(ship.Position).Any();
 
     /// <summary>
     /// Sends the units aboard the ship (a ferry lying near land): each walks to the shore field nearest the ship it can
@@ -41,7 +41,7 @@ public sealed partial class Shipping
         var list = units.Where(s => s.Player == ship.Player && CanBoard(s) && !(s.Profession == Profession.Priest && _world.Magic.IsBusy(s)))
             .Distinct().ToList();
         int room = Capacity(ship) - ship.Aboard.Count - _boarding.Values.Count(b => b.Ship == ship && !list.Contains(b.Settler));
-        var shore = ShoreAround(ship).ToList();
+        var shore = ShoreAround(ship.Position).ToList();
         int going = 0;
         foreach (var unit in list.OrderBy(s => PathFinder.Distance(s.Position, ship.Position)))
         {
@@ -79,7 +79,7 @@ public sealed partial class Shipping
     {
         if (!_ships.Contains(ship) || ship.Aboard.Count == 0 || ship.StepTicks > 0)
             return 0;
-        if (ShoreAround(ship).Where(p => !_world.IsOccupied(p)).Cast<GridPoint?>().FirstOrDefault() is not { } landing)
+        if (ShoreAround(ship.Position).Where(p => !_world.IsOccupied(p)).Cast<GridPoint?>().FirstOrDefault() is not { } landing)
             return 0;
         ship.Path.Clear();
         ship.Destination = null;
@@ -148,13 +148,13 @@ public sealed partial class Shipping
         _world.Pioneering.Stop(unit);
     }
 
-    /// <summary>Walkable fields (shore, piers) within <see cref="ShippingRules.LandingDistance"/> of the ship, nearest first.</summary>
-    private IEnumerable<GridPoint> ShoreAround(Ship ship)
+    /// <summary>Walkable fields (shore, piers) within <see cref="ShippingRules.LandingDistance"/> of a ship's field, nearest first.</summary>
+    private IEnumerable<GridPoint> ShoreAround(GridPoint at)
     {
         var map = _world.Map!;
-        return PathFinder.Circle(ship.Position, Rules.LandingDistance)
+        return PathFinder.Circle(at, Rules.LandingDistance)
             .Where(p => map.Contains(p) && map.IsWalkable(p))
-            .OrderBy(p => PathFinder.Distance(ship.Position, p)).ThenBy(p => p.Y).ThenBy(p => p.X);
+            .OrderBy(p => PathFinder.Distance(at, p)).ThenBy(p => p.Y).ThenBy(p => p.X);
     }
 
     /// <summary>Free walkable fields from <paramref name="start"/> on, nearest first (over walkable ground).</summary>

@@ -1209,7 +1209,8 @@ public sealed class MapGame : Game
 
     /// <summary>The selected market's route, to notice when it changes.</summary>
     private string RouteKey() =>
-        _selectedBuilding is { Exists: true } market && _world.Trade.IsMarket(market) ? string.Join(";", _world.Trade.Route(market)) : "";
+        _selectedBuilding is { Exists: true } market && _world.Trade.IsTradingPost(market)
+            ? string.Join(";", _world.Trade.Route(market)) + _world.Shipping.DockOf(market) : "";
 
     /// <summary>
     /// Work area of the selected building as in the original: posts on the borders of four circles at
@@ -1218,10 +1219,10 @@ public sealed class MapGame : Game
     private IEnumerable<(GridPoint Point, int Ring, Color? Tint)> WorkAreaMarks()
     {
         // An own market: its route from the door over the stops to the destination, a flag at each; the legs colored
-        // green, after the first stop yellow, after the second orange, after the third red.
-        if (_selectedBuilding is { Exists: true, Player: 0 } market && _world.Trade.IsMarket(market))
+        // green, after the first stop yellow, after the second orange, after the third red. A harbor's from its dock.
+        if (_selectedBuilding is { Exists: true, Player: 0 } market && _world.Trade.IsTradingPost(market))
         {
-            var from = market.Door;
+            var from = _world.Shipping.DockOf(market)?.Berth ?? market.Door;
             var route = _world.Trade.Route(market);
             for (int leg = 0; leg < route.Count; leg++)
             {
@@ -2978,7 +2979,7 @@ public sealed class MapGame : Game
                 if (FogOn && ship.Player != 0 && !_vision.IsVisible(ship.Position))
                     continue;
                 _shipRenderer.Draw(_spriteBatch, ship, ShipRenderer.Anchor(ship, _terrain, _world.Shipping.ShipStepTicks, alpha),
-                    PlayerColors.Of(ship.Player), _settlerRenderer);
+                    PlayerColors.Of(ship.Player), _settlerRenderer, _economyRenderer, _world.Shipping.CargoOf(ship));
             }
             foreach (var ghost in ghostsByRow[y])
                 if (!FogOn || _vision.IsVisible(ghost.Position))
@@ -3243,7 +3244,8 @@ public sealed class MapGame : Game
         int radius = _world.Magic.Config.Radius;
         // Setting a market's route point: a flag where the click would put it.
         if (_buildingInfo.AimsRoute(_selectedBuilding) && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height)
-            && _world.Trade.Reachable(_selectedBuilding!, ScreenToGrid(Mouse.GetState().Position.ToVector2())) is { } routePoint)
+            && _world.Trade.Reachable(_selectedBuilding!, ScreenToGrid(Mouse.GetState().Position.ToVector2()),
+                destination: _buildingInfo.RouteSlot == Simulation.Economy.Trade.Stops) is { } routePoint)
             _economyRenderer.DrawGatheringFlag(_spriteBatch, routePoint, _terrain, PlayerColors.Of(0), _time);
         // Setting a shipyard's dock: the pier, faint, where the click would put it.
         if (_buildingInfo.AimsDock(_selectedBuilding) && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height))
@@ -3606,7 +3608,7 @@ public sealed class MapGame : Game
         bool placed = mode != "none" && _world.Shipping.PlaceDock(dockyard, water);
         Console.WriteLine($"dock: shipyard at {at}, dock {(placed ? _world.Shipping.DockOf(dockyard).ToString() : "none")}");
         _camera = ToWorld(at);
-        if (!placed || mode is not ("build" or "ships" or "ferry"))
+        if (!placed || mode is not ("build" or "ships" or "ferry" or "harbor"))
             return;
         var near = PathFinder.Circle(dockyard.Door, 6).Where(p => _gameMap.IsWalkable(p) && _world.IsFreeGround(p)).ToList();
         _world.AddLooseGoods(near[0], Simulation.Economy.Material.Plank, 8);
@@ -3616,6 +3618,30 @@ public sealed class MapGame : Game
         if (mode == "build")
         {
             _world.Shipping.Order(dockyard, Simulation.Economy.ShipKind.Ferry);
+            return;
+        }
+        if (mode == "harbor")
+        {
+            // A harbor next to it with its dock, a trade ship, goods to send and a destination along the coast; the harbor selected.
+            var harborSpot = PathFinder.Circle(at, 20).Where(_gameMap.Contains).OrderBy(p => PathFinder.Distance(at, p))
+                .Where(p => _world.CanPlace(Own["harbor"], p, out _)).Cast<GridPoint?>().FirstOrDefault();
+            if (harborSpot is not { } h || _world.PlaceBuilding(Own["harbor"], 0, h) is not { } harbor
+                || !_world.Shipping.PlaceDock(harbor, PathFinder.Circle(h, 14).Where(Sea).OrderBy(p => PathFinder.Distance(h, p)).First()))
+            {
+                Console.WriteLine("dock: no harbor near the coast");
+                return;
+            }
+            _world.Shipping.Launch(dockyard, Simulation.Economy.ShipKind.TradeShip);
+            var beach = PathFinder.Circle(water, 40).Where(p => PathFinder.Distance(water, p) >= 25)
+                .FirstOrDefault(p => _world.Trade.SetDestination(harbor, p));
+            _world.AddLooseGoods(near[near.Count / 2], Simulation.Economy.Material.Stone, 8);
+            _world.AddLooseGoods(near[near.Count / 3], Simulation.Economy.Material.Coal, 6);
+            _world.Trade.SetRemaining(harbor, Simulation.Economy.Material.Plank, 8);
+            _world.Trade.SetRemaining(harbor, Simulation.Economy.Material.Stone, 8);
+            _world.Trade.SetRemaining(harbor, Simulation.Economy.Material.Coal, 6);
+            _selectedBuilding = harbor;
+            _camera = ToWorld(_world.Shipping.DockOf(harbor)!.Value.Berth);
+            Console.WriteLine($"dock: harbor at {h}, dock {_world.Shipping.DockOf(harbor)?.End}, destination {_world.Trade.DestinationOf(harbor)}");
             return;
         }
         if (mode == "ferry")

@@ -232,7 +232,8 @@
     "ferry": "Fähre",
     "tradeShip": "Handelsschiff",
     "passengers": "An Bord: {0}/{1}",
-    "unload": "Schiff entladen"
+    "unload": "Schiff entladen",
+    "cargo": "Ladung: {0}"
   },
   "buildingStatus": {
     "active": "Aktiv",
@@ -565,6 +566,7 @@
   },
   "building": {
     "trade": "Handel – Land",
+    "seaTrade": "Handel – Meer",
     "garrison": "Besatzung (da / Soll)",
     "resume": "Fortsetzen",
     "pause": "Anhalten",
