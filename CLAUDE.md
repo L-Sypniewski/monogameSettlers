@@ -209,7 +209,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     Militärgebäude, Rückzug ohne Kampf vor Stärkeren), `pincer` (Feldherr: Finte vom Sammelpunkt, Hauptgruppe im Bogen zur Flanke),
     `thief` (Plänklerin, Hitzkopf: `scouts` Späher stehlen Stapel am Rand feindlichen Lands, `ranks` Gold/Waffen/Erze > Werkzeuge > Nahrung > Rest;
     nicht bei feindlichen Soldaten in `soldierRadius`, sonst heimgerufen, Stapel `retrySeconds` gemieden).
-    `summoner` (Legion: Mana über `reserveSpells` × Volkszauber → „Waren herbeirufen“ durch einen freien Priester auf eigenem Land
+    `summoner` (Legion: Mana über `reserveSpells` × Volkszauber → „Himmlische Geschenke“ durch einen freien Priester auf eigenem Land
     nahe ihm, `edgeDistance` vom Rand, ohne Feindsoldaten, mit `minFreeFields` freien Feldern).
     `formation` (Legion, Feldherr, Plänklerin: Strike mit Bogen + Nahkampf gegen Feinde zu Fuß, noch außer Reichweite – Bogenschützen vor auf
     Reichweite − 2, Nahkämpfer halten `parkDistance` dahinter; Feind ≤ `fallBackDistance` an Bogenschützen → diese halten hinter den Nahkämpfern,
@@ -223,13 +223,19 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     Notizen eines Zugs beginnen mit seiner Kennung, erscheinen live (`AiPlayer.Noted`, `TraitOfNote`).
     Werte in `ai.json`, je Volk überschreibbar (`civilizations`, dort auch die Build-Order).
 - `Magic/`: Mana je Spieler. Kleiner Tempel: Wein/Met/Bier/Schnaps → Mana; großer Tempel schickt sofort und alle `priestSeconds` einen Priester.
-  `Cast`: Priester läuft auf Bogenreichweite × `rangeFactor` (2,25), zaubert nur, wo jemand Betroffenes steht (`Magic.HasTargets`:
-  feindliche Soldaten; Einfrieren auch Priester; Samuraischwert eigene Soldaten), kein Kampf nötig; Kosten je Spieler und Zauberart
+  Zauber wie im Original (Werte aus wiki.siedler3.net „Mana und Magie“): je Volk 8 im Menü (`menu`, Reihenfolge nach den Icons; `own` = Volkszauber
+  der KI), je Zauber `cost`, `radius` (0 = ganze Karte), `count`, `seconds`, `factor`; `placeholder` = noch nicht umgesetzt (sichtbar, nicht wirkbar).
+  `Cast`: Priester läuft bis `range` (24) heran (`anywhere`: wirkt von der Stelle, z. B. Verstärkung; ohne Radius sofort beim Menüklick),
+  zaubert nur, wo etwas Betroffenes ist (`Magic.HasTargets`/`Affected`, nächste zuerst bis `count`), kein Kampf nötig; Kosten je Spieler und Zauberart
   mit jedem Wirken `costIncrease` % (25 wie im Original, aufgerundet: 20, 25, 32 …) teurer (`Magic.CostOf`, Menü zeigt den aktuellen Preis); wirkt sofort bei Zauberbeginn (`castSeconds` nur die Geste).
-  Volkszauber: Bekehren (Seite wechseln, Volk bleibt – `Settler.People`), Samuraischwert, Einfrieren, Zerstreuen. Für alle (`commonSpells`):
-  „Waren herbeirufen“ (`SummonGoods`: 3–4 Stapel à 4–8 aus Nahrung, Waffen, Werkzeug, Gold, Eisen, Kohle, Erz; Ägypter 50 % zusätzlich Steine;
-  Flammen zeitversetzt). Priester angreifbar. Zwei Konten: Zauber verbrauchen `Mana`, Aufwertungen prüfen `ManaEarned`
-  (`upgrades.manaEarned` je n-ter Aufwertung). `Upgrade`: braucht fertigen kleinen Tempel; erst alle drei Typen Stufe 2, dann 3;
+  Einheiten bewegende/verwandelnde Zauber (Bekehren, Verbannen, Verstärkung, Bogen zu Pionieren) nehmen Priester, Soldaten, Späher, Geologen, Pioniere draußen,
+  keine Soldaten eines Militärgebäudes (`Military.IsTowerBound`: Besatzung, Tür, unterwegs hinein); Zauber auf Soldaten für eine Zeit (`Settler.Charm`,
+  `SpellCharm`: Samuraischwert nur Schwertkämpfer ×2 Tempo ×1,33 Schaden, Angst ×0,5 Schaden auf dem Land des Zaubernden, Stärken ×2 außerhalb des eigenen Lands,
+  Schild ×0,67 erlittener Schaden, Verfluchte Pfeile kein Pfeilschaden; Einfrieren `FrozenUntil`) auch die (Turm-Bogenschützen eingefroren schießen nicht);
+  erneut gewirkt verlängert, addiert nicht (`Military.DamageOf`/`Taken`). Himmlische Geschenke (`SummonGoods`: 3–4 Stapel à 4–8 aus Nahrung, Waffen,
+  Werkzeug, Gold, Eisen, Kohle, Erz im Umkreis `SummonSpread`; Ägypter 50 % zusätzlich Steine; Flammen zeitversetzt). Priester angreifbar.
+  Alte Spielstände übernehmen die aktuellen Regeln (`Magic.FollowRules`). Zwei Konten: Zauber verbrauchen `Mana`, Aufwertungen prüfen `ManaEarned`
+  (`upgrades.manaEarned` je n-ter Aufwertung, Original: 10/30/60/110/170/200). `Upgrade`: braucht fertigen kleinen Tempel; erst alle drei Typen Stufe 2, dann 3;
   gilt nur für danach Ausgebildete. Werte: `data/magic.json`.
 - `Persistence/`: `Snapshot` schreibt den ganzen Objektgraphen per Reflection (alle Felder, auch private, Objektidentität; Typtabelle mit
   Feldnamen – fehlende übersprungen, neue: Sammlungen/Klassen mit parameterlosem Konstruktor leer, nicht-nullbare Referenzen ohne solchen → inkompatibel, sonst Standardwert (nicht der Initialisierer!); Dictionary/HashSet mit innerem Aufbau, Hashes beim Laden neu → Partie läuft
@@ -447,7 +453,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   Handelsschiff fertig, gewählt, losgeschickt (mit `FOCUS=none`); `=ferry`: Fähre am Steg, 8 Soldaten, 7 steigen ein, Fähre gewählt; `=harbor` (mit `FOCUS=harbor`): Hafen mit Steg, Handelsschiff, Waren, Ziel; sonst mit `FOCUS=dockyard`); `TRADE=1` (Markt mit Lagertür als Ziel, Stopp, Planken ∞, Steine 12, drei Esel, Eselzucht; mit `FOCUS=market_place`); `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
   `TAB=system[:save|quit]` bzw. `goods|settlers[:<untermenü>[:manual|<ware>]]` (z. B. `settlers:soldiers:manual`, `goods:distribution:bread`);
   `STORE=<ware>` (mit `FOCUS=stock`); `PLACE=<gebäude>`; `START=<tab>[:color]` (nur `start.png` des Startscreens, 3: Zufallsgenerator; `:color` mit offener Farbauswahl von Spieler 1);
-  `MAGIC=1` (großer Tempel, Mana-Kette, Priester zaubert in einen Kampf; `=summon`: Waren herbeirufen);
+  `MAGIC=1` (großer Tempel, Mana-Kette, Priester zaubert in einen Kampf; `=summon`: Himmlische Geschenke);
   `MINUTES=<n>` (Benchmark: KI auch für Spieler 1, n min ohne Zeichnen vorgespult, dann Kameraschwenk über die Karte, PNG alle 1200 Frames);
   `STATS=<frame>` (Statistik öffnet in diesem Frame, alle Seiten als `stats_N.png`, dann Ende);
   `VIEW=economy|battle` (statt Schwenk: Kamera auf Spieler 1 bzw. folgt dem größten Kampf; `battle` spult mit `MINUTES` bis zu 20 min weiter, bis ≥ 20 Soldaten an einem Kampf sind).

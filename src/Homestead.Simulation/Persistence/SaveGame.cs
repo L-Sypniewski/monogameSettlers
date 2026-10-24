@@ -94,6 +94,7 @@ public static class SaveSlots
         var game = Snapshot.Read<SaveGame>(buffered);
         // Walkability is derived: a game saved by a build with other rules (e.g. before piers could be walked on) follows these.
         game.World.Map?.RefreshWalkable();
+        game.World.Magic.FollowRules();
         return game;
     }
 

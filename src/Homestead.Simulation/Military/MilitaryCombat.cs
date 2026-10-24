@@ -1,4 +1,5 @@
 using Homestead.Simulation.Buildings;
+using Homestead.Simulation.Magic;
 using Homestead.Simulation.Pathfinding;
 
 namespace Homestead.Simulation.Military;
@@ -246,7 +247,36 @@ public sealed partial class Military
 
     /// <summary>Ticks to the next strike; hasted by a spell, faster.</summary>
     private int HitInterval(Settler soldier, SoldierStats stats) =>
-        soldier.HastedUntil > _world.Tick ? Math.Max(1, (int)Math.Round(stats.AttackTicks / soldier.HasteFactor)) : stats.AttackTicks;
+        soldier.CharmOf(SpellKind.Haste, _world.Tick) is { } haste ? Math.Max(1, (int)Math.Round(stats.AttackTicks / haste.Speed)) : stats.AttackTicks;
+
+    /// <summary>
+    /// The damage of the soldier's next strike: by type and level, its combat strength where it stands, and the spells on it –
+    /// Haste, Strengthen away from its own land, Fear on the land of the player who cast it.
+    /// </summary>
+    public float DamageOf(Settler soldier)
+    {
+        double damage = _config.Damage(soldier.SoldierType!.Value, soldier.Level) * CombatStrengthOf(soldier);
+        long tick = _world.Tick;
+        var owner = _world.Map?.OwnerAt(soldier.Position);
+        if (soldier.CharmOf(SpellKind.Haste, tick) is { } haste)
+            damage *= haste.Factor;
+        if (soldier.CharmOf(SpellKind.Strengthen, tick) is { } strength && owner != soldier.Player)
+            damage *= strength.Factor;
+        if (soldier.CharmOf(SpellKind.Fear, tick) is { } fear && owner == fear.Caster)
+            damage *= fear.Factor;
+        return (float)damage;
+    }
+
+    /// <summary>What the enemy takes of the damage: its armor, a shield spell, cursed arrows against bowmen.</summary>
+    public float Taken(Settler enemy, Settler attacker, float damage)
+    {
+        long tick = _world.Tick;
+        if (attacker.SoldierType == SoldierType.Bowman && enemy.CharmOf(SpellKind.CursedArrows, tick) is { } arrows)
+            damage *= (float)arrows.Factor;
+        if (enemy.CharmOf(SpellKind.Shield, tick) is { } shield)
+            damage *= (float)shield.Factor;
+        return enemy.SoldierType is { } type ? _config.Soldiers[type].Taken(damage) : damage;
+    }
 
     /// <summary>Soldiers standing around fight enemies that come within sight, then take enemy military buildings in sight.</summary>
     private void EngageIdleSoldiers()
@@ -466,7 +496,8 @@ public sealed partial class Military
             bool searched = false;
             foreach (var bowman in g.Places)
             {
-                if (bowman is not { SoldierType: SoldierType.Bowman } || _nextShot.GetValueOrDefault(bowman.Id) > _world.Tick)
+                if (bowman is not { SoldierType: SoldierType.Bowman } || _nextShot.GetValueOrDefault(bowman.Id) > _world.Tick
+                    || bowman.FrozenUntil > _world.Tick) // frozen on top of the building
                     continue;
                 var stats = _config.Soldiers[SoldierType.Bowman];
                 if (!searched || enemy is { IsDead: true })
@@ -611,7 +642,7 @@ public sealed partial class Military
                         else
                         {
                             _world.Cue(new SoundCue(SoundCueKind.Strike, soldier.Position, soldier.Player, soldier.SoldierType, soldier.People ?? _world.PeopleOf(soldier.Player)));
-                            g.DoorHealth = Math.Max(0, g.DoorHealth - _config.Damage(soldier.SoldierType!.Value, soldier.Level) * CombatStrengthOf(soldier));
+                            g.DoorHealth = Math.Max(0, g.DoorHealth - DamageOf(soldier));
                             g.LastThreat = _world.Tick;
                             _world.Events.Raise("buildingAttacked", g.Building.Player, g.Building.Position, building: g.Building);
                         }
@@ -940,8 +971,7 @@ public sealed partial class Military
             _world.Events.Raise("donkeyRobbed", enemy.Player, enemy.Position, settler: enemy);
             return;
         }
-        float damage = _config.Damage(attacker.SoldierType!.Value, attacker.Level) * CombatStrengthOf(attacker);
-        enemy.Health -= enemy.SoldierType is { } type ? _config.Soldiers[type].Taken(damage) : damage;
+        enemy.Health -= Taken(enemy, attacker, DamageOf(attacker));
         var home = DefendedBy(enemy);
         if (home is not null)
         {
@@ -960,6 +990,28 @@ public sealed partial class Military
 
     /// <summary>The garrison whose door the soldier guards, if any.</summary>
     private Garrison? DefendedBy(Settler soldier) => _guards.GetValueOrDefault(soldier.Id);
+
+    /// <summary>
+    /// Whether the soldier belongs to a military building: in its garrison, guarding or defending its door, or on the way in
+    /// (spells moving or changing units leave those alone).
+    /// </summary>
+    internal bool IsTowerBound(Settler soldier) =>
+        soldier.Profession == Profession.Soldier && (IsGarrisoned(soldier) || _guards.ContainsKey(soldier.Id)
+            || _garrisons.Values.Any(g => g.Defending.ContainsValue(soldier) || g.Coming.Values.Any(c => c.Soldier == soldier)));
+
+    /// <summary>Whether the soldier is in the garrison of a military building (inside, or on top of it).</summary>
+    internal bool IsGarrisoned(Settler soldier) => soldier.IsInside && _garrisons.Values.Any(g => g.Places.Contains(soldier));
+
+    /// <summary>The soldier lays down its weapon and becomes a unit of another profession (Egyptian spell: bows to pioneers).</summary>
+    internal void Disarm(Settler soldier, Profession profession)
+    {
+        Release(soldier);
+        soldier.Profession = profession;
+        soldier.SoldierType = null;
+        soldier.Level = 1;
+        soldier.Charms = null;
+        soldier.Health = Economy.Geology.HealthOf(_config, profession);
+    }
 
     private void Kill(Settler soldier, Settler attacker)
     {

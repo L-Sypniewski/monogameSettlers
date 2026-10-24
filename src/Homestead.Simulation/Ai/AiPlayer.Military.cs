@@ -566,7 +566,7 @@ public sealed partial class AiPlayer
         long left = soldier.FrozenUntil - _world.Tick;
         if (left <= 0)
             return 1;
-        int lasts = _world.Magic.Config.Spells.Values.SelectMany(s => s).FirstOrDefault(s => s.Kind == SpellKind.Freeze)?.Ticks ?? 0;
+        int lasts = _world.Magic.Config.Find(SpellKind.Freeze)?.Ticks ?? 0;
         return lasts <= 0 ? 0 : Math.Clamp(1 - (double)left / lasts, 0, 1);
     }
 

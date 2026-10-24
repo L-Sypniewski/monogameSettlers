@@ -55,7 +55,7 @@ public sealed partial class AiPlayer
     {
         if (_world.Magic.SpellOf(Player) is not { } spell || spell.Kind == SpellKind.SummonGoods)
             return null;
-        int radius = _world.Magic.Config.Radius;
+        int radius = spell.Radius;
         var coming = _world.Settlers.Where(s => s.Player == Player && s.Profession == Profession.Priest && _world.Magic.IsBusy(s))
             .Select(s => _world.Magic.TargetOf(s)).OfType<GridPoint>().ToList();
         // The spells on their way pay first.
@@ -71,12 +71,9 @@ public sealed partial class AiPlayer
         // Frozen ones thawing before the spell could land count as not hit.
         long thawing = _world.Tick + _world.Magic.Config.CastTicks + World.TicksPerSecond;
         var hit = _world.Settlers
-            .Where(s => !s.IsInside && !s.IsDead && spell.Kind switch
-            {
-                SpellKind.Haste => s.Player == Player && s.Profession == Profession.Soldier,
-                SpellKind.Freeze => s.Player != Player && s.Profession is Profession.Soldier or Profession.Priest && s.FrozenUntil <= thawing,
-                _ => s.Player != Player && s.Profession == Profession.Soldier,
-            })
+            .Where(s => !s.IsInside && !s.IsDead && _world.Magic.Affects(spell, Player, s)
+                        && (spell.Kind != SpellKind.Freeze || s.FrozenUntil <= thawing)
+                        && (spell.Kind != SpellKind.Haste || !s.IsCharmed(SpellKind.Haste, thawing)))
             .ToList();
         var candidates = spell.Kind == SpellKind.Haste
             ? engaged.Where(f => f.Activity is Activity.Fighting or Activity.Shooting).Select(f => f.Position)

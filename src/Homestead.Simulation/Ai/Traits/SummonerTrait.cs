@@ -75,7 +75,7 @@ internal sealed class SummonerTrait : AiTrait
     {
         var world = ai.World;
         var map = world.Map!;
-        int radius = world.Magic.Config.Radius;
+        int radius = Magic.Magic.SummonSpread;
         foreach (var spot in PathFinder.Circle(near, _priestRadius))
         {
             if ((spot.X + spot.Y) % 2 != 0 || !map.Contains(spot) || map.OwnerAt(spot) != ai.Player)

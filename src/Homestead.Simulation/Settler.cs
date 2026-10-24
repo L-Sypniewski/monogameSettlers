@@ -1,5 +1,6 @@
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
+using Homestead.Simulation.Magic;
 
 namespace Homestead.Simulation;
 
@@ -135,11 +136,19 @@ public sealed class Settler
     /// <summary>Frozen by a spell until this tick: neither walks nor fights.</summary>
     public long FrozenUntil { get; internal set; }
 
-    /// <summary>Strikes faster (spell) until this tick.</summary>
-    public long HastedUntil { get; internal set; }
+    /// <summary>Spells working on the soldier for a while (Haste, Fear, Strengthen, Shield, CursedArrows); null: none yet.</summary>
+    internal Dictionary<SpellKind, SpellCharm>? Charms { get; set; }
 
-    /// <summary>How many times as fast it strikes while hasted.</summary>
-    internal double HasteFactor { get; set; } = 1;
+    /// <summary>The spell of the kind works on the soldier (again: from now on, for its full time).</summary>
+    internal void Charm(SpellKind kind, long until, double speed, double factor, int caster) =>
+        (Charms ??= new())[kind] = new SpellCharm(until, speed, factor, caster);
+
+    /// <summary>The spell of the kind working on the soldier at the tick; null when there is none (or it is over).</summary>
+    internal SpellCharm? CharmOf(SpellKind kind, long tick) =>
+        Charms is not null && Charms.TryGetValue(kind, out var charm) && charm.Until > tick ? charm : null;
+
+    /// <summary>Whether a spell of the kind works on the soldier at the tick.</summary>
+    public bool IsCharmed(SpellKind kind, long tick) => CharmOf(kind, tick) is not null;
 
     /// <summary>The grid point the settler stands on, or leaves during a step.</summary>
     public GridPoint Position { get; internal set; }
@@ -233,3 +242,9 @@ public sealed class Settler
 
     internal bool WantsToMove => State != SettlerState.Stepping && Path.Count > 0;
 }
+
+/// <summary>
+/// A spell working on a soldier until a tick: <paramref name="Speed"/> times as many strikes, <paramref name="Factor"/>
+/// on the damage dealt (Haste, Fear, Strengthen) or taken (Shield, CursedArrows); <paramref name="Caster"/>: the casting player.
+/// </summary>
+internal readonly record struct SpellCharm(long Until, double Speed, double Factor, int Caster);

@@ -89,9 +89,9 @@ public sealed class SpellMenu
 
         string title = aiming is not null ? Lang.T(aiming.Kind switch
             {
-                SpellKind.SummonGoods => "spellMenu.clickPlace",
-                SpellKind.Haste => "spellMenu.clickOwn",
-                _ => "spellMenu.clickEnemies",
+                SpellKind.Haste or SpellKind.Strengthen or SpellKind.Shield or SpellKind.CursedArrows or SpellKind.Reinforce => "spellMenu.clickOwn",
+                SpellKind.Convert or SpellKind.Scatter or SpellKind.Freeze or SpellKind.Fear or SpellKind.BowsToPioneers => "spellMenu.clickEnemies",
+                _ => "spellMenu.clickPlace",
             })
             : hovered is null ? Lang.T("spellMenu.title")
             : hovered.Spell is null ? Lang.T("spellMenu.cost", Lang.T("spells." + hovered.Id), hovered.Cost) + " · " + Lang.T("spellMenu.placeholder")

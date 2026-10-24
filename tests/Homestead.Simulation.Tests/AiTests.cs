@@ -813,7 +813,7 @@ public class AiTests(ITestOutputHelper output)
         Assert.Contains(world.Piles, p => p.Material == Material.Axe && map.OwnerAt(p.Position) == 1);
     }
 
-    /// <summary>Player 0 (Romans: Convert costs 40) owns the land left of x = 80 with a staffed tower; a priest near the border.</summary>
+    /// <summary>Player 0 (Romans: Convert costs 60) owns the land left of x = 80 with a staffed tower; a priest near the border.</summary>
     private static (World World, AiPlayer Ai, Settler Priest) SummonerSetup(int mana)
     {
         var map = new GameMap(160);
@@ -834,7 +834,7 @@ public class AiTests(ITestOutputHelper output)
     [Fact]
     public void A_summoner_spends_spare_mana_on_goods_away_from_the_border_near_its_priest()
     {
-        var (world, ai, priest) = SummonerSetup(120); // 2 × 40 kept for converting, 30 for the summoning
+        var (world, ai, priest) = SummonerSetup(130); // 2 × 60 kept for converting, 10 for the summoning
         int piles = world.Piles.Count();
 
         for (int t = 0; t < 30 * World.TicksPerSecond && world.Piles.Count() == piles; t++)
@@ -844,7 +844,7 @@ public class AiTests(ITestOutputHelper output)
             output.WriteLine(line);
         var summoned = world.Piles.Skip(piles).ToList();
         Assert.NotEmpty(summoned);
-        Assert.Equal(90, world.Magic.Mana(0));
+        Assert.Equal(120, world.Magic.Mana(0));
         Assert.All(summoned, p => Assert.True(p.Position.X <= 80 - 10, $"{p.Position} too near the border"));
         Assert.All(summoned, p => Assert.True(PathFinder.Distance(p.Position, new GridPoint(74, 80)) <= 12 + 5 + 1, $"{p.Position} too far from the priest"));
     }
@@ -852,13 +852,13 @@ public class AiTests(ITestOutputHelper output)
     [Fact]
     public void A_summoner_keeps_the_mana_for_its_own_spell()
     {
-        var (world, ai, _) = SummonerSetup(100); // 100 − 30 < 2 × 40
+        var (world, ai, _) = SummonerSetup(125); // 125 − 10 < 2 × 60
 
         for (int t = 0; t < 30 * World.TicksPerSecond; t++)
             world.Step();
 
         Assert.DoesNotContain(ai.Log, l => l.Contains("summoner:"));
-        Assert.Equal(100, world.Magic.Mana(0));
+        Assert.Equal(125, world.Magic.Mana(0));
     }
 
     /// <summary>An AI whose build order is done (only what the test places), measuring growth every 20 seconds.</summary>

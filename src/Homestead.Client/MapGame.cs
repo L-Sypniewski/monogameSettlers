@@ -1737,6 +1737,12 @@ public sealed class MapGame : Game
                 _aimSpell = spell;
                 _message = again ? "" : !_aiming ? "not enough mana"
                     : "click where the spell should work";
+                // A spell on the whole map needs no target: cast at once.
+                if (_aiming && !spell.Targeted)
+                {
+                    _aiming = false;
+                    CastSpell(_group[0].Position);
+                }
             }
         }
         else if (onMenu && ShowsSelection && SelectionPanel.ActionAt(_group, panelCursor) is { } action)
@@ -2193,19 +2199,7 @@ public sealed class MapGame : Game
         if (_aiming)
         {
             _aiming = false;
-            var aimedAt = ScreenToGrid(screen);
-            var cast = _world.Magic.Cast(_group, aimedAt, _aimSpell);
-            if (cast == CastResult.Started)
-                PlayCommand();
-            _message = cast switch
-            {
-                CastResult.Started => $"casting {_aimSpell?.Name} at {aimedAt.X},{aimedAt.Y}",
-                CastResult.NoMana => "not enough mana",
-                CastResult.NoTarget => "nobody there this spell works on",
-                CastResult.Unreachable => "no way there",
-                CastResult.NoPriest => "all priests are busy",
-                _ => "this people knows no spell",
-            };
+            CastSpell(ScreenToGrid(screen));
             return;
         }
 
@@ -3265,9 +3259,25 @@ public sealed class MapGame : Game
     /// <summary>Where the dock would go for the point under the cursor (computed again when either changes).</summary>
     private (Building? Building, GridPoint At, Homestead.Simulation.Economy.Dock? Dock) _dockPreview;
 
+    /// <summary>The chosen priests cast <see cref="_aimSpell"/> at the point.</summary>
+    private void CastSpell(GridPoint aimedAt)
+    {
+        var cast = _world.Magic.Cast(_group, aimedAt, _aimSpell);
+        if (cast == CastResult.Started)
+            PlayCommand();
+        _message = cast switch
+        {
+            CastResult.Started => $"casting {_aimSpell?.Name} at {aimedAt.X},{aimedAt.Y}",
+            CastResult.NoMana => "not enough mana",
+            CastResult.NoTarget => "nothing there this spell works on",
+            CastResult.Unreachable => "no way there",
+            CastResult.NoPriest => "all priests are busy",
+            _ => "this people knows no spell",
+        };
+    }
+
     private void DrawMagic(float alpha)
     {
-        int radius = _world.Magic.Config.Radius;
         // Setting a market's route point: a flag where the click would put it.
         if (_buildingInfo.AimsRoute(_selectedBuilding) && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height)
             && _world.Trade.Reachable(_selectedBuilding!, ScreenToGrid(Mouse.GetState().Position.ToVector2()),
@@ -3286,7 +3296,9 @@ public sealed class MapGame : Game
         if (_aiming && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height))
         {
             var target = ScreenToGrid(Mouse.GetState().Position.ToVector2());
-            DrawRing(target, radius, _aimSpell is { } spell && _world.Magic.HasTargets(spell, 0, target) ? Color.White : Color.Red);
+            if (_aimSpell is { } spell)
+                DrawRing(target, Math.Max(1, spell.Radius > 0 ? spell.Radius : Homestead.Simulation.Magic.Magic.SummonSpread),
+                    _world.Magic.HasTargets(spell, 0, target) ? Color.White : Color.Red);
         }
         foreach (var effect in _world.Magic.Effects)
         {
@@ -3304,9 +3316,10 @@ public sealed class MapGame : Game
             float age = (_world.Tick - effect.Tick + alpha) / SpellEffect.ShowTicks;
             var color = effect.Kind switch
             {
-                SpellKind.Convert => Color.Gold,
+                SpellKind.Convert or SpellKind.Strengthen => Color.Gold,
                 SpellKind.Haste => Color.OrangeRed,
                 SpellKind.Freeze => Color.DeepSkyBlue,
+                SpellKind.Shield or SpellKind.CursedArrows => Color.LightGreen,
                 _ => Color.MediumPurple,
             };
             DrawRing(effect.Target, Math.Max(1, (int)Math.Round(effect.Radius * Math.Min(1, age * 2))), color * (1 - age));
@@ -3315,7 +3328,13 @@ public sealed class MapGame : Game
         {
             if (settler.IsInside)
                 continue;
-            var mark = settler.FrozenUntil > _world.Tick ? Color.DeepSkyBlue : settler.HastedUntil > _world.Tick ? Color.OrangeRed : (Color?)null;
+            long tick = _world.Tick;
+            var mark = settler.FrozenUntil > tick ? Color.DeepSkyBlue
+                : settler.IsCharmed(SpellKind.Haste, tick) ? Color.OrangeRed
+                : settler.IsCharmed(SpellKind.Strengthen, tick) ? Color.Gold
+                : settler.IsCharmed(SpellKind.Shield, tick) || settler.IsCharmed(SpellKind.CursedArrows, tick) ? Color.LightGreen
+                : settler.IsCharmed(SpellKind.Fear, tick) ? Color.MediumPurple
+                : (Color?)null;
             if (mark is { } c)
             {
                 var anchor = SettlerRenderer.Anchor(settler, _terrain, alpha);

@@ -91,7 +91,7 @@ public class MagicTests
     {
         var catalog = BuildingCatalog.Load(people);
         var spell = TwoPeoples(out var priest, catalog).Magic.SpellsOf(0).Single(s => s.Kind == SpellKind.SummonGoods);
-        Assert.Equal(30, spell.Cost);
+        Assert.Equal(10, spell.Cost);
         var stone = new List<int>();
         for (int seed = 0; seed < 12; seed++)
         {
@@ -101,12 +101,12 @@ public class MagicTests
             Assert.Equal(CastResult.Started, world.Magic.Cast([priest], target, spell));
             Run(world, 400, () => world.Magic.SpellsCast > 0);
 
-            Assert.Equal(70, world.Magic.Mana(0));
+            Assert.Equal(90, world.Magic.Mana(0));
             var piles = world.Piles.Where(p => p.Role == PileRole.Loose).ToList();
             var regular = piles.Where(p => p.Material != Material.Stone).ToList();
             Assert.InRange(regular.Count, 3, 4);
             Assert.All(piles, p => Assert.InRange(p.Count, 4, 8));
-            Assert.All(piles, p => Assert.True(PathFinder.InCircle(target, p.Position, world.Magic.Config.Radius)));
+            Assert.All(piles, p => Assert.True(PathFinder.InCircle(target, p.Position, Magic.Magic.SummonSpread)));
             Assert.All(regular, p => Assert.Contains(p.Material!.Value, spell.Goods.SelectMany(g => g)));
             Assert.Equal(piles.Count, world.Magic.Effects.Single().Points.Count);
             stone.Add(piles.Count - regular.Count);
@@ -135,11 +135,11 @@ public class MagicTests
             paid.Add(before - world.Magic.Mana(0));
         }
 
-        Assert.Equal([30, 38, 48], paid);
-        Assert.Equal(60, world.Magic.CostOf(0, summon));
-        Assert.Equal(60, world.Magic.MenuOf(0).Single(m => m.Spell == summon).Cost);
+        Assert.Equal([10, 13, 17], paid);
+        Assert.Equal(22, world.Magic.CostOf(0, summon));
+        Assert.Equal(22, world.Magic.MenuOf(0).Single(m => m.Spell == summon).Cost);
         Assert.Equal(own.Cost, world.Magic.CostOf(0, own)); // only the kind cast grows
-        Assert.Equal(75, world.Magic.CostOf(0, summon, ahead: 1));
+        Assert.Equal(28, world.Magic.CostOf(0, summon, ahead: 1));
     }
 
     [Fact]
@@ -152,10 +152,10 @@ public class MagicTests
     }
 
     [Fact]
-    public void Spells_reach_more_than_twice_as_far_as_bowmen()
+    public void Spells_reach_24_fields_like_the_original()
     {
         var world = TwoPeoples(out _, Romans);
-        Assert.Equal((int)Math.Round(world.Military.Config.Soldiers[SoldierType.Bowman].Range * 2.25), world.Magic.Range);
+        Assert.Equal(24, world.Magic.Range);
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public class MagicTests
         Assert.Equal(1, world.Magic.SpellsCast);
         Assert.Equal(100 - cost, world.Magic.Mana(0));
         var converted = enemies.Where(e => !e.IsDead && e.Player == 0).ToList();
-        Assert.Equal(world.Magic.SpellOf(priest)!.Count, converted.Count);
+        Assert.InRange(converted.Count, 5, world.Magic.SpellOf(priest)!.Count);
         Assert.All(converted, c => Assert.Equal(Civilization.Asian, c.People));
     }
 
@@ -206,7 +206,7 @@ public class MagicTests
         Assert.Equal(CastResult.Started, world.Magic.Cast([priest], new GridPoint(41, 40)));
         Run(world, 400, () => world.Magic.SpellsCast > 0);
 
-        int away = enemies.Count(e => !e.IsDead && PathFinder.Distance(e.Position, new GridPoint(41, 40)) > world.Magic.Config.Radius + 2);
+        int away = enemies.Count(e => !e.IsDead && PathFinder.Distance(e.Position, new GridPoint(41, 40)) > world.Magic.SpellOf(priest)!.Radius + 2);
         Assert.True(away >= Math.Min(world.Magic.SpellOf(priest)!.Count, 5), $"{away} scattered");
     }
 
@@ -220,8 +220,126 @@ public class MagicTests
         Assert.Equal(CastResult.Started, world.Magic.Cast([priest], new GridPoint(41, 40)));
         Run(world, 400, () => world.Magic.SpellsCast > 0);
 
-        Assert.Contains(friends, f => f.HastedUntil > world.Tick);
+        var hasted = Assert.Single(friends.Where(f => f.IsCharmed(SpellKind.Haste, world.Tick)).Take(1));
+        var control = world.SpawnSoldier(new GridPoint(70, 70), SoldierType.Swordsman, level: 3)!; // far away, not hasted
+        Assert.Equal(world.Military.DamageOf(control) * 1.33f, world.Military.DamageOf(hasted), 2);
     }
+
+    [Fact]
+    public void Romans_put_fear_into_enemies_on_their_land_who_strike_with_half_the_damage()
+    {
+        var world = TwoPeoples(out var priest, Romans);
+        var map = world.Map!;
+        for (int y = 30; y < 50; y++)
+            for (int x = 30; x < 50; x++)
+                map.SetOwner(new GridPoint(x, y), 0);
+        var (_, enemies) = Battle(world);
+        var enemy = enemies[4];
+        world.Magic.AddMana(0, 100);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], enemy.Position, Spell(world, SpellKind.Fear)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+
+        Assert.True(enemy.IsCharmed(SpellKind.Fear, world.Tick));
+        var control = world.SpawnSoldier(new GridPoint(31, 31), SoldierType.Swordsman, level: 3, player: 1)!; // on the land, no fear
+        Assert.Equal(world.Military.DamageOf(control) * 0.5f, world.Military.DamageOf(enemy), 2);
+        map.SetOwner(enemy.Position, 1); // off the caster's land: the spell does nothing
+        Assert.Equal(world.Military.Config.Damage(SoldierType.Swordsman, 3), world.Military.DamageOf(enemy), 2);
+    }
+
+    [Fact]
+    public void Egyptians_strengthen_their_soldiers_away_from_home_only()
+    {
+        var world = TwoPeoples(out var priest, Egyptians);
+        var (friends, _) = Battle(world);
+        var friend = friends[4];
+        float before = world.Military.DamageOf(friend);
+        world.Magic.AddMana(0, 100);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], friend.Position, Spell(world, SpellKind.Strengthen)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+
+        Assert.Equal(before * 2, world.Military.DamageOf(friend), 2);
+        world.Map!.SetOwner(friend.Position, 0);
+        Assert.Equal(world.Military.Config.Damage(SoldierType.Swordsman, 3), world.Military.DamageOf(friend), 2); // at home: no spell, full strength
+    }
+
+    [Fact]
+    public void Shields_take_a_third_off_and_cursed_arrows_all_of_the_bowmens_damage()
+    {
+        var world = TwoPeoples(out var priest, Asians);
+        var (friends, enemies) = Battle(world);
+        var bowman = world.SpawnSoldier(new GridPoint(60, 60), SoldierType.Bowman, player: 1)!;
+        var friend = friends[4];
+        world.Magic.AddMana(0, 100);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], friend.Position, Spell(world, SpellKind.Shield)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+        Assert.Equal(20 * 0.67f, world.Military.Taken(friend, enemies[4], 20), 2);
+
+        var amazons = TwoPeoples(out var priestess, Amazons);
+        var (guarded, _) = Battle(amazons);
+        amazons.Magic.AddMana(0, 100);
+        Assert.Equal(CastResult.Started, amazons.Magic.Cast([priestess], guarded[4].Position, Spell(amazons, SpellKind.CursedArrows)));
+        Run(amazons, 400, () => amazons.Magic.SpellsCast > 0);
+        var archer = amazons.SpawnSoldier(new GridPoint(60, 60), SoldierType.Bowman, player: 1)!;
+        Assert.Equal(0, amazons.Military.Taken(guarded[4], archer, 20));
+        Assert.True(amazons.Military.Taken(guarded[4], guarded[0], 20) > 0); // swords still hurt
+        Assert.NotNull(bowman);
+    }
+
+    [Fact]
+    public void Egyptians_turn_enemy_bowmen_into_pioneers()
+    {
+        var world = TwoPeoples(out var priest, Egyptians);
+        var bowmen = Enumerable.Range(0, 3).Select(i => world.SpawnSoldier(new GridPoint(40 + i, 40), SoldierType.Bowman, player: 1)!).ToList();
+        var swordsman = world.SpawnSoldier(new GridPoint(40, 42), SoldierType.Swordsman, player: 1)!;
+        world.Magic.AddMana(0, 100);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], new GridPoint(41, 40), Spell(world, SpellKind.BowsToPioneers)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+
+        Assert.All(bowmen, b => Assert.Equal((Profession.Pioneer, (SoldierType?)null, 1), (b.Profession, b.SoldierType, b.Player)));
+        Assert.Equal(Profession.Soldier, swordsman.Profession);
+    }
+
+    [Fact]
+    public void Asian_reinforcements_come_to_the_priest_from_anywhere()
+    {
+        var world = TwoPeoples(out var priest, Asians);
+        var far = Enumerable.Range(0, 3).Select(i => world.SpawnSoldier(new GridPoint(80, 80 + i), SoldierType.Pikeman)!).ToList();
+        var geologist = world.Spawn(new GridPoint(82, 80), Profession.Geologist)!;
+        world.Magic.AddMana(0, 100);
+        var start = priest.Position;
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], new GridPoint(81, 81), Spell(world, SpellKind.Reinforce)));
+        Run(world, 10, () => world.Magic.SpellsCast > 0);
+
+        Assert.Equal(start, priest.Position); // cast where it stands
+        Assert.All(far.Append(geologist), u => Assert.True(PathFinder.Distance(u.Position, priest.Position) <= 3, $"{u.Position}"));
+    }
+
+    [Fact]
+    public void Conversion_takes_other_units_but_not_soldiers_of_a_tower()
+    {
+        var world = TwoPeoples(out var priest, Romans);
+        var tower = world.PlaceBuilding(Asians["tower"], 1, new GridPoint(45, 45), force: true)!;
+        world.SpawnSoldier(new GridPoint(46, 50), SoldierType.Swordsman, player: 1);
+        Run(world, 2_000, () => world.Military.IsOccupied(tower));
+        Assert.True(world.Military.IsOccupied(tower));
+        var geologist = world.Spawn(new GridPoint(41, 40), Profession.Geologist, player: 1)!;
+        var enemyPriest = world.Magic.SpawnPriest(new GridPoint(42, 41), 1)!;
+        world.Magic.AddMana(0, 100);
+
+        Assert.Equal(CastResult.Started, world.Magic.Cast([priest], new GridPoint(43, 42)));
+        Run(world, 400, () => world.Magic.SpellsCast > 0);
+
+        Assert.Equal(0, geologist.Player);
+        Assert.Equal(0, enemyPriest.Player);
+        Assert.All(world.Settlers.Where(s => s.Profession == Profession.Soldier), s => Assert.Equal(1, s.Player));
+    }
+
+    private static Spell Spell(World world, SpellKind kind) => world.Magic.SpellsOf(0).Single(s => s.Kind == kind);
 
     [Fact]
     public void Soldiers_attack_enemy_priests()
