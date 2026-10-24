@@ -588,6 +588,7 @@ public sealed class MapGame : Game
         _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid);
         _buildingInfo.Spinner = _manufactureMenu.SpinnerImage;
         _buildingInfo.LoadIcons(GraphicsDevice, _gfx);
+        _spellMenu.LoadIcons(GraphicsDevice, _gfx);
         _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf);
         _transportMenu?.Dispose();
         _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid);
@@ -1702,10 +1703,12 @@ public sealed class MapGame : Game
         }
         else if (PriestsSelected)
         {
-            var spells = _world.Magic.SpellsOf(0);
-            if (onMenu && released && _spellMenu.SpellAt(panelCursor, spells.Count) is { } index)
+            var menu = _world.Magic.MenuOf(0);
+            if (onMenu && released && _spellMenu.SpellAt(panelCursor, menu.Count) is { } index && menu[index].Spell is null)
+                _message = "spell not implemented yet";
+            else if (onMenu && released && _spellMenu.SpellAt(panelCursor, menu.Count) is { } chosen)
             {
-                var spell = spells[index];
+                var spell = menu[chosen].Spell!;
                 bool again = _aiming && _aimSpell == spell;
                 _aiming = !again && _world.Magic.Mana(0) >= spell.Cost;
                 _aimSpell = spell;
@@ -3062,17 +3065,13 @@ public sealed class MapGame : Game
             _buildingInfo.DrawShips(_spriteBatch, _pixel, _font, _world, _ships, panelMouse);
         else if (ShowsSelection)
         {
-            // The selected units (below the spell menu for priests) and the combat strength.
-            int unitsTop = BuildMenu.Content.Y;
+            // Priests: their spell menu like the original; else the selected units and the combat strength.
             if (PriestsSelected)
-            {
-                var spells = _world.Magic.SpellsOf(0);
-                _spellMenu.Draw(_spriteBatch, _pixel, _font, _settlerRenderer, _portraits!, Own.Civilization, spells,
-                    _world.Magic.Mana(0), _aiming ? _aimSpell : null, panelMouse);
-                unitsTop = SpellMenu.Bottom(spells.Count);
-            }
-            _selectionPanel.Draw(_spriteBatch, _font, _settlerRenderer, PortraitsOf, Own.Civilization, _group,
-                _world.Military.CombatStrength(0), unitsTop, panelMouse);
+                _spellMenu.Draw(_spriteBatch, _pixel, _font, Own.Civilization, _world.Magic.MenuOf(0), _world.Magic.Mana(0),
+                    _aiming ? _aimSpell : null, panelMouse);
+            else
+                _selectionPanel.Draw(_spriteBatch, _font, _settlerRenderer, PortraitsOf, Own.Civilization, _group,
+                    _world.Military.CombatStrength(0), BuildMenu.Content.Y, panelMouse);
         }
         else if (_tabs.Current == PanelTab.System)
             _systemMenu.Draw(_spriteBatch, _font, panelMouse);

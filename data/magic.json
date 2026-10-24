@@ -34,6 +34,49 @@
       "extra": { "Egyptian": [ { "material": "STONE", "chance": 0.5 } ] }
     }
   ],
+  "_menuComment": "The priests' spell menu per people, top to bottom like the original (icons: spellMenu in data/ui.json). spell: an implemented spell of the people (its own or a common one); placeholder: a spell of the original not made yet – shown with its cost and charge (mana / cost), cannot be cast; names (spells.<id>) and costs are guesses from the icons. Where the Egyptians' Scatter and the Asians' Samurai sword sit is a guess too.",
+  "menu": {
+    "Roman": [
+      { "spell": "Convert" },
+      { "placeholder": "TransmuteGoods", "cost": 20 },
+      { "placeholder": "IronToGold", "cost": 25 },
+      { "spell": "SummonGoods" },
+      { "placeholder": "TransformSoldiers", "cost": 30 },
+      { "placeholder": "Growth", "cost": 15 },
+      { "placeholder": "Fertility", "cost": 15 },
+      { "placeholder": "MagicEye", "cost": 10 }
+    ],
+    "Egyptian": [
+      { "placeholder": "Disarm", "cost": 35 },
+      { "spell": "Scatter" },
+      { "placeholder": "PharaohsFavour", "cost": 30 },
+      { "spell": "SummonGoods" },
+      { "placeholder": "BurnTrees", "cost": 20 },
+      { "placeholder": "FishToMeat", "cost": 15 },
+      { "placeholder": "DrainSwamp", "cost": 20 },
+      { "placeholder": "GreenDesert", "cost": 20 }
+    ],
+    "Asian": [
+      { "spell": "Haste" },
+      { "placeholder": "Rush", "cost": 15 },
+      { "placeholder": "Shield", "cost": 30 },
+      { "placeholder": "StoneToIron", "cost": 25 },
+      { "spell": "SummonGoods" },
+      { "placeholder": "MoreFish", "cost": 15 },
+      { "placeholder": "SummonStones", "cost": 20 },
+      { "placeholder": "MeltSnow", "cost": 15 }
+    ],
+    "Amazon": [
+      { "placeholder": "Disarm", "cost": 35 },
+      { "placeholder": "SummonPriestess", "cost": 30 },
+      { "placeholder": "GoldToStone", "cost": 20 },
+      { "spell": "SummonGoods" },
+      { "placeholder": "Offering", "cost": 25 },
+      { "spell": "Freeze" },
+      { "placeholder": "GrowForest", "cost": 15 },
+      { "placeholder": "MagicEye", "cost": 10 }
+    ]
+  },
   "_upgradesComment": "Soldier upgrades at a small temple (like the original): first all three soldier types one after the other to level 2 (Feldwebel), only then to level 3 (Hauptmann). Only soldiers trained afterwards get the new level. Mana goes to two accounts: spells spend it, upgrades only ask how much the player has earned in all (they spend nothing). manaEarned: mana earned in all for the player's 1st, 2nd, ... upgrade, whichever type (estimates).",
   "upgrades": { "manaEarned": [ 10, 25, 45, 75, 115, 165 ] }
 }

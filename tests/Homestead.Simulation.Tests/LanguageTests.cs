@@ -79,6 +79,8 @@ public partial class LanguageTests
         }
         keys.AddRange(Enum.GetValues<SoldierType>().Select(t => $"soldiers.types.{t}"));
         keys.AddRange(Enum.GetValues<SpellKind>().Select(s => $"spells.{s}"));
+        keys.AddRange(Data("magic.json").GetProperty("menu").EnumerateObject().Where(p => !p.Name.StartsWith('_'))
+            .SelectMany(p => p.Value.EnumerateArray()).Where(m => m.TryGetProperty("placeholder", out _)).Select(m => $"spells.{m.GetProperty("placeholder").GetString()}"));
         var ui = Data("ui.json");
         keys.AddRange(ui.GetProperty("goodsGrid").GetProperty("goods").EnumerateArray()
             .SelectMany(row => row.EnumerateArray()).Select(g => $"goods.{g.GetProperty("good").GetString()}"));

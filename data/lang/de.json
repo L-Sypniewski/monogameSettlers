@@ -299,7 +299,29 @@
     "Haste": "Samuraischwert",
     "Freeze": "Einfrieren",
     "Scatter": "Zerstreuen",
-    "SummonGoods": "Waren herbeirufen"
+    "SummonGoods": "Waren herbeirufen",
+    "TransformSoldiers": "Soldaten verwandeln",
+    "TransmuteGoods": "Waren verwandeln",
+    "IronToGold": "Eisen zu Gold",
+    "Growth": "Wachstum",
+    "Fertility": "Fruchtbarkeit",
+    "MagicEye": "Magisches Auge",
+    "Disarm": "Entwaffnen",
+    "PharaohsFavour": "Gunst des Pharaos",
+    "BurnTrees": "Bäume verbrennen",
+    "FishToMeat": "Fisch zu Fleisch",
+    "DrainSwamp": "Sumpf trockenlegen",
+    "GreenDesert": "Wüste begrünen",
+    "Rush": "Eile",
+    "Shield": "Schutzschild",
+    "StoneToIron": "Stein zu Eisen",
+    "MoreFish": "Fische vermehren",
+    "SummonStones": "Steine herbeirufen",
+    "MeltSnow": "Schnee schmelzen",
+    "SummonPriestess": "Priesterin rufen",
+    "GoldToStone": "Gold zu Stein",
+    "Offering": "Opfergabe",
+    "GrowForest": "Wald wachsen lassen"
   },
   "system": {
     "save": "Spiel speichern",
@@ -545,6 +567,10 @@
     "weapons": "Waffen"
   },
   "spellMenu": {
+    "title": "Priester",
+    "placeholder": "Noch nicht umgesetzt",
+    "mana": "Mana: {0}",
+    "cost": "{0} – {1} Mana",
     "clickPlace": "Auf den Zielort klicken, Rechtsklick bricht ab",
     "clickOwn": "Auf eigene Soldaten klicken, Rechtsklick bricht ab",
     "clickEnemies": "Auf feindliche Soldaten klicken, Rechtsklick bricht ab"

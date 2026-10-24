@@ -149,6 +149,9 @@ public sealed class Magic
     /// <summary>The spells the priests of a player's people know.</summary>
     public IReadOnlyList<Spell> SpellsOf(int player) => _config.Spells.GetValueOrDefault(_world.PeopleOf(player)) ?? [];
 
+    /// <summary>The spell menu of a player's priests, placeholders included.</summary>
+    public IReadOnlyList<MenuSpell> MenuOf(int player) => _config.Menus.GetValueOrDefault(_world.PeopleOf(player)) ?? [];
+
     /// <summary>The own spell of a priest's people (its first).</summary>
     public Spell? SpellOf(Settler priest) => SpellsOf(priest).FirstOrDefault();
 

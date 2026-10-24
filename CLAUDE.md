@@ -399,7 +399,10 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   Rahmen ohne Siedler darin): Rechtsklick fährt hin; Panel: je Art Knopfbild, Name, Anzahl, Fähren „An Bord: n/7“, Handelsschiffe „Ladung: n“, unten „Schiff entladen“ (`BuildingInfo.DrawShips`/`UnloadAt`).
   Gewählte Einheiten: Rechtsklick auf eine eigene Fähre nahe Land → einsteigen; an Deck stehend gezeichnet (`ShipRenderer`: ganzes Schiff, Passagiere hinter
   dem Mast, Vorderteil = Sequenz davor, Segel, Passagiere vor dem Mast). Geologen: Rechtsklick hin, auf Gebirge suchen.
-  Priester: Zaubermenü (Name, Kosten, Mana), Zauber wählen, dann Ziel (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
+  Priester: Zaubermenü wie im Original statt Auswahl (`SpellMenu`: 8 Zauber je Volk, `menu` in `magic.json` – umgesetzte und Platzhalter mit
+  geratenem Namen/Kosten, nicht wirkbar; Symbole `spellMenu` in `ui.json`; Ladebalken Mana/Kosten: unter 1 Verlauf, dann je Ladung ein Streifen,
+  hell/dunkel im Wechsel, jeder 1,35× so breit wie der vorige, ganzer Balken = alles Mana (im Original gemessen); oben Name/Kosten unter der Maus bzw. Zielhinweis, unten Mana), Zauber wählen, dann Ziel
+  (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
   Träger umwandeln nur über Siedler › Berufe. Linksklick ins Leere wählt ab (Figuren, Gebäude, Menüs) und leert das Panel wie im Original
   (`PanelTab.None`, kein Reiter gedrückt); rechts ziehen verschiebt die Karte.
 - **Tasten**: Esc bricht Platzieren/Zielen ab, sonst Pause wie P; N Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), C Cheat-Menü (`CheatMenu`: Soldaten je Typ/Stufe, Priester, Geologen,

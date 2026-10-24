@@ -40,6 +40,12 @@ public sealed record Spell(SpellKind Kind, string Name, int Cost, int Count = 0,
     public IReadOnlyList<(Material Material, double Chance)> Extra { get; init; } = [];
 }
 
+/// <summary>
+/// A line of the priests' spell menu: an implemented spell, or a placeholder for a spell of the original not made yet
+/// (<paramref name="Spell"/> null: shown with its cost and charge, cannot be cast). <paramref name="Id"/> names its text (<c>spells.&lt;Id&gt;</c>).
+/// </summary>
+public sealed record MenuSpell(string Id, int Cost, Spell? Spell);
+
 /// <summary>Magic balancing, loaded from <c>data/magic.json</c>.</summary>
 public sealed record MagicConfig
 {
@@ -61,6 +67,9 @@ public sealed record MagicConfig
 
     /// <summary>The spells of each people: its own first, then the common ones.</summary>
     public IReadOnlyDictionary<Civilization, IReadOnlyList<Spell>> Spells { get; init; } = new Dictionary<Civilization, IReadOnlyList<Spell>>();
+
+    /// <summary>The spell menu of each people, top to bottom like the original.</summary>
+    public IReadOnlyDictionary<Civilization, IReadOnlyList<MenuSpell>> Menus { get; init; } = new Dictionary<Civilization, IReadOnlyList<MenuSpell>>();
 
     /// <summary>Mana earned in all for the player's 1st, 2nd, ... soldier upgrade (whichever type); empty: no upgrades.</summary>
     public IReadOnlyList<int> UpgradeThresholds { get; init; } = [];
@@ -93,6 +102,21 @@ public sealed record MagicConfig
                 : [],
         };
         var common = root.TryGetProperty("commonSpells", out var commonSpells) ? commonSpells.EnumerateArray().ToList() : [];
+        var spells = root.GetProperty("spells").EnumerateObject().Where(s => !s.Name.StartsWith('_')).ToDictionary(
+            s => Enum.Parse<Civilization>(s.Name),
+            s => (IReadOnlyList<Spell>)common.Select(c => Read(c, Enum.Parse<Civilization>(s.Name)))
+                .Prepend(Read(s.Value, Enum.Parse<Civilization>(s.Name))).ToArray());
+        // A people without a menu lists just its spells.
+        static MenuSpell Line(Spell spell) => new(spell.Kind.ToString(), spell.Cost, spell);
+        var menus = spells.ToDictionary(s => s.Key, s => (IReadOnlyList<MenuSpell>)s.Value.Select(Line).ToArray());
+        if (root.TryGetProperty("menu", out var menu))
+            foreach (var people in menu.EnumerateObject().Where(m => !m.Name.StartsWith('_')))
+            {
+                var own = spells[Enum.Parse<Civilization>(people.Name)];
+                menus[Enum.Parse<Civilization>(people.Name)] = people.Value.EnumerateArray().Select(m => m.TryGetProperty("spell", out var kind)
+                    ? Line(own.First(s => s.Kind == Enum.Parse<SpellKind>(kind.GetString()!)))
+                    : new MenuSpell(m.GetProperty("placeholder").GetString()!, m.GetProperty("cost").GetInt32(), null)).ToArray();
+            }
         return new MagicConfig
         {
             BigTemple = root.GetProperty("bigTemple").GetString()!,
@@ -104,10 +128,8 @@ public sealed record MagicConfig
             Radius = root.GetProperty("radius").GetInt32(),
             CastTicks = Ticks(root.GetProperty("castSeconds").GetDouble()),
             RangeFactor = root.TryGetProperty("rangeFactor", out var rangeFactor) ? rangeFactor.GetDouble() : 1,
-            Spells = root.GetProperty("spells").EnumerateObject().Where(s => !s.Name.StartsWith('_')).ToDictionary(
-                s => Enum.Parse<Civilization>(s.Name),
-                s => (IReadOnlyList<Spell>)common.Select(c => Read(c, Enum.Parse<Civilization>(s.Name)))
-                    .Prepend(Read(s.Value, Enum.Parse<Civilization>(s.Name))).ToArray()),
+            Spells = spells,
+            Menus = menus,
             UpgradeThresholds = root.TryGetProperty("upgrades", out var upgrades)
                 ? upgrades.GetProperty("manaEarned").EnumerateArray().Select(c => c.GetInt32()).ToArray()
                 : [],

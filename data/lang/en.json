@@ -299,7 +299,29 @@
     "Haste": "Samurai sword",
     "Freeze": "Freeze",
     "Scatter": "Scatter",
-    "SummonGoods": "Summon goods"
+    "SummonGoods": "Summon goods",
+    "TransformSoldiers": "Transform soldiers",
+    "TransmuteGoods": "Transmute goods",
+    "IronToGold": "Iron to gold",
+    "Growth": "Growth",
+    "Fertility": "Fertility",
+    "MagicEye": "Magic eye",
+    "Disarm": "Disarm",
+    "PharaohsFavour": "Pharaoh's favour",
+    "BurnTrees": "Burn trees",
+    "FishToMeat": "Fish to meat",
+    "DrainSwamp": "Drain swamp",
+    "GreenDesert": "Green the desert",
+    "Rush": "Rush",
+    "Shield": "Shield",
+    "StoneToIron": "Stone to iron",
+    "MoreFish": "More fish",
+    "SummonStones": "Summon stones",
+    "MeltSnow": "Melt snow",
+    "SummonPriestess": "Summon priestess",
+    "GoldToStone": "Gold to stone",
+    "Offering": "Offering",
+    "GrowForest": "Grow forest"
   },
   "system": {
     "save": "Save game",
@@ -545,6 +567,10 @@
     "weapons": "Weapons"
   },
   "spellMenu": {
+    "title": "Priests",
+    "placeholder": "Not implemented yet",
+    "mana": "Mana: {0}",
+    "cost": "{0} – {1} Mana",
     "clickPlace": "Click the target place, right-click cancels",
     "clickOwn": "Click your own soldiers, right-click cancels",
     "clickEnemies": "Click enemy soldiers, right-click cancels"
