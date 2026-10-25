@@ -100,7 +100,10 @@ Zeilenweise, pro Zeile eine Folge von Runs mit u16-Steuerwort:
 - Bit 8–14: davor zu überspringende transparente Pixel
 - Bit 15: letzter Run der Zeile
 
-Pixel: Farbe = u16 (555/565), Torso = u8 (untere 5 Bit = Helligkeit, mit Spielerfarbe multipliziert),
+Pixel: Farbe = u16 (555/565), Torso = u8 als Index in die Spielerpalette (aus den Nachbarpixeln abgeleitet): 0–21 Rampe
+dunkel → hell, danach Rampen à 9 Stufen (0x16–0x1E, 0x1F–0x27, … 0xF7–0xFF), meist verstreut zwischen der ersten.
+Die Palette steht in keiner Datendatei; wir tönen jede Rampe mit der Spielerfarbe nach ihrer Stufe (`GfxColor.TorsoToRgba`).
+JSettlers maskiert 5 Bit als Helligkeit – das ergibt schwarze und weiße Punkte.
 Schatten = keine Daten (halbtransparentes Schwarz).
 Kleine Landschaftskacheln nutzen Cyan als Hintergrund/Schlüsselfarbe.
 

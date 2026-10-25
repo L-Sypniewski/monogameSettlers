@@ -35,12 +35,23 @@ internal static class GfxColor
         return 0xff000000 | (b << 16) | (g << 8) | r;
     }
 
-    /// <summary>Torso pixels are a 5-bit intensity that gets tinted with the player color.</summary>
+    // Torso pixels are indices into the player's palette: 0-21 a ramp from dark to bright, then ramps of
+    // 9 shades each (0x16-0x1e, 0x1f-0x27, ... 0xf7-0xff), scattered among the first one. The original's
+    // palette is not in the data files, so every ramp is drawn as shades of the player color.
+    private const int MainShades = 22;
+    private const int RampShades = 9;
+
+    /// <summary>Torso pixel as a gray intensity that gets tinted with the player color.</summary>
     public static uint TorsoToRgba(byte value)
     {
-        uint v = Expand5(value & 0x1fu);
-        return 0xff000000 | (v << 16) | (v << 8) | v;
+        if (value < MainShades)
+            return Gray((uint)(value * 255 / (MainShades - 1)));
+        // The other ramps span about a quarter to full brightness, like the main ramp around them.
+        int shade = (value - MainShades) % RampShades;
+        return Gray((uint)(255 * (5 + 2 * shade) / (MainShades - 1)));
     }
+
+    private static uint Gray(uint v) => 0xff000000 | (v << 16) | (v << 8) | v;
 
     private static uint Expand5(uint v) => (v << 3) | (v >> 2);
 
