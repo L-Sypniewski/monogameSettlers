@@ -15,7 +15,9 @@ Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
   - Vor dem Abriss erschöpfter Steinmetze/Fischer: Arbeitsbereich (bis `MaxWorkCenterDistance`) dorthin versetzen, wo mehr in Reichweite ist (`BetterWorkCenter`).
   - Wohnhaus-Abriss, wenn danach noch `spareRoom` frei. Förster alle `forester.checkSeconds` (10) angehalten ab `forester.maxTrees` (10) Bäumen/Setzlingen im Bereich.
     Förster der Build-Order nur als Obergrenze: gebaut am fertigen Holzfäller mit den wenigsten, unter `forester.buildBelowTrees` (15) Bäumen/Setzlingen
-    im Arbeitsbereich ohne Förster in der Nähe (voller Wald: keiner), ohne Holzfäller (kein Baum auf eigenem Land) am Startpunkt.
+    im Arbeitsbereich, dessen Mitte in keinem Förster-Arbeitsbereich liegt (voller Wald: keiner), höchstens Förster-Radius − 2 entfernt (sonst nächster
+    bedürftiger Holzfäller, sonst keiner – früher landeten sie weit weg, der Holzfäller blieb bedürftig, ein Förster nach dem anderen), einer nach dem anderen
+    (der letzte muss arbeiten); ohne Holzfäller (kein Baum auf eigenem Land) am Startpunkt.
     Imkerei wie ein Rohstoffgebäude: Zelle mit den meisten Bäumen, Holzfäller ringsum (16) zählen dagegen; ohne Bäume keine.
   - Kein Bau auf Ackerland oder im Feldbereich eigener Farmen (Umkreis 4 ums Arbeitszentrum); Farm braucht 35 freie Grasfelder im Bereich.
   - Expansion: Türme gezielt zu fehlenden Rohstoffen (ferne Ziele Turm für Turm), meidet Plätze mit mehr als `maxWaterShare` Wasser.

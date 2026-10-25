@@ -182,7 +182,7 @@ public sealed partial class AiPlayer
                 NoteOnce(name, $"cannot build {name}: nothing to work on in own land");
                 continue; // the expansion goes for it
             }
-            if ((Place(definition, anchor) ?? PlaceFurther(definition, mine) ?? PlaceWhereRoomy(definition)) is { } site)
+            if ((Place(definition, anchor) ?? PlaceFurther(definition, mine) ?? PlaceWhereRoomy(definition) ?? PlaceForester(definition, mine)) is { } site)
             {
                 _reported.Remove(name);
                 _noSpot.Remove(name);
@@ -419,31 +419,43 @@ public sealed partial class AiPlayer
     }
 
     /// <summary>
-    /// Where a forester is wanted: at the woodcutter that runs short of trees (<see cref="NeedyLumberjack"/>), or at home
+    /// Where a forester is wanted: at the woodcutter that runs short of trees (<see cref="NeedyLumberjacks"/>), or at home
     /// while there is no woodcutter yet (no trees on the own land: the foresters of the build order bring the first wood).
+    /// With woodcutters one forester at a time: until the last one works, its trees do not count yet.
     /// </summary>
     private GridPoint? ForesterSpot(List<Building> mine)
     {
-        if (NeedyLumberjack(mine) is { } lumberjack)
+        bool woodcutters = mine.Any(b => b.Definition.Name == "lumberjack");
+        if (woodcutters && mine.Any(b => b.Definition.Name == "forester"
+                                         && (b.State != BuildingState.Finished || _world.StatusOf(b).StartsWith("no worker", StringComparison.Ordinal))))
+            return null;
+        if (NeedyLumberjacks(mine).FirstOrDefault() is { } lumberjack)
             return lumberjack.Position;
-        return mine.Any(b => b.Definition.Name == "lumberjack") ? null : _home!.Position;
+        return woodcutters ? null : _home!.Position;
     }
 
+    /// <summary>No room for a forester at the neediest woodcutter: at the next needy ones.</summary>
+    private Building? PlaceForester(BuildingDefinition definition, List<Building> mine) =>
+        definition.Name == "forester"
+            ? NeedyLumberjacks(mine).Skip(1).Take(3).Select(l => Place(definition, l.Position)).FirstOrDefault(site => site is not null)
+            : null;
+
     /// <summary>
-    /// The finished woodcutter with the fewest trees (saplings too) in its work area, if fewer than
-    /// <see cref="AiConfig.ForesterBuildBelowTrees"/> and no forester (sites too) stands near it.
+    /// The finished woodcutters with fewer trees (saplings too) in their work area than
+    /// <see cref="AiConfig.ForesterBuildBelowTrees"/> and no forester (sites too) plants around it (its work area takes in the
+    /// woodcutter's middle), the fewest first.
     /// </summary>
-    private Building? NeedyLumberjack(List<Building> mine)
+    private IEnumerable<Building> NeedyLumberjacks(List<Building> mine)
     {
         var map = _world.Map!;
         return mine.Where(l => l.Definition.Name == "lumberjack" && l.State == BuildingState.Finished
-                               && !mine.Any(f => f.Definition.Name == "forester" && PathFinder.Distance(f.Position, l.Position) < ServedDistance))
+                               && !mine.Any(f => f.Definition.Name == "forester"
+                                                 && PathFinder.InCircle(f.WorkCenter, l.WorkCenter, f.Definition.WorkRadius ?? Production.DefaultRadius)))
             .Select(l => (Lumberjack: l, Trees: PathFinder.Circle(l.WorkCenter, l.Definition.WorkRadius ?? Production.DefaultRadius)
                 .Count(p => map.Contains(p) && map.ObjectAt(p) == MapObjectKind.Tree)))
             .Where(l => l.Trees < _config.ForesterBuildBelowTrees)
             .OrderBy(l => l.Trees)
-            .Select(l => l.Lumberjack)
-            .FirstOrDefault();
+            .Select(l => l.Lumberjack);
     }
 
     /// <summary>A building of the chain this close to one of the kind counts as served by it.</summary>
@@ -549,7 +561,8 @@ public sealed partial class AiPlayer
         _bestMineChance = 0;
         foreach (var offset in Spiral)
         {
-            if (PathFinder.Distance(default, offset) > SearchRadius)
+            // A forester further off would not plant for the woodcutter it is meant for (see NeedyLumberjacks).
+            if (PathFinder.Distance(default, offset) > (definition.Name == "forester" ? (definition.WorkRadius ?? Production.DefaultRadius) - 2 : SearchRadius))
                 break;
             var p = anchor + offset;
             // Reachability first: a lookup, while placing checks a lot (levelling among them).

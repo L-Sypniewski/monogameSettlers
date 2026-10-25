@@ -119,7 +119,7 @@ public class AiTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void A_woodcutter_running_short_of_trees_gets_a_forester_next_to_it()
+    public void A_woodcutter_running_short_of_trees_gets_one_forester_next_to_it()
     {
         Building lumberjack = null!;
         var (world, ai) = WoodAi(Romans, world =>
@@ -127,15 +127,35 @@ public class AiTests(ITestOutputHelper output)
             Grove(world.Map!, 56, 70, 60, 74); // a few trees only
             lumberjack = world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(52, 80))!;
             Assert.NotNull(lumberjack);
-        }, ("lumberjack", 1), ("forester", 1));
+        }, ("lumberjack", 1), ("forester", 2));
 
-        Think(world, 30);
+        // The build order would allow two; the trees of the first take a while to count.
+        Think(world, 90);
 
         foreach (string line in ai.Log)
             output.WriteLine(line);
         var forester = Assert.Single(world.Buildings, b => b.Definition.Name == "forester");
         Assert.True(PathFinder.Distance(forester.Position, lumberjack.Position) < 15, $"forester at {forester.Position}");
     }
+
+    [Fact]
+    public void No_forester_where_it_would_not_plant_for_the_woodcutter_short_of_trees()
+    {
+        var (world, ai) = WoodAi(Romans, world =>
+        {
+            // At the far edge of the land: no room for a forester near it, plenty further back.
+            Assert.NotNull(world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(40 + LandRadius(world) + 20, 80), force: true));
+        }, ("lumberjack", 1), ("forester", 2));
+
+        Think(world, 60);
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.DoesNotContain(world.Buildings, b => b.Definition.Name == "forester");
+    }
+
+    private static int LandRadius(World world) =>
+        Enumerable.Range(0, 40).Last(r => world.Map!.OwnerAt(new GridPoint(40 + r, 80)) == 0);
 
     [Fact]
     public void The_beekeeping_goes_to_the_trees_away_from_the_woodcutters()
