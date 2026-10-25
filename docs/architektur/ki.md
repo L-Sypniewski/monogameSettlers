@@ -13,6 +13,8 @@ Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
   - Minen nur ab Erfolgschance `mines.minChance` (0,3), Abriss unter `mines.abandonChance` (0,1); kein Platz → Erz fehlt → Expansion.
     Schmelzen erst mit eigener Mine ihres Erzes.
   - Vor dem Abriss erschöpfter Steinmetze/Fischer: Arbeitsbereich (bis `MaxWorkCenterDistance`) dorthin versetzen, wo mehr in Reichweite ist (`BetterWorkCenter`).
+  - Lagerhaus erst mit Gold/Edelsteinen (Goldschmelze/Edelsteinmine fertig oder Barren/Steine auf eigenem Land, auch erobert), dann bei `stockWhenWaiting` (8)
+    herumliegenden einlagerbaren Waren und weniger als 2 freien Lagerplätzen.
   - Wohnhaus-Abriss, wenn danach noch `spareRoom` frei. Förster alle `forester.checkSeconds` (10) angehalten ab `forester.maxTrees` (10) Bäumen/Setzlingen im Bereich.
     Förster der Build-Order nur als Obergrenze: gebaut am fertigen Holzfäller mit den wenigsten, unter `forester.buildBelowTrees` (15) Bäumen/Setzlingen
     im Arbeitsbereich, dessen Mitte in keinem Förster-Arbeitsbereich liegt (voller Wald: keiner), höchstens Förster-Radius − 2 entfernt (sonst nächster

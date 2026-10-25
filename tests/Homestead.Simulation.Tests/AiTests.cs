@@ -158,6 +158,28 @@ public class AiTests(ITestOutputHelper output)
         Enumerable.Range(0, 40).Last(r => world.Map!.OwnerAt(new GridPoint(40 + r, 80)) == 0);
 
     [Fact]
+    public void A_storehouse_only_once_there_is_gold_even_with_weapons_piling_up()
+    {
+        var (world, ai) = WoodAi(Romans, world =>
+        {
+            Assert.NotNull(world.PlaceBuilding(Romans["weaponsmith"], 0, new GridPoint(50, 76)));
+            world.AddLooseGoods(new GridPoint(44, 94), Material.Sword, 8);
+            world.AddLooseGoods(new GridPoint(46, 94), Material.Sword, 8);
+        });
+
+        Think(world, 30);
+        Assert.DoesNotContain(world.Buildings, b => b.Definition.Name == "stock");
+
+        // Gold taken over with the land counts as well as gold made.
+        world.AddLooseGoods(new GridPoint(48, 94), Material.Gold, 2);
+        Think(world, 30);
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Contains(world.Buildings, b => b.Definition.Name == "stock");
+    }
+
+    [Fact]
     public void The_beekeeping_goes_to_the_trees_away_from_the_woodcutters()
     {
         var amazons = BuildingCatalog.Load(Civilization.Amazon);

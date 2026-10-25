@@ -19,7 +19,7 @@
     { "building": "medium_livinghouse", "sawmills": 2, "stonecutters": 2 }
   ],
   "house": "small_livinghouse",
-  "_stockComment": "A storehouse is built once a smith, gold melt or gems mine works and stockWhenWaiting units of goods worth storing (storage.materials in production.json: tools, weapons, gold, gems) lie around and the storehouses have fewer than two free piles.",
+  "_stockComment": "A storehouse is built only once the AI makes or owns gold bars or gems (a gold melt or gems mine works, or some lie on its land or in its buildings, taken over too) and stockWhenWaiting units of goods worth storing (storage.materials in production.json: tools, weapons, gold, gems) lie around and the storehouses have fewer than two free piles.",
   "stockWhenWaiting": 8,
   "buildOrder": [
     ["lumberjack", 1],

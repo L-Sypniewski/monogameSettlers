@@ -288,16 +288,15 @@ public sealed partial class AiPlayer
             yield return (house.Name, mine.Count(b => b.Definition.Name == house.Name) + 1);
         if ((_hospitalAnchor = HospitalSpot(mine)) is not null)
             yield return (HospitalName, mine.Count(b => b.Definition.Name == HospitalName) + 1);
-        // A storehouse only once goods worth storing (tools, weapons, gold, gems) are made in numbers and
-        // pile up, and the storehouses there are have no room left for them.
+        // A storehouse only once the player makes or owns gold or gems (taken over with land too), goods worth storing
+        // (tools, weapons, gold, gems) pile up, and the storehouses there are have no room left for them.
         var storage = mine.Where(b => b.State == BuildingState.Finished).SelectMany(b => b.Piles).Where(p => p.Role == PileRole.Storage).ToList();
         bool stockComing = mine.Any(b => b.Definition.Name == "stock" && b.State != BuildingState.Finished);
-        var config = _world.Production.Config;
         int waiting = _world.Piles.Where(p => p.Role is PileRole.Loose or PileRole.Offer && p.Material is { } m && _world.Logistics.IsStored(Player, m)
                                               && _world.BelongsTo(p, Player)).Sum(p => p.Count);
-        bool massProduction = mine.Any(b => b.State == BuildingState.Finished
-                                            && (config.Smiths.ContainsKey(b.Definition.Name) || b.Definition.Name is "goldmelt" or "gemsmine"));
-        if (massProduction && !stockComing && waiting >= _config.StockWhenWaiting && storage.Count(p => p.Material is null) < 2)
+        bool treasure = _world.InStock(Player, Material.Gold) + _world.InStock(Player, Material.Gems) > 0
+                        || mine.Any(b => b.State == BuildingState.Finished && b.Definition.Name is "goldmelt" or "gemsmine");
+        if (treasure && !stockComing && waiting >= _config.StockWhenWaiting && storage.Count(p => p.Material is null) < 2)
             yield return ("stock", mine.Count(b => b.Definition.Name == "stock") + 1);
         // A stonecutter or woodcutter with nothing left in range: a new one where there is some.
         foreach (var (producer, idle) in new[] { ("stonecutter", "no stone in range"), ("lumberjack", "no tree in range") })
