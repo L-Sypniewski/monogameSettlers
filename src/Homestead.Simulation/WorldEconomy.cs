@@ -65,6 +65,11 @@ public sealed partial class World
     /// <summary>Shipyards and their docks (created on first use in games saved before there were any).</summary>
     public Shipping Shipping => _shipping ??= new Shipping(this);
 
+    private Military.WarMachines? _warMachines;
+
+    /// <summary>War machines and their works (created on first use in games saved before there were any).</summary>
+    public Military.WarMachines WarMachines => _warMachines ??= new Military.WarMachines(this);
+
     public Military.Military Military { get; }
 
     /// <summary>
@@ -531,6 +536,9 @@ public sealed partial class World
         _dustClouds.Add(new DustCloud(building.Position, Tick));
         Cue(new SoundCue(SoundCueKind.BuildingFalls, building.Position, building.Player));
     }
+
+    /// <summary>A dust cloud rises at the point (a building or a war machine comes down).</summary>
+    internal void AddDustCloud(GridPoint position) => _dustClouds.Add(new DustCloud(position, Tick));
 
     /// <summary>How long the ghost rising from a fallen settler lasts.</summary>
     public const int GhostTicks = 11 * TicksPerSecond / 5;

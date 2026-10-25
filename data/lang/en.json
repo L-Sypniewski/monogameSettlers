@@ -172,7 +172,12 @@
     "harbor": "Harbor",
     "market_place": "Marketplace",
     "temple": "Small temple",
-    "big_temple": "Large temple"
+    "big_temple": "Large temple",
+    "catapult_works": "Catapult works",
+    "ballista_works": "Ballista works",
+    "cannon_works": "Cannon works",
+    "gong_works": "Gong works",
+    "gunpowder_maker": "Gunpowder maker"
   },
   "soldiers": {
     "types": {
@@ -269,7 +274,15 @@
     "waitingForShipMaterial": "Waiting for ship material",
     "fetchingShipMaterial": "Fetching ship material",
     "bringingToShip": "Bringing material to the ship",
-    "buildingShip": "Building the ship"
+    "buildingShip": "Building the ship",
+    "nothingOrdered": "Nothing ordered",
+    "waitingForMachineMaterial": "Waiting for war machine material",
+    "waitingForAmmoMaterial": "Waiting for ammunition material",
+    "fetchingWorksMaterial": "Fetching material",
+    "bringingToMachine": "Bringing material to the war machine",
+    "bringingToAmmo": "Bringing material for ammunition",
+    "buildingMachine": "Building the war machine",
+    "makingAmmo": "Making ammunition"
   },
   "events": {
     "texts": {
@@ -278,6 +291,7 @@
       "attacked": "Your people are under attack!",
       "buildingAttacked": "{building} is under attack!",
       "buildingLost": "{building} was taken by the enemy!",
+      "buildingDestroyed": "{building} was destroyed by enemy war machines!",
       "buildingCaptured": "You captured {building}.",
       "mineExhausted": "{building} is exhausted.",
       "noResources": "{building} finds nothing more.",
@@ -567,6 +581,7 @@
     "steal": "Steal goods",
     "claim": "Claim land",
     "hold": "Hold position",
+    "reload": "Load ammunition",
     "combatStrength": "Combat strength: {0}%"
   },
   "manufacture": {
@@ -594,10 +609,12 @@
     "scouts": "scouts",
     "pioneers": "pioneers",
     "carriers": "carriers",
+    "warMachines": "war machines",
     "missionWon": "Mission accomplished",
     "missionLost": "Mission lost"
   },
   "building": {
+    "ammoLoads": "Ammunition: {0}",
     "trade": "Trade – land",
     "seaTrade": "Trade – sea",
     "garrison": "Garrison (present / wanted)",

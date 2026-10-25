@@ -44,6 +44,12 @@ public enum Profession
     /// commands it; it cannot die and walks on any land.
     /// </summary>
     Donkey,
+
+    /// <summary>
+    /// A war machine (catapult, ballista, cannon, gong; see <see cref="Military.WarMachines"/>): driven like a soldier, fires at
+    /// enemy military buildings; its people (<see cref="Settler.People"/>) is that of the works that built it.
+    /// </summary>
+    WarMachine,
 }
 
 public enum SoldierType
@@ -123,6 +129,9 @@ public sealed class Settler
     /// <summary>Whether <paramref name="player"/> knows this settler for what he is: a scout only when revealed, everyone else always.</summary>
     public bool IsRevealedTo(int player) =>
         Profession != Profession.Scout || player == Player || (RevealedTo & (1 << player)) != 0;
+
+    /// <summary>War machines: shots left (a machine without ammunition, the gong, always 0).</summary>
+    public int Ammo { get; internal set; }
 
     /// <summary>Soldier rank 1-3.</summary>
     public int Level { get; internal set; } = 1;

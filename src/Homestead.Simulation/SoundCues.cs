@@ -31,6 +31,12 @@ public enum SoundCueKind
 
     /// <summary>A worker began sowing or planting: <see cref="SoundCue.Trade"/> says who.</summary>
     Sowing,
+
+    /// <summary>A war machine fired (or the gong was struck): <see cref="SoundCue.People"/> says which machine.</summary>
+    MachineShot,
+
+    /// <summary>A war machine's shot hit a building.</summary>
+    MachineHit,
 }
 
 /// <summary>Something audible happened at a point in this tick.</summary>

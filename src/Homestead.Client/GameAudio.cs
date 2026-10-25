@@ -92,11 +92,14 @@ public sealed record SoundConfig(
     float MaxPause,
     float FadeSeconds)
 {
+    /// <summary>A war machine's shot (the gong's sound) by its people (<c>machineShot</c>).</summary>
+    public IReadOnlyDictionary<Civilization, SoundRef> MachineShot { get; init; } = new Dictionary<Civilization, SoundRef>();
+
     /// <summary>Cues with one sound each, by their key in <c>effects</c> (and <c>volume</c>).</summary>
     private static readonly (SoundCueKind Kind, string Key)[] SimpleCues =
     [
         (SoundCueKind.TreeFalls, "treeFalls"), (SoundCueKind.BuildingFalls, "buildingFalls"), (SoundCueKind.Spell, "spell"),
-        (SoundCueKind.Healing, "healing"), (SoundCueKind.Claiming, "claiming"),
+        (SoundCueKind.Healing, "healing"), (SoundCueKind.Claiming, "claiming"), (SoundCueKind.MachineHit, "machineHit"),
     ];
 
     public static SoundConfig Load(string? path = null)
@@ -145,7 +148,13 @@ public sealed record SoundConfig(
             music.GetProperty("volume").GetSingle(),
             pause[0].GetSingle(),
             pause[1].GetSingle(),
-            music.GetProperty("fadeSeconds").GetSingle());
+            music.GetProperty("fadeSeconds").GetSingle())
+        {
+            MachineShot = effects.TryGetProperty("machineShot", out var machines)
+                ? machines.EnumerateObject().Where(p => !p.Name.StartsWith('_'))
+                    .ToDictionary(p => Enum.Parse<Civilization>(p.Name), p => SoundRef.Parse(p.Value))
+                : new Dictionary<Civilization, SoundRef>(),
+        };
     }
 
     /// <summary>The sound for a cue, if it has one.</summary>
@@ -157,6 +166,7 @@ public sealed record SoundConfig(
         SoundCueKind.Death => cue.People is { } people ? DeathByPeople.GetValueOrDefault(people, Death) : Death,
         SoundCueKind.GeologistFinds => cue.Amount >= GeologistMinAmount ? GeologistFinds : null,
         SoundCueKind.Sowing => cue.Trade is { } trade ? Sowing.GetValueOrDefault(trade) : null,
+        SoundCueKind.MachineShot => cue.People is { } people ? MachineShot.GetValueOrDefault(people) : null,
         var kind => Simple.GetValueOrDefault(kind),
     };
 
@@ -172,6 +182,7 @@ public sealed record SoundConfig(
         SoundCueKind.Death => "death",
         SoundCueKind.GeologistFinds => "geologistFinds",
         SoundCueKind.Sowing => "sowing",
+        SoundCueKind.MachineShot => "machineShot",
         var other => SimpleCues.FirstOrDefault(c => c.Kind == other).Key ?? "",
     });
 

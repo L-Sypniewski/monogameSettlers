@@ -51,6 +51,21 @@
   "buildingSight": { "lookout_tower": 45 },
   "militarySightMargin": 3,
   "otherBuildingSight": 5,
+  "_warMachinesComment": "War machines (Kriegsmaschinen), one kind per people, built in its works: the worker hammers cost (machine) or ammo (one load) together in front of the door, unit by unit, buildSeconds each. A new machine comes with shots, a load fills it up again (the Amazon gong needs none: shots 0). Driven like soldiers at speed, they fire at enemy military buildings only (in range, cooldownSeconds between shots, hitting with hitChance); each hit takes one of the building's hits (buildingHits), the last brings it down, its soldiers walk out alive; a damaged building mends one hit every repairSeconds after the last. Melee soldiers destroy machines (health), bowmen cannot hurt them. Reloading: within reloadDistance of an own works of its kind with a load. Values guessed (the user tunes them against the original): only hitChance and the cooldown were given.",
+  "warMachines": {
+    "cooldownSeconds": 5, "buildSeconds": 3, "reloadDistance": 3, "repairSeconds": 60,
+    "buildingHits": { "tower": 4, "big_tower": 7, "castle": 12, "lookout_tower": 3 },
+    "kinds": {
+      "Roman": { "works": "catapult_works", "cost": { "PLANK": 6, "STONE": 6, "IRON": 3 }, "ammo": { "STONE": 6 }, "shots": 6,
+                 "hitChance": 0.5, "range": 42, "health": 200, "speed": 0.6, "flightSeconds": 1.5 },
+      "Egyptian": { "works": "ballista_works", "cost": { "PLANK": 5, "IRON": 6, "TRUNK": 6 }, "ammo": { "IRON": 3, "TRUNK": 6 }, "shots": 6,
+                    "hitChance": 0.75, "range": 45, "health": 200, "speed": 0.6, "flightSeconds": 0.8 },
+      "Asian": { "works": "cannon_works", "cost": { "PLANK": 3, "IRON": 8, "GUN_POWDER": 6 }, "ammo": { "IRON": 3, "GUN_POWDER": 6 }, "shots": 6,
+                 "hitChance": 0.9, "range": 48, "health": 200, "speed": 0.6, "flightSeconds": 0.6 },
+      "Amazon": { "works": "gong_works", "cost": { "PLANK": 8, "IRON": 4, "GOLD": 6 }, "ammo": {}, "shots": 0,
+                  "hitChance": 0.5, "range": 36, "health": 200, "speed": 0.6, "flightSeconds": 0 }
+    }
+  },
   "_combatPathRadiusComment": "Near the enemy, soldiers plan their way within this radius around everyone standing (own soldiers too).",
   "combatPathRadius": 15,
   "attackRange": 50,

@@ -172,7 +172,12 @@
     "harbor": "Hafen",
     "market_place": "Marktplatz",
     "temple": "Kleiner Tempel",
-    "big_temple": "Großer Tempel"
+    "big_temple": "Großer Tempel",
+    "catapult_works": "Katapultwerkstatt",
+    "ballista_works": "Ballistenwerkstatt",
+    "cannon_works": "Kanonenwerkstatt",
+    "gong_works": "Gongwerkstatt",
+    "gunpowder_maker": "Pulvermacherei"
   },
   "soldiers": {
     "types": {
@@ -269,7 +274,15 @@
     "waitingForShipMaterial": "Warte auf Material für das Schiff",
     "fetchingShipMaterial": "Holt Material für das Schiff",
     "bringingToShip": "Bringt Material zum Schiff",
-    "buildingShip": "Baut am Schiff"
+    "buildingShip": "Baut am Schiff",
+    "nothingOrdered": "Nichts in Auftrag",
+    "waitingForMachineMaterial": "Warte auf Material für die Kriegsmaschine",
+    "waitingForAmmoMaterial": "Warte auf Material für Munition",
+    "fetchingWorksMaterial": "Holt Material",
+    "bringingToMachine": "Bringt Material zur Kriegsmaschine",
+    "bringingToAmmo": "Bringt Material für Munition",
+    "buildingMachine": "Baut an der Kriegsmaschine",
+    "makingAmmo": "Stellt Munition her"
   },
   "events": {
     "texts": {
@@ -278,6 +291,7 @@
       "attacked": "Deine Leute werden angegriffen!",
       "buildingAttacked": "{building} wird angegriffen!",
       "buildingLost": "{building} wurde vom Feind erobert!",
+      "buildingDestroyed": "{building} wurde von feindlichen Kriegsmaschinen zerstört!",
       "buildingCaptured": "Du hast {building} erobert.",
       "mineExhausted": "{building} ist erschöpft.",
       "noResources": "{building} findet nichts mehr.",
@@ -567,6 +581,7 @@
     "steal": "Waren stehlen",
     "claim": "Land einnehmen",
     "hold": "Position halten",
+    "reload": "Munition laden",
     "combatStrength": "Kampfkraft: {0}%"
   },
   "manufacture": {
@@ -594,10 +609,12 @@
     "scouts": "Späher",
     "pioneers": "Pioniere",
     "carriers": "Träger",
+    "warMachines": "Kriegsmaschinen",
     "missionWon": "Mission geschafft",
     "missionLost": "Mission verloren"
   },
   "building": {
+    "ammoLoads": "Munition: {0}",
     "trade": "Handel – Land",
     "seaTrade": "Handel – Meer",
     "garrison": "Besatzung (da / Soll)",

@@ -21,6 +21,9 @@ public sealed class SelectionPanel
 
     private const int ActionHeight = 22;
 
+    /// <summary>Whether a war machine takes ammunition (the gong does not): „Munition laden“ is offered for it.</summary>
+    public static Func<Settler, bool> UsesAmmo { get; set; } = _ => true;
+
     /// <summary>The orders offered for the selection, bottom up.</summary>
     private static List<SelectionAction> Actions(IEnumerable<Settler> selection)
     {
@@ -31,6 +34,8 @@ public sealed class SelectionPanel
             actions.Add(SelectionAction.Steal);
         if (selection.Any(s => s.Profession == Profession.Pioneer && !s.IsDead))
             actions.Add(SelectionAction.Claim);
+        if (selection.Any(s => s.Profession == Profession.WarMachine && !s.IsDead && UsesAmmo(s)))
+            actions.Add(SelectionAction.Reload);
         return actions;
     }
 
@@ -41,6 +46,7 @@ public sealed class SelectionPanel
     {
         SelectionAction.Steal => "selection.steal",
         SelectionAction.Claim => "selection.claim",
+        SelectionAction.Reload => "selection.reload",
         _ => "selection.hold",
     });
 
@@ -124,4 +130,7 @@ public enum SelectionAction
 
     /// <summary>„Position halten“: soldiers stay where they stand and fight only enemies within reach.</summary>
     Hold,
+
+    /// <summary>„Munition laden“: war machines drive to their works and load.</summary>
+    Reload,
 }

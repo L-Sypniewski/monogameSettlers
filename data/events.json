@@ -47,6 +47,12 @@
       "cooldownSeconds": 0,
       "enabled": true
     },
+    "buildingDestroyed": {
+      "_comment": "Enemy war machines brought down one of the player's military buildings (its soldiers walked out).",
+      "category": "combat",
+      "cooldownSeconds": 0,
+      "enabled": true
+    },
     "buildingCaptured": {
       "_comment": "The player took an enemy military building.",
       "category": "combat",

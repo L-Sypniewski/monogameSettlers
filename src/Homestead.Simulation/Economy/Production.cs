@@ -111,7 +111,7 @@ public sealed partial class Production
 
     private bool Produces(string name) =>
         _config.Workshops.ContainsKey(name) || _config.Smiths.ContainsKey(name) || _config.Mines.ContainsKey(name) || _config.Gatherers.ContainsKey(name)
-        || name == Trade.DonkeyFarm || name == ShipyardName;
+        || name == Trade.DonkeyFarm || name == ShipyardName || _world.WarMachines.IsWorks(name);
 
     /// <summary>What the workplace is doing or waiting for (null for buildings without production).</summary>
     public string? Status(Building building)
@@ -129,7 +129,7 @@ public sealed partial class Production
             Phase.Inside when building.IsPaused => "paused",
             _ when building.IsPaused && w.Worker is not null => "pausing after this work",
             Phase.Inside => w.Waiting ?? "resting",
-            _ when w.Shipyard => ShipyardStatus(w),
+            _ when w.Shipyard || w.WarWorks => AssemblyStatus(w),
             Phase.ToPile or Phase.PickingUp or Phase.ToDoorToWork =>
                 w.Mine is null ? "fetching " + string.Join(" and ", w.Workshop!.Inputs) : "fetching food",
             Phase.Producing when w.Product is { } product => $"making {product}",
@@ -229,6 +229,8 @@ public sealed partial class Production
                 _workplaces[building.Id] = new Workplace(building, null, gatherer);
             else if (name == ShipyardName)
                 _workplaces[building.Id] = new Workplace(building, null, null) { Shipyard = true };
+            else if (_world.WarMachines.IsWorks(name))
+                _workplaces[building.Id] = new Workplace(building, null, null) { WarWorks = true };
             else if (name == HospitalName)
                 _workplaces[building.Id] = new Workplace(building, null, null) { Hospital = new HospitalState() };
         }
@@ -448,8 +450,8 @@ public sealed partial class Production
                 }
                 if (w.Hospital is not null)
                     LookForPatients(w);
-                else if (w.Shipyard)
-                    BuildShip(w);
+                else if (w.Shipyard || w.WarWorks)
+                    Assemble(w);
                 else if (w.Workshop is { } recipe)
                     StartWorkshopCycle(w, recipe);
                 else
@@ -461,7 +463,7 @@ public sealed partial class Production
                 break;
 
             case Phase.ToShipPile or Phase.ShipPickingUp or Phase.ToHull or Phase.Hammering:
-                AdvanceShipyard(w);
+                AdvanceAssembly(w);
                 break;
 
             case Phase.Healing:
@@ -1310,6 +1312,9 @@ public sealed partial class Production
 
         /// <summary>Shipyard: builds the ship on its stocks (see <see cref="Shipping"/>).</summary>
         public bool Shipyard { get; init; }
+
+        /// <summary>War machine works: builds war machines and their ammunition (see <see cref="Military.WarMachines"/>).</summary>
+        public bool WarWorks { get; init; }
 
         /// <summary>Why the last cycle could not start (shown to the player), null while working.</summary>
         public string? Waiting { get; set; }

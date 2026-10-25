@@ -115,11 +115,21 @@ public sealed class BuildingCatalog
         string path = Path.Combine(dataDirectory ?? DefaultDataDirectory, "buildings",
             civilization.ToString().ToLowerInvariant() + ".json");
         var buildings = JsonNode.Parse(File.ReadAllText(path))!["buildings"]!.AsObject();
+        AddHandmade(buildings, civilization, Path.Combine(Path.GetDirectoryName(path)!, "handmade.json"));
         ApplyOverrides(buildings, civilization, Path.Combine(Path.GetDirectoryName(path)!, "overrides.json"));
         var definitions = new Dictionary<string, BuildingDefinition>();
         foreach (var (name, building) in buildings)
             definitions[name] = Parse(name, civilization, JsonSerializer.SerializeToElement(building));
         return new BuildingCatalog(civilization, definitions);
+    }
+
+    /// <summary>Buildings JSettlers does not have (<c>buildings/handmade.json</c>, per people): added whole.</summary>
+    private static void AddHandmade(JsonObject buildings, Civilization civilization, string path)
+    {
+        if (!File.Exists(path) || JsonNode.Parse(File.ReadAllText(path))![civilization.ToString()] is not JsonObject handmade)
+            return;
+        foreach (var (name, building) in handmade)
+            buildings[name] = building?.DeepClone();
     }
 
     /// <summary>

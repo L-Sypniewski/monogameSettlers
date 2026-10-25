@@ -23,6 +23,16 @@ Grobe Belegung (visuell bestätigt: 00, 12, 13; Rest Vermutung anhand der Tabell
 | 13/23/33/43 | Gebäude je Volk (Römer: Sequenz 0–45, Frame 0 = fertig, 1 = Baustelle), danach Effekte (Feuer, Rauch, Magie) |
 | 15/25/35/45 | nur Animationstabellen (`0x21702`) |
 
+### Kriegsmaschinen (visuell bestätigt, `warMachines` in `data/ui.json`)
+JSettlers kennt sie nicht; Fundstellen aus den Dateien selbst. Richtungen immer SW, W, NW, NE, O, SO.
+
+| Volk | Maschine (Datei 12/22/32) | Werkstatt (Gebäudedatei, GUI-Icon) | Icons (GUI der Volksdatei, je drei Größen) |
+|------|------|------|------|
+| Römer | Katapult, Datei 12: Seq. 0 Körper (6 Bilder, je Richtung), 1 Räder (216 = 36 je Richtung, über dem Körper), 2–7 Schuss (24 Bilder), 8 Stein (12, dreht sich) | 13/27, Icon 14/96 | 234 Katapult, 237 gedrückt, 240 Munition (Steine), 243 gedrückt |
+| Ägypter | Balliste, Datei 22: wie Römer, Schuss 15 Bilder, 8–13 Bolzen je Richtung (3 Bilder) | 23/31, Icon 24/99 | 228/231/234/237 |
+| Asiaten | Kanone, Datei 32: wie Römer, Schuss 18 Bilder, 8 Kugel (12) | 33/34, Icon 34/111; Pulvermacherei 33/28, Icon 34/105 | 243/246/249/252 |
+| Amazonen | Gong, Datei 42: Seq. 0 fährt wie ein Siedler läuft (6 × 12), 1–6 Gongschlag (39) | 43/32, Icon 44/102 | 237/240 (243/246: Steine, ungenutzt) |
+
 ## Header
 | Offset | Inhalt |
 |--------|--------|

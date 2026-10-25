@@ -56,6 +56,8 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     änderndes Feld bebaut, anderweitig geplant, unbegehbar oder fremd ist. Planierer: je Gang `heightPerDig`, nie Steigung über `maxSlope`
     (am Hang oben zuerst). Sofort fertige Gebäude planieren sofort. Minen: nur Gebirge, kein Planieren (`levelling: false`, `NeedsLevelling`).
   - Bauarbeiter ohne Material werden frei (untätig, schiebbar, ein Schritt weg, wechseln Baustelle); Plätze nur, solange Material für einen weiteren reicht.
+  - Gebäude, die JSettlers nicht hat (Kriegsmaschinen-Werkstätten, Pulvermacherei): `data/buildings/handmade.json` je Volk
+    (Grundriss = vom Originalbild bedeckte Rasterpunkte, Tür/Stapel nach dem Bild), vor `overrides.json` geladen.
   - `World.RemoveBuilding`: Abriss/Verlust mit Staubwolke (`DustClouds`), Anteil `demolition.payback` des Baumaterials bleibt liegen.
     Land abgerissener Militärgebäude bleibt beim Spieler, aber ungeschützt (feindliches Militärgebäude nimmt es samt Gebäuden).
   - Abriss: Arbeiter behält Beruf und Werkzeug, übernimmt das nächste Gebäude seines Berufs.
@@ -153,6 +155,16 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
   - Kampfkraft (`CombatStrength`): eigenes Land 100 %, sonst Startwert je Spielerzahl (`startPercent`, im Original gemessen: 1 → 54 % (wie dort, obwohl sinnlos), 2 → 50 %, 4 → 37 %, 8 → 25 %, 16 → 14 %); plus Gold im eigenen Land (nach Landbesitz; Ägypter: Gold
     halb, Edelsteine doppelt), jeder weitere Prozentpunkt kostet nach erreichter Kampfkraft (Bänder `stepPercent` ab 0 %, `unitsPerPercent`, im Original gemessen: bis 50 % 1,2 Barren, ab 90 % 20; niedriger Start steigt schneller), ohne Obergrenze (200 % = doppelter Schaden außerhalb; zwingt Reiche zum Angriff). KI kennt alle Werte und bewertet den Kampfort.
   - Werte: `data/military.json`; Gebietsradien aus Originalkarten gemessen.
+  - `WarMachines` (`warMachines` in `military.json`): je Volk eine Maschine (Katapult, Balliste, Kanone, Gong) aus seiner Werkstatt:
+    `Order` reiht Maschine oder Ladung Munition ein (Gong ohne; `Cancel` nimmt die letzte nicht begonnene zurück), Logistik liefert nur, was
+    der aktuelle Auftrag braucht (`Wants`), der Werftarbeiter hämmert Einheit für Einheit vor der Tür (`IAssembly`, gemeinsam mit der Werft,
+    `Shipbuilding.cs`); Ladungen liegen an der Werkstatt (`Loads`). Maschine = `Profession.WarMachine` (Volk in `People`, `Ammo`), zählt nicht
+    als Bevölkerung, fährt wie Soldaten (`Move`, `speed`), feuert nur auf fertige feindliche Militärgebäude (`Attack`; stehende auf alles in
+    `range`) alle `cooldownSeconds` (5) mit `hitChance` (Katapult 50 %, Balliste 75 %, Kanone 90 %, Gong 50 % – vom Nutzer), Geschoss
+    `MachineShot` (Gong sofort), Einschläge kurz in `Impacts`; jeder Treffer zählt gegen `buildingHits` (`DamageOf`), der letzte reißt es ab
+    (Besatzung kommt lebend heraus, Event `buildingDestroyed`); ein Treffer heilt je `repairSeconds` (60) nach dem letzten. `shots` (6) je Ladung; `Reload`: zur nächsten eigenen Werkstatt mit Ladung. Nahkämpfer zerstören Maschinen
+    (`health`, Staub statt Geist), Bogenschützen nicht (`EnemiesOf(…, bowman)`). Reichweite, Tempo, LP, Treffer je Gebäude geraten.
+    Noch nicht: Berge meiden, KI. Pulvermacherei (Asiaten): Kohle + Schwefel → Schießpulver (`POWDER_MAKER`, ohne Werkzeug).
 - `Ai/` – `AiPlayer`: gleiche Befehle wie ein Mensch, kennt die ganze Karte. `World.AiPlayers` jeden Tick angestoßen. `MapSurvey`: Kartenüberblick in Zellen.
   - Bauen nach `data/ai.json` und Bedarf: Wohnhaus, solange Träger ≤ 3 × Produktionsgebäude (Größe nach fertigen Sägewerken/Steinmetzen
     je Volk); kein Material für Türme zurückhalten; kein weiteres Gebäude einer Art, solange eins auf Arbeiter wartet; Rohstoffgebäude ohne
@@ -446,6 +458,12 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   aus `Tracks` (`SoundConfig.TracksFor`: Liste des eigenen Volks, `music.tracks`, nach Gehör zugeordnet; „Musik je Volk“ aus: alle, eigene zuerst),
   neue Liste beginnt mit ihrem ersten Stück, dann gemischt, Pause dazwischen, neue Liste ohne das laufende Stück blendet aus; in Menüs vor dem Spiel still. Musik/Musik je Volk/Effekte in den Einstellungen
   (Darstellung, `DisplaySettings`).
+- **Kriegsmaschinen** (`WarMachineRenderer`, `warMachines` in `ui.json`, Fundstellen `docs/formate/gfx.md`): Körper je Richtung, rollende Räder
+  darüber, Schuss je Richtung, Geschosse im Bogen; Gong fährt wie ein Siedler läuft. Einschlag: kleine graue Explosion (Datei 13 Seq. 49);
+  beschädigte Gebäude rauchen (42, ab halb 43 dunkel) und brennen (41 ab ¼, 40 ab ½, 39 ab ¾ Schaden), bis sie geheilt sind. Auswahl zusammen mit Soldaten (`SelectionKind`, Porträt
+  `WAR_MACHINE`), Rechtsklick: hin bzw. Militärgebäude beschießen; Munitionszahl über dem Punkt; „Munition laden“ im Auswahl-Panel.
+  Werkstatt-Panel (`BuildingInfo.WarWorks`): Maschine/Munition (Klick +1, Strg+Klick zurück, ×n bestellt), Ladungen, Material des
+  aktuellen Auftrags. Ton `machineShot` (geraten), Treffer `machineHit` 88/0. Cheat-Menü: 2 Kriegsmaschinen.
 - **Darstellung**: Schiffe (`ShipRenderer`, `ships` in `ui.json`): Datei 36, je Schiff 4 Sequenzen (Deck, Schatten, Vorderteil, ganz ohne Segel)
   à 6 Richtungen, Segel 28–34 mit Spielerfarbe; kleines Schiff = Fähre, großes = Handelsschiff (Römer im Spiel geprüft), Ladung als Stapel an Deck; im Bau der Rumpf von unten wachsend. Wellen (`Terrain/WaveLayer`): lange gerade Dünung läuft diagonal (nach links unten), Wasserecken heben sich bis 4 Höhenstufen (Wasserdreiecke im Bild neu gezeichnet, Licht wie Hänge), Kämme mit hellem Wasser-Tile (Bild 16) überblendet, Vorderseite glänzt; Stärke nach Uferabstand (1 Feld ruhig, dann über 14 voll, weich); Schiffe schaukeln mit (nur Darstellung); stehen in der Pause. Figuren nach Volk; Tote: Geist in Spielerfarbe (Datei 12 Seq. 27, `World.Ghosts`); Zauberwirkungen als Original-Statussymbole über dem Kopf (`StatusIcons`, `statusIcons` in `ui.json`: Datei 1 Sequenz 128–133 – Samuraischwert, Stärken, Angst, Schild, Verfluchte Pfeile, Eingefroren –, mehrere nebeneinander; 134/135 Planieren uneben/sehr uneben, 136–138 Info-Zeichen, noch ungenutzt); Stehende ohne Aufgabe wechseln alle 2–30 s
   die Blickrichtung (nur Darstellung); Turm-Bogenschützen mit Schussanimation im Takt, ohne Schatten (wie im Original), Infanterie im Turm als Fensterbild; Gebäude: Ebene 0, Besatzung, dann weitere Ebenen (Fensterrahmen/Brüstungen davor); in 8-px-Streifen gezeichnet, jeder in der vordersten Sperrfeld-Reihe seiner Spalte (`EconomyRenderer.Strip`, sonst verdeckt ein hohes Gebäude, was seitlich davor steht); Pfeile im flachen Bogen
@@ -457,7 +475,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   `FOCUS=<gebäude>` (`site`: frische Baustelle; `temple`: kleiner Tempel mit Mana; Militärgebäude wie `castle`: voll besetzt); `FOG=1`;
   `EVENT=1` (springt zu Events); `BATTLE=1` (Stufe-3-Feinde greifen das fokussierte Militärgebäude an, sonst den Startturm; `=big`: zwei Armeen à 30 treffen sich südlich des Starts; `=open`: 40 gegen 40 auf freiem Feld; `=town[:n]`: n (90) gegen n mitten im Dorf; mit `ZOOM` Kamera darauf); `COLORS=2,4` (Palettenfarben je Spieler); `STRIKE=1` (Abriss des fokussierten Gebäudes + 10 Träger ohne Wohnraum);
   `GEOLOGISTS=1`; `PIONEERS=1`; `DOCK=1` (Werft am nächsten offenen Meer, Land dort eigen, mit Steg; `=none` ohne; `=build`: Fähre im Bau, Material daneben; `=ships`: Fähre und
-  Handelsschiff fertig, gewählt, losgeschickt (mit `FOCUS=none`); `=ferry`: Fähre am Steg, 8 Soldaten, 7 steigen ein, Fähre gewählt; `=harbor` (mit `FOCUS=harbor`): Hafen mit Steg, Handelsschiff, Waren, Ziel; sonst mit `FOCUS=dockyard`); `TRADE=1` (Markt mit Lagertür als Ziel, Stopp, Planken ∞, Steine 12, drei Esel, Eselzucht; mit `FOCUS=market_place`); `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
+  Handelsschiff fertig, gewählt, losgeschickt (mit `FOCUS=none`); `=ferry`: Fähre am Steg, 8 Soldaten, 7 steigen ein, Fähre gewählt; `=harbor` (mit `FOCUS=harbor`): Hafen mit Steg, Handelsschiff, Waren, Ziel; sonst mit `FOCUS=dockyard`); `MACHINES=1` (eigene Werkstatt mit 2 Ladungen und Auftrag, Material daneben; feindlicher Turm, je Volk eine Maschine beschießt ihn, gewählt;
+  mit `FOCUS=<werkstatt>` deren Panel, sonst `FOCUS=none`); `TRADE=1` (Markt mit Lagertür als Ziel, Stopp, Planken ∞, Steine 12, drei Esel, Eselzucht; mit `FOCUS=market_place`); `SELECT=1` (Soldaten aller Typen/Stufen gewählt, als Gruppe 1, Bogenschützen daraus als Gruppe 2; `=mixed`: auch die von Spieler 2 in der Auswahl); `SAVE=<slot>` (nach 300 Frames; mit `HOMESTEAD_SAVE_DIR` temporär!);
   `TAB=system[:save|quit]` bzw. `goods|settlers[:<untermenü>[:manual|<ware>]]` (z. B. `settlers:soldiers:manual`, `goods:distribution:bread`);
   `STORE=<ware>` (mit `FOCUS=stock`); `PLACE=<gebäude>`; `START=<tab>[:color]` (nur `start.png` des Startscreens, 3: Zufallsgenerator; `:color` mit offener Farbauswahl von Spieler 1);
   `MAGIC=1` (großer Tempel, Mana-Kette, Priester zaubert in einen Kampf; `=summon`: Himmlische Geschenke; `=<SpellKind>` dieser Zauber des eigenen Volks,

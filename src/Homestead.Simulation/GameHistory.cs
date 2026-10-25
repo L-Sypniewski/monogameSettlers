@@ -112,7 +112,7 @@ public sealed class GameHistory
                 Bowmen = settlers.Count(s => s.SoldierType == SoldierType.Bowman),
                 Pikemen = settlers.Count(s => s.SoldierType == SoldierType.Pikeman),
                 Priests = settlers.Count(s => s.Profession == Profession.Priest),
-                Specialists = settlers.Count(s => s.Profession is not (Profession.Carrier or Profession.Soldier or Profession.Priest or Profession.None or Profession.Donkey)),
+                Specialists = settlers.Count(s => s.Profession is not (Profession.Carrier or Profession.Soldier or Profession.Priest or Profession.None or Profession.Donkey or Profession.WarMachine)),
                 Buildings = buildings.Count(b => b.State == BuildingState.Finished),
                 Sites = buildings.Count(b => b.State != BuildingState.Finished),
                 MilitaryBuildings = buildings.Count(b => b.State == BuildingState.Finished && b.Definition.Occupiers.Count > 0),

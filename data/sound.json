@@ -9,6 +9,8 @@
     "healing": 21,
     "claiming": { "sound": 25, "variants": [ 1 ] },
     "geologistFinds": { "sound": 24, "variants": [ 1, 2, 3 ], "minAmount": 10 },
+    "machineHit": { "sound": 88, "variants": [ 0 ] },
+    "machineShot": { "_comment": "Guessed from the table (86-90: cannon?), not yet checked by ear.", "Roman": 86, "Egyptian": 88, "Asian": 87, "Amazon": 90 },
     "sowing": { "FARMER": 8 },
     "command": 57,
     "ui": { "up": 47, "down": 48, "toggle": 54, "workArea": 22, "demolish": 51 },

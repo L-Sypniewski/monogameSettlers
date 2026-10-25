@@ -67,6 +67,7 @@ public sealed partial class BuildingInfo
         _demolishIcon.SetData(bitmap.Pixels);
         LoadMarketIcons(device, gui);
         LoadDockyardIcons(device, gfx, gui);
+        LoadWarWorksIcons(device, gfx);
     }
 
     /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>
@@ -263,6 +264,10 @@ public sealed partial class BuildingInfo
                 DrawDockyard(batch, pixel, world, building, people, cursor);
             y = DockyardImageTop;
         }
+        // A war machine works: what to order at the left, the image beside it.
+        bool warWorks = own && OffersWarWorks(world, building);
+        if (warWorks && !asking)
+            DrawWarWorks(batch, pixel, font, world, building, cursor);
         var state = StateOf(world, building);
         double? chance = world.Production.MineChance(building);
         var goods = own && !OffersStorehouse(building) ? Goods(world, building) : [];
@@ -275,9 +280,11 @@ public sealed partial class BuildingInfo
         if (goods.Count > 0)
             text += 24 + 32;
         int imageHeight = own ? Math.Clamp(limit - y - 8 - text - 4, MinImageHeight, ImageHeight) : ImageHeight;
-        var imageBox = dockyard ? new Rectangle(DockyardImageLeft, y, Left + Inner - DockyardImageLeft, imageHeight) : new Rectangle(Left, y, Inner, imageHeight);
+        var imageBox = dockyard ? new Rectangle(DockyardImageLeft, y, Left + Inner - DockyardImageLeft, imageHeight)
+            : warWorks ? new Rectangle(WarWorksImageLeft, y, Left + Inner - WarWorksImageLeft, imageHeight)
+            : new Rectangle(Left, y, Inner, imageHeight);
         economy.DrawBuildingImage(batch, building.Definition, imageBox, PlayerColors.Of(building.Player));
-        y = Math.Max(imageBox.Bottom, dockyard ? TradeShipButton.Bottom : 0) + 8;
+        y = Math.Max(imageBox.Bottom, dockyard ? TradeShipButton.Bottom : warWorks ? WarWorksBottom(world, building) : 0) + 8;
         if (asking)
         {
             DrawQuestion(batch, height, font, cursor);
@@ -313,7 +320,8 @@ public sealed partial class BuildingInfo
         if (goods.Count == 0 || y + 8 + 16 + 30 > limit)
             return;
         y += 8;
-        Write(batch, font, Lang.T(building.State == BuildingState.Finished && world.Shipping.Building(building) is null ? "building.goods" : "building.material"), new Vector2(Left, y), Label, 12);
+        bool assembling = world.Shipping.Building(building) is not null || world.WarMachines.Current(building) is not null;
+        Write(batch, font, Lang.T(building.State == BuildingState.Finished && !assembling ? "building.goods" : "building.material"), new Vector2(Left, y), Label, 12);
         y += 16;
         for (int i = 0; i < goods.Count; i++)
         {
@@ -429,6 +437,10 @@ public sealed partial class BuildingInfo
         if (world.Shipping.Building(building) is { } ship)
             return world.Shipping.CostOf(ship).Select(c =>
                 (c.Key, $"{Math.Min(world.Shipping.Delivered(building, c.Key), c.Value)}/{c.Value}")).ToList();
+        // A war machine works at work: its material likewise.
+        if (world.WarMachines.Current(building) is { } work)
+            return world.WarMachines.CostOf(building, work).Select(c =>
+                (c.Key, $"{Math.Min(world.WarMachines.Delivered(building, c.Key), c.Value)}/{c.Value}")).ToList();
         if (building.State != BuildingState.Finished)
         {
             // Construction piles count their capacity down as material is built in.

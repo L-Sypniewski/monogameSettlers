@@ -93,6 +93,13 @@
     "ships": { "Roman": [ 14, 272 ], "Egyptian": [ 24, 266 ], "Asian": [ 34, 281 ], "Amazon": [ 44, 275 ] },
     "shipSteps": [ 0, 3, 6, 9 ]
   },
+  "_warMachinesComment": "War machines (people's soldier file): body = one frame per direction (SW, W, NW, NE, E, SE), wheels = 216 frames, 36 per direction, rolling over the body; fire = first of six sequences (per direction) of the firing; shot = the flying stone or ball (one sequence, turning), with shotPerDirection six sequences of a bolt. The gong walks: its body has six blocks of 12 frames like a settler's walk. icons: [file, first GUI image]: machine (three sizes), the same pressed, ammunition, ammunition pressed.",
+  "warMachines": {
+    "Roman": { "file": 12, "body": 0, "wheels": 1, "fire": 2, "shot": 8, "icons": [ 14, 234 ] },
+    "Egyptian": { "file": 22, "body": 0, "wheels": 1, "fire": 2, "shot": 8, "shotPerDirection": true, "icons": [ 24, 228 ] },
+    "Asian": { "file": 32, "body": 0, "wheels": 1, "fire": 2, "shot": 8, "icons": [ 34, 243 ] },
+    "Amazon": { "file": 42, "body": 0, "fire": 1, "walks": true, "icons": [ 44, 237 ] }
+  },
   "_statusIconsComment": "Small black squares over units a spell works on (file, settler sequence per spell, one frame each; side by side when several work). Sequences 134/135 of file 1 (red circle, red !) mark very uneven and even more uneven ground for levelling, 136-138 (i, !, arrow) info texts – not used yet.",
   "statusIcons": { "file": 1, "Haste": 128, "Strengthen": 129, "Fear": 130, "Shield": 131, "CursedArrows": 132, "Freeze": 133 },
   "_spellMenuComment": "The priests' spell menu: per people [file, index] of the large icon of the top spell; the spells' icons lie in the 24 GUI images before the ships, three sizes each (small to large), the menu's top spell last – each further spell three lower. Order and spells: menu in data/magic.json.",
@@ -120,10 +127,10 @@
   },
   "_portraitsComment":"Unit portraits in the stone frame (GUI images of the people's file, the large 40x60 one; the medium and small are the two before it), by animation type; WORKER: the specialists (Fachleute), THIEF: scout. From the carrier on the same distance in every file (digger +3, builder +6, worker +18, thief +51, geologist +54, healer +63, priest +69 – Asians +75, pioneer +72 – missing for Egyptians). soldiers: the first, then swordsman, pikeman, bowman of level 1, the same of level 2 and 3, three images apart. common: the same for every people (file 03, or [file, index]); FRAME: an empty frame, behind the figure of kinds without a portrait.",
   "portraits": {
-    "Roman": { "file": 14, "BEARER": 134, "DIGGER": 137, "BRICKLAYER": 140, "WORKER": 152, "THIEF": 185, "GEOLOGIST": 188, "MAGE": 203, "PIONEER": 206, "soldiers": 209 },
-    "Egyptian": { "file": 24, "BEARER": 128, "DIGGER": 131, "BRICKLAYER": 134, "WORKER": 146, "THIEF": 179, "GEOLOGIST": 182, "MAGE": 197, "soldiers": 200 },
-    "Asian": { "file": 34, "BEARER": 140, "DIGGER": 143, "BRICKLAYER": 146, "WORKER": 158, "THIEF": 191, "GEOLOGIST": 194, "PIONEER": 212, "MAGE": 215, "soldiers": 218 },
-    "Amazon": { "file": 44, "BEARER": 137, "DIGGER": 140, "BRICKLAYER": 143, "WORKER": 155, "THIEF": 188, "GEOLOGIST": 191, "MAGE": 206, "PIONEER": 209, "soldiers": 212 },
+    "Roman": { "file": 14, "BEARER": 134, "DIGGER": 137, "BRICKLAYER": 140, "WORKER": 152, "THIEF": 185, "GEOLOGIST": 188, "MAGE": 203, "PIONEER": 206, "WAR_MACHINE": 235, "soldiers": 209 },
+    "Egyptian": { "file": 24, "BEARER": 128, "DIGGER": 131, "BRICKLAYER": 134, "WORKER": 146, "THIEF": 179, "GEOLOGIST": 182, "MAGE": 197, "WAR_MACHINE": 229, "soldiers": 200 },
+    "Asian": { "file": 34, "BEARER": 140, "DIGGER": 143, "BRICKLAYER": 146, "WORKER": 158, "THIEF": 191, "GEOLOGIST": 194, "PIONEER": 212, "MAGE": 215, "WAR_MACHINE": 244, "soldiers": 218 },
+    "Amazon": { "file": 44, "BEARER": 137, "DIGGER": 140, "BRICKLAYER": 143, "WORKER": 155, "THIEF": 188, "GEOLOGIST": 191, "MAGE": 206, "PIONEER": 209, "WAR_MACHINE": 238, "soldiers": 212 },
     "common": { "file": 3, "DONKEY": 2, "FRAME": [ 44, 200 ] }
   },
   "_settlersOverviewComment": "Siedler > Siedlerstatistik: icons of file 03 for room (house), settlers needing room (hammer) and the total (arrow); the soldiers' icon is the people's sword (soldiersMenu.weapons). rows: the portraits below, by animation type.",
@@ -152,7 +159,8 @@
         "toolsmith",
         "charcoal_burner",
         "sulfurmine",
-        "gemsmine"
+        "gemsmine",
+        "gunpowder_maker"
       ]
     },
     {
@@ -186,7 +194,11 @@
         "weaponsmith",
         "barrack",
         "dockyard",
-        "hospital"
+        "hospital",
+        "catapult_works",
+        "ballista_works",
+        "cannon_works",
+        "gong_works"
       ]
     },
     {
@@ -232,6 +244,15 @@
     [ "fetching ship material", "fetchingShipMaterial" ],
     [ "to the ship", "bringingToShip" ],
     [ "building the ship", "buildingShip" ],
+    [ "nothing ordered", "nothingOrdered" ],
+    [ "waiting for war machine material", "waitingForMachineMaterial" ],
+    [ "waiting for ammunition material", "waitingForAmmoMaterial" ],
+    [ "fetching war machine material", "fetchingWorksMaterial" ],
+    [ "fetching ammunition material", "fetchingWorksMaterial" ],
+    [ "to the war machine", "bringingToMachine" ],
+    [ "to the ammunition", "bringingToAmmo" ],
+    [ "building the war machine", "buildingMachine" ],
+    [ "building the ammunition", "makingAmmo" ],
     [ "waiting for", "waitingForGoods" ],
     [ "mine is exhausted", "exhausted" ],
     [ "in range", "nothingInRange" ],

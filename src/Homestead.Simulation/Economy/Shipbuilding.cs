@@ -3,21 +3,24 @@ using Homestead.Simulation.Buildings;
 namespace Homestead.Simulation.Economy;
 
 /// <summary>
-/// The shipyard's worker (see <see cref="Shipping"/>): while a ship is on the stocks he takes one unit of its material
-/// from the shipyard's piles, carries it along the pier to the hull, puts it down and hammers it in; then back inside,
-/// and the next one.
+/// The worker of an assembly (<see cref="IAssembly"/>: the shipyard's ships, see <see cref="Shipping"/>; war machines, see
+/// <see cref="Military.WarMachines"/>): while there is work he takes one unit of its material from the building's piles,
+/// carries it to the work spot (the pier's end, the hull), puts it down and hammers it in; then back inside, and the next one.
 /// </summary>
 public sealed partial class Production
 {
     private string ShipyardName => (_config.Shipping ?? ShippingRules.Default).Dockyard;
 
-    /// <summary>Inside: off to the next unit the ship needs, else he waits.</summary>
-    private void BuildShip(Workplace w)
+    /// <summary>What the workplace puts together: the shipyard its ships, a war machine works its machines.</summary>
+    private IAssembly AssemblyOf(Workplace w) => w.Shipyard ? _world.Shipping : _world.WarMachines;
+
+    /// <summary>Inside: off to the next unit the work needs, else he waits.</summary>
+    private void Assemble(Workplace w)
     {
-        var shipping = _world.Shipping;
-        if (shipping.NextUnit(w.Building) is not { } pile)
+        var assembly = AssemblyOf(w);
+        if (assembly.NextUnit(w.Building) is not { } pile)
         {
-            w.Waiting = shipping.Building(w.Building) is null ? "no ship ordered" : "waiting for ship material";
+            w.Waiting = assembly.Idle(w.Building);
             Rest(w, RetryTicks);
             return;
         }
@@ -29,9 +32,10 @@ public sealed partial class Production
             GiveUp(w, "ship material unreachable");
     }
 
-    private void AdvanceShipyard(Workplace w)
+    private void AdvanceAssembly(Workplace w)
     {
         var worker = w.Worker!;
+        var assembly = AssemblyOf(w);
         switch (w.Phase)
         {
             case Phase.ToShipPile:
@@ -46,7 +50,7 @@ public sealed partial class Production
                     break;
                 StopActivity(worker);
                 var pile = w.Inputs.Dequeue();
-                if (!_world.HasPile(pile) || pile.Count == 0 || pile.Material is not { } material || _world.Shipping.WorkSpot(w.Building) is not { } work)
+                if (!_world.HasPile(pile) || pile.Count == 0 || pile.Material is not { } material || assembly.WorkSpot(w.Building) is not { } work)
                 {
                     GiveUp(w, "ship material gone");
                     break;
@@ -54,7 +58,7 @@ public sealed partial class Production
                 pile.Count--;
                 pile.ResetMaterialIfEmpty();
                 worker.Carrying = material;
-                _world.Shipping.Take(w.Building, material);
+                assembly.Take(w.Building, material);
                 w.Facing = work.Facing;
                 if (!WalkTo(w, work.Spot, Phase.ToHull))
                     LoseUnit(w, "hull unreachable");
@@ -67,7 +71,7 @@ public sealed partial class Production
                     w.Product = worker.Carrying;
                     worker.Carrying = null;
                     BeginHandling(w, Activity.Building, Phase.Hammering);
-                    w.TicksLeft = WorkTicks(w, _world.Shipping.Rules.BuildTicks);
+                    w.TicksLeft = WorkTicks(w, assembly.BuildTicks);
                 }
                 else if (stalledHull)
                 {
@@ -80,7 +84,7 @@ public sealed partial class Production
                     break;
                 StopActivity(worker);
                 if (w.Product is { } built)
-                    _world.Shipping.Build(w.Building, built);
+                    assembly.Build(w.Building, built);
                 w.Product = null;
                 if (!WalkTo(w, w.Building.Door, Phase.ToDoorToRest))
                 {
@@ -91,19 +95,23 @@ public sealed partial class Production
         }
     }
 
-    /// <summary>He cannot get the unit to the hull: it is dropped, the ship needs another.</summary>
+    /// <summary>He cannot get the unit to the work spot: it is dropped, the work needs another.</summary>
     private void LoseUnit(Workplace w, string reason)
     {
         if (w.Worker!.Carrying is { } material)
-            _world.Shipping.Take(w.Building, material, back: true);
+            AssemblyOf(w).Take(w.Building, material, back: true);
         GiveUp(w, reason);
     }
 
-    private string ShipyardStatus(Workplace w) => w.Phase switch
+    private string AssemblyStatus(Workplace w)
     {
-        Phase.ToShipPile or Phase.ShipPickingUp => "fetching ship material",
-        Phase.ToHull => $"bringing {w.Worker?.Carrying} to the ship",
-        Phase.Hammering => "building the ship",
-        _ => "going home",
-    };
+        string work = AssemblyOf(w).Work(w.Building);
+        return w.Phase switch
+        {
+            Phase.ToShipPile or Phase.ShipPickingUp => $"fetching {work} material",
+            Phase.ToHull => $"bringing {w.Worker?.Carrying} to the {work}",
+            Phase.Hammering => $"building the {work}",
+            _ => "going home",
+        };
+    }
 }

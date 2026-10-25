@@ -96,7 +96,7 @@ public sealed class Ship
 /// with every unit the hull grows (<see cref="Progress"/>). With the last one the ship is launched (<see cref="Ships"/>).
 /// A ferry takes units aboard and puts them ashore (<see cref="Board"/>, <see cref="Unload"/>).
 /// </remarks>
-public sealed partial class Shipping
+public sealed partial class Shipping : IAssembly
 {
     /// <summary>Most fields a ship's way is searched over.</summary>
     private const int MaxSearch = 150_000;
@@ -216,6 +216,14 @@ public sealed partial class Shipping
 
     /// <summary>Where the worker stands to work on the hull (the pier's end) and which way he looks.</summary>
     internal (GridPoint Spot, Direction Facing)? WorkSpot(Building dockyard) => DockOf(dockyard) is { } dock ? (dock.End, dock.Direction) : null;
+
+    Pile? IAssembly.NextUnit(Building building) => NextUnit(building);
+    void IAssembly.Take(Building building, Material material, bool back) => Take(building, material, back);
+    void IAssembly.Build(Building building, Material material) => Build(building, material);
+    (GridPoint Spot, Direction Facing)? IAssembly.WorkSpot(Building building) => WorkSpot(building);
+    int IAssembly.BuildTicks => Rules.BuildTicks;
+    string IAssembly.Idle(Building building) => Building(building) is null ? "no ship ordered" : "waiting for ship material";
+    string IAssembly.Work(Building building) => "ship";
 
     public bool IsDockyard(Building building) => building.Definition.Name == Rules.Dockyard;
 

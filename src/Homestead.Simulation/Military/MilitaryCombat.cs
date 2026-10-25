@@ -217,6 +217,7 @@ public sealed partial class Military
         _combatants.Clear();
         foreach (var settler in _world.Settlers)
             if ((settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer
+                     or Profession.WarMachine
                  || IsLoadedDonkey(settler)) && !settler.IsInside && !settler.IsDead)
                 _combatants.Add(settler);
         if (_world.Tick % EngageInterval == 0)
@@ -231,18 +232,22 @@ public sealed partial class Military
     /// <summary>A donkey carrying goods: enemies strike it once to make it drop them (it cannot die).</summary>
     private static bool IsLoadedDonkey(Settler settler) => settler is { Profession: Profession.Donkey, Carrying: not null };
 
-    /// <summary>Soldiers, priests, geologists, scouts and loaded donkeys outside the buildings at the start of this tick.</summary>
+    /// <summary>Soldiers, priests, geologists, scouts, war machines and loaded donkeys outside the buildings at the start of this tick.</summary>
     private readonly List<Settler> _combatants = new();
 
     /// <summary>
-    /// Enemy soldiers, priests, geologists and revealed scouts outside the buildings: who can be fought. Not door
-    /// guards: only the attackers at the door fight them (see <see cref="Advance"/>).
+    /// Enemy soldiers, priests, geologists, war machines and revealed scouts outside the buildings: who can be fought. Not door
+    /// guards: only the attackers at the door fight them (see <see cref="Advance"/>). Arrows do not hurt war machines:
+    /// none for <paramref name="bowman"/>.
     /// </summary>
-    private IEnumerable<Settler> EnemiesOf(int player) =>
-        _combatants.Where(s => s.Player != player && !s.IsInside && !s.IsDead && !_guards.ContainsKey(s.Id) && s.IsRevealedTo(player));
+    private IEnumerable<Settler> EnemiesOf(int player, bool bowman = false) =>
+        _combatants.Where(s => s.Player != player && !s.IsInside && !s.IsDead && !_guards.ContainsKey(s.Id) && s.IsRevealedTo(player)
+                               && !(bowman && s.Profession == Profession.WarMachine));
 
-    private Settler? NearestEnemy(GridPoint from, int player, int range, int minRange = 0) =>
-        EnemiesOf(player).Where(e => PathFinder.Distance(from, e.Position) is var d && d <= range && d >= minRange)
+    private static bool IsBowman(Settler soldier) => soldier.SoldierType == SoldierType.Bowman;
+
+    private Settler? NearestEnemy(GridPoint from, int player, int range, int minRange = 0, bool bowman = false) =>
+        EnemiesOf(player, bowman).Where(e => PathFinder.Distance(from, e.Position) is var d && d <= range && d >= minRange)
             .MinBy(e => PathFinder.Distance(from, e.Position));
 
     /// <summary>Ticks to the next strike; hasted by a spell, faster.</summary>
@@ -283,7 +288,7 @@ public sealed partial class Military
     {
         foreach (var soldier in _world.Settlers.Where(s => s.Profession == Profession.Soldier && !s.HasTask && !s.IsInside).ToList())
         {
-            var enemy = NearestEnemy(soldier.Position, soldier.Player, _config.Sight(soldier.SoldierType!.Value));
+            var enemy = NearestEnemy(soldier.Position, soldier.Player, _config.Sight(soldier.SoldierType!.Value), bowman: IsBowman(soldier));
             var building = NearestEnemyBuilding(soldier);
             if (building is not null && (enemy is null
                     || PathFinder.Distance(soldier.Position, building.Door) < PathFinder.Distance(soldier.Position, enemy.Position)))
@@ -466,8 +471,8 @@ public sealed partial class Military
         bool bowman = guard.SoldierType == SoldierType.Bowman;
         var spots = DoorSpotsOf(g);
         var enemy = bowman
-            ? NearestEnemy(guard.Position, guard.Player, stats.Range, stats.MinRange)
-            : EnemiesOf(guard.Player).Where(e => spots.Contains(e.Position)).MinBy(e => e.Health);
+            ? NearestEnemy(guard.Position, guard.Player, stats.Range, stats.MinRange, IsBowman(guard))
+            : EnemiesOf(guard.Player, IsBowman(guard)).Where(e => spots.Contains(e.Position)).MinBy(e => e.Health);
         if (enemy is null)
         {
             SetActivity(guard, Activity.None);
@@ -502,7 +507,7 @@ public sealed partial class Military
                 var stats = _config.Soldiers[SoldierType.Bowman];
                 if (!searched || enemy is { IsDead: true })
                 {
-                    enemy = NearestEnemy(g.Building.Position, bowman.Player, _config.TowerRange);
+                    enemy = NearestEnemy(g.Building.Position, bowman.Player, _config.TowerRange, bowman: true);
                     searched = true;
                 }
                 if (enemy is null)
@@ -804,7 +809,7 @@ public sealed partial class Military
         f.Enemy = null;
         if (_world.Tick >= f.NextRetarget)
         {
-            f.Enemy = NearestEnemy(soldier.Position, soldier.Player, stats.Range, stats.MinRange);
+            f.Enemy = NearestEnemy(soldier.Position, soldier.Player, stats.Range, stats.MinRange, IsBowman(soldier));
             f.NextRetarget = _world.Tick + (f.Enemy is null ? RetargetTicks / 2 : 0);
         }
     }
@@ -827,7 +832,7 @@ public sealed partial class Military
         if (stats.InReach(currentDistance))
             return;
         bool recheck = f.Enemy is null || _world.Tick >= f.NextRetarget;
-        var candidates = EnemiesOf(soldier.Player)
+        var candidates = EnemiesOf(soldier.Player, IsBowman(soldier))
             .Select(x => (Enemy: x, Distance: PathFinder.Distance(soldier.Position, x.Position)))
             .Where(x => x.Distance <= (recheck ? _config.Sight(soldier.SoldierType!.Value) : stats.Range)
                         && !(f.Unreachable.TryGetValue(x.Enemy.Id, out long until) && until > _world.Tick))
@@ -860,7 +865,7 @@ public sealed partial class Military
             return _world.WalkTo(soldier, enemy.Position); // still far: the plain way, the crowd is handled on arrival
 
         var map = _world.Map!;
-        var enemies = EnemiesOf(soldier.Player)
+        var enemies = EnemiesOf(soldier.Player, IsBowman(soldier))
             .Where(e => PathFinder.Distance(start, e.Position) <= _config.CombatPathRadius + stats.Range)
             .ToList();
         // The combatants are those of the tick's start: a defender sent out since is not among them yet.
@@ -1017,8 +1022,18 @@ public sealed partial class Military
     {
         _world.History.Killed(soldier, attacker);
         Release(soldier);
-        _world.AddGhost(soldier);
-        _world.Cue(new SoundCue(SoundCueKind.Death, soldier.Position, soldier.Player, People: soldier.People ?? _world.PeopleOf(soldier.Player)));
+        if (soldier.Profession == Profession.WarMachine)
+        {
+            // A machine breaks apart: dust, no ghost.
+            _world.WarMachines.Forget(soldier);
+            _world.AddDustCloud(soldier.Position);
+            _world.Cue(new SoundCue(SoundCueKind.BuildingFalls, soldier.Position, soldier.Player));
+        }
+        else
+        {
+            _world.AddGhost(soldier);
+            _world.Cue(new SoundCue(SoundCueKind.Death, soldier.Position, soldier.Player, People: soldier.People ?? _world.PeopleOf(soldier.Player)));
+        }
         _world.Remove(soldier);
         Kills++;
     }
@@ -1103,7 +1118,8 @@ public sealed partial class Military
         soldier.IsWorking = activity != Activity.None;
     }
 
-    private static Direction FacingTowards(GridPoint from, GridPoint to)
+    /// <summary>The direction of the neighbor nearest to <paramref name="to"/>: where one at <paramref name="from"/> looks to face it.</summary>
+    public static Direction FacingTowards(GridPoint from, GridPoint to)
     {
         var best = Direction.SouthWest;
         int bestDistance = int.MaxValue;

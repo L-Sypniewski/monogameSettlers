@@ -220,6 +220,7 @@ public sealed class MapGame : Game
     private StatusIcons _statusIcons = null!;
     private ShipRenderer _shipRenderer = null!;
     private SettlerRenderer _settlerRenderer = null!;
+    private WarMachineRenderer _machineRenderer = null!;
     private EconomyRenderer _economyRenderer = null!;
 
     private World _world = null!;
@@ -441,6 +442,8 @@ public sealed class MapGame : Game
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
         _economyRenderer = new EconomyRenderer(_sprites);
+        _machineRenderer = new WarMachineRenderer(_sprites);
+        SelectionPanel.UsesAmmo = machine => _world.WarMachines.KindOf(machine) is { Shots: > 0 };
         _font = new UiFont();
         if (_showStartScreen)
         {
@@ -1348,6 +1351,7 @@ public sealed class MapGame : Game
 
     private bool OnMinimap(Settler settler) =>
         settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Pioneer or Profession.Scout
+            or Profession.WarMachine
         && !settler.IsDead && !settler.IsInside
         && (settler.Player == 0 || (settler.IsRevealedTo(0) && (!FogOn || _vision.IsVisible(settler.Position))));
 
@@ -1761,6 +1765,17 @@ public sealed class MapGame : Game
                     _message = stealing > 0 ? $"{stealing} scouts go stealing" : "no goods to steal nearby";
                 }
             }
+            else if (action == SelectionAction.Reload)
+            {
+                _message = "war machines: drive to the nearest own works with ammunition and load";
+                if (released)
+                {
+                    int loading = _world.WarMachines.Reload(_group);
+                    if (loading > 0)
+                        PlayCommand();
+                    _message = loading > 0 ? $"{loading} war machines go to load" : "no works with ammunition";
+                }
+            }
             else if (action == SelectionAction.Hold)
             {
                 _message = "soldiers: hold the position, fight only enemies within reach";
@@ -1817,6 +1832,11 @@ public sealed class MapGame : Game
                 _message = dockHover;
             if (onMenu && released && _buildingInfo.DockyardClick(panelCursor, _world, _selectedBuilding!, 0) is { } docked)
                 _message = docked;
+            // A war machine works: machines and ammunition ordered (Ctrl: one taken back).
+            if (onMenu && _buildingInfo.WarWorksHover(panelCursor, _world, _selectedBuilding!, 0) is { } worksHover)
+                _message = worksHover;
+            if (onMenu && released && _buildingInfo.WarWorksClick(panelCursor, _world, _selectedBuilding!, 0, ControlDown(Keyboard.GetState())) is { } ordered)
+                _message = ordered;
             // A storehouse's goods: specialize it on one, or back to the general rule.
             if (onMenu && _buildingInfo.StorehouseHover(panelCursor, _world, _selectedBuilding!, 0) is { } storeHover)
                 _message = storeHover;
@@ -1963,9 +1983,9 @@ public sealed class MapGame : Game
             if (_group.Count == 0 && _selectedBuilding is null || _group.Count > 0 && _group[0].Profession == joined.Profession)
                 _group.Add(joined);
         }
-        // The selection holds one kind; who died, went inside or changed profession leaves it.
-        var kind = _group.FirstOrDefault(s => !s.IsDead && !s.IsInside)?.Profession;
-        _group.RemoveAll(s => s.IsDead || s.IsInside || s.Profession != kind);
+        // The selection holds one kind (soldiers and war machines together); who died, went inside or changed profession leaves it.
+        var kind = _group.FirstOrDefault(s => !s.IsDead && !s.IsInside) is { } first ? SelectionKind(first) : (Profession?)null;
+        _group.RemoveAll(s => s.IsDead || s.IsInside || SelectionKind(s) != kind);
 
         // The flight: eased out (fast start, soft arrival); scrolling by hand ends it.
         if (_flightStart >= 0)
@@ -2482,11 +2502,16 @@ public sealed class MapGame : Game
         return next;
     }
 
-    /// <summary>Selection by priority: the soldiers among the settlers if there are any, else the priests, geologists, scouts, pioneers.</summary>
+    /// <summary>
+    /// Selection by priority: the soldiers and war machines among the settlers if there are any, else the priests, geologists,
+    /// scouts, pioneers.
+    /// </summary>
     private static List<Settler> ByPriority(IEnumerable<Settler> settlers)
     {
         var list = settlers.Distinct().ToList();
-        foreach (var profession in new[] { Profession.Soldier, Profession.Priest, Profession.Geologist, Profession.Scout, Profession.Pioneer })
+        if (list.Where(s => s.Profession is Profession.Soldier or Profession.WarMachine).ToList() is { Count: > 0 } army)
+            return army;
+        foreach (var profession in new[] { Profession.Priest, Profession.Geologist, Profession.Scout, Profession.Pioneer })
             if (list.Where(s => s.Profession == profession).ToList() is { Count: > 0 } chosen)
                 return chosen;
         return [];
@@ -2510,11 +2535,16 @@ public sealed class MapGame : Game
                                           && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y);
     }
 
-    /// <summary>Own settlers that can be selected: soldiers, priests, geologists, scouts and pioneers (not carriers).</summary>
+    /// <summary>Own settlers that can be selected: soldiers, war machines, priests, geologists, scouts and pioneers (not carriers).</summary>
     private static bool Selectable(Settler s) =>
-        s.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer;
+        s.Profession is Profession.Soldier or Profession.WarMachine or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer;
 
     private List<Settler> SelectedSoldiers() => _group.Where(s => s.Profession == Profession.Soldier).ToList();
+
+    /// <summary>What a settler is selected with: war machines go with the soldiers.</summary>
+    private static Profession SelectionKind(Settler s) => s.Profession == Profession.WarMachine ? Profession.Soldier : s.Profession;
+
+    private List<Settler> SelectedMachines() => _group.Where(s => s.Profession == Profession.WarMachine).ToList();
 
     /// <summary>A building is selected: the menu at the left shows what there is to know about it.</summary>
     private bool ShowsBuildingInfo => _selectedBuilding is { Exists: true } && !_placing && !PriestsSelected;
@@ -2536,6 +2566,7 @@ public sealed class MapGame : Game
         Units("scouts", 2, at => _world.Spawn(at, Profession.Scout));
         Units("pioneers", 2, at => _world.Spawn(at, Profession.Pioneer));
         Units("carriers", 5, at => _world.Spawn(at, Profession.Carrier));
+        Units("warMachines", 2, at => _world.WarMachines.Spawn(at, 0, _world.PeopleOf(0)));
         _cheats.Add("+50 Mana", () =>
         {
             _world.Magic.AddMana(0, 50);
@@ -2574,6 +2605,8 @@ public sealed class MapGame : Game
 
     private string SelectionHint() => _group.Count == 0 ? "" : _group[0].Profession switch
     {
+        Profession.Soldier or Profession.WarMachine when _group.Any(s => s.Profession == Profession.WarMachine) =>
+            $"{_group.Count} units selected (right click: go there / attack; war machines fire at military buildings only)",
         Profession.Soldier => $"{_group.Count} soldiers selected (right click: go there / attack, left click: deselect)",
         Profession.Geologist => $"{_group.Count} geologists selected (right click: go there, on a mountain: search there)",
         Profession.Scout => $"{_group.Count} scouts selected (right click: go there, Alt+right click: steal there; enemies take them for carriers)",
@@ -2688,22 +2721,27 @@ public sealed class MapGame : Game
             return;
         }
         var soldiers = SelectedSoldiers();
-        if (soldiers.Count == 0)
+        var machines = SelectedMachines();
+        if (soldiers.Count + machines.Count == 0)
             return;
         bool control = Keyboard.GetState().IsKeyDown(Keys.LeftControl) || Keyboard.GetState().IsKeyDown(Keys.RightControl);
-        // Bowmen do not attack buildings: they keep their order (alone: they walk there).
-        if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0 && _world.Military.Attack(soldiers, attacked) is > 0 and var attacking)
+        // Bowmen do not attack buildings: they keep their order (alone: they walk there). War machines fire at military buildings.
+        if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0
+            && (soldiers.Count > 0 ? _world.Military.Attack(soldiers, attacked) : 0) + _world.WarMachines.Attack(machines, attacked) is > 0 and var attacking)
         {
             PlayCommand();
-            _message = $"{attacking} soldiers attack {attacked.Definition.Name}";
+            _message = $"{attacking} units attack {attacked.Definition.Name}";
             return;
         }
         // Ctrl: forced order, they walk there without stopping to fight.
         var keys = Keyboard.GetState();
         bool forced = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
-        _world.Military.Move(soldiers, clicked, forced);
+        if (soldiers.Count > 0)
+            _world.Military.Move(soldiers, clicked, forced);
+        if (machines.Count > 0)
+            _world.WarMachines.Move(machines, clicked);
         PlayCommand();
-        _message = $"{soldiers.Count} soldiers to {clicked.X},{clicked.Y}{(forced ? " (forced)" : "")}";
+        _message = $"{soldiers.Count + machines.Count} units to {clicked.X},{clicked.Y}{(forced ? " (forced)" : "")}";
     }
 
     /// <summary>
@@ -2988,6 +3026,12 @@ public sealed class MapGame : Game
                 // Under the fog, other players' settlers are seen only where player 1 sees now.
                 if (FogOn && settler.Player != 0 && !_vision.IsVisible(settler.Position))
                     continue;
+                if (settler.Profession == Profession.WarMachine)
+                {
+                    _machineRenderer.Draw(_spriteBatch, settler, _settlerRenderer.PeopleOf(settler), _terrain, _world.Tick, alpha,
+                        PlayerColors.Of(settler.Player));
+                    continue;
+                }
                 // Scouts in disguise look like one of player 1's carriers.
                 _settlerRenderer.Draw(_spriteBatch, settler, _terrain, _world.Tick, alpha,
                     PlayerColors.Of(settler.IsRevealedTo(0) ? settler.Player : 0), disguised: !settler.IsRevealedTo(0));
@@ -3052,7 +3096,7 @@ public sealed class MapGame : Game
             DrawBuildingFrame(selectedBuilding);
         if (_selected is not null)
             DrawSelectionMarker(_selected, alpha);
-        foreach (var settler in _group)
+        foreach (var settler in _group.Where(s => !s.IsDead))
             DrawSelectionMarker(settler, alpha);
         foreach (var ship in _ships)
             DrawSelectionMarker(ShipCenter(ship) - new Vector2(0, 34 - SelectionMarkerTop), 1);
@@ -3221,6 +3265,17 @@ public sealed class MapGame : Game
     /// </summary>
     private void DrawArrows(float alpha)
     {
+        // Buildings hit by war machines smoke and burn; where a shot lands, a small explosion.
+        float seconds = (float)_time.TotalSeconds;
+        foreach (var building in _world.Buildings)
+            if (building.Exists && _world.WarMachines.DamageOf(building) is > 0 and var damage && (!FogOn || _vision.IsVisible(building.Position)))
+                _machineRenderer.DrawDamage(_spriteBatch, building, damage, _terrain, seconds);
+        foreach (var impact in _world.WarMachines.Impacts)
+            if (!FogOn || _vision.IsVisible(impact.Position))
+                _machineRenderer.DrawImpact(_spriteBatch, impact, _terrain, (_world.Tick - impact.Tick + alpha) / World.TicksPerSecond);
+        foreach (var shot in _world.WarMachines.Shots)
+            if (!FogOn || _vision.IsVisible(shot.From) || _vision.IsVisible(shot.To))
+                _machineRenderer.DrawShot(_spriteBatch, shot, _settlerRenderer.PeopleOf(shot.Machine), _terrain, _world.Tick, alpha);
         foreach (var arrow in _world.Military.Arrows)
         {
             var start = ScreenProjection.ToWorld(arrow.From.X, arrow.From.Y, _terrain.HeightAt(arrow.From.X, arrow.From.Y));
@@ -3422,8 +3477,20 @@ public sealed class MapGame : Game
     /// The mark above a selected settler as in the original: two white brackets (the top corners of a
     /// frame) above the head, between them a round dot green to red by health left.
     /// </summary>
-    private void DrawSelectionMarker(Settler settler, float alpha) =>
-        DrawSelectionMarker(SettlerRenderer.Anchor(settler, _terrain, alpha), HealthLeft(settler));
+    private void DrawSelectionMarker(Settler settler, float alpha)
+    {
+        var anchor = SettlerRenderer.Anchor(settler, _terrain, alpha);
+        DrawSelectionMarker(anchor, HealthLeft(settler));
+        // A war machine's shots left, a small number above the dot (as in the original); none for the gong.
+        if (settler.Profession == Profession.WarMachine && _world.WarMachines.KindOf(settler) is { Shots: > 0 })
+        {
+            string shots = settler.Ammo.ToString();
+            var size = _font.Measure(shots, 11);
+            var at = new Vector2(anchor.X - size.X / 2, anchor.Y - SelectionMarkerTop - 1 - size.Y);
+            _font.Draw(_spriteBatch, shots, at + Vector2.One, Color.Black, 11);
+            _font.Draw(_spriteBatch, shots, at, Color.White, 11);
+        }
+    }
 
     private void DrawSelectionMarker(Vector2 anchor, float health)
     {
@@ -3529,6 +3596,7 @@ public sealed class MapGame : Game
     {
         float max = settler.SoldierType is { } type ? _world.MaxHealth(settler.Player, type, settler.Level)
             : settler.Profession == Profession.Priest ? _world.Magic.Config.PriestHealth
+            : settler.Profession == Profession.WarMachine ? _world.WarMachines.KindOf(settler)?.Health ?? 0
             : 0;
         return max > 0 ? Math.Clamp(settler.Health / max, 0, 1) : 1;
     }
@@ -3620,6 +3688,46 @@ public sealed class MapGame : Game
         for (int i = 0; i < 3; i++)
             _world.Spawn(market.Door, Profession.Donkey);
         Console.WriteLine($"trade: market at {market.Position}, destination {stock.Definition.Name} at {stock.Position}");
+    }
+
+    /// <summary>
+    /// HOMESTEAD_CAPTURE_MACHINES=1: the own people's war machine works near the start (two loads of ammunition, a machine
+    /// ordered, its material lying by), an enemy tower with a soldier and one war machine of every people firing at it, selected;
+    /// the camera on them.
+    /// </summary>
+    private void CaptureMachines(GridPoint start)
+    {
+        var kind = _world.WarMachines.KindOf(_world.PeopleOf(0));
+        var works = kind is null ? null : PathFinder.Circle(start, 30).OrderBy(p => PathFinder.Distance(start, p))
+            .Where(p => _world.CanPlace(Own[kind.Works], p, out _)).Select(p => _world.PlaceBuilding(Own[kind.Works], 0, p)).FirstOrDefault(b => b is not null);
+        if (works is not null)
+        {
+            if (kind!.Shots > 0)
+                for (int i = 0; i < 2; i++)
+                    _world.WarMachines.Finish(works, Simulation.Military.WarWork.Ammo);
+            _world.WarMachines.Order(works, Simulation.Military.WarWork.Machine);
+            var spots = PathFinder.Circle(works.Door, 8).OrderBy(p => PathFinder.Distance(works.Door, p)).Skip(20).GetEnumerator();
+            foreach (var (material, count) in kind.Cost)
+                while (spots.MoveNext() && _world.AddLooseGoods(spots.Current, material, count) is null) { }
+        }
+        // An enemy tower out of the own land, the machines on the way to it.
+        var definition = Own["tower"];
+        var tower = PathFinder.Circle(start, 40).Where(p => PathFinder.Distance(start, p) >= 30).OrderBy(p => PathFinder.Distance(start, p))
+            .Where(p => definition.Blocked.Concat(definition.Protected).All(o => _world.Map!.Contains(p + o) && _world.Map.IsWalkable(p + o)))
+            .Select(p => _world.PlaceBuilding(definition, 1, p, force: true)).FirstOrDefault(b => b is not null);
+        if (tower is null)
+        {
+            Console.WriteLine("machines: no room for an enemy tower");
+            return;
+        }
+        _world.SpawnSoldier(tower.Door, SoldierType.Swordsman, player: 1);
+        var near = new GridPoint((start.X + 2 * tower.Position.X) / 3, (start.Y + 2 * tower.Position.Y) / 3);
+        foreach (var people in Enum.GetValues<Civilization>())
+            if (_world.WarMachines.Spawn(new GridPoint(near.X + 5 * (int)people - 8, near.Y + 3), 0, people) is { } machine)
+                _group.Add(machine);
+        _world.WarMachines.Attack(_group, tower);
+        _camera = ToWorld(near);
+        Console.WriteLine($"machines: works {works?.Position}, enemy tower at {tower.Position}, {_group.Count} machines at {near}");
     }
 
     private void CaptureDock(GridPoint start, string mode)
@@ -3943,6 +4051,9 @@ public sealed class MapGame : Game
                 // HOMESTEAD_CAPTURE_TRADE=1: a market sending all planks and stones by donkey over a stop to a storehouse (focused).
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TRADE") == "1")
                     CaptureTrade(start);
+                // HOMESTEAD_CAPTURE_MACHINES=1: war machines of every people fire at an enemy tower; the own works with loads (FOCUS=<works>).
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MACHINES") == "1")
+                    CaptureMachines(start);
                 // HOMESTEAD_CAPTURE_DOCK=1: a shipyard at the own coast nearest the start with its dock (with FOCUS=dockyard); =none: without one;
                 // =build: building a ferry, its material lying next to it; =ships: a ferry and a trade ship launched, both selected, sent out.
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_DOCK") is { } withDock)

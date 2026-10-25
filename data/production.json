@@ -11,7 +11,8 @@
     "pig_farm": { "inputs": [ "CROP", "WATER" ], "outputs": [ "PIG" ], "seconds": 12 },
     "distillery": { "inputs": [ "RICE", "COAL" ], "outputs": [ "LIQUOR" ], "seconds": 10 },
     "brewery": { "inputs": [ "CROP", "WATER" ], "outputs": [ "KEG" ], "seconds": 10 },
-    "mead_brewery": { "inputs": [ "HONEY", "WATER" ], "outputs": [ "MEAD" ], "seconds": 10 }
+    "mead_brewery": { "inputs": [ "HONEY", "WATER" ], "outputs": [ "MEAD" ], "seconds": 10 },
+    "gunpowder_maker": { "inputs": [ "COAL", "SULFUR" ], "outputs": [ "GUN_POWDER" ], "seconds": 8 }
   },
   "gatherers": {
     "lumberjack": { "action": "CutTree", "output": "TRUNK", "workSeconds": 6, "restSeconds": 4, "pickupSeconds": 4 },
@@ -40,7 +41,7 @@
   },
   "distribution": {
     "_comment": "Defaults of Waren > Verteilung: how a material is shared among the targets that use it (shares 0-1 by building name, \"construction\" for construction sites; listed materials give unlisted targets 0, unlisted materials give every target 1). Among the targets that want it now, the target is drawn by share, then the nearest of that kind with room gets it; share 0 gets nothing, unless the player set every target of the material to 0. Storehouses last.",
-    "PLANK": { "construction": 1, "dockyard": 0.5, "charcoal_burner": 0.5 },
+    "PLANK": { "construction": 1, "dockyard": 0.5, "charcoal_burner": 0.5, "catapult_works": 0.5, "ballista_works": 0.5, "cannon_works": 0.5, "gong_works": 0.5 },
     "BREAD": { "coalmine": 1, "ironmine": 0, "goldmine": 0, "gemsmine": 0, "sulfurmine": 0.1 },
     "MEAT": { "ironmine": 1, "coalmine": 0, "goldmine": 0, "gemsmine": 0.1, "sulfurmine": 0 },
     "FISH": { "goldmine": 1, "gemsmine": 1, "sulfurmine": 1, "coalmine": 0, "ironmine": 0 },

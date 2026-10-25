@@ -102,6 +102,9 @@ public sealed record MilitaryConfig
     /// <summary>Combat strength away from own land: how much the goods on own land add.</summary>
     public CombatStrengthConfig CombatStrength { get; init; } = CombatStrengthConfig.None;
 
+    /// <summary>War machines and their works (see <see cref="Military.WarMachines"/>).</summary>
+    public WarMachineRules WarMachines { get; init; } = WarMachineRules.Default;
+
     /// <summary>Bowmen in military buildings shoot this much further than on the ground (0 in games saved before: as on the ground).</summary>
     public double TowerRangeFactor { get; init; } = 1;
 
@@ -173,6 +176,7 @@ public sealed record MilitaryConfig
             CombatPathRadius = root.GetProperty("combatPathRadius").GetInt32(),
             AttackRange = root.GetProperty("attackRange").GetInt32(),
             CombatStrength = root.TryGetProperty("combatStrength", out var strength) ? CombatStrengthConfig.Parse(strength) : CombatStrengthConfig.None,
+            WarMachines = root.TryGetProperty("warMachines", out var machines) ? WarMachineRules.Parse(machines) : WarMachineRules.Default,
         };
     }
 
@@ -269,4 +273,43 @@ public sealed record ScoutRules(float Health, int RevealRadius, int Sight, int S
 public sealed record PioneerRules(float Health, int SearchRadius, int ClaimTicks)
 {
     public static readonly PioneerRules Default = new(40, 10, 2 * World.TicksPerSecond);
+}
+
+/// <summary>
+/// One people's war machine: built in <paramref name="Works"/> from <paramref name="Cost"/>, one load of ammunition from
+/// <paramref name="Ammo"/> fills it up to <paramref name="Shots"/> (0: needs none, the Amazon gong); fires at enemy military
+/// buildings up to <paramref name="Range"/> fields away, hitting with <paramref name="HitChance"/>; its shot flies
+/// <paramref name="FlightTicks"/>. Melee soldiers destroy it (<paramref name="Health"/>); it drives at <paramref name="Speed"/>.
+/// </summary>
+public sealed record WarMachineKind(string Works, IReadOnlyDictionary<Material, int> Cost, IReadOnlyDictionary<Material, int> Ammo, int Shots,
+    double HitChance, int Range, float Health, double Speed, int FlightTicks);
+
+/// <summary>
+/// War machines (<c>warMachines</c> in <c>military.json</c>): every <paramref name="CooldownTicks"/> a shot, the works' worker
+/// hammers <paramref name="BuildTicks"/> per unit, a machine reloads within <paramref name="ReloadDistance"/> of its works;
+/// a military building falls after <paramref name="BuildingHits"/> hits and mends one every <paramref name="RepairTicks"/> after the last.
+/// </summary>
+public sealed record WarMachineRules(int CooldownTicks, int BuildTicks, int ReloadDistance, IReadOnlyDictionary<string, int> BuildingHits,
+    IReadOnlyDictionary<Civilization, WarMachineKind> Kinds, int RepairTicks = 60 * World.TicksPerSecond)
+{
+    public static WarMachineRules Default { get; } = new(5 * World.TicksPerSecond, 3 * World.TicksPerSecond, 3, new Dictionary<string, int>(),
+        new Dictionary<Civilization, WarMachineKind>());
+
+    /// <summary>Hits the military building takes before it falls (one if not listed).</summary>
+    public int HitsOf(string building) => Math.Max(1, BuildingHits.GetValueOrDefault(building, 1));
+
+    internal static WarMachineRules Parse(JsonElement e)
+    {
+        static int Ticks(double seconds) => (int)Math.Round(seconds * World.TicksPerSecond);
+        static IReadOnlyDictionary<Material, int> Goods(JsonElement goods) =>
+            goods.EnumerateObject().ToDictionary(g => Materials.Parse(g.Name)!.Value, g => g.Value.GetInt32());
+        return new WarMachineRules(Ticks(e.GetProperty("cooldownSeconds").GetDouble()), Ticks(e.GetProperty("buildSeconds").GetDouble()),
+            e.GetProperty("reloadDistance").GetInt32(),
+            e.GetProperty("buildingHits").EnumerateObject().ToDictionary(b => b.Name, b => b.Value.GetInt32()),
+            e.GetProperty("kinds").EnumerateObject().ToDictionary(k => Enum.Parse<Civilization>(k.Name), k => new WarMachineKind(
+                k.Value.GetProperty("works").GetString()!, Goods(k.Value.GetProperty("cost")), Goods(k.Value.GetProperty("ammo")),
+                k.Value.GetProperty("shots").GetInt32(), k.Value.GetProperty("hitChance").GetDouble(), k.Value.GetProperty("range").GetInt32(),
+                k.Value.GetProperty("health").GetSingle(), k.Value.GetProperty("speed").GetDouble(), Ticks(k.Value.GetProperty("flightSeconds").GetDouble()))),
+            e.TryGetProperty("repairSeconds", out var repair) ? Ticks(repair.GetDouble()) : 60 * World.TicksPerSecond);
+    }
 }
