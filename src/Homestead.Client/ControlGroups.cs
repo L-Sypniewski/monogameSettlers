@@ -8,8 +8,9 @@ namespace Homestead.Client;
 
 /// <summary>
 /// Groups 1-9 of selected settlers or ships (Ctrl+number stores the selection, number or a click on its icon
-/// selects it again). Each group that has members shows as an icon at the top right: the portrait of its
-/// first member (as in the selection panel; a ship's button image), the number and how many are left. All icons
+/// selects it again; while the selection is exactly a group, what Shift adds joins it). Each group that has members
+/// shows as an icon at the top right: the portrait of its first member (as in the selection panel; a ship's button
+/// image), the number and how many are left. All icons
 /// are as high as a portrait; wider images (war machines, ships) make theirs wider.
 /// </summary>
 public sealed class ControlGroups
@@ -57,6 +58,17 @@ public sealed class ControlGroups
     public IReadOnlyList<Ship> Ships(int index) => _shipGroups[index];
 
     private int Size(int index) => _groups[index].Count + _shipGroups[index].Count;
+
+    /// <summary>The group with exactly these members (none for an empty selection).</summary>
+    public int? Matching(IReadOnlyCollection<Settler> selection, IReadOnlyCollection<Ship> ships)
+    {
+        if (selection.Count + ships.Count == 0)
+            return null;
+        for (int i = 0; i < Count; i++)
+            if (_groups[i].ToHashSet().SetEquals(selection) && _shipGroups[i].ToHashSet().SetEquals(ships))
+                return i;
+        return null;
+    }
 
     /// <summary>
     /// The groups for a saved game: the members' ids (ships with an 's' before), groups separated by ';' (empty ones too).

@@ -1982,10 +1982,16 @@ public sealed class MapGame : Game
             _dragStart = cursorScreen;
         if (mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed && _dragStart is { } dragStart)
         {
+            // The selection is exactly a group: what Shift adds to it joins the group too.
+            var before = (Settlers: _group.ToList(), Ships: _ships.ToList());
+            int? joinedGroup = ShiftDown(Keyboard.GetState()) ? _controlGroups.Matching(_group, _ships) : null;
             if (!_placing && !_buildingInfo.AimsRoute(_selectedBuilding) && !_buildingInfo.AimsDock(_selectedBuilding) && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
                 SelectInBox(dragStart, cursorScreen);
             else
                 Click(cursorScreen);
+            if (joinedGroup is { } index && _group.Count + _ships.Count > before.Settlers.Count + before.Ships.Count
+                && before.Settlers.All(_group.Contains) && before.Ships.All(_ships.Contains))
+                _controlGroups.Store(index, _group, _ships);
             _dragStart = null;
         }
         // Converted carriers join the selection once they are specialists (if it still is of their kind or empty);
