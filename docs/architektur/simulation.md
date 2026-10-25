@@ -37,6 +37,7 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
     Land abgerissener Militärgebäude bleibt beim Spieler, aber ungeschützt (feindliches Militärgebäude nimmt es samt Gebäuden).
   - Abriss: Arbeiter behält Beruf und Werkzeug, übernimmt das nächste Gebäude seines Berufs.
 - `Economy/`: Waren, Stapel.
+  - Neuer Gebäudestapel (Baustelle, fertig) auf einem losen Stapel: dessen Waren werden daneben abgelegt (`AddPile` → `DropGoods`), nicht überschrieben.
   - `Logistics` mit Watchdog: je Ware unter den aktuellen Abnehmern – Baustellen als einer (`Logistics.Construction`), sonst je Gebäudetyp –
     einer gelost nach Spieler-Anteilen (`ShareOf`/`SetShare`; Vorgaben `distribution` in `production.json`, 0–1, z. B. Nahrung Minen 1 : 0,1,
     Bretter Baustelle 1, Köhlerei/Werft 0,5; gelistete Waren geben ungelisteten Abnehmern 0, ungelistete allen 1; Anteil 0 bekommt nichts,

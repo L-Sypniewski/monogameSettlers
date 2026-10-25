@@ -801,8 +801,17 @@ public sealed partial class World
         var map = RequireMap();
         if (!map.Contains(pile.Position))
             return;
+        // A building's pile spot may hold loose goods (start goods, dropped ones): they move aside instead of
+        // vanishing (a Roman's only saws went with the first stonecutter's offer pile, and no sawmill ever worked).
+        _pilesByPoint.TryGetValue(map.Index(pile.Position), out var displaced);
         _pilesByPoint[map.Index(pile.Position)] = pile;
         owner?.AddPile(pile);
+        if (displaced is { Role: PileRole.Loose, Material: { } material } && displaced != pile)
+        {
+            for (int i = 0; i < displaced.Count; i++)
+                DropGoods(pile.Position, material);
+            displaced.Count = 0;
+        }
     }
 }
 

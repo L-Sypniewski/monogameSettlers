@@ -179,6 +179,70 @@ public class AiTests(ITestOutputHelper output)
         Assert.Contains(world.Buildings, b => b.Definition.Name == "stock");
     }
 
+    /// <summary>Only smiths and sawyers need their tools (builders and diggers come without).</summary>
+    private static readonly ProductionConfig SmithTools = TestConfig.NoTools with
+    {
+        Tools = new Dictionary<string, Material> { ["SMITH"] = Material.Hammer, ["SAWMILLER"] = Material.Saw },
+    };
+
+    [Fact]
+    public void A_further_weaponsmith_leaves_a_smith_for_the_toolsmith()
+    {
+        var (world, ai) = WoodAi(Romans, SmithTools, world =>
+        {
+            Assert.NotNull(world.PlaceBuilding(Romans["weaponsmith"], 0, new GridPoint(50, 76)));
+            world.AddLooseGoods(new GridPoint(44, 94), Material.Hammer, 2);
+            // Smiths wait for a coal mine without coal lying around (the weaponsmith takes in 8).
+            world.AddLooseGoods(new GridPoint(48, 94), Material.Coal, 8);
+            world.AddLooseGoods(new GridPoint(50, 94), Material.Coal, 8);
+        }, ("weaponsmith", 2));
+
+        Think(world, 30);
+        Assert.Single(world.Buildings, b => b.Definition.Name == "weaponsmith");
+
+        // A hammer more: one smith for the new weaponsmith, one stays.
+        world.AddLooseGoods(new GridPoint(46, 94), Material.Hammer, 1);
+        Think(world, 30);
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Equal(2, world.Buildings.Count(b => b.Definition.Name == "weaponsmith"));
+    }
+
+    [Fact]
+    public void A_missing_tool_brings_the_toolsmith_and_a_weaponsmith_gives_up_its_smith_for_it()
+    {
+        // The only hammer went to the weaponsmith, the saw is gone: the sawmill stands idle.
+        var (world, ai) = WoodAi(Romans, SmithTools, world =>
+        {
+            var weaponsmith = world.PlaceBuilding(Romans["weaponsmith"], 0, new GridPoint(50, 76))!;
+            world.AddLooseGoods(new GridPoint(44, 94), Material.Hammer, 1);
+            for (int t = 0; t < 60 * World.TicksPerSecond && world.Production.WorkerOf(weaponsmith) is null; t++)
+                world.Step();
+            Assert.NotNull(world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(30, 70)));
+            world.AddLooseGoods(new GridPoint(48, 94), Material.Coal, 8);
+            world.AddLooseGoods(new GridPoint(50, 94), Material.Coal, 8);
+            for (int i = 0; i < 2; i++)
+                world.Spawn(new GridPoint(45, 90), Profession.Builder); // none come from carriers without a builder's tool
+        });
+        var weaponsmith = world.Buildings.Single(b => b.Definition.Name == "weaponsmith");
+        var smith = world.Production.WorkerOf(weaponsmith);
+        Assert.NotNull(smith);
+
+        Building? toolsmith = null;
+        for (int t = 0; t < 300 * World.TicksPerSecond && (toolsmith is null || world.Production.WorkerOf(toolsmith) is null); t++)
+        {
+            world.Step();
+            toolsmith ??= world.Buildings.FirstOrDefault(b => b.Definition.Name == "toolsmith" && b.Exists);
+        }
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.NotNull(toolsmith);
+        Assert.False(weaponsmith.Exists);
+        Assert.Same(smith, world.Production.WorkerOf(toolsmith));
+    }
+
     [Fact]
     public void The_beekeeping_goes_to_the_trees_away_from_the_woodcutters()
     {
@@ -202,9 +266,12 @@ public class AiTests(ITestOutputHelper output)
     /// An AI with only this build order, its land around a tower at 40,80 (staffed already, x 10–70, y 50–110), with planks
     /// and stones and carriers; <paramref name="setUp"/> runs on the land before the AI first looks at it.
     /// </summary>
-    private static (World World, AiPlayer Ai) WoodAi(BuildingCatalog catalog, Action<World> setUp, params (string, int)[] buildOrder)
+    private static (World World, AiPlayer Ai) WoodAi(BuildingCatalog catalog, Action<World> setUp, params (string, int)[] buildOrder) =>
+        WoodAi(catalog, TestConfig.NoTools, setUp, buildOrder);
+
+    private static (World World, AiPlayer Ai) WoodAi(BuildingCatalog catalog, ProductionConfig config, Action<World> setUp, params (string, int)[] buildOrder)
     {
-        var world = new World(new GameMap(160), TestConfig.NoTools) { TerritoryRules = true };
+        var world = new World(new GameMap(160), config) { TerritoryRules = true };
         var tower = world.PlaceBuilding(catalog["tower"], 0, new GridPoint(40, 80), force: true)!;
         world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
         for (int t = 0; t < 30 * World.TicksPerSecond && world.Map!.OwnerAt(tower.Position) != 0; t++)

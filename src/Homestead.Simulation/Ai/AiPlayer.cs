@@ -128,6 +128,7 @@ public sealed partial class AiPlayer
             return;
         TearDownUseless(mine);
         TearDownSpareHouse(mine);
+        FreeSmithForToolsmith(mine);
         mine.RemoveAll(b => !b.Exists);
         PauseForesters(mine);
         FollowStrikes(mine);
@@ -168,7 +169,10 @@ public sealed partial class AiPlayer
             // A forester only where the wood runs short: in a full forest it would stop at once.
             if (name == "forester" && ForesterSpot(mine) is null)
                 continue;
-            bool basic = Basics.Contains(name);
+            if (!SmithLeftFor(definition, mine))
+                continue;
+            // The toolsmith only comes when a tool is missing, maybe the saw: then no planks come until it works.
+            bool basic = Basics.Contains(name) || name == Toolsmith;
             if (!Enough(planks, Cost(definition, Material.Plank) + (basic ? 0 : keepPlanks))
                 || !Enough(stones, Cost(definition, Material.Stone) + (basic ? 0 : keepStones)))
             {
@@ -306,7 +310,7 @@ public sealed partial class AiPlayer
                 yield return (producer, all.Count + 1);
         }
         if (mine.Any(b => b.State == BuildingState.Finished && _world.StatusOf(b).Contains("tool missing")))
-            yield return ("toolsmith", 1);
+            yield return (Toolsmith, 1);
         // Mines without food: more food, one building at a time.
         bool hungry = mine.Any(b => b.State == BuildingState.Finished && _world.StatusOf(b) == "waiting for food");
         if (hungry && !mine.Any(b => b.Definition.Name is "fisher" or "farm" or "mill" or "baker"

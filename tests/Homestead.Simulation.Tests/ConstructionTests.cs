@@ -32,6 +32,27 @@ public class ConstructionTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Goods_lying_on_a_pile_spot_of_a_new_building_move_aside()
+    {
+        // 640-16-Deepforest: the first stonecutter's offer pile came on a Roman's start saws, they were gone and no sawmill ever worked.
+        var world = new World(new GameMap(60));
+        var definition = Romans["lumberjack"];
+        var spot = new GridPoint(30, 30) + definition.OfferPiles.First().Offset;
+        Assert.NotNull(world.AddLooseGoods(spot, Material.Saw, 2));
+        var site = world.PlaceConstructionSite(definition, 0, new GridPoint(30, 30))!;
+        world.AddLooseGoods(new GridPoint(10, 10), Material.Plank, 5);
+        world.AddLooseGoods(new GridPoint(12, 10), Material.Stone, 5);
+        Spawn(world, Profession.Carrier, 3, new GridPoint(15, 15));
+        Spawn(world, Profession.Builder, 2, new GridPoint(20, 40));
+
+        Run(world, 10_000, stopWhen: () => site.State == BuildingState.Finished);
+
+        Assert.Equal(BuildingState.Finished, site.State);
+        Assert.Contains(site.Piles, p => p.Role == PileRole.Offer && p.Position == spot);
+        Assert.Equal(2, LooseCount(world, Material.Saw));
+    }
+
+    [Fact]
     public void Builders_without_material_are_free_and_come_back_when_it_arrives()
     {
         var world = new World(new GameMap(60));

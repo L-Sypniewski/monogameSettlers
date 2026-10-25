@@ -13,6 +13,9 @@ Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
   - Minen nur ab Erfolgschance `mines.minChance` (0,3), Abriss unter `mines.abandonChance` (0,1); kein Platz → Erz fehlt → Expansion.
     Schmelzen erst mit eigener Mine ihres Erzes.
   - Vor dem Abriss erschöpfter Steinmetze/Fischer: Arbeitsbereich (bis `MaxWorkCenterDistance`) dorthin versetzen, wo mehr in Reichweite ist (`BetterWorkCenter`).
+  - Werkzeugschmiede nicht in der Build-Order, nur wenn ein Arbeiter auf Werkzeug wartet (ohne Brett-/Stein-Rücklage: fehlt die Säge, kommen keine
+    Bretter mehr). Ohne Werkzeugschmiede weitere Waffenschmiede nur, solange daneben ein Schmied bleibt (arbeitslose Schmiede + Hämmer − Schmieden
+    ohne Schmied ≥ 2, `AiPlayer.Smiths`); findet die Werkzeugschmiede trotzdem keinen, wird eine Waffenschmiede abgerissen (unbesetzte zuerst), ihr Schmied wechselt.
   - Lagerhaus erst mit Gold/Edelsteinen (Goldschmelze/Edelsteinmine fertig oder Barren/Steine auf eigenem Land, auch erobert), dann bei `stockWhenWaiting` (8)
     herumliegenden einlagerbaren Waren und weniger als 2 freien Lagerplätzen.
   - Wohnhaus-Abriss, wenn danach noch `spareRoom` frei. Förster alle `forester.checkSeconds` (10) angehalten ab `forester.maxTrees` (10) Bäumen/Setzlingen im Bereich.
