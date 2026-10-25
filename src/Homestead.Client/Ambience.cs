@@ -6,8 +6,8 @@ namespace Homestead.Client;
 
 /// <summary>
 /// The sounds of the land in view (<c>ambience</c> in <c>sound.json</c>): the view is sampled now and then, each kind
-/// (sea, river, desert, wind, birds) is as loud as its ground fills it. Lasting kinds string their variants together
-/// and pan towards their ground; birds call now and then from one of their fields.
+/// (sea, river, desert, wind, birds) is as loud as its ground fills it, kinds of map objects (bees) as many of them are in it.
+/// Lasting kinds string their variants together and pan towards their ground; birds call now and then from one of their fields.
 /// </summary>
 public sealed class Ambience : IDisposable
 {
@@ -70,7 +70,8 @@ public sealed class Ambience : IDisposable
 
     /// <summary>
     /// The share of each kind's ground in view: every <see cref="AmbienceConfig.SampleStep"/> field, out to
-    /// <see cref="AmbienceConfig.Margin"/> half view sizes beyond the edges, there counting less and less.
+    /// <see cref="AmbienceConfig.Margin"/> half view sizes beyond the edges, there counting less and less. Objects are
+    /// counted on every field (a few beehives would slip through the samples).
     /// </summary>
     private void Sample(GameMap map, RectangleF view, Func<GridPoint, bool> heard, AmbienceConfig config)
     {
@@ -83,15 +84,19 @@ public sealed class Ambience : IDisposable
         foreach (var kind in config.Kinds)
             ChannelOf(kind.Name).Fields.Clear();
         float total = 0;
+        bool objects = config.Kinds.Any(k => k.Objects is not null);
         int top = Math.Max(0, (int)((centerY - halfHeight * reach) / ScreenProjection.RowHeight));
         int bottom = Math.Min(map.Size - 1, (int)((centerY + halfHeight * reach) / ScreenProjection.RowHeight) + 1);
-        for (int y = top - top % step; y <= bottom; y += step)
+        for (int y = objects ? top : top - top % step; y <= bottom; y += objects ? 1 : step)
         {
             float rowOffset = y * ScreenProjection.TileWidth / 2f;
             int left = Math.Max(0, (int)((centerX - halfWidth * reach + rowOffset) / ScreenProjection.TileWidth));
             int right = Math.Min(map.Size - 1, (int)((centerX + halfWidth * reach + rowOffset) / ScreenProjection.TileWidth) + 1);
-            for (int x = left - left % step; x <= right; x += step)
+            for (int x = objects ? left : left - left % step; x <= right; x += objects ? 1 : step)
             {
+                bool sampled = x % step == 0 && y % step == 0;
+                if (!objects && !sampled)
+                    continue;
                 var p = new GridPoint(x, y);
                 var at = ScreenProjection.ToWorld(p);
                 float dx = (at.X - centerX) / halfWidth, dy = (at.Y - centerY) / halfHeight;
@@ -99,13 +104,16 @@ public sealed class Ambience : IDisposable
                 if (distance >= reach)
                     continue;
                 float weight = distance <= 1 ? 1 : 1 - (distance - 1) / margin;
-                total += weight;
+                if (sampled)
+                    total += weight;
                 if (!heard(p))
                     continue;
                 var terrain = map.TerrainAt(p);
+                byte code = map.ObjectCodeAt(p);
                 for (int k = 0; k < config.Kinds.Length; k++)
                 {
-                    if (Array.IndexOf(config.Kinds[k].Ground, terrain) < 0)
+                    if (config.Kinds[k].Objects is var (first, last) ? code < first || code > last
+                        : !sampled || Array.IndexOf(config.Kinds[k].Ground, terrain) < 0)
                         continue;
                     weights[k] += weight;
                     pans[k] += weight * Math.Clamp(dx * 0.8f, -1, 1);
@@ -118,8 +126,9 @@ public sealed class Ambience : IDisposable
         {
             var kind = config.Kinds[k];
             var channel = ChannelOf(kind.Name);
-            channel.Share = total > 0 ? weights[k] / total : 0;
-            channel.Target = channel.Share < kind.MinShare ? 0 : Math.Min(1, channel.Share / Math.Max(0.01f, kind.FullShare));
+            channel.Share = kind.Objects is not null ? weights[k] : total > 0 ? weights[k] / total : 0;
+            channel.Target = kind.Objects is not null ? Math.Min(1, weights[k] / Math.Max(0.01f, kind.FullCount))
+                : channel.Share < kind.MinShare ? 0 : Math.Min(1, channel.Share / Math.Max(0.01f, kind.FullShare));
             if (weights[k] > 0)
                 channel.Pan = pans[k] / weights[k];
         }

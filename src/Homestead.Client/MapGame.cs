@@ -4054,6 +4054,17 @@ public sealed class MapGame : Game
                     for (int i = 0; i < fort.Occupiers.Count; i++)
                         _world.SpawnSoldier(placed.Door, i % 2 == 0 ? SoldierType.Bowman : SoldierType.Swordsman);
                 }
+                // HOMESTEAD_CAPTURE_HIVES=1: four beehives (one per stage) on free ground next to the start, in view.
+                if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_HIVES") == "1")
+                {
+                    var spots = PathFinder.Circle(start, 12).Where(p => _world.Map!.Contains(p) && _world.Map.IsWalkable(p)
+                            && _world.Map.ObjectCodeAt(p) == MapObjectCodes.None && _world.IsFreeGround(p))
+                        .OrderBy(p => PathFinder.Distance(start, p)).Where((_, i) => i % 3 == 0).Take(4).ToList();
+                    for (int i = 0; i < spots.Count; i++)
+                        _world.Map!.SetObjectCode(spots[i], (byte)(MapObjectCodes.FirstHive + i));
+                    if (spots.Count > 0)
+                        _camera = ToWorld(spots[0]);
+                }
                 // HOMESTEAD_CAPTURE_TRADE=1: a market sending all planks and stones by donkey over a stop to a storehouse (focused).
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TRADE") == "1")
                     CaptureTrade(start);

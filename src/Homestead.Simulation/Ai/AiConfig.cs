@@ -134,6 +134,12 @@ public sealed record AiConfig
     /// <summary>A forester is stopped while at least this many trees (saplings too) stand in its work area, restarted below.</summary>
     public int ForesterMaxTrees { get; init; } = 10;
 
+    /// <summary>
+    /// A forester is built only for a finished woodcutter with fewer than this many trees (saplings too) in its work area and
+    /// no forester near it (a full forest needs none: it would stop at once).
+    /// </summary>
+    public int ForesterBuildBelowTrees { get; init; } = 15;
+
     /// <summary>How often the foresters' work areas are looked at.</summary>
     public int ForesterCheckTicks { get; init; } = 10 * World.TicksPerSecond;
 
@@ -269,6 +275,8 @@ public sealed record AiConfig
             HouseWhenConvertible = root.TryGetProperty("houseWhenConvertible", out var convertible) ? convertible.GetInt32() : 4,
             SpareRoom = root.TryGetProperty("spareRoom", out var spare) ? spare.GetInt32() : 15,
             ForesterMaxTrees = root.TryGetProperty("forester", out var forester) && forester.TryGetProperty("maxTrees", out var maxTrees) ? maxTrees.GetInt32() : 10,
+            ForesterBuildBelowTrees = root.TryGetProperty("forester", out var foresterBuild) && foresterBuild.TryGetProperty("buildBelowTrees", out var below)
+                ? below.GetInt32() : 15,
             ForesterCheckTicks = (int)Math.Round((root.TryGetProperty("forester", out var foresterCheck) && foresterCheck.TryGetProperty("checkSeconds", out var check)
                 ? check.GetDouble() : 10) * World.TicksPerSecond),
             MineMinChance = root.TryGetProperty("mines", out var mines) && mines.TryGetProperty("minChance", out var minChance) ? minChance.GetDouble() : 0.3,

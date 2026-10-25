@@ -56,6 +56,10 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
     Resterz im Umkreis gegen `resources.fullAmount` (8) je Feld (leere/fremde Felder = Nieten, jeder Fund senkt sie; `MineChance`); Niete kostet Zeit und Nahrung.
     Sammler: Wasserwerk nur an Flüssen; Bauer, Weinbauer, Reisbauer, Imker nach `crops` – Getreide macht Ackerland (`GroundCover.Farmland`,
     begehbar, bis Abriss/Verlust der Farm), Getreide/Wein/Reis wachsen 600 s wie im Original; Wein am Hang schneller; Reis nur auf Sumpf; Reben/Bienenstöcke wachsen nach.
+    Imker: höchstens `maxFields` (12) Stöcke je Imkerei (`Production._fields`; herrenlose im Arbeitsbereich – alte Spielstände – übernimmt sie), neue nur mit
+    mindestens einem Baum im Umkreis und `fieldSpacing` (5) Feldern Abstand zu anderen Stöcken (Aufstellen `sowSeconds` 1,2 s = eine Animationsrunde), dort, wo die meisten stehen; Stöcke ohne Bäume ringsum holt sie nach dem Ernten ab (dann neu bei Bäumen, sonst keiner);
+    Abriss/Verlust der Imkerei nimmt ihre Stöcke sofort mit. Stock voll in 720 s, mit `idealTrees` (10) ausgewachsenen Bäumen im Umkreis `treeRadius` (5) `1 + treeBonus` (3) × so schnell = 240 s
+    (12 Stöcke à ~20 s Erntegang → 3 Honig/min wie im Original; weniger Bäume anteilig).
   - `Healing`: Lazarett-Heiler ruft den schwächsten (wenigste LP, Gleichstand: nächster) verwundeten untätigen eigenen Soldaten im Umkreis
     `hospital.callRadius` (40) auf den Heilplatz vor der Tür (`HealSpotOf`; Haltende nicht); wer still neben Tür, Heilerplatz oder Heilplatz steht,
     wird ohne Ruf geheilt (der schwächste zuerst),

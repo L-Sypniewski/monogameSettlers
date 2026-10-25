@@ -105,6 +105,97 @@ public class AiTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_woodcutter_in_a_full_forest_gets_no_forester()
+    {
+        var (world, _) = WoodAi(Romans, world =>
+        {
+            Grove(world.Map!, 50, 60, 70, 92);
+            Assert.NotNull(world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(58, 100)));
+        }, ("lumberjack", 1), ("forester", 1));
+
+        Think(world, 30);
+
+        Assert.DoesNotContain(world.Buildings, b => b.Definition.Name == "forester");
+    }
+
+    [Fact]
+    public void A_woodcutter_running_short_of_trees_gets_a_forester_next_to_it()
+    {
+        Building lumberjack = null!;
+        var (world, ai) = WoodAi(Romans, world =>
+        {
+            Grove(world.Map!, 56, 70, 60, 74); // a few trees only
+            lumberjack = world.PlaceBuilding(Romans["lumberjack"], 0, new GridPoint(52, 80))!;
+            Assert.NotNull(lumberjack);
+        }, ("lumberjack", 1), ("forester", 1));
+
+        Think(world, 30);
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        var forester = Assert.Single(world.Buildings, b => b.Definition.Name == "forester");
+        Assert.True(PathFinder.Distance(forester.Position, lumberjack.Position) < 15, $"forester at {forester.Position}");
+    }
+
+    [Fact]
+    public void The_beekeeping_goes_to_the_trees_away_from_the_woodcutters()
+    {
+        var amazons = BuildingCatalog.Load(Civilization.Amazon);
+        var (world, ai) = WoodAi(amazons, world =>
+        {
+            Grove(world.Map!, 20, 78, 32, 90); // west, the woodcutter's
+            Grove(world.Map!, 52, 78, 64, 90); // east, nobody's (a little farther from home)
+            Assert.NotNull(world.PlaceBuilding(amazons["lumberjack"], 0, new GridPoint(26, 96)));
+        }, ("beekeeping", 1));
+
+        Think(world, 10);
+
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        var beekeeping = Assert.Single(world.Buildings, b => b.Definition.Name == "beekeeping");
+        Assert.True(beekeeping.Position.X > 45, $"beekeeping at {beekeeping.Position}");
+    }
+
+    /// <summary>
+    /// An AI with only this build order, its land around a tower at 40,80 (staffed already, x 10–70, y 50–110), with planks
+    /// and stones and carriers; <paramref name="setUp"/> runs on the land before the AI first looks at it.
+    /// </summary>
+    private static (World World, AiPlayer Ai) WoodAi(BuildingCatalog catalog, Action<World> setUp, params (string, int)[] buildOrder)
+    {
+        var world = new World(new GameMap(160), TestConfig.NoTools) { TerritoryRules = true };
+        var tower = world.PlaceBuilding(catalog["tower"], 0, new GridPoint(40, 80), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        for (int t = 0; t < 30 * World.TicksPerSecond && world.Map!.OwnerAt(tower.Position) != 0; t++)
+            world.Step();
+        for (int i = 0; i < 10; i++)
+            world.Spawn(new GridPoint(45, 88), Profession.Carrier);
+        for (int i = 0; i < 4; i++)
+        {
+            world.AddLooseGoods(new GridPoint(36 + i * 2, 96), Material.Plank, 8);
+            world.AddLooseGoods(new GridPoint(36 + i * 2, 99), Material.Stone, 8);
+        }
+        setUp(world);
+        var ai = new AiPlayer(world, catalog, 0, AiConfig.Load(civilization: catalog.Civilization) with { BuildOrder = buildOrder });
+        world.AiPlayers.Add(ai);
+        return (world, ai);
+    }
+
+    /// <summary>A tree on every other field of the rectangle.</summary>
+    private static void Grove(GameMap map, int left, int top, int right, int bottom)
+    {
+        for (int y = top; y < bottom; y++)
+        for (int x = left; x < right; x++)
+            if ((x + y) % 2 == 0)
+                map.SetObjectCode(new GridPoint(x, y), MapObjectCodes.FirstTree);
+    }
+
+    private static void Think(World world, int seconds)
+    {
+        for (int t = 0; t < seconds * World.TicksPerSecond; t++)
+            world.Step();
+    }
+
+    [Fact]
     public void Defenders_strike_the_enemies_they_stand_against()
     {
         var map = new GameMap(160);

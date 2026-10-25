@@ -44,6 +44,9 @@ public sealed partial class Production
     /// <summary>Farmland (by point index) and the farm that sowed it last; it goes with that farm.</summary>
     private readonly Dictionary<int, Building> _farmland = new();
 
+    /// <summary>Fields of crops with a field limit (beehives, by point index) and the building that keeps them.</summary>
+    private readonly Dictionary<int, Building> _fields = new();
+
     /// <summary>Stones already taken at the current size of a quarry stone (see StonesPerCut).</summary>
     private readonly Dictionary<int, int> _stoneCuts = new();
 
@@ -318,10 +321,62 @@ public sealed partial class Production
             }
             ticks /= 1 + crop.SlopeBonus * Math.Min(1.0, (double)slope / Math.Max(1, crop.SlopeHeight));
         }
+        if (crop.TreeBonus > 0)
+            ticks /= 1 + crop.TreeBonus * TreeShare(crop, p);
         return Math.Max(1, (int)Math.Round(ticks));
     }
 
+    /// <summary>Adult trees within the crop's tree radius of the point against its ideal number (0–1).</summary>
+    private double TreeShare(CropRecipe crop, GridPoint p)
+    {
+        var map = _world.Map!;
+        int trees = Area(p, crop.TreeRadius).Count(t => MapObjectCodes.IsAdultTree(map.ObjectCodeAt(t)));
+        return Math.Min(1.0, (double)trees / Math.Max(1, crop.IdealTrees));
+    }
+
     private CropRecipe CropOf(Workplace w) => _config.Crops[w.Gatherer!.Crop];
+
+    /// <summary>A field of the building's own, not ripe, of a crop that needs trees, with no adult tree left around.</summary>
+    private bool IsBarren(Workplace w, GridPoint p)
+    {
+        var map = _world.Map!;
+        var crop = CropOf(w);
+        byte code = map.ObjectCodeAt(p);
+        return crop.Contains(code) && code != crop.Ripe && _fields.TryGetValue(map.Index(p), out var keeper) && keeper == w.Building
+               && TreeShare(crop, p) == 0;
+    }
+
+    /// <summary>A field is cleared (taken home, its building gone): free ground again.</summary>
+    private void RemoveField(GridPoint p)
+    {
+        var map = _world.Map!;
+        int index = map.Index(p);
+        map.SetObjectCode(p, MapObjectCodes.None);
+        _growing.Remove(index);
+        _fields.Remove(index);
+    }
+
+    /// <summary>
+    /// Fields the building keeps of a crop with a field limit. Fields in its work area nobody keeps (games saved before fields
+    /// had a keeper) it takes over; fields that are gone (built over, spells) are forgotten.
+    /// </summary>
+    private int FieldsOf(Workplace w)
+    {
+        var map = _world.Map!;
+        var crop = CropOf(w);
+        foreach (var p in Area(w.Building.WorkCenter, w.Building.Definition.WorkRadius ?? DefaultRadius))
+            if (crop.Contains(map.ObjectCodeAt(p)) && !_fields.ContainsKey(map.Index(p)))
+                _fields[map.Index(p)] = w.Building;
+        int count = 0;
+        foreach (var (index, building) in _fields.ToList())
+        {
+            if (!crop.Contains(map.ObjectCodeAt(map.Point(index))))
+                _fields.Remove(index);
+            else if (building == w.Building)
+                count++;
+        }
+        return count;
+    }
 
     /// <summary>Depleted fields regain one amount step every <see cref="ProductionConfig.RegenerateTicks"/>.</summary>
     private void Regenerate()
@@ -563,7 +618,7 @@ public sealed partial class Production
                 {
                     worker!.Facing = w.Facing;
                     BeginHandling(w, ActivityAt(w), Phase.Gathering);
-                    w.TicksLeft = WorkTicks(w, w.Gatherer!.WorkTicks);
+                    w.TicksLeft = WorkTicks(w, worker.Activity == Activity.Sowing && w.Gatherer!.SowTicks > 0 ? w.Gatherer.SowTicks : w.Gatherer!.WorkTicks);
                     if (worker.Activity == Activity.Sowing)
                         _world.Cue(new SoundCue(SoundCueKind.Sowing, worker.Position, worker.Player, Trade: worker.Trade));
                 }
@@ -913,11 +968,17 @@ public sealed partial class Production
                 worker.Carrying = w.Gatherer.Output ?? Material.Crop;
                 DeliverOutput(w);
                 return;
+            case GatherAction.Farm when IsBarren(w, w.Target):
+                // A beehive without trees around: taken home (another one goes up where there are trees, if any).
+                RemoveField(w.Target);
+                break;
             case GatherAction.Farm when CanSow(w.Target, CropOf(w), ignoreWorker: worker):
                 map.SetObjectCode(w.Target, CropOf(w).First);
                 if (CropOf(w).Farmland)
                     MakeFarmland(w.Building, w.Target, CropOf(w).FarmlandRadius);
                 _growing[map.Index(w.Target)] = _world.Tick + StageTicks(CropOf(w), w.Target);
+                if (CropOf(w).MaxFields > 0)
+                    _fields[map.Index(w.Target)] = w.Building;
                 FieldsSown++;
                 break;
             default:
@@ -958,7 +1019,9 @@ public sealed partial class Production
     private (GridPoint Target, GridPoint Spot, Direction Facing)? FindTarget(Workplace w, GatherAction action)
     {
         if (action == GatherAction.Farm)
-            return FindTarget(w, Want.RipeGrain) ?? FindTarget(w, Want.FreeField);
+            return FindTarget(w, Want.RipeGrain)
+                   ?? (CropOf(w).TreeBonus > 0 ? FindTarget(w, Want.BarrenField) : null)
+                   ?? (CropOf(w).MaxFields > 0 && FieldsOf(w) >= CropOf(w).MaxFields ? null : FindTarget(w, Want.FreeField));
         return FindTarget(w, action switch
         {
             GatherAction.CutTree => Want.Tree,
@@ -996,7 +1059,8 @@ public sealed partial class Production
                 Want.Fish => map.ResourceAmount(p, ResourceType.Fish) > 0 && IsWater(p),
                 Want.Water => IsRiver(p),
                 Want.RipeGrain => map.ObjectCodeAt(p) == CropOf(w).Ripe,
-                Want.FreeField => CanSow(p, CropOf(w), ignoreWorker: null),
+                Want.FreeField => CanSow(p, CropOf(w), ignoreWorker: null) && (CropOf(w).TreeBonus == 0 || TreeShare(CropOf(w), p) > 0),
+                Want.BarrenField => IsBarren(w, p),
                 _ => false,
             };
             if (!fits)
@@ -1005,7 +1069,7 @@ public sealed partial class Production
             int reach = want switch
             {
                 Want.Stone => 2,
-                Want.RipeGrain or Want.FreeField => 0, // the farmer stands in the field
+                Want.RipeGrain or Want.FreeField or Want.BarrenField => 0, // the farmer stands in the field
                 _ => 1,
             };
             var spot = SpotNear(p, reach, door);
@@ -1017,6 +1081,15 @@ public sealed partial class Production
 
         if (candidates.Count == 0)
             return null;
+        if (want == Want.FreeField && CropOf(w) is { TreeBonus: > 0 } crop)
+        {
+            // Beehives go where the most trees are (up to the ideal number), nearer the center first; a little at random among those.
+            var nearTrees = candidates.Select(c => (c, Trees: TreeShare(crop, c.Target)))
+                .OrderByDescending(c => c.Trees).ThenBy(c => c.c.Distance).ThenBy(c => c.c.FromDoor)
+                .Take(Math.Max(1, candidates.Count / 8)).ToList();
+            var (pick, _) = nearTrees[_random.Next(nearTrees.Count)];
+            return (pick.Target, pick.Spot, pick.Facing);
+        }
         if (want is Want.TreeSpot or Want.FreeField)
         {
             // Pick among the half nearer the center at random, so foresters and farmers do not plant a single line.
@@ -1052,10 +1125,12 @@ public sealed partial class Production
         }
     }
 
-    /// <summary>The farm is gone (torn down, lost): its farmland turns back into grass.</summary>
+    /// <summary>The farm is gone (torn down, lost): its farmland turns back into grass, the fields it kept (beehives) are gone.</summary>
     internal void RemoveFarmland(Building farm)
     {
         var map = _world.Map!;
+        foreach (int index in _fields.Where(f => f.Value == farm).Select(f => f.Key).ToList())
+            RemoveField(map.Point(index)); // beehives go with their beekeeper
         foreach (int index in _farmland.Where(f => f.Value == farm).Select(f => f.Key).ToList())
         {
             _farmland.Remove(index);
@@ -1075,7 +1150,8 @@ public sealed partial class Production
         var map = _world.Map!;
         return map.Contains(p) && map.IsWalkable(p) && map.ObjectCodeAt(p) == MapObjectCodes.None
                && crop.Ground.Contains(map.TerrainAt(p)) && (!crop.Farmland || map.CoverFits(p, GroundCover.Farmland)) && _world.IsFreeGround(p)
-               && (!_world.IsOccupied(p) || ignoreWorker is not null && ignoreWorker.Position == p);
+               && (!_world.IsOccupied(p) || ignoreWorker is not null && ignoreWorker.Position == p)
+               && (crop.FieldSpacing == 0 || !Area(p, crop.FieldSpacing - 1).Any(n => crop.Contains(map.ObjectCodeAt(n))));
     }
 
     /// <summary>A walkable point exactly <paramref name="distance"/> steps from the target, nearest to <paramref name="from"/>.</summary>
@@ -1138,7 +1214,7 @@ public sealed partial class Production
         GatherAction.CutStone => Activity.Mining,
         GatherAction.Fish => Activity.Fishing,
         GatherAction.DrawWater => Activity.DrawingWater,
-        GatherAction.Farm => _world.Map!.ObjectCodeAt(w.Target) == CropOf(w).Ripe ? Activity.Harvesting : Activity.Sowing,
+        GatherAction.Farm => CropOf(w).Contains(_world.Map!.ObjectCodeAt(w.Target)) ? Activity.Harvesting : Activity.Sowing,
         _ => Activity.Planting,
     };
 
@@ -1296,6 +1372,9 @@ public sealed partial class Production
         Water,
         RipeGrain,
         FreeField,
+
+        /// <summary>A field of the building's own that needs trees and has none left around (beehives): it is taken home.</summary>
+        BarrenField,
     }
 
     private sealed class Workplace(Building building, WorkshopRecipe? workshop, GathererRecipe? gatherer)

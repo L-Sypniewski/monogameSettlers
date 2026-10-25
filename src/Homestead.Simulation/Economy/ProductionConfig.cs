@@ -20,12 +20,17 @@ public enum GatherAction
 /// <see cref="Ripe"/>, growing in <see cref="GrowTicks"/> on the given <see cref="Ground"/>. A crop that
 /// <see cref="Regrows"/> starts over after the harvest (vines, beehives) instead of leaving free ground.
 /// With <see cref="SlopeBonus"/> it grows faster on slopes: up to (1 + bonus) times as fast where the
-/// height to a neighbor differs by <see cref="SlopeHeight"/> or more.
+/// height to a neighbor differs by <see cref="SlopeHeight"/> or more. With <see cref="TreeBonus"/> it grows faster near trees:
+/// up to (1 + bonus) times as fast with <see cref="IdealTrees"/> adult trees within <see cref="TreeRadius"/> (beehives); its
+/// gatherer also puts new fields where the most trees are.
 /// </summary>
 /// <param name="Farmland">Sowing turns the ground into farmland, which stays until the farm is gone.</param>
 /// <param name="FarmlandRadius">Sowing also turns the grass this many steps around into farmland (where it fits).</param>
+/// <param name="MaxFields">Fields one building keeps at most (beehives); 0: no limit.</param>
+/// <param name="FieldSpacing">A new field at least this many steps from every other of the crop (beehives); 0: fields may touch.</param>
 public sealed record CropRecipe(byte First, byte Ripe, int GrowTicks, IReadOnlySet<TerrainType> Ground, bool Regrows = false,
-    double SlopeBonus = 0, int SlopeHeight = 4, bool Farmland = false, int FarmlandRadius = 0)
+    double SlopeBonus = 0, int SlopeHeight = 4, bool Farmland = false, int FarmlandRadius = 0, int MaxFields = 0,
+    double TreeBonus = 0, int TreeRadius = 0, int IdealTrees = 10, int FieldSpacing = 0)
 {
     public bool Contains(byte code) => code >= First && code <= Ripe;
 
@@ -37,8 +42,9 @@ public sealed record WorkshopRecipe(IReadOnlyList<Material> Inputs, IReadOnlyLis
 
 /// <param name="PickupTicks">Pause between finishing the work and picking up the result (the woodcutter after felling).</param>
 /// <param name="Crop">Farm: what is sown and harvested (see <see cref="ProductionConfig.Crops"/>).</param>
+/// <param name="SowTicks">Farm: how long sowing takes (beehives: one round of setting one up); 0: <paramref name="WorkTicks"/>.</param>
 public sealed record GathererRecipe(GatherAction Action, Material? Output, int WorkTicks, int RestTicks, int PickupTicks = 0,
-    string Crop = "grain");
+    string Crop = "grain", int SowTicks = 0);
 
 /// <summary>
 /// A mine: takes ore from the ground within <see cref="Radius"/> of the building. A unit of food (any
@@ -215,7 +221,8 @@ public sealed record ProductionConfig
                 g.Value.TryGetProperty("output", out var output) ? Materials.Parse(output.GetString()!) : null,
                 Ticks(g.Value, "workSeconds"), Ticks(g.Value, "restSeconds"),
                 g.Value.TryGetProperty("pickupSeconds", out _) ? Ticks(g.Value, "pickupSeconds") : 0,
-                g.Value.TryGetProperty("crop", out var crop) ? crop.GetString()! : "grain"));
+                g.Value.TryGetProperty("crop", out var crop) ? crop.GetString()! : "grain",
+                g.Value.TryGetProperty("sowSeconds", out _) ? Ticks(g.Value, "sowSeconds") : 0));
         var codes = new Dictionary<string, (byte First, byte Ripe)>
         {
             ["grain"] = (MapObjectCodes.FirstGrain, MapObjectCodes.RipeGrain),
@@ -231,7 +238,12 @@ public sealed record ProductionConfig
                 c.Value.TryGetProperty("slopeBonus", out var slope) ? slope.GetDouble() : 0,
                 c.Value.TryGetProperty("slopeHeight", out var slopeHeight) ? slopeHeight.GetInt32() : 4,
                 c.Value.TryGetProperty("farmland", out var farmland) && farmland.GetBoolean(),
-                c.Value.TryGetProperty("farmlandRadius", out var farmlandRadius) ? farmlandRadius.GetInt32() : 0));
+                c.Value.TryGetProperty("farmlandRadius", out var farmlandRadius) ? farmlandRadius.GetInt32() : 0,
+                c.Value.TryGetProperty("maxFields", out var maxFields) ? maxFields.GetInt32() : 0,
+                c.Value.TryGetProperty("treeBonus", out var treeBonus) ? treeBonus.GetDouble() : 0,
+                c.Value.TryGetProperty("treeRadius", out var treeRadius) ? treeRadius.GetInt32() : 0,
+                c.Value.TryGetProperty("idealTrees", out var idealTrees) ? idealTrees.GetInt32() : 10,
+                c.Value.TryGetProperty("fieldSpacing", out var fieldSpacing) ? fieldSpacing.GetInt32() : 0));
         var mineFood = root.GetProperty("mineFood");
         var mines = root.GetProperty("mines").EnumerateObject().Where(m => !m.Name.StartsWith('_')).ToDictionary(
             m => m.Name,

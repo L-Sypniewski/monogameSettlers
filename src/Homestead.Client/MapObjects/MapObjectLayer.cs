@@ -57,7 +57,7 @@ public sealed class MapObjectLayer
             if (_objects[y * _size + x] is not { } sprite)
                 continue;
 
-            var sprites = Sequence(sprite.Sequence);
+            var sprites = Sequence(sprite);
             int frame = sprite.Frame;
             if (sprite.Animated && sprites.FrameCount > 0)
             {
@@ -75,8 +75,8 @@ public sealed class MapObjectLayer
     public void DrawCode(SpriteBatch batch, int x, int y, byte code, Color color)
     {
         if (MapObjectCatalog.Resolve(code) is { } sprite)
-            Sequence(sprite.Sequence).Draw(batch, sprite.Frame, ScreenProjection.ToWorld(x, y, _terrain.HeightAt(x, y)), 1, color);
+            Sequence(sprite).Draw(batch, sprite.Frame, ScreenProjection.ToWorld(x, y, _terrain.HeightAt(x, y)), 1, color);
     }
 
-    private SettlerSprites Sequence(int sequence) => _library.Sequence(MapObjectCatalog.GfxFile, sequence);
+    private SettlerSprites Sequence(MapObjectSprite sprite) => _library.Sequence(sprite.File, sprite.Sequence);
 }

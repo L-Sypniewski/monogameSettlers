@@ -1,7 +1,7 @@
 namespace Homestead.Client.MapObjects;
 
-/// <summary>Which image of GFX file 01 shows a map object, and whether it animates.</summary>
-public readonly record struct MapObjectSprite(int Sequence, int Frame, bool Animated);
+/// <summary>Which image of GFX file 01 (or of <see cref="File"/>) shows a map object, and whether it animates.</summary>
+public readonly record struct MapObjectSprite(int Sequence, int Frame, bool Animated, int File = MapObjectCatalog.GfxFile);
 
 /// <summary>
 /// Maps the object byte of original maps to graphics in GFX file 01. Object names follow the
@@ -23,6 +23,8 @@ public static class MapObjectCatalog
     private const int WineSequence = 25;        // 0 dead, 1-2 growing, 3 with grapes (JSettlers' MapObjectDrawer, MIT)
     private const int FirstFlower = 15;         // flowers 1-3 in the decoration sequence (codes 50-52)
     private const int DockSequence = 112;       // one piece of a pier (planks, as on the original's docks)
+    private const int AmazonSettlerFile = 41;
+    private const int BeekeeperSettingUp = 291; // the beekeeper setting a hive up (south-west), the straw hive on her back
 
     public static MapObjectSprite? Resolve(byte code) => code switch
     {
@@ -47,8 +49,8 @@ public static class MapObjectCatalog
         212 => new(RiceSequence, 2, false),
         213 => new(RiceSequence, 4, false),
         214 => new(RiceSequence, 5, false),
-        // Beehives: no image found yet; flowers stand in for them.
-        >= 215 and <= 218 => new(DecorationSequence, FirstFlower + Math.Min(2, code - 215), false),
+        // Beehives: no image of a hive standing alone found (not in files 1, 41, 43, 46); the beekeeper setting one up stands in.
+        >= 215 and <= 218 => new(BeekeeperSettingUp, 0, false, AmazonSettlerFile),
         // A shipyard's pier: Homestead's own code, one piece per water field.
         219 => new(DockSequence, 0, false),
         // 192 occurs often but is unknown; 85-110 never occur.

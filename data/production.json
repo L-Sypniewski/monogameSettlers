@@ -1,5 +1,5 @@
 {
-  "_comment": "Production balancing (Homestead's own values, not taken from the original). Times in game seconds. Workshop inputs/outputs must match the building's request/offer piles in data/buildings. Mines eat food from their input piles (see mineFood). Gatherers: workSeconds at the spot, restSeconds at home, pickupSeconds a pause before picking up what they got (the woodcutter after felling).",
+  "_comment": "Production balancing (Homestead's own values, not taken from the original). Times in game seconds. Workshop inputs/outputs must match the building's request/offer piles in data/buildings. Mines eat food from their input piles (see mineFood). Gatherers: workSeconds at the spot, restSeconds at home, pickupSeconds a pause before picking up what they got (the woodcutter after felling); sowSeconds: how long farm-like gatherers sow, if not workSeconds (the beekeeper sets a hive up in one round of her animation, 1.2 s).",
   "workshops": {
     "sawmill": { "inputs": [ "TRUNK" ], "outputs": [ "PLANK" ], "seconds": 6 },
     "mill": { "inputs": [ "CROP" ], "outputs": [ "FLOUR" ], "seconds": 6 },
@@ -23,7 +23,7 @@
     "farm": { "action": "Farm", "output": "CROP", "workSeconds": 4, "restSeconds": 4 },
     "winegrower": { "action": "Farm", "crop": "wine", "output": "WINE", "workSeconds": 4, "restSeconds": 4 },
     "rice_farm": { "action": "Farm", "crop": "rice", "output": "RICE", "workSeconds": 4, "restSeconds": 4 },
-    "beekeeping": { "action": "Farm", "crop": "honey", "output": "HONEY", "workSeconds": 4, "restSeconds": 4 }
+    "beekeeping": { "action": "Farm", "crop": "honey", "output": "HONEY", "workSeconds": 6, "restSeconds": 4, "sowSeconds": 1.2 }
   },
   "mineFood": {
     "_comment": "Trips into the mine one unit of food lasts: the mine's prefersFood lasts preferredRuns trips, any other food otherRuns. pileCapacity: units each food pile of a mine holds. freeRuns: trips into a new mine that cost no food (per building, so a rebuilt mine gets them again).",
@@ -134,11 +134,12 @@
   },
   "trees": { "growSeconds": 150, "stumpSeconds": 60 },
   "crops": {
-    "_comment": "What farm-like gatherers sow and harvest: growSeconds from sowing to ripe, on these grounds. regrows: starts over after the harvest instead of leaving free ground (vines, beehives). slopeBonus: grows up to (1 + slopeBonus) times as fast where the height to a neighbor differs by slopeHeight or more (vines on hillsides). farmland: sowing turns the grass into farmland (drawn as earth), which stays until the farm is torn down or lost; farmlandRadius: also the free grass that many steps around (where farmland fits).",
+    "_comment": "What farm-like gatherers sow and harvest: growSeconds from sowing to ripe, on these grounds. regrows: starts over after the harvest instead of leaving free ground (vines, beehives). slopeBonus: grows up to (1 + slopeBonus) times as fast where the height to a neighbor differs by slopeHeight or more (vines on hillsides). farmland: sowing turns the grass into farmland (drawn as earth), which stays until the farm is torn down or lost; farmlandRadius: also the free grass that many steps around (where farmland fits). maxFields: fields one building keeps at most (0 = no limit). fieldSpacing: a new field at least that many steps from every other of its crop (0 = they may touch). treeBonus: grows up to (1 + treeBonus) times as fast with idealTrees adult trees within treeRadius (fewer: in proportion); new fields go where the most trees are.",
     "grain": { "growSeconds": 600, "ground": [ "Grass" ], "farmland": true, "farmlandRadius": 1 },
     "wine": { "growSeconds": 600, "ground": [ "Grass", "MountainBorderOuter" ], "regrows": true, "slopeBonus": 1.0, "slopeHeight": 4 },
     "rice": { "growSeconds": 600, "ground": [ "Mud", "MudBorder", "MudBorderOuter", "MoorBorderOuter" ] },
-    "honey": { "growSeconds": 120, "ground": [ "Grass" ], "regrows": true }
+    "_honeyComment": "A beekeeper keeps up to maxFields hives near trees (only where at least one adult tree is within treeRadius; hives that lose all their trees she takes home, so they go up again where trees are; they go with the beekeeping) and harvests one in about 20 s (walk, work, rest): 3 honey a minute at best, so a hive with idealTrees adult trees within treeRadius is full again after 12 x 20 s = 240 s (720 s / (1 + treeBonus)); with a single tree 600 s.",
+    "honey": { "growSeconds": 720, "ground": [ "Grass" ], "regrows": true, "maxFields": 12, "treeBonus": 2.0, "treeRadius": 5, "idealTrees": 10, "fieldSpacing": 5 }
   },
   "stones": { "stonesPerCut": 1 },
   "walking": {

@@ -27,12 +27,13 @@ public sealed record WorkSound(SoundRef Sound, float At);
 public sealed record WorkshopSound(SoundRef[] Sounds, float EverySeconds);
 
 /// <summary>
-/// A kind of sound of the land (<c>ambience.kinds</c>): as loud as its <see cref="Ground"/> fills the view. With
-/// <see cref="Overlap"/> its variants follow each other without a pause, otherwise single calls every
+/// A kind of sound of the land (<c>ambience.kinds</c>): as loud as its <see cref="Ground"/> fills the view – or, with
+/// <see cref="Objects"/> (a range of map object codes, beehives), full from <see cref="FullCount"/> such objects in view. With
+/// <see cref="Overlap"/> its variants follow each other without a pause (one at a time if it is 0), otherwise single calls every
 /// <see cref="MinEvery"/>–<see cref="MaxEvery"/> seconds.
 /// </summary>
 public sealed record AmbientKind(string Name, SoundRef[] Sounds, TerrainType[] Ground, float Volume, float FullShare, float MinShare,
-    float? Overlap, float MinEvery, float MaxEvery);
+    float? Overlap, float MinEvery, float MaxEvery, (byte First, byte Last)? Objects = null, float FullCount = 1);
 
 /// <summary>Swamp bubbles (<c>ambience.bubbles</c>): where they rise, how often, the sound of a bursting one.</summary>
 public sealed record BubbleConfig(SoundRef Sound, TerrainType[] Ground, float Volume, float PerFieldSeconds);
@@ -42,7 +43,8 @@ public sealed record AmbienceConfig(int SampleStep, float Margin, float FadeSeco
 {
     public static AmbienceConfig Parse(JsonElement e)
     {
-        static TerrainType[] Ground(JsonElement e) => e.GetProperty("ground").EnumerateArray().Select(g => Enum.Parse<TerrainType>(g.GetString()!)).ToArray();
+        static TerrainType[] Ground(JsonElement e) => e.TryGetProperty("ground", out var ground)
+            ? ground.EnumerateArray().Select(g => Enum.Parse<TerrainType>(g.GetString()!)).ToArray() : [];
         static SoundRef[] Sounds(JsonElement e) =>
             e.TryGetProperty("sounds", out var sounds) ? sounds.EnumerateArray().Select(SoundRef.Parse).ToArray() : [SoundRef.Parse(e)];
         var bubbles = e.GetProperty("bubbles");
@@ -50,14 +52,17 @@ public sealed record AmbienceConfig(int SampleStep, float Margin, float FadeSeco
             e.GetProperty("sampleStep").GetInt32(),
             e.GetProperty("margin").GetSingle(),
             e.GetProperty("fadeSeconds").GetSingle(),
-            e.GetProperty("kinds").EnumerateObject().Select(p =>
+            e.GetProperty("kinds").EnumerateObject().Where(p => !p.Name.StartsWith('_')).Select(p =>
             {
                 var every = p.Value.TryGetProperty("everySeconds", out var seconds) ? seconds.EnumerateArray().Select(s => s.GetSingle()).ToArray() : [0f, 0f];
+                var objects = p.Value.TryGetProperty("objects", out var codes) ? codes.EnumerateArray().Select(c => c.GetByte()).ToArray() : null;
                 return new AmbientKind(p.Name, Sounds(p.Value), Ground(p.Value), p.Value.GetProperty("volume").GetSingle(),
-                    p.Value.GetProperty("fullShare").GetSingle(),
+                    p.Value.TryGetProperty("fullShare", out var full) ? full.GetSingle() : 1,
                     p.Value.TryGetProperty("minShare", out var min) ? min.GetSingle() : 0,
                     p.Value.TryGetProperty("overlap", out var overlap) ? overlap.GetSingle() : null,
-                    every[0], every[1]);
+                    every[0], every[1],
+                    objects is null ? null : (objects[0], objects[^1]),
+                    p.Value.TryGetProperty("fullCount", out var count) ? count.GetSingle() : 1);
             }).ToArray(),
             new BubbleConfig(SoundRef.Parse(bubbles), Ground(bubbles), bubbles.GetProperty("volume").GetSingle(),
                 bubbles.GetProperty("perFieldSeconds").GetSingle()));

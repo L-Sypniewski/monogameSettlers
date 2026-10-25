@@ -23,6 +23,14 @@ Grobe Belegung (visuell bestätigt: 00, 12, 13; Rest Vermutung anhand der Tabell
 | 13/23/33/43 | Gebäude je Volk (Römer: Sequenz 0–45, Frame 0 = fertig, 1 = Baustelle), danach Effekte (Feuer, Rauch, Magie) |
 | 15/25/35/45 | nur Animationstabellen (`0x21702`) |
 
+### Einzelne Fundstellen
+- Datei 01, Sequenz 26 (33 Bilder, 64 × 36): türkise Glitzerpunkte, Bild 0/1 und 30–32 leer, dazwischen wachsend, dann vergehend –
+  vermutlich das Glitzern auf dem Wasser. Noch ungenutzt.
+- Bienenstock (Amazonen-Imker): kein eigenes Bild gefunden (gesucht in Datei 01, 41, 43, 46). Den Strohkorb gibt es nur auf dem Rücken
+  der Imkerin (Datei 41, Sequenz 287 laufend, 291–296 aufstellend). Ersatzweise zeigt der Stock 41/291 Bild 0 (die Imkerin beim Aufstellen).
+- Datei 43, Sequenz 33: Amazonen-Marktplatz – Bild 0 der runde Platz, Bild 1 die goldene Statue darauf (fertig = beide übereinander),
+  Bild 2/3 dasselbe als Baustelle.
+
 ### Kriegsmaschinen (visuell bestätigt, `warMachines` in `data/ui.json`)
 JSettlers kennt sie nicht; Fundstellen aus den Dateien selbst. Richtungen immer SW, W, NW, NE, O, SO.
 

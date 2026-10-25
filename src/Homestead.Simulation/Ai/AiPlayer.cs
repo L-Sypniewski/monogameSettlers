@@ -165,6 +165,9 @@ public sealed partial class AiPlayer
             // Another one would only wait as well (farms while no scythe can be made).
             if (WaitsForWorker(name, mine))
                 continue;
+            // A forester only where the wood runs short: in a full forest it would stop at once.
+            if (name == "forester" && ForesterSpot(mine) is null)
+                continue;
             bool basic = Basics.Contains(name);
             if (!Enough(planks, Cost(definition, Material.Plank) + (basic ? 0 : keepPlanks))
                 || !Enough(stones, Cost(definition, Material.Stone) + (basic ? 0 : keepStones)))
@@ -387,9 +390,7 @@ public sealed partial class AiPlayer
         return definition.Name switch
         {
             HospitalName => _hospitalAnchor ?? _home!.Position,
-            "forester" => mine.Where(b => b.Definition.Name == "lumberjack")
-                              .OrderBy(l => mine.Count(f => f.Definition.Name == "forester" && PathFinder.Distance(f.Position, l.Position) < 12))
-                              .Select(l => (GridPoint?)l.Position).FirstOrDefault() ?? _home!.Position,
+            "forester" => ForesterSpot(mine),
             _ => ChainCenter(definition, mine) ?? _home!.Position,
         };
     }
@@ -417,6 +418,34 @@ public sealed partial class AiPlayer
         return new GridPoint((int)Math.Round(related.Average(b => b.Position.X)), (int)Math.Round(related.Average(b => b.Position.Y)));
     }
 
+    /// <summary>
+    /// Where a forester is wanted: at the woodcutter that runs short of trees (<see cref="NeedyLumberjack"/>), or at home
+    /// while there is no woodcutter yet (no trees on the own land: the foresters of the build order bring the first wood).
+    /// </summary>
+    private GridPoint? ForesterSpot(List<Building> mine)
+    {
+        if (NeedyLumberjack(mine) is { } lumberjack)
+            return lumberjack.Position;
+        return mine.Any(b => b.Definition.Name == "lumberjack") ? null : _home!.Position;
+    }
+
+    /// <summary>
+    /// The finished woodcutter with the fewest trees (saplings too) in its work area, if fewer than
+    /// <see cref="AiConfig.ForesterBuildBelowTrees"/> and no forester (sites too) stands near it.
+    /// </summary>
+    private Building? NeedyLumberjack(List<Building> mine)
+    {
+        var map = _world.Map!;
+        return mine.Where(l => l.Definition.Name == "lumberjack" && l.State == BuildingState.Finished
+                               && !mine.Any(f => f.Definition.Name == "forester" && PathFinder.Distance(f.Position, l.Position) < ServedDistance))
+            .Select(l => (Lumberjack: l, Trees: PathFinder.Circle(l.WorkCenter, l.Definition.WorkRadius ?? Production.DefaultRadius)
+                .Count(p => map.Contains(p) && map.ObjectAt(p) == MapObjectKind.Tree)))
+            .Where(l => l.Trees < _config.ForesterBuildBelowTrees)
+            .OrderBy(l => l.Trees)
+            .Select(l => l.Lumberjack)
+            .FirstOrDefault();
+    }
+
     /// <summary>A building of the chain this close to one of the kind counts as served by it.</summary>
     private const int ServedDistance = 12;
 
@@ -433,11 +462,12 @@ public sealed partial class AiPlayer
 
     /// <summary>Buildings that go where their resource is, not where their chain is.</summary>
     private bool IsResourceBound(string name) =>
-        _world.Production.Config.Mines.ContainsKey(name) || name is "lumberjack" or "stonecutter" or "fisher" or "waterworks" or "forester" or "rice_farm";
+        _world.Production.Config.Mines.ContainsKey(name) || name is "lumberjack" or "stonecutter" or "fisher" or "waterworks" or "forester" or "rice_farm" or "beekeeping";
 
     /// <summary>
     /// For buildings that work on a resource (trees, stones, ore, fish, river, swamp): the own cells with
-    /// it, best first. Null for other buildings.
+    /// it, best first. Null for other buildings. Beekeepers want trees too, away from the woodcutters (felled
+    /// trees leave the hives without bees' pasture).
     /// </summary>
     private IEnumerable<GridPoint>? ResourceCells(string name, List<Building> mine)
     {
@@ -446,6 +476,7 @@ public sealed partial class AiPlayer
         return name switch
         {
             "lumberjack" => OwnCells(c => c.Trees, mine, name, spacing: 10),
+            "beekeeping" => OwnCells(c => c.Trees, mine, name, spacing: 16, crowdedBy: "lumberjack"),
             "stonecutter" => OwnCells(c => c.StoneUnits, mine, name, spacing: 10),
             "fisher" => OwnCells(c => c.Fish, mine, name, spacing: 10),
             "waterworks" => OwnCells(c => c.River, mine, name, spacing: 6),
@@ -456,15 +487,16 @@ public sealed partial class AiPlayer
 
     /// <summary>
     /// Own cells with some of something, the most first (closer to home counts more); cells next to a
-    /// building of the same kind count less, so a second woodcutter goes to another wood.
+    /// building of the same kind (or of <paramref name="crowdedBy"/>) count less, so a second woodcutter goes to another wood.
     /// </summary>
-    private IEnumerable<GridPoint> OwnCells(Func<MapSurvey.Cell, int> amount, List<Building> mine, string name, int spacing)
+    private IEnumerable<GridPoint> OwnCells(Func<MapSurvey.Cell, int> amount, List<Building> mine, string name, int spacing, string? crowdedBy = null)
     {
         var home = _home!.Position;
         return _survey.Cells
             .Where(c => c.Own > 0 && amount(c.OwnPart!) > 0)
             .Select(c => (Cell: c, Score: amount(c.OwnPart!) / (1.0 + PathFinder.Distance(home, c.Center) / 20.0)
-                                          / (1 + mine.Count(b => b.Definition.Name == name && PathFinder.Distance(b.Position, c.Center) < spacing))))
+                                          / (1 + mine.Count(b => (b.Definition.Name == name || b.Definition.Name == crowdedBy)
+                                                                 && PathFinder.Distance(b.Position, c.Center) < spacing))))
             .OrderByDescending(x => x.Score)
             .Select(x => x.Cell.Center);
     }

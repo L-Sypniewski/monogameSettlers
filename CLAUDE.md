@@ -48,7 +48,7 @@ Vor Arbeit an einem System die passende Datei lesen und dort nachführen (wie bi
 `GameMap` speichert je Feld den Original-Objektcode (`MapObjectCodes`); Begehbarkeit und Grafik leiten sich daraus ab.
 Laufzeit: Baumstumpf 41 (verschwindet nach `trees.stumpSeconds`), Setzling 84, Felsgrößen 115→127 (Geröll).
 Bodenbelag (`GroundCover`, nur auf Gras): Ackerland (als Erde, Original-Übergänge zu Gras), Trampelpfad (als Sand, Sand-Gras-Übergänge).
-Eigene Anbau-Codes: Getreide 200–207 (207 reif), Wein 208–210, Reis 211–214, Bienenstöcke 215–218 (Bild vorerst Blumen); Steg 219.
+Eigene Anbau-Codes: Getreide 200–207 (207 reif), Wein 208–210, Reis 211–214, Bienenstöcke 215–218 (Bild nicht gefunden, vorerst die aufstellende Imkerin 41/291, `docs/formate/gfx.md`); Steg 219.
 
 ## Grafik-Konventionen
 - Raster → Pixel: `x*16 - y*8`, `y*9 - höhe*HeightStep` (Zeilen halb versetzt), 6 Nachbarn. Original HeightStep 2, wir 1 (`ScreenProjection.HeightStep`).

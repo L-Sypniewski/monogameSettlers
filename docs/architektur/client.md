@@ -161,7 +161,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   Angeln 16) im Takt der Arbeitsanimation (Moment `at` je Runde, `SettlerRenderer.WorkRoundFrames`); Werkstätten (`workshops`: Sägewerk 5,
   Werkzeug-/Waffenschmied 6/7, Eisen-/Goldschmelze 37/38) etwa alle `everySeconds`, solange `Production.IsProducing`. `Ambience` (`ambience` in `sound.json`): Gelände im Bild alle 0,1 s abgetastet (jedes `sampleStep`-te Feld, `margin` über den Rand hinaus
   ausblendend, Unerkundetes still), je Art laut nach Anteil (voll ab `fullShare`, gleitet in `fadeSeconds`): Meer 68, Fluss 71, Wüste 67, Wind 73/74
-  (Gebirge, Schnee) als Varianten ohne Pause aneinander (`overlap`), zur Seite des Geländes gepannt; Vögel 69/70 auf Gras einzeln alle `everySeconds`
+  (Gebirge, Schnee) als Varianten ohne Pause aneinander (`overlap`), zur Seite des Geländes gepannt; Bienen 117/0 nach Bienenstöcken im Bild (`objects`, jedes Feld gezählt,
+  voll ab `fullCount` 6), leise und nur eins zugleich (`overlap` 0; im Original je Stock eins, übersteuert); Vögel 69/70 auf Gras einzeln alle `everySeconds`
   von einem Feld im Bild; läuft in der Pause weiter, außerhalb des Spiels still. `SwampBubbles` (nur Darstellung, nicht gespeichert): Blasen auf grünem Sumpf (`Moor`, nicht braunem
   Schlamm `Mud`) im Bild (je Feld eine alle `bubbles.perFieldSeconds`, nur in Sicht): Datei 1 Sequenz 106 (wächst), dann 107 (sinkt) oder 108 (platzt, Blubbern 72 – leise Aufnahme, `gain` verstärkt sie beim Laden). `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis gestreamt)
   aus `Tracks` (`SoundConfig.TracksFor`: Liste des eigenen Volks, `music.tracks`, nach Gehör zugeordnet; „Musik je Volk“ aus: alle, eigene zuerst),
