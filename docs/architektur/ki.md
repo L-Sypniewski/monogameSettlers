@@ -11,6 +11,7 @@ Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
     vorhandenen ≥ `busy` (70 %) arbeiten – sonst liegt der Engpass weiter vorn); ausgelastete Waffenschmiede/Kasernen (bei Waffen im Lager)/kleine Tempel → noch einer.
     Je Art einer zugleich; nicht, wenn im Fenster einer fertig wurde.
   - Minen nur ab Erfolgschance `mines.minChance` (0,3), Abriss unter `mines.abandonChance` (0,1); kein Platz → Erz fehlt → Expansion.
+    Ressourcengebäude ohne Platz (`_noSpot`) erst nach `NoSpotRetryTicks` (15 s, Konstante – Konfigfelder fehlen in alten Spielständen) wieder gesucht.
     Schmelzen erst mit eigener Mine ihres Erzes.
   - Vor dem Abriss erschöpfter Steinmetze/Fischer: Arbeitsbereich (bis `MaxWorkCenterDistance`) dorthin versetzen, wo mehr in Reichweite ist (`BetterWorkCenter`).
   - Werkzeugschmiede nicht in der Build-Order, nur wenn ein Arbeiter auf Werkzeug wartet (ohne Brett-/Stein-Rücklage: fehlt die Säge, kommen keine

@@ -26,6 +26,7 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
   Original-Übergänge). Getreide wird auch auf Pfade gesät und kürzt Pfade ringsum (`Trails.CutAround`); Säen macht Gras im Umkreis
   `farmlandRadius` (1) zu Ackerland, soweit es passt und im Arbeitsbereich liegt.
 - `Buildings/`: Definitionen aus `data/buildings/*.json`.
+  - Bauplatzprüfung (`CanPlace`, `DoorLeadsOut`, `PlanLevelling`): „gesehen“ per Markenfeld über die Karte (`NewSearch`/`See`), kein HashSet.
   - `Construction`: Planieren (`World.PlanLevelling`, `levelling` in `production.json`): Grundfläche auf mittlere Höhe, ringsum Ring für Ring,
     bis kein Nachbar über `maxSlope` (8) abweicht (am Hang breiter). Aufwand = bewegte Höhe; ungültig über `maxWork` oder wenn ein zu
     änderndes Feld bebaut, anderweitig geplant, unbegehbar oder fremd ist. Planierer: je Gang `heightPerDig`, nie Steigung über `maxSlope`
@@ -124,7 +125,8 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
   Je Waffe ein Träger zugleich (soweit die Träger-Reserve reicht, Laufende aller Kasernen zählen), jeder wird an der Tür oder direkt daneben ausgebildet. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
   nie über Infanterie-/Bogenplätze; „+“ bei vollen Infanterieplätzen ersetzt die andere Infanterieart; Überzählige kehren um oder kommen
   heraus, nie der letzte – Ersatz tauscht an der Tür). Besetzte beanspruchen Land; immer ihren eigenen Grund (sonst fiele ein eroberter Turm gleich wieder).
-  - `MilitaryCombat`: Untätige Soldaten und solche mit nicht erzwungenem Laufbefehl greifen feindliche Soldaten und besetzte Militärgebäude
+  - `MilitaryCombat`: Gegnersuche über Zellen (`CellSize` 8) der Kämpfer zum Tick-Beginn (`EnemiesNear`, gleiche Reihenfolge wie `EnemiesOf`).
+    Untätige Soldaten und solche mit nicht erzwungenem Laufbefehl greifen feindliche Soldaten und besetzte Militärgebäude
     (Tür in Sicht) an, Näheres zuerst; Laufende gehen danach weiter; Besatzung bleibt drin. Nahkämpfer schlagen erst die Tür ein
     (`door`, HP wie Pikenier; 5 s ohne Feind im Umkreis 6 → Wächter geht rein, Tür regeneriert 0 → voll in 30 s).
     Dann je ein Verteidiger unbeweglich vor der Tür (`FightPoint`; Plätze je Volk/Gebäude als Versatz in `door.points`, sonst automatisch,

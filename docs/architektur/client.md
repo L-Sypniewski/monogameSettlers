@@ -145,7 +145,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   klingt über `SoftFields` (3) aus; unerkundet schwarz, erkundet dunkel, fremde Figuren nur in Sicht), F11 Vollbild (nur für die Sitzung; Vorgabe in den Einstellungen),
   F2 Skalierung scharf/linear/Catmull-Rom (Standard)/Lanczos2 (Welt 1:1 in kleine RenderTarget, um den Zoom vergrößert; Markierungen/Panel scharf;
   `Shaders/Upscale.fx` → eingebettetes `.mgfx`, nach Änderung `tools/compile-shaders.sh`, braucht Wine),
-  F3 Leistungsanzeige (FPS, ms Simulation/Update/Zeichnen, längster Frame, Draw-Calls), F12 gehalten 10× Tempo, T Spielzeit, I KI spielt für dich
+  F3 Leistungsanzeige (FPS, ms Simulation/Update/Zeichnen, längster Frame, Draw-Calls; Zeichnen nur, was in den sichtbaren Zeilen und
+  waagerecht im Bild liegt – Rand 96 px, Gebäudestreifen nach Pixelbreite bis 320 px, Schiffe 160 px), F12 gehalten 10× Tempo, T Spielzeit, I KI spielt für dich
   (andere Spieler immer KI), L KI-Entscheidungen in die Konsole, G Demo-Wirtschaft,
   P/Esc Pause (Banner wie „Spiel gewonnen“; Welt steht, Kamera/Panel/Befehle gehen), Platzieren über das Baumenü (Punkte an passenden Bauplätzen, grün→rot nach Planieraufwand – `World.LevellingEffort` / `levelling.maxWork`; max. 6 ms je Frame,
   `World.BuildSpotEffort`; Vorschau am nächsten Bauplatz; Q/E Gebäude, Shift+Klick sofort fertig; endet nach Platzieren, Rechtsklick bricht ab).

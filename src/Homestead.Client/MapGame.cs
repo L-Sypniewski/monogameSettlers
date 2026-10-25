@@ -3013,20 +3013,35 @@ public sealed class MapGame : Game
 
         // Back to front by grid row, objects and settlers interleaved.
         float alpha = TickAlpha;
-        var settlersByRow = _world.Settlers.Where(s => !s.IsInside).ToLookup(SettlerRenderer.DepthRow);
-        var buildingsByRow = _world.Buildings.Where(b => b.Exists).ToLookup(EconomyRenderer.DepthRow);
+        int rows = _objects.RowCount(visible, out int firstRow);
+        // Only what can be in view: on a big map the rows run far beyond the screen to both sides (16 players: some
+        // thousand settlers, most of them off the screen, cost more than all that is seen).
+        bool InRows(int y) => y >= firstRow && y < firstRow + rows;
+        bool Across(GridPoint p, float left, float right)
+        {
+            float x = ScreenProjection.ToWorld(p).X;
+            return x + right >= visible.X && x + left <= visible.X + visible.Width;
+        }
+        // The outermost strips of a building reach without end: as far as the widest picture (a castle, some 250 px).
+        const float SpriteMargin = 96, ShipMargin = 160, BuildingReach = 320;
+        var settlersByRow = _world.Settlers.Where(s => !s.IsInside && InRows(SettlerRenderer.DepthRow(s)) && Across(s.Position, -SpriteMargin, SpriteMargin))
+            .ToLookup(SettlerRenderer.DepthRow);
+        var buildingsByRow = _world.Buildings.Where(b => b.Exists && InRows(EconomyRenderer.DepthRow(b)) && Across(b.Position, -SpriteMargin, SpriteMargin))
+            .ToLookup(EconomyRenderer.DepthRow);
         // Buildings in slices, each in the front row of the footprint below it (see EconomyRenderer.Strip).
         var stripsByRow = _world.Buildings.Where(b => b.Exists)
             .SelectMany(b => _economyRenderer.StripsOf(b.Definition).Select(strip => (Building: b, Strip: strip)))
+            .Where(s => InRows(s.Building.Position.Y + s.Strip.Row) && Across(s.Building.Position,
+                Math.Max(s.Strip.Left, -BuildingReach) - SpriteMargin, Math.Min(s.Strip.Right, BuildingReach) + SpriteMargin))
             .ToLookup(s => s.Building.Position.Y + s.Strip.Row);
-        var pilesByRow = _world.Piles.ToLookup(p => p.Position.Y);
-        var signsByRow = _world.Geology.Signs.ToLookup(s => s.Key.Y);
-        var ghostsByRow = _world.Ghosts.ToLookup(g => g.Position.Y);
-        var shipsByRow = _world.Shipping.Ships.ToLookup(ShipRenderer.DepthRow);
+        var pilesByRow = _world.Piles.Where(p => InRows(p.Position.Y) && Across(p.Position, -SpriteMargin, SpriteMargin)).ToLookup(p => p.Position.Y);
+        var signsByRow = _world.Geology.Signs.Where(s => InRows(s.Key.Y)).ToLookup(s => s.Key.Y);
+        var ghostsByRow = _world.Ghosts.Where(g => InRows(g.Position.Y)).ToLookup(g => g.Position.Y);
+        var shipsByRow = _world.Shipping.Ships.Where(ship => InRows(ShipRenderer.DepthRow(ship)) && Across(ship.Position, -ShipMargin, ShipMargin))
+            .ToLookup(ShipRenderer.DepthRow);
         var stocksByRow = _world.Buildings.Where(b => b.Exists && _world.Shipping.Building(b) is not null && _world.Shipping.DockOf(b) is not null)
             .ToLookup(b => _world.Shipping.DockOf(b)!.Value.Berth.Y);
         var marksByRow = WorkAreaMarksByRow();
-        int rows = _objects.RowCount(visible, out int firstRow);
         for (int y = firstRow; y < firstRow + rows; y++)
         {
             DrawBorderRow(y, visible);

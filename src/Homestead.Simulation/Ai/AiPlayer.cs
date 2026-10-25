@@ -51,6 +51,14 @@ public sealed partial class AiPlayer
 
     /// <summary>Resource-bound buildings that found no spot near their resource (the expansion goes for more of it).</summary>
     private readonly HashSet<string> _noSpot = new();
+
+    /// <summary>
+    /// When the buildings in <see cref="_noSpot"/> are looked for again, <see cref="NoSpotRetryTicks"/> after: the search goes over
+    /// hundreds of fields and nearly always comes out the same (16 players on a big map: fishers without a free bank took a quarter
+    /// of the simulation). Not in the saved config: a field added there is 0 in older saves.
+    /// </summary>
+    private readonly Dictionary<string, long> _noSpotRetry = new();
+    private const int NoSpotRetryTicks = 15 * World.TicksPerSecond;
     private readonly Dictionary<int, long> _uselessSince = new();
     private readonly HashSet<string> _reported = new();
     private Building? _home;
@@ -171,6 +179,8 @@ public sealed partial class AiPlayer
                 continue;
             if (!SmithLeftFor(definition, mine))
                 continue;
+            if (_noSpot.Contains(name) && _world.Tick < _noSpotRetry.GetValueOrDefault(name))
+                continue;
             // The toolsmith only comes when a tool is missing, maybe the saw: then no planks come until it works.
             bool basic = Basics.Contains(name) || name == Toolsmith;
             if (!Enough(planks, Cost(definition, Material.Plank) + (basic ? 0 : keepPlanks))
@@ -198,7 +208,10 @@ public sealed partial class AiPlayer
             if (!IsResourceBound(name))
                 _lacksRoom = true;
             else
+            {
                 _noSpot.Add(name);
+                _noSpotRetry[name] = _world.Tick + NoSpotRetryTicks;
+            }
         }
     }
 
@@ -720,8 +733,28 @@ public sealed partial class AiPlayer
         if (amount is null || !building.HasWorkArea)
             return null;
         int radius = building.Definition.WorkRadius ?? Production.DefaultRadius;
-        int InRange(GridPoint center) => Around(center, radius, q => !_world.TerritoryRules || map.OwnerAt(q) == Player ? amount(q) : 0);
-        int now = InRange(building.WorkCenter);
+        // The amounts around read once: summed up for every center anew they took a third of a second (16 players).
+        // A circle reaches up to twice its radius along a coordinate (see PathFinder.Circle).
+        var area = PathFinder.Circle(default, radius).ToArray();
+        int reach = 2 * (World.MaxWorkCenterDistance + radius), side = 2 * reach + 1;
+        int left = building.Position.X - reach, top = building.Position.Y - reach;
+        var amounts = new int[side * side];
+        for (int y = 0; y < side; y++)
+        for (int x = 0; x < side; x++)
+        {
+            var q = new GridPoint(left + x, top + y);
+            if (map.Contains(q) && (!_world.TerritoryRules || map.OwnerAt(q) == Player))
+                amounts[y * side + x] = amount(q);
+        }
+        int InRange(GridPoint center)
+        {
+            int sum = 0;
+            foreach (var offset in area)
+                sum += amounts[(center.Y + offset.Y - top) * side + center.X + offset.X - left];
+            return sum;
+        }
+        // The current center may lie anywhere (set by the player): counted on its own.
+        int now = Around(building.WorkCenter, radius, q => !_world.TerritoryRules || map.OwnerAt(q) == Player ? amount(q) : 0);
         var best = PathFinder.Circle(building.Position, World.MaxWorkCenterDistance).Where(map.Contains)
             .Select(c => (Center: c, Amount: InRange(c)))
             .OrderByDescending(c => c.Amount).ThenBy(c => PathFinder.Distance(c.Center, building.Position))

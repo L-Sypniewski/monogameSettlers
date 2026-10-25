@@ -281,10 +281,38 @@ public sealed partial class World
     }
 
     // Buffers for the searches below, which run very often (single-threaded, like the whole world).
-    private readonly HashSet<GridPoint> _searchSeen = new();
+    // Fields seen by the current search: marked with its number, so nothing has to be cleared (a hash set took most
+    // of the AI's time looking for building spots).
+    [NonSerialized] private int[]? _searchMarks;
+    [NonSerialized] private int _searchMark;
     private readonly Queue<GridPoint> _searchQueue = new();
     private List<GridPoint> _searchRing = new();
     private List<GridPoint> _searchNext = new();
+
+    /// <summary>Starts a search: no field is seen yet.</summary>
+    private void NewSearch(GameMap map)
+    {
+        int fields = map.Size * map.Size;
+        if (_searchMarks?.Length != fields)
+        {
+            _searchMarks = new int[fields];
+            _searchMark = 0;
+        }
+        if (++_searchMark == int.MaxValue)
+        {
+            Array.Clear(_searchMarks);
+            _searchMark = 1;
+        }
+    }
+
+    /// <summary>Marks a field (by map index) as seen by the current search; false if it was already.</summary>
+    private bool See(int index)
+    {
+        if (_searchMarks![index] == _searchMark)
+            return false;
+        _searchMarks[index] = _searchMark;
+        return true;
+    }
 
     /// <summary>
     /// Whether one can still walk away from the door once the building stands: a small flood fill from
@@ -297,11 +325,12 @@ public sealed partial class World
         var map = RequireMap();
         var footprint = ShapeOf(definition).Blocked;
         var door = position + definition.Door;
-        var seen = _searchSeen;
         var queue = _searchQueue;
-        seen.Clear();
+        NewSearch(map);
         queue.Clear();
-        seen.Add(door);
+        if (map.Contains(door))
+            See(map.Index(door));
+        int seen = 1;
         queue.Enqueue(door);
         while (queue.Count > 0)
         {
@@ -310,9 +339,9 @@ public sealed partial class World
             {
                 var n = p.Neighbor((Direction)d);
                 if (!map.IsWalkable(n) || footprint.Contains(new GridPoint(n.X - position.X, n.Y - position.Y))
-                    || _footprints.ContainsKey(map.Index(n)) || !seen.Add(n))
+                    || _footprints.ContainsKey(map.Index(n)) || !See(map.Index(n)))
                     continue;
-                if (seen.Count >= Enough)
+                if (++seen >= Enough)
                     return true;
                 queue.Enqueue(n);
             }
@@ -378,14 +407,13 @@ public sealed partial class World
         int height = (int)Math.Round(sum / (double)blocked.Count);
         var targets = new Dictionary<GridPoint, int>();
         int work = 0;
-        var seen = _searchSeen;
         var ring = _searchRing;
-        seen.Clear();
+        NewSearch(map);
         ring.Clear();
         foreach (var offset in blocked)
         {
             var p = position + offset;
-            seen.Add(p);
+            See(map.Index(p));
             ring.Add(p);
             if (_pendingLevels.ContainsKey(map.Index(p)))
                 return null;
@@ -407,7 +435,7 @@ public sealed partial class World
                 for (int dir = 0; dir < DirectionExtensions.Count; dir++)
                 {
                     var q = p.Neighbor((Direction)dir);
-                    if (!map.Contains(q) || !seen.Add(q))
+                    if (!map.Contains(q) || !See(map.Index(q)))
                         continue;
                     next.Add(q);
                     int h = PlannedHeight(q);

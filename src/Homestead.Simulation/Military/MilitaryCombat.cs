@@ -220,6 +220,7 @@ public sealed partial class Military
                      or Profession.WarMachine
                  || IsLoadedDonkey(settler)) && !settler.IsInside && !settler.IsDead)
                 _combatants.Add(settler);
+        SortIntoCells();
         if (_world.Tick % EngageInterval == 0)
             EngageIdleSoldiers();
         DefendDoors();
@@ -241,8 +242,76 @@ public sealed partial class Military
     /// none for <paramref name="bowman"/>.
     /// </summary>
     private IEnumerable<Settler> EnemiesOf(int player, bool bowman = false) =>
-        _combatants.Where(s => s.Player != player && !s.IsInside && !s.IsDead && !_guards.ContainsKey(s.Id) && s.IsRevealedTo(player)
-                               && !(bowman && s.Profession == Profession.WarMachine));
+        _combatants.Where(s => IsEnemy(s, player, bowman));
+
+    private bool IsEnemy(Settler s, int player, bool bowman) =>
+        s.Player != player && !s.IsInside && !s.IsDead && !_guards.ContainsKey(s.Id) && s.IsRevealedTo(player)
+        && !(bowman && s.Profession == Profession.WarMachine);
+
+    /// <summary>Fields per side of a cell of <see cref="_cells"/>.</summary>
+    private const int CellSize = 8;
+
+    /// <summary>
+    /// The combatants by where they stood at the tick's start: indices into <see cref="_combatants"/> per cell of
+    /// <see cref="CellSize"/> fields. With hundreds of soldiers on a big map, each one going through all of them
+    /// every tick took most of the combat's time.
+    /// </summary>
+    [NonSerialized] private List<int>[]? _cells;
+    [NonSerialized] private int _cellsPerRow;
+    [NonSerialized] private List<int>? _usedCells;
+    [NonSerialized] private List<int>? _nearBuffer;
+
+    private void SortIntoCells()
+    {
+        int size = _world.Map!.Size;
+        _cellsPerRow = (size + CellSize - 1) / CellSize;
+        if (_cells is null || _cells.Length != _cellsPerRow * _cellsPerRow)
+        {
+            _cells = new List<int>[_cellsPerRow * _cellsPerRow];
+            _usedCells = new List<int>();
+        }
+        foreach (int cell in _usedCells!)
+            _cells[cell].Clear();
+        _usedCells.Clear();
+        for (int i = 0; i < _combatants.Count; i++)
+        {
+            int cell = CellOf(_combatants[i].Position);
+            var list = _cells[cell] ??= new List<int>();
+            if (list.Count == 0)
+                _usedCells.Add(cell);
+            list.Add(i);
+        }
+    }
+
+    private int CellOf(GridPoint p) =>
+        Math.Clamp(p.Y / CellSize, 0, _cellsPerRow - 1) * _cellsPerRow + Math.Clamp(p.X / CellSize, 0, _cellsPerRow - 1);
+
+    /// <summary>
+    /// <see cref="EnemiesOf"/> within <paramref name="range"/> of the point (by <see cref="DistanceTo"/>), in the same order. Looks
+    /// only at the cells around it; a field more for the wide ones and one for a step taken since the tick's start.
+    /// </summary>
+    private List<Settler> EnemiesNear(GridPoint from, int range, int player, bool bowman = false)
+    {
+        var near = _nearBuffer ??= new List<int>();
+        near.Clear();
+        // Hex distance d keeps both coordinates within d.
+        int reach = range + 2;
+        int x0 = Math.Max(0, (from.X - reach) / CellSize), x1 = Math.Min(_cellsPerRow - 1, Math.Max(0, from.X + reach) / CellSize);
+        int y0 = Math.Max(0, (from.Y - reach) / CellSize), y1 = Math.Min(_cellsPerRow - 1, Math.Max(0, from.Y + reach) / CellSize);
+        for (int cy = y0; cy <= y1; cy++)
+        for (int cx = x0; cx <= x1; cx++)
+            if (_cells![cy * _cellsPerRow + cx] is { Count: > 0 } list)
+                near.AddRange(list);
+        near.Sort();
+        var enemies = new List<Settler>();
+        foreach (int i in near)
+        {
+            var s = _combatants[i];
+            if (IsEnemy(s, player, bowman) && DistanceTo(from, s) <= range)
+                enemies.Add(s);
+        }
+        return enemies;
+    }
 
     private static bool IsBowman(Settler soldier) => soldier.SoldierType == SoldierType.Bowman;
 
@@ -251,7 +320,7 @@ public sealed partial class Military
         Math.Max(0, PathFinder.Distance(from, enemy.Position) - (enemy.IsWide ? 1 : 0));
 
     private Settler? NearestEnemy(GridPoint from, int player, int range, int minRange = 0, bool bowman = false) =>
-        EnemiesOf(player, bowman).Where(e => DistanceTo(from, e) is var d && d <= range && d >= minRange)
+        EnemiesNear(from, range, player, bowman).Where(e => DistanceTo(from, e) >= minRange)
             .MinBy(e => DistanceTo(from, e));
 
     /// <summary>Ticks to the next strike; hasted by a spell, faster.</summary>
@@ -418,7 +487,7 @@ public sealed partial class Military
     {
         var center = FightPointOf(g);
         int radius = _config.DoorCalmRadius;
-        return EnemiesOf(g.Building.Player).Any(e => DistanceTo(center, e) <= radius);
+        return EnemiesNear(center, radius, g.Building.Player).Count > 0;
     }
 
     /// <summary>The soldier of the place comes out of the broken door to stand in front of it.</summary>
@@ -836,10 +905,9 @@ public sealed partial class Military
         if (stats.InReach(currentDistance))
             return;
         bool recheck = f.Enemy is null || _world.Tick >= f.NextRetarget;
-        var candidates = EnemiesOf(soldier.Player, IsBowman(soldier))
+        var candidates = EnemiesNear(soldier.Position, recheck ? _config.Sight(soldier.SoldierType!.Value) : stats.Range, soldier.Player, IsBowman(soldier))
             .Select(x => (Enemy: x, Distance: DistanceTo(soldier.Position, x)))
-            .Where(x => x.Distance <= (recheck ? _config.Sight(soldier.SoldierType!.Value) : stats.Range)
-                        && !(f.Unreachable.TryGetValue(x.Enemy.Id, out long until) && until > _world.Tick))
+            .Where(x => !(f.Unreachable.TryGetValue(x.Enemy.Id, out long until) && until > _world.Tick))
             .ToList();
         if (candidates.Count == 0)
             return;
@@ -869,9 +937,7 @@ public sealed partial class Military
             return _world.WalkTo(soldier, enemy.Position); // still far: the plain way, the crowd is handled on arrival
 
         var map = _world.Map!;
-        var enemies = EnemiesOf(soldier.Player, IsBowman(soldier))
-            .Where(e => DistanceTo(start, e) <= _config.CombatPathRadius + stats.Range)
-            .ToList();
+        var enemies = EnemiesNear(start, _config.CombatPathRadius + stats.Range, soldier.Player, IsBowman(soldier));
         // The combatants are those of the tick's start: a defender sent out since is not among them yet.
         if (!enemies.Contains(enemy))
             enemies.Add(enemy);
