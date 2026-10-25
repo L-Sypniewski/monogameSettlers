@@ -166,8 +166,8 @@ public sealed partial class World
         // After a pass-through a settler may stand on a field it does not own; claim it once free.
         if (Map is not null)
             foreach (var settler in _settlers)
-                if (settler.State != SettlerState.Stepping && !settler.IsInside && _occupant[Map.Index(settler.Position)] == NoOccupant)
-                    _occupant[Map.Index(settler.Position)] = settler.Id;
+                if (settler.State != SettlerState.Stepping && !settler.IsInside)
+                    Claim(settler, settler.Position);
         Measure("movement", ref mark);
 
         if (Map is not null)
@@ -223,8 +223,9 @@ public sealed partial class World
     /// <summary>Places a new settler on the nearest free walkable point.</summary>
     public Settler? Spawn(GridPoint near, Profession profession = Profession.None, int player = 0)
     {
-        var map = RequireMap();
-        var free = NearestFree(near, radius: 10);
+        RequireMap();
+        // A war machine wants room for all of it, but takes a single field rather than none.
+        var free = (profession == Profession.WarMachine ? NearestFree(near, radius: 10, wide: true) : null) ?? NearestFree(near, radius: 10);
         if (free is not { } position)
             return null;
         var settler = new Settler(_nextSettlerId++, position) { Profession = profession, Player = player };
@@ -233,7 +234,7 @@ public sealed partial class World
             settler.Health = Geology.HealthOf(Military.Config, profession);
         _settlers.Add(settler);
         _settlersById[settler.Id] = settler;
-        _occupant[map.Index(position)] = settler.Id;
+        Claim(settler, position);
         return settler;
     }
 
@@ -254,8 +255,9 @@ public sealed partial class World
         settler.IsStrolling = false;
         // Plan from where the settler will be standing next.
         var from = settler.StepTarget;
-        var path = PathFinder!.FindRoute(from, destination, out bool leg, ownLandOf: LandOf(settler));
-        if (path is null)
+        var path = PathFinder!.FindRoute(from, destination, out bool leg, ownLandOf: LandOf(settler), wide: settler.IsWide);
+        // A wide one that gets no nearer than where it is cannot go there.
+        if (path is null || path.Count == 0 && from != destination)
             return false;
         Follow(settler, path, destination);
         settler.PathIsLeg = leg;
@@ -328,18 +330,15 @@ public sealed partial class World
         if (settler.StepProgress < StepUnits)
             return;
 
-        var map = Map!;
         var from = settler.Position;
         settler.Position = from.Neighbor(settler.Facing);
         // What is left over goes into the next step (faster ground does not round to whole ticks).
         settler.StepProgress = Math.Min(settler.StepProgress - StepUnits, settler.StepSpeed - 1);
         settler.State = SettlerState.Idle;
         Trails.Stepped(settler);
-        if (_occupant[map.Index(from)] == settler.Id)
-            _occupant[map.Index(from)] = NoOccupant;
+        Release(settler, from);
         // After a pass-through the field may still belong to the other settler; take it once free.
-        if (_occupant[map.Index(settler.Position)] == NoOccupant)
-            _occupant[map.Index(settler.Position)] = settler.Id;
+        Claim(settler, settler.Position);
 
         if (settler.Path.Count == 0)
         {
@@ -358,9 +357,14 @@ public sealed partial class World
         var next = settler.Position.Neighbor(direction);
 
         // The world may have changed since planning (tree planted, building placed).
-        if (!map.IsWalkable(next))
+        if (settler.IsWide ? !PathFinder!.IsClear(next) : !map.IsWalkable(next))
         {
             Replan(settler, avoid: null);
+            return;
+        }
+        if (settler.IsWide)
+        {
+            TryStartWideStep(settler, direction, next);
             return;
         }
 
@@ -373,13 +377,14 @@ public sealed partial class World
 
         var other = _settlersById[occupantId];
         bool otherFrozen = other.FrozenUntil > Tick;
-        if (!otherFrozen && other.WantsToMove && other.Position.Neighbor(other.NextStep!.Value) == settler.Position)
+        // Nobody swaps with or pushes aside a war machine: it is in the way.
+        if (!otherFrozen && !other.IsWide && other.WantsToMove && other.Position.Neighbor(other.NextStep!.Value) == settler.Position)
         {
             Swap(settler, other);
             return;
         }
 
-        if (!otherFrozen && other.State == SettlerState.Idle && other.Path.Count == 0 && !other.IsWorking && !other.HasTask)
+        if (!otherFrozen && !other.IsWide && IsIdle(other))
         {
             // Pushed aside: it starts at once and frees its field, so the settler need not stop.
             StepAside(other, keepFree: settler.Position);
@@ -395,6 +400,38 @@ public sealed partial class World
         Wait(settler, next);
     }
 
+    private static bool IsIdle(Settler settler) =>
+        settler.State == SettlerState.Idle && settler.Path.Count == 0 && !settler.IsWorking && !settler.HasTask;
+
+    /// <summary>
+    /// A wide settler's step: the three fields it newly covers must be free. Idle settlers there are pushed aside; it
+    /// waits for the others (or after the watchdog's time drives through).
+    /// </summary>
+    private void TryStartWideStep(Settler settler, Direction direction, GridPoint next)
+    {
+        var map = Map!;
+        GridPoint? blocked = null;
+        foreach (var p in settler.Body(next))
+        {
+            int id = _occupant[map.Index(p)];
+            if (id == NoOccupant || id == settler.Id)
+                continue;
+            var other = _settlersById[id];
+            if (other.FrozenUntil <= Tick && !other.IsWide && IsIdle(other))
+            {
+                StepAside(other, keepFree: next);
+                if (other.WantsToMove)
+                    TryStartStep(other);
+            }
+            if (_occupant[map.Index(p)] is var holder && holder != NoOccupant && holder != settler.Id)
+                blocked ??= p;
+        }
+        if (blocked is { } field)
+            Wait(settler, field);
+        else
+            StartStep(settler, direction);
+    }
+
     private void StartStep(Settler settler, Direction direction)
     {
         var map = Map!;
@@ -405,7 +442,8 @@ public sealed partial class World
             settler.StepProgress = 0;
         settler.State = SettlerState.Stepping;
         settler.WaitingTicks = 0;
-        if (_occupant[map.Index(settler.Position)] == settler.Id)
+        // A wide one covers where it leaves until it is there.
+        if (!settler.IsWide && _occupant[map.Index(settler.Position)] == settler.Id)
             _occupant[map.Index(settler.Position)] = NoOccupant;
         var target = settler.Position.Neighbor(direction);
         settler.StepSpeed = Trails.StepSpeed(target);
@@ -415,8 +453,9 @@ public sealed partial class World
         // A scout with stolen goods sneaks.
         if (settler is { Profession: Profession.Scout, Carrying: not null })
             settler.StepSpeed = Math.Max(1, (int)Math.Round(settler.StepSpeed * (Military.Config.Scouts ?? ScoutRules.Default).LoadedSpeed));
-        if (_occupant[map.Index(target)] == NoOccupant)
-            _occupant[map.Index(target)] = settler.Id;
+        if (settler.Profession == Profession.WarMachine && WarMachines.KindOf(settler) is { Speed: > 0 and not 1 } machine)
+            settler.StepSpeed = Math.Max(1, (int)Math.Round(settler.StepSpeed * machine.Speed));
+        Claim(settler, target);
     }
 
     /// <summary>Head-on: both start their step at once and hand over their fields.</summary>
@@ -437,7 +476,13 @@ public sealed partial class World
 
         if (settler.WaitingTicks == ReplanAfterTicks && Tick - settler.LastDetourTick > DetourCooldownTicks)
         {
-            Replan(settler, avoid: new HashSet<int> { Map!.Index(blocked) });
+            var avoid = new HashSet<int> { Map!.Index(blocked) };
+            // Around a war machine: around all of it.
+            if (OccupantAt(blocked) is { IsWide: true } machine)
+                foreach (var p in machine.Body(machine.Position).Concat(machine.Body(machine.StepTarget)))
+                    if (Map.Contains(p))
+                        avoid.Add(Map.Index(p));
+            Replan(settler, avoid);
         }
         else if (settler.WaitingTicks >= PassThroughAfterTicks)
         {
@@ -454,7 +499,7 @@ public sealed partial class World
             return;
         }
 
-        var path = PathFinder!.FindRoute(settler.Position, destination, out bool leg, avoid, LandOf(settler));
+        var path = PathFinder!.FindRoute(settler.Position, destination, out bool leg, avoid, LandOf(settler), settler.IsWide);
         if (path is null)
         {
             // No way around: keep waiting (the watchdog will push through) unless the
@@ -503,7 +548,8 @@ public sealed partial class World
             WalkTo(settler, target);
     }
 
-    private GridPoint? NearestFree(GridPoint near, int radius)
+    /// <summary>The nearest walkable point nobody stands on; <paramref name="wide"/>: with room for a war machine, all seven fields free.</summary>
+    private GridPoint? NearestFree(GridPoint near, int radius, bool wide = false)
     {
         var map = RequireMap();
         for (int r = 0; r <= radius; r++)
@@ -511,10 +557,29 @@ public sealed partial class World
         for (int dx = -r; dx <= r; dx++)
         {
             var p = new GridPoint(near.X + dx, near.Y + dy);
-            if (PathFinder.Distance(near, p) == r && map.IsWalkable(p) && _occupant[map.Index(p)] == NoOccupant)
+            if (PathFinder.Distance(near, p) == r && map.IsWalkable(p) && _occupant[map.Index(p)] == NoOccupant
+                && (!wide || PathFinder!.IsClear(p) && Enumerable.Range(0, DirectionExtensions.Count).All(d => _occupant[map.Index(p.Neighbor((Direction)d))] == NoOccupant)))
                 return p;
         }
         return null;
+    }
+
+    /// <summary>The settler takes the fields it covers at <paramref name="center"/> that nobody else holds.</summary>
+    private void Claim(Settler settler, GridPoint center)
+    {
+        var map = Map!;
+        foreach (var p in settler.Body(center))
+            if (map.Contains(p) && _occupant[map.Index(p)] == NoOccupant)
+                _occupant[map.Index(p)] = settler.Id;
+    }
+
+    /// <summary>The settler frees the fields it holds of those it covers at <paramref name="center"/>.</summary>
+    private void Release(Settler settler, GridPoint center)
+    {
+        var map = Map!;
+        foreach (var p in settler.Body(center))
+            if (map.Contains(p) && _occupant[map.Index(p)] == settler.Id)
+                _occupant[map.Index(p)] = NoOccupant;
     }
 
     /// <summary>
@@ -529,9 +594,8 @@ public sealed partial class World
         {
             if (settler.IsInside || !blocked.Contains(settler.Position) && !blocked.Contains(settler.StepTarget))
                 continue;
-            foreach (var p in new[] { settler.Position, settler.StepTarget })
-                if (_occupant[map.Index(p)] == settler.Id)
-                    _occupant[map.Index(p)] = NoOccupant;
+            Release(settler, settler.Position);
+            Release(settler, settler.StepTarget);
             if (NearestFree(settler.Position, radius: 12) is not { } free)
                 continue;
             var destination = settler.Destination;
@@ -540,7 +604,7 @@ public sealed partial class World
             settler.Path.Clear();
             settler.Destination = null;
             settler.Position = free;
-            _occupant[map.Index(free)] = settler.Id;
+            Claim(settler, free);
             if (destination is { } d && d != free)
                 WalkTo(settler, d);
         }
@@ -552,16 +616,15 @@ public sealed partial class World
         var map = RequireMap();
         if (settler.IsInside || !map.IsWalkable(to) || _occupant[map.Index(to)] != NoOccupant)
             return false;
-        foreach (var p in new[] { settler.Position, settler.StepTarget })
-            if (_occupant[map.Index(p)] == settler.Id)
-                _occupant[map.Index(p)] = NoOccupant;
+        Release(settler, settler.Position);
+        Release(settler, settler.StepTarget);
         settler.State = SettlerState.Idle;
         settler.StepProgress = 0;
         settler.Path.Clear();
         settler.Destination = null;
         settler.IsStrolling = false;
         settler.Position = to;
-        _occupant[map.Index(to)] = settler.Id;
+        Claim(settler, to);
         return true;
     }
 
@@ -612,10 +675,9 @@ public sealed partial class World
     {
         if (settler.IsDead)
             return;
-        var map = RequireMap();
-        foreach (var p in new[] { settler.Position, settler.StepTarget })
-            if (map.Contains(p) && _occupant[map.Index(p)] == settler.Id)
-                _occupant[map.Index(p)] = NoOccupant;
+        RequireMap();
+        Release(settler, settler.Position);
+        Release(settler, settler.StepTarget);
         // A thief drops what he stole where he falls.
         if (settler is { Profession: Profession.Scout, Carrying: { } stolen })
         {

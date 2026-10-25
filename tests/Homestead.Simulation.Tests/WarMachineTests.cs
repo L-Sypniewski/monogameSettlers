@@ -242,4 +242,84 @@ public class WarMachineTests
         Assert.Equal(tower.Exists, loadedTower.Exists);
         Assert.Equal(machine.Ammo, loadedMachine.Ammo);
     }
+
+    /// <summary>A map with a wall of water at x = 50, open at y = 50 and the <paramref name="gap"/> - 1 fields below.</summary>
+    private static World WithWall(int gap)
+    {
+        var map = new GameMap(100);
+        for (int y = 0; y < 100; y++)
+            if (y < 50 || y >= 50 + gap)
+                map.SetTerrain(new GridPoint(50, y), TerrainType.Water);
+        map.RefreshWalkable();
+        return new World(map, TestConfig.NoTools);
+    }
+
+    [Fact]
+    public void A_machine_covers_its_field_and_the_six_around_it_where_it_stands_and_drives()
+    {
+        var world = new World(new GameMap(100), TestConfig.NoTools);
+        var machine = world.WarMachines.Spawn(new GridPoint(30, 30), 0, Civilization.Roman)!;
+        var body = machine.Body(machine.Position).ToList();
+        Assert.Equal(7, body.Distinct().Count());
+        Assert.All(body, p => Assert.True(world.IsOccupied(p), $"{p} free"));
+
+        world.WarMachines.Move([machine], new GridPoint(45, 30));
+        Run(world, 2_000, () => machine.Position == new GridPoint(45, 30) && machine.State != SettlerState.Stepping);
+        Assert.Equal(new GridPoint(45, 30), machine.Position);
+        Assert.All(machine.Body(machine.Position), p => Assert.True(world.IsOccupied(p), $"{p} free"));
+        // Nothing left behind on the way.
+        int occupied = Enumerable.Range(0, world.Map!.PointCount).Count(i => world.IsOccupied(world.Map.Point(i)));
+        Assert.Equal(7, occupied);
+    }
+
+    [Fact]
+    public void A_machine_does_not_fit_through_a_gap_a_carrier_walks_through()
+    {
+        var narrow = WithWall(gap: 2);
+        var machine = narrow.WarMachines.Spawn(new GridPoint(40, 50), 0, Civilization.Roman)!;
+        var carrier = narrow.Spawn(new GridPoint(40, 60))!;
+        narrow.WarMachines.Move([machine], new GridPoint(60, 50));
+        Assert.True(narrow.WalkTo(carrier, new GridPoint(60, 60)));
+        Run(narrow, 3_000);
+        Assert.Equal(new GridPoint(60, 60), carrier.Position);
+        // As near as it gets: before the wall.
+        Assert.True(machine.Position.X < 50, $"{machine.Position}");
+        Assert.True(machine.Position.X >= 47, $"{machine.Position}");
+
+        var wide = WithWall(gap: 3);
+        machine = wide.WarMachines.Spawn(new GridPoint(40, 50), 0, Civilization.Roman)!;
+        wide.WarMachines.Move([machine], new GridPoint(60, 50));
+        Run(wide, 3_000, () => machine.Position == new GridPoint(60, 50));
+        Assert.Equal(new GridPoint(60, 50), machine.Position);
+    }
+
+    [Fact]
+    public void Idle_settlers_make_way_for_a_machine_and_walkers_go_around_it()
+    {
+        var world = new World(new GameMap(100), TestConfig.NoTools);
+        var machine = world.WarMachines.Spawn(new GridPoint(30, 30), 0, Civilization.Roman)!;
+        // Idle carriers on and beside its way.
+        for (int x = 34; x <= 40; x += 2)
+        {
+            world.Spawn(new GridPoint(x, 30));
+            world.Spawn(new GridPoint(x, 31));
+        }
+        world.WarMachines.Move([machine], new GridPoint(45, 30));
+        Run(world, 2_000, () => machine.Position == new GridPoint(45, 30));
+        Assert.Equal(new GridPoint(45, 30), machine.Position);
+        Assert.Equal(0, world.PassThroughs);
+
+        // Across a standing machine: around it, not through.
+        var walker = world.Spawn(new GridPoint(41, 30))!;
+        Assert.True(world.WalkTo(walker, new GridPoint(49, 30)));
+        var body = machine.Body(machine.Position).ToHashSet();
+        bool crossed = false;
+        Run(world, 1_000, () =>
+        {
+            crossed |= body.Contains(walker.Position);
+            return walker.Position == new GridPoint(49, 30);
+        });
+        Assert.Equal(new GridPoint(49, 30), walker.Position);
+        Assert.False(crossed);
+    }
 }

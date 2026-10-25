@@ -200,6 +200,21 @@ public sealed class Settler
     /// <summary>Carriers take transport jobs from the logistics system.</summary>
     public bool IsCarrier => Profession == Profession.Carrier;
 
+    /// <summary>
+    /// Takes its field and the six around it (war machines): it occupies all seven, drives only where all are walkable
+    /// and is within a step's reach from beside them.
+    /// </summary>
+    public bool IsWide => Profession == Profession.WarMachine;
+
+    /// <summary>The fields the settler covers standing at <paramref name="center"/>: the center, for a wide one the six around too.</summary>
+    public IEnumerable<GridPoint> Body(GridPoint center)
+    {
+        yield return center;
+        if (IsWide)
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+                yield return center.Neighbor((Direction)d);
+    }
+
     /// <summary>Animation hint while <see cref="IsWorking"/>.</summary>
     public Activity Activity { get; internal set; }
 

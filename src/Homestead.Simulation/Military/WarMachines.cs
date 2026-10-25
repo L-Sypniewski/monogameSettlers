@@ -321,14 +321,18 @@ public sealed class WarMachines : IAssembly
     private List<Settler> Commandable(IEnumerable<Settler> machines) =>
         machines.Where(m => m.Profession == Profession.WarMachine && !m.IsDead).Distinct().ToList();
 
-    /// <summary>Walkable points nearest to <paramref name="center"/>, one per machine.</summary>
+    /// <summary>
+    /// Points with room for a machine nearest to <paramref name="center"/>, one per machine, three fields apart so that they
+    /// do not cover each other.
+    /// </summary>
     private List<GridPoint> FreeSpotsAround(GridPoint center, int count)
     {
-        var map = _world.Map!;
+        var pathFinder = _world.PathFinder!;
         var spots = new List<GridPoint>();
-        for (int r = 0; r <= 12 && spots.Count < count; r++)
+        for (int r = 0; r <= 16 && spots.Count < count; r++)
             foreach (var p in PathFinder.Circle(center, r))
-                if (spots.Count < count && PathFinder.Distance(center, p) == r && map.Contains(p) && map.IsWalkable(p) && _world.OccupantAt(p) is null)
+                if (spots.Count < count && PathFinder.Distance(center, p) == r && pathFinder.IsClear(p)
+                    && _world.OccupantAt(p) is not { Profession: not Profession.WarMachine } && spots.All(s => PathFinder.Distance(s, p) >= 3))
                     spots.Add(p);
         return spots;
     }

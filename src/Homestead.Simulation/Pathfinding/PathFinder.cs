@@ -34,6 +34,9 @@ public sealed class PathFinder
     /// <summary>Cells of the coarse route one leg goes ahead.</summary>
     private const int LegNodes = 4;
 
+    /// <summary>A search for a wide unit (see <see cref="FindRoute"/>) expands at most this many points.</summary>
+    public const int WideSearchLimit = 40000;
+
     public PathFinder(GameMap map)
     {
         _map = map;
@@ -116,14 +119,19 @@ public sealed class PathFinder
     /// Like <see cref="FindPath"/>, but a target further than <see cref="ExactDistance"/> (off the own land) is
     /// reached leg by leg: a coarse route over the map's cells, the exact path only a few cells ahead along it
     /// (<paramref name="partial"/>; the walker plans the next leg at its end). Near the target the path is exact.
+    /// A <paramref name="wide"/> unit (a war machine, <see cref="Settler.IsWide"/>) only goes where a point and all six
+    /// around it are walkable, searched exactly; where it cannot get through, without <paramref name="avoid"/> it goes as
+    /// near to the target as it can (an empty path when it is there already). As in the original, it then gets stuck.
     /// </summary>
     public IReadOnlyList<Direction>? FindRoute(GridPoint start, GridPoint target, out bool partial,
-        IReadOnlySet<int>? avoid = null, int? ownLandOf = null)
+        IReadOnlySet<int>? avoid = null, int? ownLandOf = null, bool wide = false)
     {
         partial = false;
         LastExpandedNodes = 0;
         if (!Searchable(start, target, avoid, ownLandOf, out var trivial))
             return trivial;
+        if (wide)
+            return Search(start, target, goalNode: -1, avoid, ownLandOf, wide: true);
         if (ownLandOf is not null || Distance(start, target) <= ExactDistance)
             return Search(start, target, goalNode: -1, avoid, ownLandOf);
         // A start that is not walkable itself (a doorway): the route from a walkable neighbour.
@@ -165,9 +173,9 @@ public sealed class PathFinder
 
     /// <summary>
     /// A* to the target, or with <paramref name="goalNode"/> to the first point of that coarse node
-    /// (<see cref="Clusters"/>), heading for its middle.
+    /// (<see cref="Clusters"/>), heading for its middle. <paramref name="wide"/>: see <see cref="FindRoute"/>.
     /// </summary>
-    private Direction[]? Search(GridPoint start, GridPoint target, int goalNode, IReadOnlySet<int>? avoid, int? ownLandOf)
+    private Direction[]? Search(GridPoint start, GridPoint target, int goalNode, IReadOnlySet<int>? avoid, int? ownLandOf, bool wide = false)
     {
         byte landOf = ownLandOf is { } player ? (byte)player : GameMap.NoOwner;
         if (goalNode >= 0)
@@ -187,6 +195,7 @@ public sealed class PathFinder
         _steps[startIndex] = 0;
         _seenStamp[startIndex] = _stamp;
         _open.Enqueue(startIndex, Priority(0, Distance(start, target) * _minCost));
+        int closest = startIndex, closestDistance = Distance(start, target);
 
         while (_open.TryDequeue(out int current, out _))
         {
@@ -197,6 +206,13 @@ public sealed class PathFinder
 
             if (current == targetIndex || goalNode >= 0 && _clusters.NodeOf(current) == goalNode)
                 return BuildPath(startIndex, current);
+            if (wide)
+            {
+                if (Distance(_map.Point(current), target) is var distance && distance < closestDistance)
+                    (closest, closestDistance) = (current, distance);
+                if (LastExpandedNodes >= WideSearchLimit)
+                    break;
+            }
 
             int x = current % size, y = current / size;
             for (int d = 0; d < DirectionExtensions.Count; d++)
@@ -207,7 +223,7 @@ public sealed class PathFinder
                     continue;
                 int next = ny * size + nx;
                 if (!_map.IsWalkable(next) || _closedStamp[next] == _stamp || avoid?.Contains(next) == true
-                    || ownLandOf is not null && _map.OwnerAt(next) != landOf)
+                    || ownLandOf is not null && _map.OwnerAt(next) != landOf || wide && !IsClear(nx, ny, avoid))
                     continue;
                 int nextCost = _cost[current] + StepCost(next);
                 if (_seenStamp[next] == _stamp && _cost[next] <= nextCost)
@@ -220,8 +236,25 @@ public sealed class PathFinder
                 _open.Enqueue(next, Priority(nextCost, Distance(new GridPoint(nx, ny), target) * _minCost));
             }
         }
-        return null;
+        return wide && avoid is null ? BuildPath(startIndex, closest) : null;
     }
+
+    /// <summary>Whether a wide unit fits on the point: all six around it walkable (and not to be avoided) as well.</summary>
+    private bool IsClear(int x, int y, IReadOnlySet<int>? avoid)
+    {
+        int size = _map.Size;
+        for (int d = 0; d < DirectionExtensions.Count; d++)
+        {
+            var delta = ((Direction)d).Delta();
+            int nx = x + delta.X, ny = y + delta.Y;
+            if ((uint)nx >= (uint)size || (uint)ny >= (uint)size || !_map.IsWalkable(ny * size + nx) || avoid?.Contains(ny * size + nx) == true)
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>Whether a wide unit (<see cref="Settler.IsWide"/>) fits on the point.</summary>
+    public bool IsClear(GridPoint p) => _map.Contains(p) && _map.IsWalkable(p) && IsClear(p.X, p.Y, null);
 
     /// <summary>Lower f first; on ties prefer nodes further along (higher cost), which keeps the search narrow.</summary>
     private static long Priority(int cost, int heuristic) => ((long)(cost + heuristic) << 32) - cost;

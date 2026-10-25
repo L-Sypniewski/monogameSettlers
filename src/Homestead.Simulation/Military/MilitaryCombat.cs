@@ -246,9 +246,13 @@ public sealed partial class Military
 
     private static bool IsBowman(Settler soldier) => soldier.SoldierType == SoldierType.Bowman;
 
+    /// <summary>Steps from the point to the enemy's nearest field: beside a war machine's ring is within a sword's reach.</summary>
+    private static int DistanceTo(GridPoint from, Settler enemy) =>
+        Math.Max(0, PathFinder.Distance(from, enemy.Position) - (enemy.IsWide ? 1 : 0));
+
     private Settler? NearestEnemy(GridPoint from, int player, int range, int minRange = 0, bool bowman = false) =>
-        EnemiesOf(player, bowman).Where(e => PathFinder.Distance(from, e.Position) is var d && d <= range && d >= minRange)
-            .MinBy(e => PathFinder.Distance(from, e.Position));
+        EnemiesOf(player, bowman).Where(e => DistanceTo(from, e) is var d && d <= range && d >= minRange)
+            .MinBy(e => DistanceTo(from, e));
 
     /// <summary>Ticks to the next strike; hasted by a spell, faster.</summary>
     private int HitInterval(Settler soldier, SoldierStats stats) =>
@@ -291,7 +295,7 @@ public sealed partial class Military
             var enemy = NearestEnemy(soldier.Position, soldier.Player, _config.Sight(soldier.SoldierType!.Value), bowman: IsBowman(soldier));
             var building = NearestEnemyBuilding(soldier);
             if (building is not null && (enemy is null
-                    || PathFinder.Distance(soldier.Position, building.Door) < PathFinder.Distance(soldier.Position, enemy.Position)))
+                    || PathFinder.Distance(soldier.Position, building.Door) < DistanceTo(soldier.Position, enemy)))
                 _fighters[soldier.Id] = new Fighter(soldier) { Target = building, AutoTarget = true };
             else if (enemy is not null)
                 _fighters[soldier.Id] = new Fighter(soldier);
@@ -342,7 +346,7 @@ public sealed partial class Military
     private void PreferNearer(Fighter f, SoldierStats stats)
     {
         var soldier = f.Soldier;
-        int enemyDistance = f.Enemy is { } enemy ? PathFinder.Distance(soldier.Position, enemy.Position) : int.MaxValue;
+        int enemyDistance = f.Enemy is { } enemy ? DistanceTo(soldier.Position, enemy) : int.MaxValue;
         if (stats.InReach(enemyDistance))
             return;
         if (f.Target is null && _world.Tick % EngageInterval == 0 && NearestEnemyBuilding(soldier) is { } building)
@@ -414,7 +418,7 @@ public sealed partial class Military
     {
         var center = FightPointOf(g);
         int radius = _config.DoorCalmRadius;
-        return EnemiesOf(g.Building.Player).Any(e => PathFinder.Distance(center, e.Position) <= radius);
+        return EnemiesOf(g.Building.Player).Any(e => DistanceTo(center, e) <= radius);
     }
 
     /// <summary>The soldier of the place comes out of the broken door to stand in front of it.</summary>
@@ -557,7 +561,7 @@ public sealed partial class Military
 
         if (f.Enemy is { } enemy)
         {
-            int distance = PathFinder.Distance(soldier.Position, enemy.Position);
+            int distance = DistanceTo(soldier.Position, enemy);
             if (stats.InReach(distance))
             {
                 // Stop after the current step. Walkers are mid-step whenever this runs (movement comes
@@ -804,7 +808,7 @@ public sealed partial class Military
     {
         var soldier = f.Soldier;
         if (f.Enemy is { } current && !current.IsDead && !current.IsInside && current.Player != soldier.Player
-            && stats.InReach(PathFinder.Distance(soldier.Position, current.Position)))
+            && stats.InReach(DistanceTo(soldier.Position, current)))
             return;
         f.Enemy = null;
         if (_world.Tick >= f.NextRetarget)
@@ -825,15 +829,15 @@ public sealed partial class Military
         var soldier = f.Soldier;
         // Gone, inside, or won over by a spell: look for another one.
         if (f.Enemy is { } current && (current.IsDead || current.IsInside || current.Player == soldier.Player
-                                       || current.Profession == Profession.Donkey && !IsLoadedDonkey(current) || PathFinder.Distance(soldier.Position, current.Position) > _config.Sight(soldier.SoldierType!.Value) + 4))
+                                       || current.Profession == Profession.Donkey && !IsLoadedDonkey(current) || DistanceTo(soldier.Position, current) > _config.Sight(soldier.SoldierType!.Value) + 4))
             f.Enemy = null;
 
-        int currentDistance = f.Enemy is { } e ? PathFinder.Distance(soldier.Position, e.Position) : int.MaxValue;
+        int currentDistance = f.Enemy is { } e ? DistanceTo(soldier.Position, e) : int.MaxValue;
         if (stats.InReach(currentDistance))
             return;
         bool recheck = f.Enemy is null || _world.Tick >= f.NextRetarget;
         var candidates = EnemiesOf(soldier.Player, IsBowman(soldier))
-            .Select(x => (Enemy: x, Distance: PathFinder.Distance(soldier.Position, x.Position)))
+            .Select(x => (Enemy: x, Distance: DistanceTo(soldier.Position, x)))
             .Where(x => x.Distance <= (recheck ? _config.Sight(soldier.SoldierType!.Value) : stats.Range)
                         && !(f.Unreachable.TryGetValue(x.Enemy.Id, out long until) && until > _world.Tick))
             .ToList();
@@ -861,17 +865,17 @@ public sealed partial class Military
     {
         var soldier = f.Soldier;
         var start = soldier.StepTarget;
-        if (PathFinder.Distance(start, enemy.Position) > _config.CombatPathRadius)
+        if (DistanceTo(start, enemy) > _config.CombatPathRadius)
             return _world.WalkTo(soldier, enemy.Position); // still far: the plain way, the crowd is handled on arrival
 
         var map = _world.Map!;
         var enemies = EnemiesOf(soldier.Player, IsBowman(soldier))
-            .Where(e => PathFinder.Distance(start, e.Position) <= _config.CombatPathRadius + stats.Range)
+            .Where(e => DistanceTo(start, e) <= _config.CombatPathRadius + stats.Range)
             .ToList();
         // The combatants are those of the tick's start: a defender sent out since is not among them yet.
         if (!enemies.Contains(enemy))
             enemies.Add(enemy);
-        int Reach(GridPoint p) => enemies.Min(e => stats.OffReach(PathFinder.Distance(p, e.Position)));
+        int Reach(GridPoint p) => enemies.Min(e => stats.OffReach(DistanceTo(p, e)));
 
         var cameFrom = new Dictionary<GridPoint, (GridPoint From, Direction Step)> { [start] = (start, default) };
         var queue = new Queue<GridPoint>();
@@ -889,7 +893,7 @@ public sealed partial class Military
                     || !map.Contains(next) || !map.IsWalkable(next) || _world.OccupantAt(next) is { State: not SettlerState.Stepping } other && other != soldier)
                     continue;
                 cameFrom[next] = (current, (Direction)d);
-                if (stats.InReach(PathFinder.Distance(next, enemy.Position)))
+                if (stats.InReach(DistanceTo(next, enemy)))
                 {
                     goal = next;
                     break;
@@ -914,7 +918,7 @@ public sealed partial class Military
                 return _world.PathFinder!.AreConnected(start, enemy.Position);
             }
             goal = closest;
-            f.Enemy = enemies.MinBy(e => stats.OffReach(PathFinder.Distance(closest, e.Position)));
+            f.Enemy = enemies.MinBy(e => stats.OffReach(DistanceTo(closest, e)));
         }
 
         var steps = new List<Direction>();

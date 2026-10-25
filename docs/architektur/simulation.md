@@ -141,7 +141,9 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
     `Order` reiht Maschine oder Ladung Munition ein (Gong ohne; `Cancel` nimmt die letzte nicht begonnene zurück), Logistik liefert nur, was
     der aktuelle Auftrag braucht (`Wants`), der Werftarbeiter hämmert Einheit für Einheit vor der Tür (`IAssembly`, gemeinsam mit der Werft,
     `Shipbuilding.cs`); Ladungen liegen an der Werkstatt (`Loads`). Maschine = `Profession.WarMachine` (Volk in `People`, `Ammo`), zählt nicht
-    als Bevölkerung, fährt wie Soldaten (`Move`, `speed`), feuert nur auf fertige feindliche Militärgebäude (`Attack`; stehende auf alles in
+    als Bevölkerung, fährt wie Soldaten (`Move`, Tempo `speed`), belegt ihr Feld und die 6 Nachbarn (`Settler.IsWide`/`Body`: Wegsuche nur über Punkte mit
+    6 begehbaren Nachbarn (`PathFinder.IsClear`, exakt, höchstens `WideSearchLimit` Knoten; kommt sie nicht durch, fährt sie so nah wie möglich – im Original
+    auch), schiebt Untätige beiseite, niemand tauscht mit ihr, Wartende planen um alle 7 Felder herum, Nahkampf reicht bis an den Rand), feuert nur auf fertige feindliche Militärgebäude (`Attack`; stehende auf alles in
     `range`) alle `cooldownSeconds` (5) mit `hitChance` (Katapult 50 %, Balliste 75 %, Kanone 90 %, Gong 50 % – vom Nutzer), Geschoss
     `MachineShot` (Gong sofort), Einschläge kurz in `Impacts`; jeder Treffer zählt gegen `buildingHits` (`DamageOf`), der letzte reißt es ab
     (Besatzung kommt lebend heraus, Event `buildingDestroyed`); ein Treffer heilt je `repairSeconds` (60) nach dem letzten. `shots` (6) je Ladung; `Reload`: zur nächsten eigenen Werkstatt mit Ladung. Nahkämpfer zerstören Maschinen
