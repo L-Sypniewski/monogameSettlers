@@ -162,7 +162,8 @@ public sealed record MilitaryConfig
                 : ScoutRules.Default,
             Pioneers = root.TryGetProperty("pioneers", out var pioneers)
                 ? new PioneerRules(pioneers.GetProperty("health").GetSingle(), pioneers.GetProperty("searchRadius").GetInt32(),
-                    (int)Math.Round(pioneers.GetProperty("claimSeconds").GetDouble() * World.TicksPerSecond))
+                    (int)Math.Round(pioneers.GetProperty("claimSeconds").GetDouble() * World.TicksPerSecond),
+                    pioneers.TryGetProperty("waterReach", out var waterReach) ? waterReach.GetInt32() : PioneerRules.Default.WaterReach)
                 : PioneerRules.Default,
             HospitalCallRadius = root.TryGetProperty("hospital", out var hospital) ? hospital.GetProperty("callRadius").GetInt32() : 20,
             HealTicks = (int)Math.Round((hospital.ValueKind == JsonValueKind.Object ? hospital.GetProperty("healSeconds").GetDouble() : 2) * World.TicksPerSecond),
@@ -269,10 +270,11 @@ public sealed record ScoutRules(float Health, int RevealRadius, int Sight, int S
 /// <summary>
 /// Pioneers: <paramref name="Health"/> when soldiers fight them (they do not strike back); taking land, the
 /// next field is the nearest one within <paramref name="SearchRadius"/>; each takes <paramref name="ClaimTicks"/>.
+/// A shore field takes the free water off it up to <paramref name="WaterReach"/> fields out (0 in games saved before: the default).
 /// </summary>
-public sealed record PioneerRules(float Health, int SearchRadius, int ClaimTicks)
+public sealed record PioneerRules(float Health, int SearchRadius, int ClaimTicks, int WaterReach)
 {
-    public static readonly PioneerRules Default = new(40, 10, 2 * World.TicksPerSecond);
+    public static readonly PioneerRules Default = new(40, 10, 2 * World.TicksPerSecond, 6);
 }
 
 /// <summary>

@@ -475,6 +475,8 @@
       "effectsHint": "Lautstärke der Geräusche, etwa im Kampf.",
       "autoSave": "Automatisch speichern",
       "autoSaveHint": "Ja: alle 15 Minuten und beim Beenden in Slot 8 (überschreibt ihn).",
+      "introVideo": "Intro-Video",
+      "introVideoHint": "Ja: das Intro des Originals bei jedem Start (Klick, Esc, Leertaste oder Enter überspringt es).",
       "preferredColor": "Bevorzugte Farbe",
       "preferredColorHint": "Deine Farbe als Spieler 1 auf dem Startscreen, solange du keine andere wählst."
     }

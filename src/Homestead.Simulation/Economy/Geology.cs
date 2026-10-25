@@ -78,12 +78,19 @@ public sealed class Geology
     /// Turns up to <paramref name="count"/> carriers of the player into geologists or scouts (Siedler › Berufe):
     /// idle ones first, then busy ones after their delivery, as far as the carrier reserve allows (those added to <paramref name="chosen"/>).
     /// </summary>
-    public (int Now, int Later) ConvertCarriers(int player, int count, Profession profession = Profession.Geologist, ICollection<Settler>? chosen = null) =>
-        Convert(_world.Settlers
-            .Where(s => s.Player == player && s.IsCarrier && !s.IsDead && !s.ConversionPending && !_world.Recruitment.Active.Any(r => r.Settler == s))
-            .OrderBy(s => s.IsAvailableCarrier ? 0 : 1)
-            .ThenBy(s => s.Id)
-            .Take(count), profession, chosen);
+    /// <param name="among">
+    /// Only these carriers, in this order (the player's: those on the screen, nearest to its middle first); else any, idle ones first.
+    /// </param>
+    public (int Now, int Later) ConvertCarriers(int player, int count, Profession profession = Profession.Geologist, ICollection<Settler>? chosen = null,
+        IReadOnlyList<Settler>? among = null)
+    {
+        bool Candidate(Settler s) =>
+            s.Player == player && s.IsCarrier && !s.IsDead && !s.ConversionPending && !_world.Recruitment.Active.Any(r => r.Settler == s);
+        var carriers = among is not null
+            ? among.Where(Candidate)
+            : _world.Settlers.Where(Candidate).OrderBy(s => s.IsAvailableCarrier ? 0 : 1).ThenBy(s => s.Id);
+        return Convert(carriers.Take(count), profession, chosen);
+    }
 
     private void Make(Settler settler, Profession profession)
     {

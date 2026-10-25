@@ -1,3 +1,4 @@
+using Homestead.Simulation.Map;
 using Homestead.Simulation.Military;
 using Homestead.Simulation.Pathfinding;
 
@@ -161,10 +162,53 @@ public sealed class Pioneering
                 taken.Add(n);
             }
         }
+        TakeWater(taken, player);
         var seen = new HashSet<GridPoint>();
         foreach (var p in taken)
             for (int d = 0; d < DirectionExtensions.Count; d++)
                 TakeEnclosed(p.Neighbor((Direction)d), player, seen);
+    }
+
+    /// <summary>
+    /// The water off the taken shore fields becomes the player's up to <see cref="PioneerRules.WaterReach"/> fields out
+    /// (as far as he may take it), so no border posts stay at the shore and a dock or fisher finds own water.
+    /// Adds the fields to <paramref name="taken"/>.
+    /// </summary>
+    private void TakeWater(List<GridPoint> taken, int player)
+    {
+        var map = _world.Map!;
+        int reach = Rules.WaterReach > 0 ? Rules.WaterReach : PioneerRules.Default.WaterReach;
+        var distance = new Dictionary<GridPoint, int>();
+        var queue = new Queue<GridPoint>();
+        // From the water at the taken fields, his already or now.
+        foreach (var field in taken.ToList())
+            for (int d = -1; d < DirectionExtensions.Count; d++)
+            {
+                var p = d < 0 ? field : field.Neighbor((Direction)d);
+                if (map.Contains(p) && map.TerrainAt(p) == TerrainType.Water && map.OwnerAt(p) == player && distance.TryAdd(p, 1))
+                    queue.Enqueue(p);
+            }
+        while (queue.TryDequeue(out var p))
+        {
+            if (distance[p] >= reach)
+                continue;
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+            {
+                var n = p.Neighbor((Direction)d);
+                if (distance.ContainsKey(n) || !map.Contains(n) || map.TerrainAt(n) != TerrainType.Water)
+                    continue;
+                // On across his own water (taken from the shore nearby before), not across others'.
+                if (IsClaimable(n, player))
+                {
+                    _world.Military.TakeLand(n, player);
+                    taken.Add(n);
+                }
+                else if (map.OwnerAt(n) != player)
+                    continue;
+                distance[n] = distance[p] + 1;
+                queue.Enqueue(n);
+            }
+        }
     }
 
     /// <summary>

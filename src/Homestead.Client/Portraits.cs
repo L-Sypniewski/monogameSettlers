@@ -51,8 +51,11 @@ public sealed class Portraits : IDisposable
             Load($"{SoldierTypes[t]}_L{level}", first + 9 * (level - 1) + 3 * t);
     }
 
-    /// <summary>The size of a portrait (all the same).</summary>
+    /// <summary>The size of a portrait (all the same but the war machine's).</summary>
     public static readonly Point Size = new(40, 60);
+
+    /// <summary>The size of the type's portrait image (<see cref="Size"/> for those drawn in the empty frame).</summary>
+    public Point SizeOf(string type) => _images.TryGetValue(type, out var image) ? new Point(image.Width, image.Height) : Size;
 
     /// <summary>
     /// The type's portrait centered in the box (<paramref name="scale"/> times its size), or its standing figure

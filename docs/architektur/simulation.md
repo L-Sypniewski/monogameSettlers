@@ -85,7 +85,8 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
     lässt sie still auf eigenem Land fallen oder wo er stirbt.
   - `Pioneering`: Pioniere (umgewandelt/geschickt wie Späher; `Claim`, Alt+Rechtsklick `ClaimAt`) nehmen Feld für Feld: nächstes freies oder
     fremdes, nicht geschütztes Feld (`Military.IsProtected`) im Umkreis `pioneers.searchRadius` (10), Gleichstand nächst dem Zielpunkt;
-    `claimSeconds` (2) Pfosten, dann gehört ihm das Feld samt unbegehbaren Nachbarn (`Military.TakeLand`, ungeschützte fremde Gebäude fallen).
+    `claimSeconds` (2) Pfosten, dann gehört ihm das Feld samt unbegehbaren Nachbarn (`Military.TakeLand`, ungeschützte fremde Gebäude fallen);
+    am Ufer auch das freie Wasser davor bis `pioneers.waterReach` (6) Felder hinaus (über eigenes Wasser hinweg) – Platz für Steg und Fischer; Grenzpfosten zeichnet der Client nie auf Wasser (Ufer = Grenze).
     Im geschützten Feindland Richtung freies Land, sonst Ende. Vollständig umschlossenes freies Land (nicht Kartenrand/fremdes Land) wird
     auf einmal genommen (bis 4096 Felder). Land ungeschützt.
   - `Trade`: Landhandel. Eselzucht (`trade` in `production.json`: Getreide + Wasser → ein Esel, `Profession.Donkey`, keine Ware) züchtet,

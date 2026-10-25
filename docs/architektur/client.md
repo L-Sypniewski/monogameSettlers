@@ -49,7 +49,7 @@ MonoGame-Spiel. Capture-Optionen: [capture.md](capture.md).
   Wirtschaft (noch leer), Militär, Darstellung; je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch
   100/75/50/25/10 %/∞; Militär: Zauberkosten-Anstieg konstant/+10/+25/+50 % → `MagicConfig.CostIncrease`; Darstellung: Hardware-Cursor, Vollbild, Sprache Deutsch/English,
   Thema Normal/Gold/Classic/Amazonen (Titelbild und Ladebildschirm; `titleScreen.themes` in `ui.json` mit Gravurfarben, Normal = Gold; `HOMESTEAD_THEME` überstimmt), Musik/Effekte 100/75/50/25 %/aus, Musik je Volk, Bevorzugte Farbe (`DisplaySettings.PreferredColor`, Farbfelder, als Kennung gespeichert), Automatisch speichern
-(Ja/Nein, Vorgabe Nein: alle 15 min Echtzeit im Spiel und bei „Spiel beenden“ in Slot 8, nicht nach Verlust, nicht in Captures) – Musik ohne Wahl nach Systemsprache; `Lang.Use` setzt auch die Kultur;
+(Ja/Nein, Vorgabe Nein: alle 15 min Echtzeit im Spiel und bei „Spiel beenden“ in Slot 8, nicht nach Verlust, nicht in Captures), Intro-Video (Ja/Nein, Vorgabe Ja: `MapGame.IntroVideo` = `S3/ADD/001/01_00_00.DAT` bei jedem Start vor dem Titelbildschirm, Ende/Klick → Titel) – Musik ohne Wahl nach Systemsprache; `Lang.Use` setzt auch die Kultur;
 Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGUAGE=de|en` überstimmt, z. B. für Captures).
   Ok/Enter speichert `GameSettings` (Abschnitt `game`) und `DisplaySettings` (Client, Abschnitt `display`, sofort angewandt) in
   `~/.config/homestead/settings.json` (`SettingsFile`: je Abschnitt, Rest der Datei bleibt); Abbrechen/Esc verwirft, Standard setzt den offenen
@@ -94,7 +94,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
     - Siedler › Berufe (`ProfessionsMenu`): Anteile ±5 % (Träger mindestens, Planierer/Bauarbeiter höchstens; `Recruitment.ShareOf`/`SetShare`,
       Vorgaben `keptCarriers`/`maxDiggers`/`maxBuilders` 30/25/25 %); Spezialberufe Geologen, Pioniere, Späher, Pioniere→Träger (Träger-Porträt)
       mit Such-Buttons (alle auf Karte, alle im Bild, nächster reihum mit Kameraflug) und 5/1 umwandeln
-      (`Geology.ConvertCarriers`, `Geology.PioneersToCarriers`); Umgewandelte sind sofort gewählt (das Menü bleibt offen, `_menuOverSelection`), noch Liefernde kommen nach der Umwandlung dazu.
+      (`Geology.ConvertCarriers` mit `among`: nur Träger im Bild, der Bildmitte nächste zuerst – keiner im Bild: Hinweis; `Geology.PioneersToCarriers`); Umgewandelte sind sofort gewählt (das Menü bleibt offen, `_menuOverSelection`), noch Liefernde kommen nach der Umwandlung dazu.
     - Siedler › Krieger (`SoldiersMenu`): Kampfkraft, göttliche Aufwertung (Mana-Fortschritt, je Typ Waffen-Button, verziert ab Stufe 2),
       automatische/manuelle Rekrutierung mit freien Trägern; manuell je Typ Waffen im Vorrat und geplante Rekruten (⇈ +5, ↑ +1, ↓ −1, ⇊ −5;
       `Military.SetManualRecruitment`/`ChangePlanned`).
@@ -124,12 +124,12 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   „Zum Hauptmenü“.
 - **Textbuttons** (`TextButton`): Steinknöpfe aus den Menüs vor dem Spiel (`textButton` in `ui.json`, Datei 02 GUI 0, 9-Slice), z. B. Abreißen,
   Anhalten, Ja/Nein, Rekrutierung, Statistik. Besatzung ±: Auf/Ab-Spinner wie in der Herstellung.
-- **Auswahl/Befehle**: Rahmen oder Klick wählt eigene Figuren, Vorrang Soldaten > Priester > Geologen > Späher > Pioniere,
+- **Auswahl/Befehle**: Rahmen oder Klick wählt eigene Figuren, Vorrang Soldaten > Kriegsmaschinen (nie zusammen) > Priester > Geologen > Späher > Pioniere,
   Träger und andere Berufe nie (Rahmen ohne solche Figuren: das der Mitte nächste Gebäude; Gebäude: weißer Eckrahmen 3 px). Shift fügt hinzu,
   Strg+Klick alle eigenen dieses Berufs im Bild (Soldaten: alle), Alt+Klick dieses Typs im Bild (Soldaten: Typ, Rang egal). Ausgewählte wie im Original: zwei weiße Eckklammern über dem Kopf, dazwischen
   runder Punkt mit schwarzem Rand grün→gelb→rot nach LP (`DrawSelectionMarker`).
   `SelectionPanel` je Art (Typ/Stufe und Volk – Bekehrte zeigen ihres) Porträt (`Portraits`, `ui.json` `portraits`; andere Völker `MapGame.PortraitsOf`) + Anzahl (zu viele: gestaucht, mehr Spalten oder kleiner), unten Kampfkraft – wie Zaubermenü
-  im Inhaltsbereich (`BuildMenu.Content`). Strg+1–9 speichert Gruppe (jede Figur in höchstens einer – sie verlässt ihre alte; Porträt des ersten Mitglieds wie im `SelectionPanel`, gleich groß, oben rechts, gewählte gelb gerahmt; Klick oder 1–9 wählt, zweimal binnen 0,5 s: Kameraflug zum Mittelpunkt; Tote, Gebäude Betretende, Bekehrte fallen raus; im Spielstand als Client-Wert `groups`).
+  im Inhaltsbereich (`BuildMenu.Content`). Strg+1–9 speichert Gruppe (auch Schiffe; jede Figur/jedes Schiff in höchstens einer – sie verlässt ihre alte; Porträt des ersten Mitglieds wie im `SelectionPanel` bzw. Schiffs-Knopfbild, gleich hoch, breitere Bilder (Kriegsmaschine, Schiff) breiter, folgende rücken weiter, oben rechts, gewählte gelb gerahmt; Klick oder 1–9 wählt, zweimal binnen 0,5 s: Kameraflug zum Mittelpunkt; Tote, Gebäude Betretende, Bekehrte fallen raus; im Spielstand als Client-Wert `groups`).
   Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungen ohne Kampf. Schiffe (`_ships`, statt Siedlern; Klick, Strg: alle im Bild,
   Rahmen ohne Siedler darin): Rechtsklick fährt hin; Panel: je Art Knopfbild, Name, Anzahl, Fähren „An Bord: n/7“, Handelsschiffe „Ladung: n“, unten „Schiff entladen“ (`BuildingInfo.DrawShips`/`UnloadAt`).
   Gewählte Einheiten: Rechtsklick auf eine eigene Fähre nahe Land → einsteigen; an Deck stehend gezeichnet (`ShipRenderer`: ganzes Schiff, Passagiere hinter

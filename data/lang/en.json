@@ -475,6 +475,8 @@
       "effectsHint": "Volume of the sounds, e.g. in battle.",
       "autoSave": "Autosave",
       "autoSaveHint": "Yes: every 15 minutes and on quitting into slot 8 (overwriting it).",
+      "introVideo": "Intro video",
+      "introVideoHint": "Yes: the original's intro at every start (a click, Esc, Space or Enter skips it).",
       "preferredColor": "Preferred color",
       "preferredColorHint": "Your color as player 1 on the start screen unless you pick another."
     }

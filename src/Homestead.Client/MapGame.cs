@@ -87,6 +87,8 @@ public sealed class MapGame : Game
     /// <summary>The next reminder of an unsaved game, in minutes of <see cref="_sinceSave"/>.</summary>
     private int _nextSaveReminder = SaveReminderMinutes;
     private const int SaveReminderMinutes = 30;
+    /// <summary>The original's intro video, played before the title screen (<see cref="DisplaySettings.IntroVideo"/>).</summary>
+    private const string IntroVideo = "S3/ADD/001/01_00_00.DAT";
     private const int AutoSaveMinutes = 15;
     /// <summary>The slot autosave writes into: the last.</summary>
     private const int AutoSaveSlot = SaveSlots.Count - 1;
@@ -444,10 +446,13 @@ public sealed class MapGame : Game
         _economyRenderer = new EconomyRenderer(_sprites);
         _machineRenderer = new WarMachineRenderer(_sprites);
         SelectionPanel.UsesAmmo = machine => _world.WarMachines.KindOf(machine) is { Shots: > 0 };
+        ControlGroups.PortraitSize = s => SettlerRenderer.TypeOf(s) is { } type ? PortraitsOf(_settlerRenderer.PeopleOf(s)).SizeOf(type) : Portraits.Size;
+        ControlGroups.DrawShip = _buildingInfo.DrawShipIcon;
         _font = new UiFont();
         if (_showStartScreen)
         {
             // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps);
+            // =intro: a picture of the game's intro video, video.png;
             // =title: the title screen's (=title:readme, =title:contribution, =title:licenses: with that popup open; =title:load: the list of saved games, load.png, =title:loadError: with a message about one that did not load);
             // =settings[:<tab>]: the settings screen's (tab: resources, economy, military, display);
             // =loading[:<campaign>]: the loading screen's, loading.png (settlers, missionCd, amazons; without: a free game's);
@@ -462,9 +467,12 @@ public sealed class MapGame : Game
                 || captureStart?.StartsWith("missionCd") == true;
             if (captureStart?.StartsWith("loading") == true)
                 _loading = new LoadingScreen(GraphicsDevice, _gfx, captureStart.Split(':') is [_, var campaign] ? campaign : null, _display.Theme);
-            else if (captureStart is null || captureStart.StartsWith("title") || captureStart.StartsWith("settings") || campaignCapture)
+            else if (captureStart is null or "intro" || captureStart.StartsWith("title") || captureStart.StartsWith("settings") || campaignCapture)
             {
                 _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
+                // The game's intro first (unless switched off); a click or its end leads to the title screen.
+                if (captureStart is null && _display.IntroVideo || captureStart == "intro")
+                    PlayVideo(IntroVideo, () => _title?.Resume());
                 if (campaignCapture)
                 {
                     var parts = captureStart!.Split(':');
@@ -719,7 +727,7 @@ public sealed class MapGame : Game
         _selected = null;
         ClearSelection();
         _paused = false;
-        _controlGroups = ControlGroups.Restore(game.Client.GetValueOrDefault("groups"), _world.Settlers);
+        _controlGroups = ControlGroups.Restore(game.Client.GetValueOrDefault("groups"), _world.Settlers, _world.Shipping.Ships);
         _selectedBuilding = null;
         _placing = _aiming = false;
         _tabs.Current = PanelTab.Build;
@@ -1300,7 +1308,7 @@ public sealed class MapGame : Game
         yield return (to, GatheringFlag, null);
     }
 
-    /// <summary>Border posts of grid row <paramref name="y"/>: owned points next to land of another owner.</summary>
+    /// <summary>Border posts of grid row <paramref name="y"/>: owned points next to land of another owner, none in the water (the shore is the border).</summary>
     private void DrawBorderRow(int y, RectangleF visible)
     {
         const float margin = 32;
@@ -1310,7 +1318,7 @@ public sealed class MapGame : Game
         for (int x = firstX; x <= lastX; x++)
         {
             var p = new GridPoint(x, y);
-            if (_gameMap.OwnerAt(p) is not { } owner)
+            if (_gameMap.OwnerAt(p) is not { } owner || _gameMap.TerrainAt(p) == TerrainType.Water)
                 continue;
             for (int d = 0; d < DirectionExtensions.Count; d++)
             {
@@ -1938,7 +1946,7 @@ public sealed class MapGame : Game
                 if (released)
                 {
                     var converted = new List<Settler>();
-                    string? done = _professionsMenu.Click(panelCursor, _world, 0, out var find, converted);
+                    string? done = _professionsMenu.Click(panelCursor, _world, 0, out var find, converted, CarriersByCenter());
                     if (find is { } f)
                         Find(f.Profession, f.Mode);
                     else if (done is not null)
@@ -1989,9 +1997,9 @@ public sealed class MapGame : Game
             if (_group.Count == 0 && _selectedBuilding is null || _group.Count > 0 && _group[0].Profession == joined.Profession)
                 _group.Add(joined);
         }
-        // The selection holds one kind (soldiers and war machines together); who died, went inside or changed profession leaves it.
-        var kind = _group.FirstOrDefault(s => !s.IsDead && !s.IsInside) is { } first ? SelectionKind(first) : (Profession?)null;
-        _group.RemoveAll(s => s.IsDead || s.IsInside || SelectionKind(s) != kind);
+        // The selection holds one kind (war machines apart from soldiers); who died, went inside or changed profession leaves it.
+        var kind = _group.FirstOrDefault(s => !s.IsDead && !s.IsInside)?.Profession;
+        _group.RemoveAll(s => s.IsDead || s.IsInside || s.Profession != kind);
 
         // The flight: eased out (fast start, soft arrival); scrolling by hand ends it.
         if (_flightStart >= 0)
@@ -2086,17 +2094,19 @@ public sealed class MapGame : Game
                 continue;
             if (control)
             {
-                _controlGroups.Store(i, _group);
-                _message = _group.Count > 0 ? $"group {i + 1}: {_group.Count} selected" : $"group {i + 1} cleared";
+                _controlGroups.Store(i, _group, _ships);
+                int stored = _group.Count + _ships.Count;
+                _message = stored > 0 ? $"group {i + 1}: {stored} selected" : $"group {i + 1} cleared";
             }
             else
             {
                 SelectGroup(i);
-                if (_lastGroupKey == i && _now - _lastGroupAt <= GroupDoublePressSeconds && _group.Count > 0)
+                if (_lastGroupKey == i && _now - _lastGroupAt <= GroupDoublePressSeconds && _group.Count + _ships.Count > 0)
                 {
                     float alpha = TickAlpha;
                     _flightFrom = _camera;
-                    _flightTo = _group.Aggregate(Vector2.Zero, (sum, s) => sum + SettlerRenderer.Anchor(s, _terrain, alpha)) / _group.Count;
+                    _flightTo = _group.Select(s => SettlerRenderer.Anchor(s, _terrain, alpha)).Concat(_ships.Select(ShipCenter))
+                        .Aggregate(Vector2.Zero, (sum, p) => sum + p) / (_group.Count + _ships.Count);
                     _flightStart = _now;
                 }
                 _lastGroupKey = i;
@@ -2349,9 +2359,12 @@ public sealed class MapGame : Game
     {
         ClearSelection();
         _group.AddRange(_controlGroups.Members(index).Where(s => !s.IsInside && Selectable(s)));
+        _ships.AddRange(_controlGroups.Ships(index));
         _selected = null;
         _selectedBuilding = null;
-        _message = _group.Count > 0 ? SelectionHint() : $"group {index + 1}: nobody to select";
+        _message = _group.Count > 0 ? SelectionHint()
+            : _ships.Count > 0 ? $"{_ships.Count} ships: right click sends them (over the water)"
+            : $"group {index + 1}: nobody to select";
     }
 
     /// <summary>Whether the settler stands in the view.</summary>
@@ -2509,15 +2522,13 @@ public sealed class MapGame : Game
     }
 
     /// <summary>
-    /// Selection by priority: the soldiers and war machines among the settlers if there are any, else the priests, geologists,
+    /// Selection by priority: the soldiers among the settlers if there are any, else the war machines, priests, geologists,
     /// scouts, pioneers.
     /// </summary>
     private static List<Settler> ByPriority(IEnumerable<Settler> settlers)
     {
         var list = settlers.Distinct().ToList();
-        if (list.Where(s => s.Profession is Profession.Soldier or Profession.WarMachine).ToList() is { Count: > 0 } army)
-            return army;
-        foreach (var profession in new[] { Profession.Priest, Profession.Geologist, Profession.Scout, Profession.Pioneer })
+        foreach (var profession in new[] { Profession.Soldier, Profession.WarMachine, Profession.Priest, Profession.Geologist, Profession.Scout, Profession.Pioneer })
             if (list.Where(s => s.Profession == profession).ToList() is { Count: > 0 } chosen)
                 return chosen;
         return [];
@@ -2541,14 +2552,22 @@ public sealed class MapGame : Game
                                           && p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y);
     }
 
+    /// <summary>The own carriers on the screen, nearest to the middle of the visible map first (they become specialists).</summary>
+    private List<Settler> CarriersByCenter()
+    {
+        var inverse = Matrix.Invert(View);
+        var viewport = GraphicsDevice.Viewport;
+        var middle = Vector2.Transform(new Vector2((SidePanel.Width * SidePanel.Scale(viewport.Height) + viewport.Width) / 2, viewport.Height / 2f), inverse);
+        float alpha = TickAlpha;
+        return OnScreen().Where(s => s.Player == 0 && s.IsCarrier && !s.IsInside)
+            .OrderBy(s => Vector2.DistanceSquared(SettlerRenderer.Anchor(s, _terrain, alpha), middle)).ThenBy(s => s.Id).ToList();
+    }
+
     /// <summary>Own settlers that can be selected: soldiers, war machines, priests, geologists, scouts and pioneers (not carriers).</summary>
     private static bool Selectable(Settler s) =>
         s.Profession is Profession.Soldier or Profession.WarMachine or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer;
 
     private List<Settler> SelectedSoldiers() => _group.Where(s => s.Profession == Profession.Soldier).ToList();
-
-    /// <summary>What a settler is selected with: war machines go with the soldiers.</summary>
-    private static Profession SelectionKind(Settler s) => s.Profession == Profession.WarMachine ? Profession.Soldier : s.Profession;
 
     private List<Settler> SelectedMachines() => _group.Where(s => s.Profession == Profession.WarMachine).ToList();
 
@@ -3186,7 +3205,7 @@ public sealed class MapGame : Game
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, SidePanel.Scale(viewport.Height), _font, _settlerRenderer, PortraitsOf, _group,
-            Mouse.GetState().Position.ToVector2());
+            _ships, Mouse.GetState().Position.ToVector2());
         _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, Mouse.GetState().Position.ToVector2());
         DrawOutcome(viewport);
         _info.Draw(_spriteBatch, _pixel, _font, SidePanel.Width * SidePanel.Scale(viewport.Height) + 12, viewport.Height - 10,
@@ -3733,6 +3752,7 @@ public sealed class MapGame : Game
             if (_world.WarMachines.Spawn(new GridPoint(near.X + 5 * (int)people - 8, near.Y + 3), 0, people) is { } machine)
                 _group.Add(machine);
         _world.WarMachines.Attack(_group, tower);
+        _controlGroups.Store(2, _group);
         _camera = ToWorld(near);
         Console.WriteLine($"machines: works {works?.Position}, enemy tower at {tower.Position}, {_group.Count} machines at {near}");
     }
@@ -3813,6 +3833,7 @@ public sealed class MapGame : Game
         _world.Shipping.Launch(dockyard, Simulation.Economy.ShipKind.TradeShip);
         ClearSelection();
         _ships.AddRange(_world.Shipping.Ships);
+        _controlGroups.Store(3, [], _ships);
         _world.Shipping.Move(_ships, water + new GridPoint(10, 10));
         Console.WriteLine($"dock: ships {string.Join(", ", _world.Shipping.Ships.Select(s => $"{s.Kind} at {s.Position} to {s.Destination}"))}");
     }

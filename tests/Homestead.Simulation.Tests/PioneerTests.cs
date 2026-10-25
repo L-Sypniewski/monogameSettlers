@@ -40,6 +40,21 @@ public class PioneerTests
     }
 
     [Fact]
+    public void Carriers_given_are_converted_in_their_order_and_no_others()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools);
+        var carriers = Enumerable.Range(0, 10).Select(i => world.Spawn(new GridPoint(10 + i, 10), Profession.Carrier)!).ToList();
+        var among = new[] { carriers[7], carriers[3] };
+
+        var chosen = new List<Settler>();
+        var (now, _) = world.Geology.ConvertCarriers(0, 5, Profession.Pioneer, chosen, among);
+
+        Assert.Equal(2, now);
+        Assert.Equal(among, chosen);
+        Assert.Equal(2, world.Settlers.Count(s => s.Profession == Profession.Pioneer));
+    }
+
+    [Fact]
     public void At_the_edge_of_the_land_a_pioneer_grows_it_field_by_field()
     {
         var map = new GameMap(80);
@@ -119,6 +134,32 @@ public class PioneerTests
 
         Assert.True(Owned(map, 0) >= 3);
         Assert.Equal(enemy, Owned(map, 1));
+    }
+
+    [Fact]
+    public void At_the_shore_a_pioneer_takes_the_water_off_it_too()
+    {
+        var map = new GameMap(80);
+        for (int y = 0; y < 80; y++)
+        for (int x = 0; x < 80; x++)
+        {
+            var p = new GridPoint(x, y);
+            if (x < 30)
+                map.SetOwner(p, 0);
+            else if (x >= 32)
+                map.SetTerrain(p, TerrainType.Water);
+        }
+        var world = new World(map, TestConfig.NoTools);
+        var pioneer = world.Spawn(new GridPoint(29, 40), Profession.Pioneer)!;
+
+        world.Pioneering.Claim([pioneer]);
+        Run(world, 3_000, () => map.OwnerAt(new GridPoint(31, 40)) == 0);
+
+        Assert.Equal(0, map.OwnerAt(new GridPoint(31, 40)));
+        // Water out to waterReach (6) from the shore: room for a dock, no border post at the shore.
+        for (int x = 32; x <= 37; x++)
+            Assert.Equal(0, map.OwnerAt(new GridPoint(x, 40)));
+        Assert.Null(map.OwnerAt(new GridPoint(38, 40)));
     }
 
     [Fact]

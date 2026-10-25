@@ -44,6 +44,9 @@ public sealed record DisplaySettings
     /// <summary>Saves the running game into the last slot every 15 minutes and on quitting (off by default: it overwrites that slot).</summary>
     public bool AutoSave { get; init; }
 
+    /// <summary>Plays the original's intro video before the title screen at every start.</summary>
+    public bool IntroVideo { get; init; } = true;
+
     /// <summary>Palette index (<see cref="PlayerColors.Palette"/>) of the color player 1 gets by default on the start screen.</summary>
     public int PreferredColor { get; init; }
 
@@ -67,6 +70,7 @@ public sealed record DisplaySettings
             HardwareCursor = Flag("hardwareCursor", settings.HardwareCursor),
             FullScreen = Flag("fullScreen", settings.FullScreen),
             AutoSave = Flag("autoSave", settings.AutoSave),
+            IntroVideo = Flag("introVideo", settings.IntroVideo),
             Language = display.TryGetProperty("language", out var language) && language.ValueKind == JsonValueKind.String
                 ? language.GetString() == "en" ? Language.English : Language.German
                 : settings.Language,
@@ -92,6 +96,7 @@ public sealed record DisplaySettings
             ["peopleMusic"] = PeopleMusic,
             ["effectsVolume"] = EffectsVolume,
             ["autoSave"] = AutoSave,
+            ["introVideo"] = IntroVideo,
             ["preferredColor"] = PlayerColors.Choices[PreferredColor].Id,
         }, path);
 }

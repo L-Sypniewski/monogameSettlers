@@ -170,6 +170,13 @@ public sealed partial class BuildingInfo
             Button(batch, pixel, font, UnloadButton, Lang.T("ships.unload"), cursor);
     }
 
+    /// <summary>A ship's button image in the box (the group icons).</summary>
+    public void DrawShipIcon(SpriteBatch batch, Ship ship, Rectangle box)
+    {
+        if (_shipIcons.TryGetValue(ship.People, out var icons) || _shipIcons.TryGetValue(Civilization.Roman, out icons))
+            batch.Draw(icons[ship.Kind == ShipKind.Ferry ? 0 : 2], box, Color.White);
+    }
+
     /// <summary>„Schiff entladen“ at the bottom, as the tear-down question's buttons.</summary>
     private static Rectangle UnloadButton => new(Left, Bottom - 28, Inner, 28);
 
