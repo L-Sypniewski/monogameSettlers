@@ -3176,7 +3176,7 @@ public sealed class MapGame : Game
             // Empty after a click into the landscape.
         }
         else if (_tabs.Current == PanelTab.Build)
-            _buildMenu!.Draw(_spriteBatch, _pixel, _font, _placing ? _placeable[_placeIndex] : null, panelMouse, OwnBuildingCounts());
+            _buildMenu!.Draw(_spriteBatch, _pixel, _font, _placing ? _placeable[_placeIndex] : null, panelMouse, OwnBuildingCounts(), _now);
         else
         {
             string? menu = _tabs.CurrentMenu;
@@ -3207,6 +3207,8 @@ public sealed class MapGame : Game
         _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, SidePanel.Scale(viewport.Height), _font, _settlerRenderer, PortraitsOf, _group,
             _ships, Mouse.GetState().Position.ToVector2());
         _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, Mouse.GetState().Position.ToVector2());
+        _buildMenu?.DrawTooltip(_spriteBatch, _pixel, _font, Mouse.GetState().Position.ToVector2(), viewport.Bounds,
+            SidePanel.Scale(viewport.Height), _now);
         DrawOutcome(viewport);
         _info.Draw(_spriteBatch, _pixel, _font, SidePanel.Width * SidePanel.Scale(viewport.Height) + 12, viewport.Height - 10,
             Math.Max(14, viewport.Height / 48), _now);
