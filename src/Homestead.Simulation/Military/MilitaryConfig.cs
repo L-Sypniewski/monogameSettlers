@@ -6,8 +6,11 @@ namespace Homestead.Simulation.Military;
 
 public sealed record SoldierStats(float Health, float Damage, int AttackTicks, int Range, double Speed = 1, int MinRange = 0, double Armor = 0)
 {
-    /// <summary>What a hit of <paramref name="damage"/> takes from the soldier: with armour that share less, rounded down.</summary>
-    public float Taken(float damage) => Armor > 0 ? MathF.Floor(damage * (float)(1 - Armor)) : damage;
+    /// <summary>
+    /// What a hit of <paramref name="damage"/> takes from the soldier: with armour that share less, rounded down, but at least 1
+    /// (weak hits, e.g. with little combat strength, would otherwise leave armoured soldiers unhurt for ever).
+    /// </summary>
+    public float Taken(float damage) => Armor > 0 && damage > 0 ? Math.Max(1, MathF.Floor(damage * (float)(1 - Armor))) : damage;
 
     /// <summary>How many times its health the soldier stands up to, thanks to its armour (for weighing strengths).</summary>
     public double Toughness => Armor is > 0 and < 1 ? 1 / (1 - Armor) : 1;

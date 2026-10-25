@@ -14,6 +14,16 @@ public class MilitaryTests(ITestOutputHelper output)
     private static readonly BuildingCatalog Romans = BuildingCatalog.Load(Civilization.Roman);
 
     [Fact]
+    public void Weak_hits_still_hurt_armoured_soldiers()
+    {
+        // With little combat strength (many players) a hit does less than 2: halved and rounded down it was 0, and pikemen never fell.
+        var pikeman = MilitaryConfig.Load().Soldiers[SoldierType.Pikeman];
+        Assert.Equal(1, pikeman.Taken(1.3f));
+        Assert.Equal(4, pikeman.Taken(9));
+        Assert.Equal(0, pikeman.Taken(0)); // cursed arrows still do nothing
+    }
+
+    [Fact]
     public void Barracks_turn_carriers_and_weapons_into_soldiers()
     {
         var world = new World(new GameMap(70), TestConfig.NoTools);

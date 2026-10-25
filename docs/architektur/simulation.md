@@ -18,7 +18,7 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
 - `World`/`Settler`: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf (Kommentar in `World`).
   `Settler.StepProgress` in `World.StepUnits`; Tempo je Zielfeld: Gebirge ×0,8, Trampelpfad ×1,2 (`walking` in `production.json`);
   dazu Soldaten je Typ `speed` in `military.json` (Schwertkämpfer ×1,1, Pikeniere ×1,05, Bogenschützen ×1); `armor` (Pikeniere 0,5):
-  so viel weniger Schaden je Treffer, abgerundet (`SoldierStats.Taken`; KI rechnet mit `Toughness`).
+  so viel weniger Schaden je Treffer, abgerundet, mindestens 1 (`SoldierStats.Taken`; KI rechnet mit `Toughness`).
   Siedler und Gebäude haben einen Spieler; Logistik/Rekrutierung nur für den eigenen. `World.TerritoryRules` erzwingt eigenes Land
   (Bauplatz samt Tür, Stapel, Bauarbeiterplätze, Wege – außer Soldaten, Priester, Geologen, Späher, Pioniere); Gestrandete fliehen (`Idling`); wer mit Auftrag Land unter den Füßen verliert (`World.IsStranded`), bricht ab, lässt Getragenes fallen und nimmt erst auf eigenem Land Neues an.
 - `Trails`: Träger mit Auftrag treten auf Gras Trampelpfade (`GroundCover.Trail`, nach `trailSteps`), verschwinden nach `trailFadeSeconds` (300).
