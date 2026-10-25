@@ -2981,6 +2981,7 @@ public sealed class MapGame : Game
         _waves.Draw(GraphicsDevice, _effect, visible, (float)_time.TotalSeconds);
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldView);
+        _waves.DrawGlitter(_spriteBatch, _sprites, visible, (float)_time.TotalSeconds);
         _bubbles.Draw(_spriteBatch, _economyRenderer, _terrain, _time.TotalSeconds);
         if (_selected is not null)
             DrawPath(_selected);

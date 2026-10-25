@@ -25,7 +25,7 @@ Grobe Belegung (visuell bestätigt: 00, 12, 13; Rest Vermutung anhand der Tabell
 
 ### Einzelne Fundstellen
 - Datei 01, Sequenz 26 (33 Bilder, 64 × 36): türkise Glitzerpunkte, Bild 0/1 und 30–32 leer, dazwischen wachsend, dann vergehend –
-  vermutlich das Glitzern auf dem Wasser. Noch ungenutzt.
+  das Glitzern auf dem Wasser (`WaveLayer.DrawGlitter`).
 - Bienenstock (Amazonen-Imker): kein eigenes Bild gefunden (gesucht in Datei 01, 41, 43, 46). Den Strohkorb gibt es nur auf dem Rücken
   der Imkerin (Datei 41, Sequenz 287 laufend, 291–296 aufstellend). Ersatzweise zeigt der Stock 41/291 Bild 0 (die Imkerin beim Aufstellen).
 - Datei 43, Sequenz 33: Amazonen-Marktplatz – Bild 0 der runde Platz, Bild 1 die goldene Statue darauf (fertig = beide übereinander),

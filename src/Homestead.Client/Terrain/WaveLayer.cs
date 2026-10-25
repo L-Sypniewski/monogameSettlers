@@ -8,7 +8,7 @@ namespace Homestead.Client.Terrain;
 /// terrain (<see cref="MaxLift"/> height steps; lit like slopes), the crests show the lighter water texture
 /// (<see cref="CrestImage"/>) and their front, the side facing the viewer, glints. How high the waves get grows with
 /// the distance from the shore (<see cref="CalmFields"/>, <see cref="RampFields"/>), so they fade out towards the beach
-/// and small ponds stay calm. Ships ride on the same waves (<see cref="LiftAt"/>), only drawn, never moved.
+/// and small ponds stay calm. Over the glinting fronts the original's glitter plays (<see cref="DrawGlitter"/>). Ships ride on the same waves (<see cref="LiftAt"/>), only drawn, never moved.
 /// </summary>
 public sealed class WaveLayer
 {
@@ -21,6 +21,21 @@ public sealed class WaveLayer
     /// <summary>How brightly the front of a wave glints (added light of the crest texture, by the steepness).</summary>
     private const float Glint = 0.6f;
 
+    /// <summary>The glitter on the water: object file sequence 26, frames growing and fading again, laid out as tiles.</summary>
+    private const int GlitterFile = 1, GlitterSequence = 26;
+
+    /// <summary>
+    /// The part of the swell's phase (radians, see <see cref="SwellPhase"/>) in which its front glints: the phase falls
+    /// as the wave passes, so the glitter starts at the upper bound and has faded at the lower one, just past the crest.
+    /// </summary>
+    private const float GlitterFrom = 3.6f, GlitterTo = 1.75f;
+
+    /// <summary>
+    /// How far apart the glitter tiles lie, as a share of a frame: closer than their size, so they overlap; every second
+    /// row is shifted by half a step (as in the original).
+    /// </summary>
+    private const float GlitterStep = 0.75f;
+
     /// <summary>Fields of calm water along the shore, then over how many the waves grow to full height.</summary>
     private const int CalmFields = 1, RampFields = 14;
 
@@ -28,7 +43,7 @@ public sealed class WaveLayer
     private const float MaxLift = 4;
 
     /// <summary>Length of the swell in fields (as on the screen), its speed in fields per second.</summary>
-    private const float Length = 11, Speed = 1.2f;
+    private const float Length = 18, Speed = 1.8f;
 
     /// <summary>Where the swell runs on the screen: down and to the left, so its crests lie diagonally.</summary>
     private static readonly Vector2 Heading = Vector2.Normalize(new Vector2(-0.5f, 0.87f));
@@ -44,6 +59,7 @@ public sealed class WaveLayer
     private float[] _crest = [];
     private VertexPositionColorTexture[] _water = [];
     private VertexPositionColorTexture[] _shine = [];
+    private Rectangle? _glitterTile;
 
     public WaveLayer(TerrainMesh terrain)
     {
@@ -104,12 +120,15 @@ public sealed class WaveLayer
     {
         var p = new Vector2(x - y / 2, y * ScreenProjection.RowHeight / ScreenProjection.TileWidth);
         float along = Vector2.Dot(p, Heading), across = Vector2.Dot(p, new Vector2(-Heading.Y, Heading.X));
-        float swell = 0.5f + 0.5f * MathF.Sin((along - seconds * Speed) * (MathHelper.TwoPi / Length));
+        float swell = 0.5f + 0.5f * MathF.Sin(SwellPhase(along, seconds));
         swell *= swell * swell * swell;
         float rise = 0.75f + 0.25f * MathF.Sin(across * (MathHelper.TwoPi / 43) + seconds * 0.2f);
         float ripple = 0.5f + 0.5f * MathF.Sin((along * 0.8f + across * 0.6f) * (MathHelper.TwoPi / 5) - seconds * 1.7f);
         return 0.85f * swell * rise + 0.15f * ripple;
     }
+
+    /// <summary>The phase of the swell (radians) at a distance along its heading, in fields as on the screen.</summary>
+    private static float SwellPhase(float along, float seconds) => (along - seconds * Speed) * (MathHelper.TwoPi / Length);
 
     private float StrengthAt(int x, int y) => _strength[Math.Clamp(y, 0, _size - 1) * _size + Math.Clamp(x, 0, _size - 1)];
 
@@ -207,6 +226,74 @@ public sealed class WaveLayer
         Draw(device, effect, _water, water, BlendState.Opaque);
         Draw(device, effect, _shine, shine, BlendState.AlphaBlend);
         device.BlendState = BlendState.Opaque;
+    }
+
+    /// <summary>
+    /// Draws the glitter over the visible water: the glitter frames as overlapping tiles in rows (<see cref="GlitterStep"/>),
+    /// each showing the frame that belongs to the swell's phase at its middle, so it plays while the front passes and
+    /// several tiles behind each other play at once. The tiles stay on the water's ground, not lifted by the waves, and
+    /// fade towards the shore like them. Expects a sprite batch begun in world pixels.
+    /// </summary>
+    public void DrawGlitter(SpriteBatch batch, SpriteLibrary sprites, RectangleF visible, float seconds)
+    {
+        var glitter = sprites.Sequence(GlitterFile, GlitterSequence);
+        if (_glitterTile is null)
+        {
+            // The frames' common canvas: the empty ones have no bounds, the others may be cut to their content.
+            Rectangle? canvas = null;
+            for (int frame = 0; frame < glitter.FrameCount; frame++)
+                if (glitter.Bounds(frame) is { } bounds)
+                    canvas = canvas is { } c ? Rectangle.Union(c, bounds) : bounds;
+            _glitterTile = canvas ?? Rectangle.Empty;
+        }
+        var tile = _glitterTile.Value;
+        if (tile.Width <= 0 || tile.Height <= 0)
+            return;
+
+        float stepX = MathF.Round(tile.Width * GlitterStep), stepY = MathF.Round(tile.Height * GlitterStep);
+        int tx0 = (int)MathF.Floor((visible.X - tile.Width) / stepX), tx1 = (int)MathF.Floor((visible.X + visible.Width) / stepX);
+        // Tiles further down are lifted into view by the height of the water.
+        int ty0 = (int)MathF.Floor((visible.Y - tile.Height) / stepY);
+        int ty1 = (int)MathF.Floor((visible.Y + visible.Height + 255 * ScreenProjection.HeightStep) / stepY);
+        for (int ty = ty0; ty <= ty1; ty++)
+        for (int tx = tx0; tx <= tx1; tx++)
+        {
+            var corner = new Vector2(tx * stepX + ((ty & 1) == 1 ? MathF.Round(stepX / 2) : 0), ty * stepY);
+            // Whole tiles on the map only, none sticking out over its edge.
+            if (!OnMap(corner.X, corner.Y) || !OnMap(corner.X + tile.Width, corner.Y + tile.Height)
+                || !OnMap(corner.X, corner.Y + tile.Height) || !OnMap(corner.X + tile.Width, corner.Y))
+                continue;
+            var middle = corner + new Vector2(tile.Width, tile.Height) / 2;
+            var (x, y) = GridAt(middle.X, middle.Y);
+            if (!IsWater(_terrain.KindAt(x, y)))
+                continue;
+            float strength = _strength[y * _size + x];
+            if (strength <= 0)
+                continue;
+            // The phase as Wave measures it: grid position to screen fields is the world position over the tile width.
+            float along = Vector2.Dot(middle / ScreenProjection.TileWidth, Heading);
+            float phase = SwellPhase(along, seconds) % MathHelper.TwoPi;
+            if (phase < 0)
+                phase += MathHelper.TwoPi;
+            float progress = (GlitterFrom - phase) / (GlitterFrom - GlitterTo);
+            if (progress is < 0 or >= 1)
+                continue;
+            var anchor = corner - new Vector2(tile.X, tile.Y + _terrain.HeightAt(x, y) * ScreenProjection.HeightStep);
+            glitter.Draw(batch, (int)(progress * glitter.FrameCount), anchor, 1, Color.White, tint: Color.White * strength, shadow: false);
+        }
+    }
+
+    /// <summary>The grid point nearest to a world position at height 0.</summary>
+    private static (int X, int Y) GridAt(float worldX, float worldY)
+    {
+        int y = (int)MathF.Round(worldY / ScreenProjection.RowHeight);
+        return ((int)MathF.Round((worldX + y * ScreenProjection.TileWidth / 2f) / ScreenProjection.TileWidth), y);
+    }
+
+    private bool OnMap(float worldX, float worldY)
+    {
+        var (x, y) = GridAt(worldX, worldY);
+        return x >= 0 && y >= 0 && x < _size && y < _size;
     }
 
     private static void Draw(GraphicsDevice device, BasicEffect effect, VertexPositionColorTexture[] vertices, int count, BlendState blend)
