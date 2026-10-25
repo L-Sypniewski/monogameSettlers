@@ -264,6 +264,70 @@ public class ConstructionTests(ITestOutputHelper output)
         Assert.All(sites, s => Assert.Equal(BuildingState.Finished, s.State));
     }
 
+    [Fact]
+    public void A_site_with_the_highest_priority_gets_the_material_first()
+    {
+        var world = new World(new GameMap(70));
+        var near = world.PlaceConstructionSite(Romans["lumberjack"], 0, new GridPoint(20, 30))!;
+        var far = world.PlaceConstructionSite(Romans["lumberjack"], 0, new GridPoint(50, 30))!;
+        world.SetPriority(far, true);
+        world.AddLooseGoods(new GridPoint(10, 30), Material.Plank, 2);
+        Spawn(world, Profession.Carrier, 4, new GridPoint(10, 40));
+
+        Run(world, 10_000, stopWhen: () => Delivered(far, Material.Plank) == 2);
+
+        Assert.Equal(2, Delivered(far, Material.Plank));
+        Assert.Equal(0, Delivered(near, Material.Plank));
+    }
+
+    [Fact]
+    public void Carriers_for_other_sites_put_down_only_as_much_as_the_priority_site_lacks()
+    {
+        var world = new World(new GameMap(70));
+        var other = world.PlaceConstructionSite(Romans["lumberjack"], 0, new GridPoint(55, 30))!;
+        world.AddLooseGoods(new GridPoint(10, 30), Material.Plank, 3);
+        Spawn(world, Profession.Carrier, 4, new GridPoint(10, 40));
+        // Both planks the other site needs are on their way there, the third still lies around.
+        Run(world, 2_000, stopWhen: () => world.Logistics.Jobs.Count(j => j.Target.Owner == other && j.Phase == TransportPhase.ToTarget) == 2);
+        Assert.Equal(2, world.Logistics.Jobs.Count(j => j.Target.Owner == other && j.Phase == TransportPhase.ToTarget));
+
+        var urgent = world.PlaceConstructionSite(Romans["lumberjack"], 0, new GridPoint(30, 45))!;
+        world.SetPriority(urgent, true);
+        Run(world, 10_000, stopWhen: () => Delivered(urgent, Material.Plank) == 2 && world.Logistics.Jobs.Count == 0);
+
+        Assert.Equal(2, Delivered(urgent, Material.Plank));
+        Assert.Equal(1, Delivered(other, Material.Plank)); // one carrier put its plank down, the other went on
+        Assert.Equal(1, world.Logistics.DroppedOnTheWay);
+    }
+
+    [Fact]
+    public void A_stopped_site_gets_nothing_and_its_builders_leave_until_it_goes_on()
+    {
+        var world = new World(new GameMap(60));
+        var site = world.PlaceConstructionSite(Romans["lumberjack"], 0, new GridPoint(30, 30))!;
+        world.AddLooseGoods(new GridPoint(10, 10), Material.Plank, 1);
+        Spawn(world, Profession.Carrier, 2, new GridPoint(15, 15));
+        Spawn(world, Profession.Builder, 2, new GridPoint(20, 40));
+        Run(world, 10_000, stopWhen: () => site.BuildStepsDone == 1);
+
+        world.SetPaused(site, true);
+        Assert.Contains("paused", world.StatusOf(site));
+        world.AddLooseGoods(new GridPoint(10, 10), Material.Plank, 1);
+        world.AddLooseGoods(new GridPoint(12, 10), Material.Stone, 2);
+        Run(world, 3_000);
+        Assert.Equal(1, site.BuildStepsDone);
+        Assert.Equal(0, world.Construction.Assigned);
+        Assert.Equal(1, LooseCount(world, Material.Plank));
+
+        world.SetPaused(site, false);
+        Run(world, 10_000, stopWhen: () => site.State == BuildingState.Finished);
+        Assert.Equal(BuildingState.Finished, site.State);
+    }
+
+    /// <summary>Units of the material lying at the site (none built in: no builders).</summary>
+    private static int Delivered(Building site, Material material) =>
+        site.Piles.Where(p => p.Role == PileRole.Request && p.AcceptedMaterial == material).Sum(p => p.Count);
+
     private static void Spawn(World world, Profession profession, int count, GridPoint near)
     {
         for (int i = 0; i < count; i++)

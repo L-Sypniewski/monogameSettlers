@@ -1815,12 +1815,18 @@ public sealed class MapGame : Game
                     UiSounds.Step(delta > 0);
                 }
             }
-            // A production building's stop/restart button.
+            // A production building's or construction site's stop/restart icon, a site's highest priority.
             if (onMenu && released && _buildingInfo.PauseAt(panelCursor, SidePanel.ContentHeight, _world, _selectedBuilding!, 0))
             {
                 _world.SetPaused(_selectedBuilding!, !_selectedBuilding!.IsPaused);
                 UiSounds.Toggle();
                 _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)} {(_selectedBuilding.IsPaused ? "stopped" : "restarted")}";
+            }
+            if (onMenu && released && _buildingInfo.PriorityAt(panelCursor, SidePanel.ContentHeight, _selectedBuilding!, 0))
+            {
+                _world.SetPriority(_selectedBuilding!, !_selectedBuilding!.HasPriority);
+                UiSounds.Toggle();
+                _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)}: {(_selectedBuilding.HasPriority ? "highest priority" : "normal priority")}";
             }
             // A market's route and goods.
             if (onMenu && _buildingInfo.MarketHover(panelCursor, _world, _selectedBuilding!, 0) is { } marketHover)

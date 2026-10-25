@@ -11,7 +11,8 @@ namespace Homestead.Simulation.Economy;
 /// <remarks>
 /// Every transport reserves a unit at the source and space at the target, so no two carriers go
 /// for the same unit. A job can fail at any point; the watchdog rules guarantee that goods and
-/// carriers never get lost:
+/// carriers never get lost (a construction site with the highest priority, <see cref="Building.HasPriority"/>, is served first and
+/// takes material from carriers bringing it elsewhere, see <see cref="FreeForPriority"/>):
 /// <list type="bullet">
 /// <item>Source gone or unreachable before pick-up: the job is cancelled, reservations released.</item>
 /// <item>Target gone or unreachable while carrying: the carrier drops the good where it stands,
@@ -68,6 +69,7 @@ public sealed class Logistics
 
     private void Dispatch()
     {
+        var urgent = FreeForPriority();
         var idleCarriers = _world.Settlers
             .Where(s => s.IsAvailableCarrier && !s.IsStriking && !_jobs.ContainsKey(s.Id))
             .ToList();
@@ -83,8 +85,13 @@ public sealed class Logistics
                 ranks[player] = rank = TransportOrder(player).Select((m, i) => (m, i)).ToDictionary(x => x.m, x => x.i);
             return rank.GetValueOrDefault(pile.Material!.Value);
         }
-        var offers = _world.Piles.Where(p => p.Available > 0 && p.Material is not null).OrderBy(Rank).ThenBy(p => p.Id).ToList();
-        var requests = _world.Piles.Where(p => p.Space > 0 && p.Owner is { Exists: true }).ToList();
+        // Goods a site with the highest priority lacks before all others.
+        var offers = _world.Piles.Where(p => p.Available > 0 && p.Material is not null)
+            .OrderBy(p => urgent.Any(u => u.Material == p.Material && _world.BelongsTo(p, u.Player)) ? 0 : 1)
+            .ThenBy(Rank).ThenBy(p => p.Id).ToList();
+        // A stopped construction site gets nothing.
+        var requests = _world.Piles.Where(p => p.Space > 0 && p.Owner is { Exists: true } owner
+                                               && !(owner.IsPaused && owner.State != BuildingState.Finished)).ToList();
         if (offers.Count == 0 || requests.Count == 0)
             return;
 
@@ -125,6 +132,47 @@ public sealed class Logistics
             if (idleCarriers.Count == 0)
                 break;
         }
+    }
+
+    /// <summary>A construction site's pile while the site has the highest priority (<see cref="Building.HasPriority"/>).</summary>
+    private static bool IsUrgent(Pile pile) =>
+        pile.Role == PileRole.Request && pile.Owner is { Exists: true, HasPriority: true, IsPaused: false } site && site.State != BuildingState.Finished;
+
+    /// <summary>
+    /// What construction sites with the highest priority lack of a material beyond what lies ready on the player's land
+    /// is taken from carriers bringing it to the player's other construction sites, only as many as are lacking, the
+    /// nearest to the site first: those on their way to pick it up let it be, those carrying it put it down where they
+    /// are (in the original every carrier drops everything). One stopped on its way to the site is made up for the
+    /// next time. Returns the players' materials such a site lacks.
+    /// </summary>
+    private HashSet<(int Player, Material Material)> FreeForPriority()
+    {
+        var lacking = new Dictionary<(int Player, Material Material), (int Units, GridPoint Site)>();
+        foreach (var pile in _world.Piles)
+            if (pile.Space > 0 && IsUrgent(pile) && pile.AcceptedMaterial is { } material)
+            {
+                var key = (pile.Owner!.Player, material);
+                lacking[key] = (lacking.GetValueOrDefault(key).Units + pile.Space, pile.Position);
+            }
+        foreach (var ((player, material), (units, site)) in lacking)
+        {
+            int missing = units - _world.Piles.Where(p => p.Material == material && _world.BelongsTo(p, player)).Sum(p => p.Available);
+            if (missing <= 0)
+                continue;
+            var others = _jobs.Values
+                .Where(j => j.Material == material && j.Carrier.Player == player && j.Phase is TransportPhase.ToSource or TransportPhase.ToTarget
+                            && j.Target.Role == PileRole.Request && j.Target.Owner is { HasPriority: false, State: not BuildingState.Finished })
+                .OrderBy(j => j.Phase == TransportPhase.ToSource ? 0 : 1).ThenBy(j => PathFinder.Distance(j.Carrier.Position, site))
+                .Take(missing).ToList();
+            foreach (var job in others)
+            {
+                if (job.Phase == TransportPhase.ToSource)
+                    Cancel(job, "for a priority site");
+                else
+                    Fail(job, "for a priority site");
+            }
+        }
+        return lacking.Keys.ToHashSet();
     }
 
     private readonly Dictionary<int, List<Material>> _transportOrder = new();
@@ -215,7 +263,7 @@ public sealed class Logistics
     /// <see cref="Construction"/>) and each type of building using it – one is drawn by the player's
     /// shares (<see cref="ShareOf"/>; share 0 gets nothing, unless the player set every target of the
     /// material to 0), then the nearest target of that kind with room; the storehouse only when no one
-    /// else wants it.
+    /// else wants it. A construction site with the highest priority comes before all of them.
     /// </summary>
     private Pile? ChooseTarget(Pile offer, List<Pile> requests, HashSet<int> players)
     {
@@ -225,6 +273,9 @@ public sealed class Logistics
                                              && Allowed(offer, r, material)).ToList();
         if (candidates.Count == 0)
             return null;
+        // A construction site with the highest priority before everyone, whatever the shares.
+        if (Nearest(candidates.Where(IsUrgent)) is { } urgent)
+            return urgent;
 
         var users = candidates.Where(c => c.Role != PileRole.Storage).ToList();
         if (users.Count > 0 && !AllZero(users[0].Owner!.Player, material))

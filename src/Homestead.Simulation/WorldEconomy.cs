@@ -112,6 +112,8 @@ public sealed partial class World
             return "gone";
         switch (building.State)
         {
+            case not BuildingState.Finished when building.IsPaused:
+                return "construction site: paused";
             case BuildingState.Flattening:
                 return $"construction site: levelling the ground, {building.Unlevelled.Count} points left";
             case BuildingState.Constructing:
@@ -585,6 +587,7 @@ public sealed partial class World
         foreach (var pile in building.Piles.ToList())
             RemovePileDroppingGoods(building, pile);
         building.State = BuildingState.Finished;
+        building.HasPriority = false;
         CreateOperatingPiles(building);
         History.Finished(building);
     }
@@ -602,12 +605,26 @@ public sealed partial class World
 
     /// <summary>
     /// Stops or restarts the production of <paramref name="building"/>: a stopped one finishes the work under
-    /// way, then its worker stays inside.
+    /// way, then its worker stays inside. A stopped construction site gets no material and no workers; diggers and
+    /// builders there finish their work cycle and are free for other sites.
     /// </summary>
     public void SetPaused(Building building, bool paused)
     {
         if (building.Exists)
             building.IsPaused = paused;
+    }
+
+    /// <summary>Whether the player can stop the building (<see cref="SetPaused"/>): a construction site or a production building.</summary>
+    public bool CanPause(Building building) => building.Exists && (building.State != BuildingState.Finished || Production.CanPause(building));
+
+    /// <summary>
+    /// Gives a construction site the highest priority, or takes it back: its material goes there before anywhere else, and
+    /// when there is too little, carriers bringing it to other sites put down as much as it lacks (<see cref="Logistics"/>).
+    /// </summary>
+    public void SetPriority(Building building, bool priority)
+    {
+        if (building.Exists && building.State != BuildingState.Finished)
+            building.HasPriority = priority;
     }
 
     /// <summary>How far (in steps) the player may move a work center away from its building.</summary>

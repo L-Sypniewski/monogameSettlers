@@ -52,8 +52,8 @@ public sealed partial class BuildingInfo
         }
     }
 
-    // Layout (panel space): below the name the ships at the left, the hammer at the right, the image beside the ships.
-    private static int DockyardTop => Top + DemolishSize + 4;
+    // Layout (panel space): below the name (itself below the icons) the ships at the left, the hammer at the right, the image beside the ships.
+    private static int DockyardTop => HeadBottom + 19 + 4;
     private static Rectangle FerryButton => new(Left, DockyardTop, 60, 40);
     private static Rectangle TradeShipButton => new(Left, DockyardTop + 44, 60, 40);
     private static Rectangle DockButton => new(Left + Inner - 30, DockyardTop + 5, 30, 30);

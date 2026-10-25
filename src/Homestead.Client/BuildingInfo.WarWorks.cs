@@ -40,7 +40,7 @@ public sealed partial class BuildingInfo
         }
     }
 
-    private static int WarWorksTop => Top + DemolishSize + 4;
+    private static int WarWorksTop => HeadBottom + 19 + 4; // below the name, itself below the icons
     private static Rectangle MachineButton => new(Left, WarWorksTop, 48, 48);
     private static Rectangle AmmoButton => new(Left, WarWorksTop + 54, 48, 48);
 

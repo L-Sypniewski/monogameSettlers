@@ -70,6 +70,9 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
     (`SpecializationOf`/`SetSpecialization`, `StoresHere`, überstimmt die allgemeine Regel); Vorgabe `storage.materials`: Werkzeuge, Waffen, Gold, Edelsteine.
   - Angebote nach Transportreihenfolge (`TransportOrder`/`MoveInTransportOrder`, Vorgabe `storage.transportOrder`); lose Stapel auf niemandes
     Land: Spieler mit freien Trägern. Sonst bleibt Ware am Ausgabestapel (8; voll → Erzeuger wartet, Sammler auch).
+  - Baustelle mit höchster Priorität (`Building.HasPriority`): ihre Stapel vor allen Abnehmern (auch Anteilen), ihre Waren vorn in
+    der Transportreihenfolge; fehlt mehr, als bereitliegt, geben Träger zu anderen Baustellen nur so viele ab (`Logistics.FreeForPriority`, nächste
+    zuerst; auf dem Weg zur Quelle: abgebrochen, beladen: lassen fallen – im Original alle); ausgefallene Lieferungen werden beim nächsten Abgleich ersetzt.
   - `Problems` zählt Abbruchgründe.
   - `Production`: Werkstätten; Schmiede je Takt ein Produkt: Bestelltes, dann erwartetes Werkzeug, sonst gewichtet reihum nach Anteilen
     (`shares`: Werkzeugschmied 0 = nur Bedarf; Waffenschmied Schwert 100 %, Bogen 70 %, Speer 45 %), solange unter `keepInStock` (0 = ohne Grenze);
@@ -396,7 +399,9 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
       gezählt in `World.Statistics` (`ProductionStatistics`, 30-s-Abschnitte).
   - Gebäude-Klick ersetzt das Baumenü (ohne eigenen Hintergrund): Name, Bild (unskaliert, unten zentriert, beschnitten –
     `EconomyRenderer.DrawBuildingImage`; bei Enge erst Waren weg, dann Bild niedriger), bei eigenen Status, oben rechts Abriss-Icon wie im Original (Datei 03 GUI 199, `buildingInfo` in `ui.json`) mit Rückfrage wie im Original (nur das Gebäudebild bleibt an seinem Platz, Frage unten, Ja/Nein als helle Texte; jede andere Aktion – Klick daneben beim Loslassen, andere Auswahl, Esc – bricht ab);
-    Produktion: „Anhalten“/„Fortsetzen“ (`World.SetPaused`: Arbeit fertig, dann drinnen); Militär: Besatzung je Typ (da/Soll, +/−);
+    oben links wie im Original „Arbeit einstellen“ (Haus, GUI 395)/„Arbeit fortsetzen“ (Hand, 194) für Produktion und Baustellen (`World.SetPaused`:
+    Arbeit fertig, dann drinnen; Baustelle: keine Lieferungen/Arbeiter, Anwesende nach ihrem Takt frei), bei Baustellen daneben „Höchste Priorität“
+    (Zahnräder 197, gedrückt mit „!“ 380; `World.SetPriority`), Name dann unter den Icons, Hinweistext über ihnen unter der Maus; Militär: Besatzung je Typ (da/Soll, +/−);
     Lagerhaus: alle Waren (`GoodsGrid`; Punkt = allgemeine Regel, Klick spezialisiert – roter Rahmen –, nochmal hebt auf);
     Markt (`BuildingInfo.Market`, „Handel – Land“, ohne Bild; Hafen „Handel – Meer“: Leiste GUI 377 `seaRoute`, Schiff vor ×1 setzt den Steg wie
     der Hammer der Werft, Routenpunkte aufs Wasser, Route ab dem Liegeplatz): Leiste ×1 ×2 ×3 Paket (Datei 03 GUI 374, `market` in `ui.json`; nicht gesetzt

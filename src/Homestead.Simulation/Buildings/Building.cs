@@ -49,8 +49,14 @@ public sealed class Building
 
     public IReadOnlyList<Pile> Piles => _piles;
 
-    /// <summary>Production stopped by the player (<see cref="World.SetPaused"/>): the worker stays inside once its work is done.</summary>
+    /// <summary>
+    /// Stopped by the player (<see cref="World.SetPaused"/>): a production building's worker stays inside once its work is done;
+    /// a construction site gets no material and no workers, those there stop after their work cycle.
+    /// </summary>
     public bool IsPaused { get; internal set; }
+
+    /// <summary>A construction site the player gave the highest priority (<see cref="World.SetPriority"/>): its material comes first.</summary>
+    public bool HasPriority { get; internal set; }
 
     /// <summary>False once the building was removed; carriers heading here must react.</summary>
     public bool Exists { get; internal set; } = true;

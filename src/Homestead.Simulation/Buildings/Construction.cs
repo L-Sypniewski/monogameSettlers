@@ -14,7 +14,8 @@ namespace Homestead.Simulation.Buildings;
 /// When all points are level, the site becomes solid and builders take the builder spots of the
 /// building definition. Each build cycle uses one unit of delivered material; without material a
 /// builder is released (idle, free for another site; it steps away from the site), and a site offers builder spots only while it
-/// has more material than the builders on their way will use. Workers whose site disappears are simply released.
+/// has more material than the builders on their way will use. Workers whose site disappears are simply released, those of a
+/// stopped site (<see cref="Building.IsPaused"/>) after their work cycle.
 /// If sites need more diggers or builders than there are, carriers are recruited, each fetching its
 /// tool first (shovel/hammer, see <see cref="ProductionConfig.Tools"/>). Without tool rules for these
 /// trades (e.g. <see cref="ProductionConfig.None"/>) nobody is recruited and only existing ones work.
@@ -67,7 +68,7 @@ public sealed class Construction
         var assigned = new Dictionary<Building, int>();
         foreach (var assignment in _assignments.Values)
             assigned[assignment.Site] = assigned.GetValueOrDefault(assignment.Site) + 1;
-        foreach (var sites in _world.Buildings.Where(b => b.Exists && b.State != BuildingState.Finished).GroupBy(b => b.Player))
+        foreach (var sites in _world.Buildings.Where(b => b.Exists && b.State != BuildingState.Finished && !b.IsPaused).GroupBy(b => b.Player))
         {
             int player = sites.Key;
             _missingDiggers[player] = Recruit(Profession.Digger, DiggerTrade, player, sites.ToList(), site => site.State == BuildingState.Flattening
@@ -119,7 +120,7 @@ public sealed class Construction
     private void Dispatch()
     {
         var pathFinder = _world.PathFinder!;
-        var sites = _world.Buildings.Where(b => b.Exists && b.State != BuildingState.Finished).ToList();
+        var sites = _world.Buildings.Where(b => b.Exists && b.State != BuildingState.Finished && !b.IsPaused).ToList();
         if (sites.Count == 0)
             return;
 
@@ -175,6 +176,12 @@ public sealed class Construction
 
         if (!a.Working)
         {
+            // Stopped (the site's panel): those not at work yet are free at once.
+            if (site.IsPaused)
+            {
+                Release(a);
+                return;
+            }
             if (worker.Destination is not null || worker.State == SettlerState.Stepping)
                 return;
             if (worker.Position != a.Spot)
@@ -212,7 +219,7 @@ public sealed class Construction
             map.SetHeight(a.Spot, map.HeightAt(a.Spot) + step);
             if (map.HeightAt(a.Spot) == target)
                 _world.Levelled(site, a.Spot);
-            else if (DigStep(site, a.Spot) != 0)
+            else if (!site.IsPaused && DigStep(site, a.Spot) != 0)
             {
                 // More to do here, and the slopes allow it: another cycle on the same point.
                 a.TicksLeft = DigTicks;
@@ -220,7 +227,7 @@ public sealed class Construction
             }
         }
 
-        if (FreeDigSpot(site, a.Spot, a.Worker) is { } next)
+        if (!site.IsPaused && FreeDigSpot(site, a.Spot, a.Worker) is { } next)
         {
             // Carry on with the nearest remaining point of the same site.
             a.Spot = next.Spot;
@@ -244,7 +251,7 @@ public sealed class Construction
         {
             // Start a build cycle if material is there; otherwise the builder is free for other sites
             // and comes back (or another one does) when material has been delivered.
-            if (!_world.ConsumeConstructionMaterial(site))
+            if (site.IsPaused || !_world.ConsumeConstructionMaterial(site))
             {
                 Release(a);
                 StepAway(a.Worker, site);
