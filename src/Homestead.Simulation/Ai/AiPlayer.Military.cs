@@ -105,7 +105,14 @@ public sealed partial class AiPlayer
         var guards = Reserve(idle, EnemyGroups.Where(threatening));
         var spare = idle.Except(guards).ToList();
 
-        // A campaign against enemy land, never while enemy soldiers stand on the own land.
+        // A campaign against enemy land, never while enemy soldiers stand on the own land; a challenge first (also then).
+        if (_campaign is null && ChallengedBy is { } challenger)
+        {
+            StartCampaign(military, spare, only: challenger);
+            Note(_campaign is null ? $"cannot take up the challenge of player {challenger + 1}: no target within reach"
+                : $"takes up the challenge of player {challenger + 1}");
+            ChallengedBy = null;
+        }
         if (_campaign is null && !EnemyGroups.Any(g => g.Armed && onOwnLand(g)))
             StartCampaign(military, spare);
 

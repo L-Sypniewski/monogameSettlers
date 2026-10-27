@@ -81,6 +81,8 @@ public sealed class MapGame : Game
     /// <summary>Notes at the bottom left of the game view.</summary>
     private readonly InfoFeed _info = new();
     private readonly ChatInput _chat = new();
+    // The computer players answering in the chat; null without an API key.
+    private readonly AiChat? _aiChat = AiChat.Create();
     // Lines of World.Chat already in the info feed.
     private int _chatShown;
     /// <summary>The computer players whose defeat is told already (or was, before the game was loaded).</summary>
@@ -1477,6 +1479,9 @@ public sealed class MapGame : Game
         _perf.EndSimulation();
         NoteOutcome();
         NoteNews(gameTime.ElapsedGameTime);
+        if (_aiChat is not null)
+            foreach (string note in _aiChat.Apply(_world))
+                _info.Add(note, _now);
         if (_audio is not null && _world.SoundCues is { } cues)
         {
             _audio.BeginFrame(Hearing);
@@ -2093,8 +2098,8 @@ public sealed class MapGame : Game
             string line = _chat.Submit().Trim();
             if (line.StartsWith('/'))
                 RunCommand(line[1..]);
-            else
-                _world.Say(0, line);
+            else if (_world.Say(0, line) is not null)
+                _aiChat?.Heard(_world);
         }
         else if (Pressed(Keys.Up))
             _chat.Recall(-1);

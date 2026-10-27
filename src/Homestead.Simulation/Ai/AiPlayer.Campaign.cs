@@ -39,7 +39,8 @@ public sealed partial class AiPlayer
     /// <summary>Per target building id: no campaign against it before this tick.</summary>
     private readonly Dictionary<int, long> _givenUp = new();
 
-    private void StartCampaign(List<Building> military, List<Settler> spare)
+    /// <param name="only">Only against this player's buildings, and without weighing the armies (<see cref="Challenge"/>).</param>
+    private void StartCampaign(List<Building> military, List<Settler> spare, int? only = null)
     {
         var rules = _config.Attack;
         // Bowmen do not attack buildings: they stay home for defence and guerilla.
@@ -59,10 +60,10 @@ public sealed partial class AiPlayer
                 _givenUp.Remove(id);
         foreach (var target in _world.Buildings.Where(b => b.Exists && IsEnemy(b.Player) && IsMilitary(b)
                                                            && b.State == BuildingState.Finished && _world.Military.IsOccupied(b)
-                                                           && !_givenUp.ContainsKey(b.Id)))
+                                                           && !_givenUp.ContainsKey(b.Id) && (only is null || b.Player == only)))
         {
             // Clearly stronger than that enemy as a whole.
-            if (ownArmy < armies.GetValueOrDefault(target.Player) * rules.ArmyRatio)
+            if (only is null && ownArmy < armies.GetValueOrDefault(target.Player) * rules.ArmyRatio)
                 continue;
             // An outpost far away could not be held. Measured from the own land: the own military buildings stand
             // some 30 fields behind its edge, as the enemy's do behind theirs.

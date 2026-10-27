@@ -152,6 +152,12 @@ Renders the menu text at runtime from a TrueType font installed on the system (n
 https://github.com/StbSharp — `StbImageSharp` 2.30.16, `StbTrueTypeSharp` 1.26.13 (dependencies of MonoGame and
 FontStashSharp), public domain (Unlicense), alternatively MIT.
 
+### Anthropic C# SDK
+
+https://github.com/anthropics/anthropic-sdk-csharp — `Anthropic` 13.3.0 with `Microsoft.Extensions.AI.Abstractions` 10.5.1 and
+`System.Net.ServerSentEvents` 10.0.1, MIT License, Copyright (c) Anthropic, PBC (the .NET packages: Copyright (c) .NET Foundation and
+Contributors). Used only for the optional chat with the computer players (with the player's own API key).
+
 ### NVorbis
 
 https://github.com/NVorbis/NVorbis — `NVorbis` 0.10.4 (dependency of MonoGame), MIT License,
@@ -162,7 +168,7 @@ Copyright (c) 2020 Andrew Ward.
 https://github.com/cyotek/Cyotek.Drawing.BitmapFont — 2.0.4 (dependency of FontStashSharp), MIT License,
 Copyright (c) 2012-2022 Cyotek Ltd.
 
-NVorbis and Cyotek.Drawing.BitmapFont are licensed under the MIT License:
+The Anthropic C# SDK, NVorbis and Cyotek.Drawing.BitmapFont are licensed under the MIT License:
 
 ```
 Permission is hereby granted, free of charge, to any person obtaining a copy
