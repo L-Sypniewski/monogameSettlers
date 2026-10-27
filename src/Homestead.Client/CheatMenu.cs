@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Homestead.Client;
 
 /// <summary>
-/// A small cheat menu at the top right (below the group icons), shown with C: one button per entry; a click
+/// A small cheat menu at the top right (below the group icons), shown with /cheats: one button per entry; a click
 /// runs its action (new units in the middle of the view, mana).
 /// </summary>
 public sealed class CheatMenu
@@ -45,7 +45,7 @@ public sealed class CheatMenu
             return;
         var frame = Frame(width);
         batch.Draw(pixel, frame, new Color(20, 15, 10, 230));
-        font.Draw(batch, "Cheats (C)", new Vector2(frame.X + 6, frame.Y + 4), new Color(230, 200, 120), 13);
+        font.Draw(batch, "Cheats (/cheats)", new Vector2(frame.X + 6, frame.Y + 4), new Color(230, 200, 120), 13);
         for (int i = 0; i < _entries.Count; i++)
         {
             var button = Button(width, i);

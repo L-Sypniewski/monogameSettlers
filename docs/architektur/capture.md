@@ -16,6 +16,7 @@ Offscreen-PNGs zur Prüfung, nur in temporäre Verzeichnisse (keine Original-Ass
   Land-Zauber auf die freieste Grasfläche, Konsole zeigt den Boden dort);
   `MINUTES=<n>` (Benchmark: KI auch für Spieler 1, n min ohne Zeichnen vorgespult, dann Kameraschwenk über die Karte, PNG alle 1200 Frames);
   `STATS=<frame>` (Statistik öffnet in diesem Frame, alle Seiten als `stats_N.png`, dann Ende);
+  `CHAT=<text>` (Spieler 1–3 sagen etwas, Chatzeile offen mit dem Text);
   `VIEW=economy|battle` (statt Schwenk: Kamera auf Spieler 1 bzw. folgt dem größten Kampf; `battle` spult mit `MINUTES` bis zu 20 min weiter, bis ≥ 20 Soldaten an einem Kampf sind).
 
 

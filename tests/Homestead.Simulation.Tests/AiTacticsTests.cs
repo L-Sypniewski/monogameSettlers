@@ -296,6 +296,46 @@ public class AiTacticsTests(ITestOutputHelper output)
             .Invoke(world.Military, [soldier, attacker]);
 
     /// <summary>Wounds or heals a soldier at once (the health is the simulation's own).</summary>
+    [Fact]
+    public void An_assault_throws_everything_at_the_player_without_falling_back()
+    {
+        var (world, _) = Battlefield();
+        var own = world.BuildingAt(new GridPoint(40, 80))!;
+        world.SpawnSoldier(own.Door, SoldierType.Swordsman); // a second one in the tower: it comes out too
+        var enemyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(40, 130), force: true)!;
+        for (int i = 0; i < 3; i++)
+            world.SpawnSoldier(enemyTower.Door, SoldierType.Swordsman, player: 1);
+        var army = Enumerable.Range(0, 2).Select(i => world.SpawnSoldier(new GridPoint(44 + i, 84), SoldierType.Swordsman)!).ToList();
+        var bowman = world.SpawnSoldier(new GridPoint(46, 86), SoldierType.Bowman)!;
+        var ai = new AiPlayer(world, Romans, 0, character: "standard");
+        world.AiPlayers.Add(ai);
+        Run(world, 10 * World.TicksPerSecond);
+        // Far too weak for a campaign of its own.
+        Assert.DoesNotContain(ai.Log, l => l.Contains("gathers"));
+
+        ai.Assault(1);
+        Run(world, 10 * World.TicksPerSecond);
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.All(army, s => Assert.Same(enemyTower, world.Military.AttackTarget(s)));
+        Assert.Equal(1, world.Military.Occupants(own).Count(o => o is not null));
+        Assert.Contains(world.Settlers, s => s.Player == 0 && !s.IsInside && !army.Contains(s) && s != bowman
+                                             && world.Military.AttackTarget(s) == enemyTower);
+        Assert.True(PathFinder.Distance(bowman.Position, enemyTower.Door) < PathFinder.Distance(new GridPoint(46, 86), enemyTower.Door));
+        Run(world, 120 * World.TicksPerSecond, () => army.All(s => s.IsDead));
+        Assert.DoesNotContain(ai.Log, l => l.Contains("retreats") || l.Contains("gives up") || l.Contains("pulls"));
+    }
+
+    [Fact]
+    public void An_ally_is_not_assaulted()
+    {
+        var (world, _) = Battlefield();
+        world.Teams.AddRange([1, 1]);
+        var ai = new AiPlayer(world, Romans, 0, character: "standard");
+        ai.Assault(1);
+        Assert.Null(ai.AssaultOn);
+    }
+
     private static void SetHealth(Settler soldier, float health) => typeof(Settler).GetProperty(nameof(Settler.Health))!.SetValue(soldier, health);
 
     private static void Run(World world, int ticks, Func<bool>? stopWhen = null)

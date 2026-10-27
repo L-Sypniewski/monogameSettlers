@@ -115,11 +115,11 @@ public sealed partial class Military
         // Unreachable (sea, another island): the reachable point nearest to it.
         if (list.Count > 0 && _world.CommandTarget(list[0], destination) is { } reachable)
             destination = reachable;
-        var spots = FreeSpotsAround(destination, list.Count);
+        var spots = FreeSpotsAround(destination, list);
         for (int i = 0; i < list.Count; i++)
         {
             var soldier = list[i];
-            var spot = spots.Count > i ? spots[i] : destination;
+            var spot = spots.Count > 0 ? spots[i % spots.Count] : destination;
             _fighters[soldier.Id] = new Fighter(soldier) { MoveTo = _world.CommandTarget(soldier, spot) ?? spot, Forced = forced, Hold = hold };
             soldier.HasTask = true;
         }
@@ -131,6 +131,9 @@ public sealed partial class Military
     /// </summary>
     public GridPoint? MoveTarget(Settler soldier) =>
         _fighters.TryGetValue(soldier.Id, out var f) && f is { MoveTo: { } to, Forced: false, Hold: false, Target: null, Enemy: null } ? to : null;
+
+    /// <summary>The enemy building the soldier is ordered (or set itself) to take; null otherwise.</summary>
+    public Building? AttackTarget(Settler soldier) => _fighters.TryGetValue(soldier.Id, out var f) ? f.Target : null;
 
     /// <summary>Where the soldier walks on a forced move order (escape, retreat); null otherwise.</summary>
     public GridPoint? ForcedMoveTarget(Settler soldier) =>
@@ -199,19 +202,26 @@ public sealed partial class Military
         return list;
     }
 
-    /// <summary>Walkable points nearest to <paramref name="center"/>, one per soldier.</summary>
-    private List<GridPoint> FreeSpotsAround(GridPoint center, int count)
+    /// <summary>
+    /// Walkable points nearest to <paramref name="center"/>, one per soldier; fields somebody else stands on or another
+    /// soldier is sent to only when there are too few others (two sent to one field end up waiting for each other).
+    /// </summary>
+    private List<GridPoint> FreeSpotsAround(GridPoint center, List<Settler> soldiers)
     {
         var map = _world.Map!;
+        var movers = soldiers.Select(s => s.Id).ToHashSet();
+        var sent = _fighters.Values.Where(f => f.MoveTo is not null && !movers.Contains(f.Soldier.Id)).Select(f => f.MoveTo!.Value).ToHashSet();
         var spots = new List<GridPoint>();
-        for (int r = 0; r <= 12 && spots.Count < count; r++)
-            for (int dy = -r; dy <= r && spots.Count < count; dy++)
-            for (int dx = -r; dx <= r && spots.Count < count; dx++)
+        var taken = new List<GridPoint>();
+        for (int r = 0; r <= 12 && spots.Count < soldiers.Count; r++)
+            for (int dy = -r; dy <= r && spots.Count < soldiers.Count; dy++)
+            for (int dx = -r; dx <= r && spots.Count < soldiers.Count; dx++)
             {
                 var p = new GridPoint(center.X + dx, center.Y + dy);
                 if (PathFinder.Distance(center, p) == r && map.IsWalkable(p))
-                    spots.Add(p);
+                    (_world.OccupantAt(p) is { } other && !movers.Contains(other.Id) || sent.Contains(p) ? taken : spots).Add(p);
             }
+        spots.AddRange(taken.Take(soldiers.Count - spots.Count));
         return spots;
     }
 
@@ -220,6 +230,7 @@ public sealed partial class Military
         // Who can fight at all, once per tick: looking through every settler for each bowman and
         // fighter is what made long games slow.
         _combatants.Clear();
+        _queueSpotsTaken.Clear();
         foreach (var settler in _world.Settlers)
             if ((settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Scout or Profession.Pioneer
                      or Profession.WarMachine
@@ -872,7 +883,7 @@ public sealed partial class Military
             {
                 var p = new GridPoint(door.X + dx, door.Y + dy);
                 if (PathFinder.Distance(door, p) != r || kept.Contains(p) || !map.Contains(p) || !map.IsWalkable(p)
-                    || _world.OccupantAt(p) is { } other && other != soldier)
+                    || _world.OccupantAt(p) is { } other && other != soldier || _queueSpotsTaken.Contains(p))
                     continue;
                 int distance = PathFinder.Distance(soldier.Position, p);
                 if (distance < bestDistance)
@@ -882,10 +893,33 @@ public sealed partial class Military
                 }
             }
             if (best is { } spot)
+            {
+                _queueSpotsTaken.Add(spot);
                 return spot;
+            }
         }
-        return door;
+        // No room left near the door (a whole army at it): it waits where it stands, or on the nearest free field –
+        // not on the guard's field, where all the rest would pile up and nobody could fight.
+        var here = soldier.StepTarget;
+        if (here != door && !kept.Contains(here) && _world.OccupantAt(here) == soldier)
+            return here;
+        for (int r = 1; r <= 12; r++)
+        for (int dy = -r; dy <= r; dy++)
+        for (int dx = -r; dx <= r; dx++)
+        {
+            var p = new GridPoint(here.X + dx, here.Y + dy);
+            if (PathFinder.Distance(here, p) == r && p != door && !kept.Contains(p) && map.IsWalkable(p) && _world.OccupantAt(p) is null
+                && _queueSpotsTaken.Add(p))
+                return p;
+        }
+        return here;
     }
+
+    /// <summary>
+    /// Queue spots handed out this tick: fields are only taken once a soldier steps on, so attackers looking in the same tick
+    /// would all pick the same one, walk there in a line and end up sharing it (through the watchdog), all moving as one.
+    /// </summary>
+    private readonly HashSet<GridPoint> _queueSpotsTaken = new();
 
     /// <summary>A soldier holding its position fights only an enemy within its reach: the one it fights while it stays so, otherwise the nearest.</summary>
     private void HoldingEnemy(Fighter f, SoldierStats stats)

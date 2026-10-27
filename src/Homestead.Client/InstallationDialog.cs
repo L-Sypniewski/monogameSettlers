@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Homestead.Assets;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -175,7 +174,7 @@ public sealed class InstallationDialog : Game
         if (Pressed(Keys.Escape) || clicked && QuitButton.Contains(at))
             Exit();
         bool control = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
-        if (control && Pressed(Keys.V) && Clipboard() is { } pasted)
+        if (control && Pressed(Keys.V) && SdlClipboard.Text() is { } pasted)
             SetPath(pasted.Trim().Trim('"', '\'').Replace("file://", ""), browse: true);
         if (Pressed(Keys.Enter))
         {
@@ -413,43 +412,6 @@ public sealed class InstallationDialog : Game
     private Point ToLayout(Point screen) => ((screen.ToVector2() - _origin) / _scale).ToPoint();
 
     private int Px(int size) => Math.Max(8, (int)MathF.Round(size * _scale));
-
-    // MonoGame has no clipboard; DesktopGL runs on SDL2, which has one.
-    [DllImport("SDL2", EntryPoint = "SDL_GetClipboardText")]
-    private static extern IntPtr SdlGetClipboardText();
-
-    [DllImport("SDL2", EntryPoint = "SDL_free")]
-    private static extern void SdlFree(IntPtr memory);
-
-    static InstallationDialog()
-    {
-        NativeLibrary.SetDllImportResolver(typeof(InstallationDialog).Assembly, (name, assembly, path) =>
-        {
-            if (name != "SDL2")
-                return IntPtr.Zero;
-            foreach (string candidate in new[] { "libSDL2-2.0.so.0", "SDL2.dll", "libSDL2-2.0.0.dylib", "libSDL2.so" })
-                if (NativeLibrary.TryLoad(candidate, assembly, path, out var handle))
-                    return handle;
-            return IntPtr.Zero;
-        });
-    }
-
-    private static string? Clipboard()
-    {
-        try
-        {
-            var text = SdlGetClipboardText();
-            if (text == IntPtr.Zero)
-                return null;
-            string? value = Marshal.PtrToStringUTF8(text);
-            SdlFree(text);
-            return string.IsNullOrEmpty(value) ? null : value;
-        }
-        catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException)
-        {
-            return null;
-        }
-    }
 
     protected override void UnloadContent()
     {

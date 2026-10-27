@@ -142,14 +142,20 @@ public sealed partial class AiPlayer
         FreeSmithForToolsmith(mine);
         mine.RemoveAll(b => !b.Exists);
         PauseForesters(mine);
-        FollowStrikes(mine);
-        FollowCampaign();
+        if (AssaultOn is null)
+        {
+            FollowStrikes(mine);
+            FollowCampaign();
+        }
         LeadPriests();
         UpgradeSoldiers();
         ArmForLateGame();
         if (_world.Tick >= _nextMilitary)
         {
-            Command(mine);
+            if (AssaultOn is null)
+                Command(mine);
+            else
+                FollowAssault(mine);
             _nextMilitary = _world.Tick + _config.Military.ThinkTicks;
         }
         SampleGrowth(mine);

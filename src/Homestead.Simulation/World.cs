@@ -94,6 +94,12 @@ public sealed partial class World
     /// <summary>Messages to the players (attacks, …); created on first use in games saved before there were any.</summary>
     public GameEvents Events => _events ??= new GameEvents(this, EventConfig.Load());
 
+    /// <summary>The global chat every player may write to.</summary>
+    public ChatLog Chat { get; } = new();
+
+    /// <summary>Says <paramref name="text"/> in the global chat as <paramref name="player"/>, at the current tick.</summary>
+    public ChatMessage? Say(int player, string text) => Chat.Say(player, text, Tick);
+
     /// <param name="seed">Varies everything left to chance (0: the same game as always).</param>
     public World(GameMap? map = null, ProductionConfig? production = null, MilitaryConfig? military = null, MagicConfig? magic = null, int seed = 0,
         EventConfig? events = null)
@@ -494,6 +500,17 @@ public sealed partial class World
         }
         else if (settler.WaitingTicks >= PassThroughAfterTicks)
         {
+            // A soldier does not walk through onto its destination while somebody stands there: it stops next to it
+            // (orders take that as there). Walking in, a crowd sent to one place piled up on a few fields for good.
+            if (settler.Profession == Profession.Soldier && settler.Path.Count == 1 && !settler.PathIsLeg
+                && OccupantAt(blocked) is { State: not SettlerState.Stepping, WantsToMove: false })
+            {
+                settler.Path.Clear();
+                settler.Destination = null;
+                settler.State = SettlerState.Idle;
+                settler.WaitingTicks = 0;
+                return;
+            }
             PassThroughs++;
             StartStep(settler, settler.NextStep!.Value);
         }

@@ -129,13 +129,16 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
   Je Waffe ein Träger zugleich (soweit die Träger-Reserve reicht, Laufende aller Kasernen zählen), jeder wird an der Tür oder direkt daneben ausgebildet. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
   nie über Infanterie-/Bogenplätze; „+“ bei vollen Infanterieplätzen ersetzt die andere Infanterieart; Überzählige kehren um oder kommen
   heraus, nie der letzte – Ersatz tauscht an der Tür). Besetzte beanspruchen Land; immer ihren eigenen Grund (sonst fiele ein eroberter Turm gleich wieder).
+  - `Move`: Zielfelder um den Punkt zuerst frei (niemand steht dort, kein anderer Soldat dorthin geschickt), sonst belegte, dann reihum.
+    Soldaten laufen beim letzten Schritt nicht durch einen Stehenden auf ihr Ziel (Watchdog), sondern bleiben davor (gilt als angekommen).
   - `MilitaryCombat`: Gegnersuche über Zellen (`CellSize` 8) der Kämpfer zum Tick-Beginn, je Spieler (nur Zellen der Feinde durchsucht) (`EnemiesNear`, gleiche Reihenfolge wie `EnemiesOf`).
     Untätige Soldaten und solche mit nicht erzwungenem Laufbefehl greifen feindliche Soldaten und besetzte Militärgebäude
     (Tür in Sicht) an, Näheres zuerst; Laufende gehen danach weiter; Besatzung bleibt drin. Nahkämpfer schlagen erst die Tür ein
     (`door`, HP wie Pikenier; 5 s ohne Feind im Umkreis 6 → Wächter geht rein, Tür regeneriert 0 → voll in 30 s).
     Dann je ein Verteidiger unbeweglich vor der Tür (`FightPoint`; Plätze je Volk/Gebäude als Versatz in `door.points`, sonst automatisch,
     vorn zuerst; erst Infanterie, dann Bogenschützen), nur von Nahkämpfern auf den Türplätzen angreifbar (`door.fighters`: Turm/großer Turm 2,
-    Burg 1; Pikeniere wie Reichweite 1, Rest wartet). Wer den letzten Verteidiger tötet, ist drin. Bogenschützen greifen keine Gebäude an
+    Burg 1; Pikeniere wie Reichweite 1, Rest wartet). Wer den letzten Verteidiger tötet, ist drin. Wartende Angreifer: freies Feld 2–5 vom Wächterfeld, im selben Tick nie zweimal vergeben (`QueueSpot`);
+    alles voll → wo sie stehen bzw. nächstes freies Feld, nie aufs Wächterfeld (sonst Hunderte auf einem Feld). Bogenschützen greifen keine Gebäude an
     (weder von selbst noch auf Befehl – `Attack` übergeht sie; KI-Feldzüge ohne sie) und schießen am Boden nicht unter `minRange` (5):
     zu Nahe → zurückweichen (`SoldierStats.InReach`/`OffReach`), auch Tür-Wächter; vom Turm ohne Mindestreichweite.
     Bogenschützen in Militärgebäuden schießen `towerRangeFactor` (1,69) weiter (`TowerRange`, auch KI-Turmfeuer). Bogenschützen treffen beim Schuss, Pfeil (`Military.Arrows`, `ArrowTicks`) nur Darstellung. Abklingzeit zwischen Schlägen/Schüssen je Soldat (`_nextShot`), nicht je Befehl: ein neuer Befehl mitten im Kampf setzt sie nicht zurück. Nahe am Feind lokale Wegsuche (`combatPathRadius`).
@@ -191,6 +194,8 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
   `cooldownSeconds` je Spieler/Event (0 = immer), Text (`{building}`), an/aus. `Raise(id, spieler, ort, settler/building)`.
   Kampf: `attacked`, `buildingAttacked` (Tür/Wächter), `buildingLost`/`buildingCaptured`. Zustände fertiger Gebäude prüft `Tick` sekündlich,
   meldet nach `afterSeconds` einmal bis Ende: `noStaff`, `noTool`, `noResources`, `mineExhausted` (Chance ≤ `maxChance` %). `Announce`: ohne Ort.
+- `ChatLog` (`World.Chat`, `World.Say(spieler, text)`): globaler Chat, Zeilen mit Tick und Spieler in Reihenfolge, getrimmt, leere nichts,
+  höchstens `MaxLength` (200) Zeichen; mitgespeichert.
 - `SoundCues` (`World.SoundCues`, nicht gespeichert): nur gesammelt, wenn der Client eine Liste setzt (leert sie je Frame); `Strike` bei jedem
   Treffer/Schuss (auch an der Tür, mit Soldatentyp), `Death` in `MilitaryCombat.Kill` (mit Volk des Toten), `TreeFalls` beim Fällen, `BuildingFalls` in
   `RemoveBuilding`, `Spell` bei Zauberbeginn, `Healing` (Lazarett), `Claiming` (Pionier-Pfosten), `GeologistFinds` (mit Menge),

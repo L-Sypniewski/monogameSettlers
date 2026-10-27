@@ -115,7 +115,7 @@ public sealed partial class AiPlayer
     private void FollowWithPriests(List<Settler> priests)
     {
         var home = HomeDoor();
-        var force = _campaign?.Soldiers ?? _strikes.OrderByDescending(k => k.Soldiers.Count).FirstOrDefault()?.Soldiers;
+        var force = _campaign?.Soldiers ?? (AssaultOn is not null ? SoldiersOutside() : null) ?? _strikes.OrderByDescending(k => k.Soldiers.Count).FirstOrDefault()?.Soldiers;
         var spot = home;
         if (force is { Count: > 0 })
         {

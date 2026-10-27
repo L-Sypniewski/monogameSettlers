@@ -45,6 +45,10 @@ Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
     Beim Sammeln Aufgabe erst unter 85 % der Abbruchschwelle; aufgegebenes/geräumtes Ziel 60 s in Ruhe.
     Werte: `attack.armyRatio` (0 = egal), `attack.commit` (Anteil freier Soldaten, 1 = alle), `attack.abortRatio` (0 = nie aufgeben),
     `attack.maxDistance` (0 = egal), `military.retreatRatio` (0 = nie zurück).
+  - `AiPlayer.Assault` (Cheat `/attackme`, `AssaultOn`, gespeichert): statt Strikes/Feldzug/Verteidigung/Lazarett je Militär-Takt Besatzungen auf 1,
+    alle anderen Soldaten (auch neue) gegen das Militärgebäude des Spielers nächst ihrer Mitte (`Military.Attack`; Bogenschützen und ohne
+    Militärgebäude alle per `Move` zur Tür), nie Rückzug (kein `TendWounded`); Kämpfende und schon auf ihn Angesetzte bleiben dabei; Priester folgen.
+    Ende, wenn der Spieler kein Gebäude mehr hat; Verbündete nie.
   - `AiPlayer.Tactics`: in kleinen Gefechten (Strike/Feldzug ≤ `military.wounded.maxSoldiers` 10) ziehen sich Kämpfende unter `withdrawHealth` (35 %)
     zurück (erzwungen, Position halten `restDistance` vom Feind Richtung `RetreatDoor`; verfolgt → zum Gebäude; eigenes Lazarett in Rufweite, nicht
     näher am Feind: stattdessen freigegeben zu dessen Tür), solange der Rest `holdRatio` × Gegner hat;

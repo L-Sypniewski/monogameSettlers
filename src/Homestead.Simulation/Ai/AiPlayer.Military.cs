@@ -138,7 +138,7 @@ public sealed partial class AiPlayer
         foreach (var building in military)
         {
             int places = building.Definition.Occupiers.Count;
-            int limit = Math.Max(1, Character.Traits.Select(t => t.GarrisonLimit(this, building)).Min() ?? places);
+            int limit = AssaultOn is not null ? 1 : Math.Max(1, Character.Traits.Select(t => t.GarrisonLimit(this, building)).Min() ?? places);
             if (_releasing.Contains(building))
                 limit = Math.Max(1, Math.Min(limit, m.Occupants(building).Count(o => o is not null) - 1)); // one out to look at a suspect
             int infantryPlaces = building.Definition.Occupiers.Count(o => !o.ForBowman);

@@ -31,8 +31,6 @@ namespace Homestead.Client;
 /// </remarks>
 public sealed class MapGame : Game
 {
-    private const int WanderRadius = 15;
-    private const int WandererBatch = 50;
 
 
     private readonly GraphicsDeviceManager _graphics;
@@ -82,6 +80,9 @@ public sealed class MapGame : Game
 
     /// <summary>Notes at the bottom left of the game view.</summary>
     private readonly InfoFeed _info = new();
+    private readonly ChatInput _chat = new();
+    // Lines of World.Chat already in the info feed.
+    private int _chatShown;
     /// <summary>The computer players whose defeat is told already (or was, before the game was loaded).</summary>
     private readonly HashSet<int> _defeatNoted = new();
     /// <summary>Real seconds played since the game was saved, started or loaded (autosave, reminders).</summary>
@@ -228,7 +229,6 @@ public sealed class MapGame : Game
     private EconomyRenderer _economyRenderer = null!;
 
     private World _world = null!;
-    private readonly HashSet<int> _wanderers = new();
     private Settler? _selected;
     private Building? _selectedBuilding;
 
@@ -392,6 +392,15 @@ public sealed class MapGame : Game
     protected override void LoadContent()
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
+        Window.TextInput += (_, e) =>
+        {
+            if (!_chat.IsOpen)
+                return;
+            if (e.Key == Keys.Back)
+                _chat.Back();
+            else
+                _chat.Type(e.Character);
+        };
         using (var shader = typeof(MapGame).Assembly.GetManifestResourceStream("Upscale.mgfx")!)
         using (var bytes = new MemoryStream())
         {
@@ -675,7 +684,6 @@ public sealed class MapGame : Game
             Console.WriteLine($"Spieler {player + 1} ({report.Catalogs[player].Civilization}): KI {_aiNames.Character(ai.Character.Id)} " +
                               $"({string.Join(", ", ai.Character.Traits.Select(t => _aiNames.Trait(t.Id)))})");
         }
-        _wanderers.Clear();
         // The camera starts at the own start position (drawn ones included).
         var home = _map.Players.Count > 0 ? _map.Players[_positions?.Length == _map.Players.Count ? _positions[0] : 0] : null;
         _start = home is not null
@@ -729,7 +737,6 @@ public sealed class MapGame : Game
         foreach (var ai in _world.AiPlayers)
             ai.Noted += OnAiNote;
         _ownAi = _world.AiPlayers.FirstOrDefault(a => a.Player == 0);
-        _wanderers.Clear();
         _selected = null;
         ClearSelection();
         _paused = false;
@@ -750,6 +757,8 @@ public sealed class MapGame : Game
     private void BeginSession()
     {
         _info.Clear();
+        _chat.Close();
+        _chatShown = _world.Chat.Messages.Count;
         _defeatNoted.Clear();
         foreach (var ai in _world.AiPlayers)
             if (_world.Goals?.IsDefeated(ai.Player) == true)
@@ -765,6 +774,11 @@ public sealed class MapGame : Game
     /// </summary>
     private void NoteNews(TimeSpan real)
     {
+        for (; _chatShown < _world.Chat.Messages.Count; _chatShown++)
+        {
+            var said = _world.Chat.Messages[_chatShown];
+            _info.Add(Lang.T("chat.line", Lang.T("start.player", said.Player + 1), said.Text), _now, PlayerColors.Of(said.Player));
+        }
         if (_world.Goals is { } goals)
             foreach (var ai in _world.AiPlayers.OrderBy(a => a.Player))
                 if (ai.Player != 0 && goals.IsDefeated(ai.Player) && _defeatNoted.Add(ai.Player))
@@ -1449,7 +1463,7 @@ public sealed class MapGame : Game
         if (_paused)
             elapsed = TimeSpan.Zero;
         // F12 held: the game runs at FastForward times its speed.
-        if (_captureDirectory is null && Keyboard.GetState().IsKeyDown(Keys.F12))
+        if (_captureDirectory is null && !_chat.IsOpen && Keyboard.GetState().IsKeyDown(Keys.F12))
             elapsed *= FastForward;
         // Never more than MaxBacklog behind: a slow machine would otherwise fall further back every frame.
         _accumulator = TimeSpan.FromTicks(Math.Min((_accumulator + elapsed).Ticks, MaxBacklog.Ticks));
@@ -1457,7 +1471,6 @@ public sealed class MapGame : Game
         _perf.BeginSection();
         while (_accumulator >= World.TickDuration)
         {
-            GiveWanderersNewDestinations();
             _world.Step();
             _accumulator -= World.TickDuration;
         }
@@ -1501,7 +1514,7 @@ public sealed class MapGame : Game
             string reason = "";
             if (BuildSpotNear(Mouse.GetState().Position.ToVector2()) is null)
                 _world.CanPlace(definition, cursor, out reason);
-            _message = $"placing {definition.Name} (Q/E change, Shift+click finished, Esc stop){(reason.Length > 0 ? ": " + reason : "")}";
+            _message = $"placing {definition.Name} (Q/E change, Esc stop){(reason.Length > 0 ? ": " + reason : "")}";
         }
         if (_selectedBuilding is { } selectedBuilding && !_placing)
             _message = $"{selectedBuilding.Definition.Name}: {_world.StatusOf(selectedBuilding)}";
@@ -1586,27 +1599,11 @@ public sealed class MapGame : Game
         _graphics.ApplyChanges();
     }
 
-    private void GiveWanderersNewDestinations()
-    {
-        foreach (int id in _wanderers)
-        {
-            var settler = _world.Settlers[id];
-            if (settler.Destination is not null || settler.State == SettlerState.Stepping)
-                continue;
-            for (int attempt = 0; attempt < 10; attempt++)
-            {
-                var target = new GridPoint(
-                    settler.Position.X + _random.Next(-WanderRadius, WanderRadius + 1),
-                    settler.Position.Y + _random.Next(-WanderRadius, WanderRadius + 1));
-                if (_gameMap.IsWalkable(target) && _world.WalkTo(settler, target))
-                    break;
-            }
-        }
-    }
-
     private void HandleInput(GameTime gameTime)
     {
-        var keys = Keyboard.GetState();
+        var typed = Keyboard.GetState();
+        // While the chat line is open the keys type into it, the game sees none (the mouse still works).
+        var keys = HandleChat(typed) ? new KeyboardState() : typed;
         var mouse = Mouse.GetState();
         bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
         var cursorScreen = mouse.Position.ToVector2();
@@ -1619,7 +1616,7 @@ public sealed class MapGame : Game
             if (Pressed(Keys.Escape))
             {
                 OpenStatistics(canResume: false);
-                _previousKeys = keys;
+                _previousKeys = typed;
                 _previousMouse = mouse;
                 return;
             }
@@ -1703,7 +1700,7 @@ public sealed class MapGame : Game
         if (groupIcon is { } clickedGroup && released && !lost)
             SelectGroup(clickedGroup);
         onMenu |= groupIcon is not null;
-        // The cheat menu below them (C).
+        // The cheat menu below them (/cheats).
         if (released && !lost)
             _cheats.Click(cursorScreen, GraphicsDevice.Viewport.Width);
         onMenu |= _cheats.Contains(cursorScreen, GraphicsDevice.Viewport.Width);
@@ -2070,11 +2067,81 @@ public sealed class MapGame : Game
             }
         }
 
-        _previousKeys = keys;
+        _previousKeys = typed;
         _previousMouse = mouse;
     }
 
-    /// <summary>The game's keys (not once the game is lost): pause, view, groups, placing, debugging and cheats.</summary>
+    /// <summary>
+    /// The chat line: Enter opens it (also once the game is lost); open, Enter says the line in the global chat as the own
+    /// player, Esc drops it, ↑/↓ recall lines sent before, Ctrl+V pastes. Returns whether the keys went to the chat this frame.
+    /// </summary>
+    private bool HandleChat(KeyboardState keys)
+    {
+        bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
+        if (!_chat.IsOpen)
+        {
+            if (!Pressed(Keys.Enter))
+                return false;
+            _chat.Open();
+            return true;
+        }
+        bool control = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
+        if (Pressed(Keys.Escape))
+            _chat.Close();
+        else if (Pressed(Keys.Enter))
+        {
+            string line = _chat.Submit().Trim();
+            if (line.StartsWith('/'))
+                RunCommand(line[1..]);
+            else
+                _world.Say(0, line);
+        }
+        else if (Pressed(Keys.Up))
+            _chat.Recall(-1);
+        else if (Pressed(Keys.Down))
+            _chat.Recall(1);
+        else if (control && Pressed(Keys.V) && SdlClipboard.Text() is { } pasted)
+            _chat.Paste(pasted);
+        return true;
+    }
+
+    /// <summary>Chat commands (after the „/“), all cheats: only with <c>cheats</c> in the settings, otherwise a computer opponent objects.</summary>
+    private static readonly string[] Commands = ["cheats", "attackme"];
+
+    private void RunCommand(string line)
+    {
+        string name = line.Split(' ', 2)[0].ToLowerInvariant();
+        if (!_display.Cheats)
+        {
+            var opponents = _world.AiPlayers.Where(ai => ai.Player != 0 && !_world.AreAllies(0, ai.Player) && _world.Goals?.IsDefeated(ai.Player) != true)
+                .ToList();
+            if (opponents.Count > 0)
+                _world.Say(opponents[_random.Next(opponents.Count)].Player, Lang.T("chat.noCheats"));
+            return;
+        }
+        switch (name)
+        {
+            case "cheats":
+                _cheats.IsOpen = !_cheats.IsOpen;
+                break;
+            case "attackme":
+                // Every computer opponent still in the game assaults player 1 with everything and never falls back.
+                int attackers = 0;
+                foreach (var ai in _world.AiPlayers.Where(ai => ai.Player != 0 && _world.Goals?.IsDefeated(ai.Player) != true))
+                {
+                    ai.Assault(0);
+                    if (ai.AssaultOn == 0)
+                        attackers++;
+                }
+                _info.Add(Lang.T("chat.attackMe", attackers), _now);
+                break;
+            default:
+                _info.Add(Lang.T("chat.unknown", "/" + name, string.Join(", ", Commands.Select(c => "/" + c))), _now);
+                break;
+        }
+    }
+
+    /// <summary>The game's keys (not once the game is lost): pause, view, groups, placing and debugging.</summary>
     private void HandleKeys(KeyboardState keys, Vector2 cursorScreen, GameTime gameTime)
     {
         bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
@@ -2143,16 +2210,8 @@ public sealed class MapGame : Game
             LoadMap(_mapIndex - 1);
         if (Pressed(Keys.B))
             _showBlocked = !_showBlocked;
-        if (Pressed(Keys.V))
-        {
-            _fogChosen = !_fogChosen;
-            _minimap!.Update(_vision, all: !FogOn, _gameMap, IsAlly);
-            _message = _fogChosen ? "fog of war on (V)" : "fog of war off (V)";
-        }
         if (Pressed(Keys.O))
             _showObjects = !_showObjects;
-        if (Pressed(Keys.N) && _world.Spawn(ScreenToGrid(cursorScreen), Profession.Carrier) is { } spawned)
-            _selected = spawned;
         if (Pressed(Keys.I))
         {
             if (_ownAi is null && _playerCatalogs.Count > 0)
@@ -2178,28 +2237,11 @@ public sealed class MapGame : Game
             }
             _message = "AI decisions written to the console";
         }
-        if (Pressed(Keys.G))
-            _message = DemoEconomy.Create(_world, Own, ScreenToGrid(cursorScreen), _random);
-        if (Pressed(Keys.M))
-            SpawnWanderers(ScreenToGrid(cursorScreen));
         if (Pressed(Keys.F) && _world.BuildingAt(ScreenToGrid(cursorScreen)) is { } target)
         {
             // F: attack the enemy military building under the cursor with player 1's soldiers nearby.
             int sent = _world.Military.Attack(0, target);
             _message = sent > 0 ? $"{sent} soldiers attack {target.Definition.Name}" : "no soldiers in range or not an enemy military building";
-        }
-        if (Pressed(Keys.C))
-            _cheats.IsOpen = !_cheats.IsOpen;
-        if (Pressed(Keys.K))
-        {
-            // Test soldiers: two of each kind, for player 0 (with Shift for player 1).
-            int player = keys.IsKeyDown(Keys.LeftShift) || keys.IsKeyDown(Keys.RightShift) ? 1 : 0;
-            int soldiers = 0;
-            foreach (var type in Enum.GetValues<SoldierType>())
-                for (int i = 0; i < 2; i++)
-                    if (_world.SpawnSoldier(ScreenToGrid(cursorScreen), type, player: player) is not null)
-                        soldiers++;
-            _message = $"{soldiers} soldiers for player {player + 1}";
         }
     }
 
@@ -2220,16 +2262,14 @@ public sealed class MapGame : Game
         if (_placing)
         {
             var definition = _placeable[_placeIndex];
-            // Shift: finished at once (for testing), otherwise a construction site.
-            bool instant = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
             if (BuildSpotNear(screen) is not { } at)
             {
                 _world.CanPlace(definition, ScreenToGrid(screen), out string reason);
                 _message = $"{definition.Name}: {reason}";
                 return;
             }
-            bool placed = instant ? _world.PlaceBuilding(definition, 0, at) is not null : _world.PlaceConstructionSite(definition, 0, at) is not null;
-            _message = !placed ? "could not place" : instant ? $"{definition.Name} placed" : $"{definition.Name} site placed";
+            bool placed = _world.PlaceConstructionSite(definition, 0, at) is not null;
+            _message = placed ? $"{definition.Name} site placed" : "could not place";
             // Placed: the choice is done (choose again in the build menu for another one).
             if (placed)
             {
@@ -2304,12 +2344,11 @@ public sealed class MapGame : Game
             _message = $"{_ships.Count} ships: right click sends them (over the water)";
             return;
         }
-        // Wanderers (debug, key M) can still be picked and sent around one by one.
+        // Settlers without a trade can still be picked and sent around one by one.
         if (hit is { Profession: Profession.None } && _group.Count == 0)
         {
             _selected = hit;
             _selectedBuilding = null;
-            _wanderers.Remove(hit.Id);
             _message = $"settler {hit.Id} selected";
             return;
         }
@@ -2349,7 +2388,6 @@ public sealed class MapGame : Game
             return;
         }
         var target = ScreenToGrid(screen);
-        _wanderers.Remove(_selected.Id);
         _message = _world.WalkTo(_selected, target) ? $"walking to {target.X},{target.Y}" : "unreachable";
     }
 
@@ -2593,7 +2631,7 @@ public sealed class MapGame : Game
     private bool ShowsBuildingInfo => _selectedBuilding is { Exists: true } && !_placing && !PriestsSelected;
 
     /// <summary>Only priests are selected: the menu at the left offers their spell.</summary>
-    /// <summary>The entries of the cheat menu (C): own units in the middle of the view, mana.</summary>
+    /// <summary>The entries of the cheat menu (/cheats): own units in the middle of the view, mana, fog of war.</summary>
     private void AddCheats()
     {
         GridPoint Center() => ScreenToGrid(new Vector2(GraphicsDevice.Viewport.Width / 2f, GraphicsDevice.Viewport.Height / 2f));
@@ -2624,6 +2662,12 @@ public sealed class MapGame : Game
         });
         Decide("missionWon", MissionOutcome.Won);
         Decide("missionLost", MissionOutcome.Lost);
+        _cheats.Add(Lang.T("cheats.fog"), () =>
+        {
+            _fogChosen = !_fogChosen;
+            _minimap!.Update(_vision, all: !FogOn, _gameMap, IsAlly);
+            _message = _fogChosen ? "cheat: fog of war on" : "cheat: fog of war off";
+        });
     }
 
     /// <summary>The own buildings by name: finished, and under construction (for the build menu).</summary>
@@ -2850,16 +2894,6 @@ public sealed class MapGame : Game
             .OrderBy(t => Vector2.DistanceSquared(t.Center, middle))
             .Select(t => t.Building)
             .FirstOrDefault();
-    }
-
-    private void SpawnWanderers(GridPoint near)
-    {
-        for (int i = 0; i < WandererBatch; i++)
-        {
-            var at = new GridPoint(near.X + _random.Next(-8, 9), near.Y + _random.Next(-8, 9));
-            if (_world.Spawn(at) is { } settler)
-                _wanderers.Add(settler.Id);
-        }
     }
 
     private float TickAlpha => (float)(_accumulator / World.TickDuration);
@@ -3243,8 +3277,9 @@ public sealed class MapGame : Game
         _buildMenu?.DrawTooltip(_spriteBatch, _pixel, _font, Mouse.GetState().Position.ToVector2(), viewport.Bounds,
             SidePanel.Scale(viewport.Height), _now);
         DrawOutcome(viewport);
-        _info.Draw(_spriteBatch, _pixel, _font, SidePanel.Width * SidePanel.Scale(viewport.Height) + 12, viewport.Height - 10,
-            Math.Max(14, viewport.Height / 48), _now);
+        float infoLeft = SidePanel.Width * SidePanel.Scale(viewport.Height) + 12;
+        _info.Draw(_spriteBatch, _pixel, _font, infoLeft, viewport.Height - 10, viewport.Width - infoLeft - 12,
+            Math.Max(14, viewport.Height / 48), _now, _chat.IsOpen ? _chat.Text : null);
         // Bottom right, stacked upwards: performance (F3), then the game time (T).
         int bottom = viewport.Height;
         if (_showPerf)
@@ -4067,6 +4102,15 @@ public sealed class MapGame : Game
             PanCamera();
         else if (_capturedFrames > 1 && CaptureView == "battle")
             FollowFight();
+        // HOMESTEAD_CAPTURE_CHAT=<text>: players 1-3 say something, then the chat line is open with the text typed.
+        if (_capturedFrames == 0 && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_CHAT") is { } chat)
+        {
+            _world.Say(0, "Hello everybody");
+            _world.Say(1, "Hi!");
+            _world.Say(2, "gl hf");
+            _chat.Open();
+            _chat.Paste(chat);
+        }
         // HOMESTEAD_CAPTURE_SAVE=<slot>: saves the game into that slot (1-8) after 300 frames.
         if (_capturedFrames == 300 && int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SAVE"), out int saveSlot))
         {

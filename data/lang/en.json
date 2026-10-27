@@ -615,7 +615,8 @@
     "carriers": "carriers",
     "warMachines": "war machines",
     "missionWon": "Mission accomplished",
-    "missionLost": "Mission lost"
+    "missionLost": "Mission lost",
+    "fog": "Fog of war on/off"
   },
   "building": {
     "ammoLoads": "Ammunition: {0}",
@@ -635,6 +636,12 @@
     "soldiers": "{0}/{1} soldiers",
     "soldiersOnTheWay": ", {0} on the way",
     "door": ", door {0} %"
+  },
+  "chat": {
+    "line": "{0}: {1}",
+    "noCheats": "No cheating here!",
+    "attackMe": "{0} computer opponents attack you with everything they have.",
+    "unknown": "Unknown command {0}. Commands: {1}"
   },
   "info": {
     "defeated": "{0} has been defeated.",

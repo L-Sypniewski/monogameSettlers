@@ -50,6 +50,9 @@ public sealed record DisplaySettings
     /// <summary>Palette index (<see cref="PlayerColors.Palette"/>) of the color player 1 gets by default on the start screen.</summary>
     public int PreferredColor { get; init; }
 
+    /// <summary>Chat commands (<c>/cheats</c>, <c>/attackme</c> …) work; only in the file, the settings screen keeps it as it is.</summary>
+    public bool Cheats { get; init; }
+
     /// <summary>The settings in the file (default: the user's); missing or unreadable values keep their default.</summary>
     public static DisplaySettings Load(string? path = null)
     {
@@ -71,6 +74,7 @@ public sealed record DisplaySettings
             FullScreen = Flag("fullScreen", settings.FullScreen),
             AutoSave = Flag("autoSave", settings.AutoSave),
             IntroVideo = Flag("introVideo", settings.IntroVideo),
+            Cheats = Flag("cheats", settings.Cheats),
             Language = display.TryGetProperty("language", out var language) && language.ValueKind == JsonValueKind.String
                 ? language.GetString() == "en" ? Language.English : Language.German
                 : settings.Language,
@@ -98,5 +102,6 @@ public sealed record DisplaySettings
             ["autoSave"] = AutoSave,
             ["introVideo"] = IntroVideo,
             ["preferredColor"] = PlayerColors.Choices[PreferredColor].Id,
+            ["cheats"] = Cheats,
         }, path);
 }

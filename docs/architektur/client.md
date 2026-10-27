@@ -37,7 +37,7 @@ MonoGame-Spiel. Capture-Optionen: [capture.md](capture.md).
   (Turm, großer Turm, Burg) mehr hat, nachdem er eins hatte, ist endgültig besiegt (`IsDefeated`); seine KI denkt nicht mehr (`World` überspringt sie),
   Siedler/Soldaten handeln nur noch von selbst. Spieler 1 besiegt → verloren, alle anderen besiegt → gewonnen (Banner mit `system.wonHint`/`lostHint`, Statistik ohne „Weiter“). Gewonnen: weiß oben „Spiel gewonnen“, Fortschritt sofort gespeichert, weiterspielen
   möglich; Spiel beenden → Statistik („Weiter“) → nächste Missionsbeschreibung über Missionsauswahl und Volkswahl (nach der letzten das Sieg-Video, dann die Auswahl).
-  Gewonnen hebt den Fog of War auf (`FogOn`; V-Wahl `_fogChosen` bleibt für die nächste Partie).
+  Gewonnen hebt den Fog of War auf (`FogOn`; Cheat-Wahl `_fogChosen` bleibt für die nächste Partie).
   Verloren: „Spiel verloren“, keine Befehle mehr (Auswahl, Bauen, Menüs, Tasten außer Esc/F11/F3/T/Leertaste); Kamera, Minimap, Events und Computer-Menü
   gehen weiter; Esc → Statistik ohne Weiterspielen → dieselbe Missionsbeschreibung.
   Cheat-Menü: „Mission geschafft“/„Mission verloren“.
@@ -81,6 +81,14 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
     Texte `info.*`: KI-Spieler besiegt (`ConquestGoals.IsDefeated`, vor dem Laden Besiegte nicht; seine Farbe), Abriss-Rückfrage am eigenen
     letzten fertigen Militärgebäude „Dies ist der letzte Turm“ (eigene Farbe), gespeichert/automatisch/fehlgeschlagen,
     „Seit n Minuten nicht gespeichert“ alle 30 min Echtzeit seit Speichern/Start/Laden (`MapGame.NoteNews`).
+    Chat (`ChatInput`, auch nach Niederlage): Enter öffnet unten eine Eingabezeile („> “, Caret), dann Terminal-Ansicht: letzte 12 Zeilen (auch
+    verblasste, Verlauf 100) auf dunklem Grund; die Tasten gehen nur in die Zeile (keine Hotkeys/Kamera/F12, Maus geht weiter); Enter sagt sie als
+    Spieler 1 in `World.Chat` (`ChatLog`, gespeichert), Esc verwirft, ↑/↓ frühere Zeilen, Strg+V fügt ein (`SdlClipboard`). Neue Chatzeilen aller
+    Spieler kommen als `chat.line` („Spieler n: …“, Punkt in Spielerfarbe) ins Info-Feld; Geladenes nicht.
+    Befehle (`/…`, nicht im Chat, `MapGame.RunCommand`) nur mit `"cheats": true` im Abschnitt `display` der `settings.json` (`DisplaySettings.Cheats`,
+    nicht im Einstellungsbildschirm); sonst sagt ein zufälliger Computergegner (nicht verbündet, nicht besiegt) `chat.noCheats` im Chat.
+    `/cheats` öffnet/schließt das Cheat-Menü (`CheatMenu`: Soldaten je Typ/Stufe, Priester, Geologen, Späher, Pioniere, Träger,
+    Kriegsmaschinen, +50 Mana, Mission geschafft/verloren, Fog of War an/aus); `/attackme`: alle nicht besiegten Computergegner `AiPlayer.Assault(0)` (Info `chat.attackMe`); Unbekanntes: `chat.unknown` mit der Liste.
   - Computer-Button unten links (`SystemMenu`, `PanelTab.System`): „Spiel speichern“ (8 Slots mit Karte, Datum, Volk; leere gestrichelt;
     Klick speichert, auch überschreibend), „Spiel beenden“ mit Rückfrage (Ja unten links → Statistik, Nein unten rechts).
   - Hauptreiter Bauen/Waren/Siedler (`PanelTabs`: Original-Buttons Datei 03, aktiver gedrückt; Klick hebt Auswahl auf; Untermenüs `panelTabs` in `ui.json`).
@@ -141,16 +149,16 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
   Träger umwandeln nur über Siedler › Berufe. Linksklick ins Leere wählt ab (Figuren, Gebäude, Menüs) und leert das Panel wie im Original
   (`PanelTab.None`, kein Reiter gedrückt); rechts ziehen verschiebt die Karte.
-- **Tasten**: Esc bricht Platzieren/Zielen ab, sonst Pause wie P; N Träger, M 50 Wanderer, K Testsoldaten (Shift: Spieler 2), C Cheat-Menü (`CheatMenu`: Soldaten je Typ/Stufe, Priester, Geologen,
-  Späher, Pioniere, Träger, +50 Mana), F Angriff aufs feindliche Militärgebäude unter der Maus, V Fog of War (Sicht 1×/s, `FogLayer` blendet weich,
-  klingt über `SoftFields` (3) aus; unerkundet schwarz, erkundet dunkel, fremde Figuren nur in Sicht), F11 Vollbild (nur für die Sitzung; Vorgabe in den Einstellungen),
+- **Tasten**: Enter Chat (siehe Info-Feld), Esc bricht Platzieren/Zielen ab, sonst Pause wie P; keine Cheat-Tasten (nur `/cheats`, siehe Info-Feld);
+  F Angriff aufs feindliche Militärgebäude unter der Maus, Fog of War (Sicht 1×/s, `FogLayer` blendet weich,
+  klingt über `SoftFields` (3) aus; unerkundet schwarz, erkundet dunkel, fremde Figuren nur in Sicht; an/aus nur im Cheat-Menü), F11 Vollbild (nur für die Sitzung; Vorgabe in den Einstellungen),
   F2 Skalierung scharf/linear/Catmull-Rom (Standard)/Lanczos2 (Welt 1:1 in kleine RenderTarget, um den Zoom vergrößert; Markierungen/Panel scharf;
   `Shaders/Upscale.fx` → eingebettetes `.mgfx`, nach Änderung `tools/compile-shaders.sh`, braucht Wine),
   F3 Leistungsanzeige (FPS, ms Simulation/Update/Zeichnen, längster Frame, Draw-Calls; Zeichnen nur, was in den sichtbaren Zeilen und
   waagerecht im Bild liegt – Rand 96 px, Gebäudestreifen nach Pixelbreite bis 320 px, Schiffe 160 px), F12 gehalten 10× Tempo, T Spielzeit, I KI spielt für dich
-  (andere Spieler immer KI), L KI-Entscheidungen in die Konsole, G Demo-Wirtschaft,
+  (andere Spieler immer KI), L KI-Entscheidungen in die Konsole,
   P/Esc Pause (Banner wie „Spiel gewonnen“; Welt steht, Kamera/Panel/Befehle gehen), Platzieren über das Baumenü (Punkte an passenden Bauplätzen, grün→rot nach Planieraufwand – `World.LevellingEffort` / `levelling.maxWork`; max. 6 ms je Frame,
-  `World.BuildSpotEffort`; Vorschau am nächsten Bauplatz; Q/E Gebäude, Shift+Klick sofort fertig; endet nach Platzieren, Rechtsklick bricht ab).
+  `World.BuildSpotEffort`; Vorschau am nächsten Bauplatz; Q/E Gebäude; endet nach Platzieren, Rechtsklick bricht ab).
 - **Optionen**: `--scene map` (Standard) / `--scene walk` (Lauf-PoC); `--load <slot>` (1–8; Gelände/Objekte aus der Karte, dann Feld für Feld auf Stand);
   `--map <name>` (Standard: erste Mehrspieler-Karte; `random[:spieler[:none|mirror|repeat[:seed]]]`); `--peoples amazon,roman,…` (offene Völker,
   Spieler i: Eintrag i mod n; sonst zufällig; Kartenvorgaben 0–3 gelten); `--characters ,general` (KI-Charakter je Spieler, Eintrag i → Spieler i+1, leer = gelost).
