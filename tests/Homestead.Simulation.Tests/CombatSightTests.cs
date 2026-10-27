@@ -26,6 +26,33 @@ public class CombatSightTests
     }
 
     [Fact]
+    public void Move_orders_mid_fight_do_not_reset_the_time_between_shots()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools);
+        var bowman = world.SpawnSoldier(new GridPoint(20, 40), SoldierType.Bowman)!;
+        var enemy = world.SpawnSoldier(new GridPoint(30, 40), SoldierType.Swordsman, level: 3, player: 1)!;
+        world.Military.Hold([enemy]);
+        float health = enemy.Health;
+        for (int t = 0; t < 200 && enemy.Health == health; t++)
+            world.Step();
+        Assert.True(enemy.Health < health, "the bowman shot");
+
+        // Right-clicks every tick, back and forth beside it: the bowman takes up the fight again each time.
+        int interval = world.Military.Config.Soldiers[SoldierType.Bowman].AttackTicks;
+        int shots = 0;
+        for (int t = 1; t < 3 * interval; t++)
+        {
+            world.Military.Move([bowman], new GridPoint(20, 40 + t % 2));
+            health = enemy.Health;
+            world.Step();
+            if (enemy.Health < health)
+                shots++;
+        }
+
+        Assert.True(shots <= 2, $"{shots} shots in {3 * interval - 1} ticks");
+    }
+
+    [Fact]
     public void A_soldier_walks_around_a_row_of_fighting_friends_instead_of_queueing_behind_them()
     {
         var world = new World(new GameMap(80), TestConfig.NoTools);

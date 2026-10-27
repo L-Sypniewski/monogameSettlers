@@ -138,7 +138,7 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
     Burg 1; Pikeniere wie Reichweite 1, Rest wartet). Wer den letzten Verteidiger tötet, ist drin. Bogenschützen greifen keine Gebäude an
     (weder von selbst noch auf Befehl – `Attack` übergeht sie; KI-Feldzüge ohne sie) und schießen am Boden nicht unter `minRange` (5):
     zu Nahe → zurückweichen (`SoldierStats.InReach`/`OffReach`), auch Tür-Wächter; vom Turm ohne Mindestreichweite.
-    Bogenschützen in Militärgebäuden schießen `towerRangeFactor` (1,69) weiter (`TowerRange`, auch KI-Turmfeuer). Bogenschützen treffen beim Schuss, Pfeil (`Military.Arrows`, `ArrowTicks`) nur Darstellung. Nahe am Feind lokale Wegsuche (`combatPathRadius`).
+    Bogenschützen in Militärgebäuden schießen `towerRangeFactor` (1,69) weiter (`TowerRange`, auch KI-Turmfeuer). Bogenschützen treffen beim Schuss, Pfeil (`Military.Arrows`, `ArrowTicks`) nur Darstellung. Abklingzeit zwischen Schlägen/Schüssen je Soldat (`_nextShot`), nicht je Befehl: ein neuer Befehl mitten im Kampf setzt sie nicht zurück. Nahe am Feind lokale Wegsuche (`combatPathRadius`).
     „Position halten“ (`Military.Hold`, Auswahl-Panel bei Soldaten, an der Stelle von „Land einnehmen“; `Move(…, hold: true)` erst hinlaufen):
     nicht untätig (kein Gebäude ruft ihn), kämpft nur gegen Feinde in Reichweite, verfolgt niemanden, kehrt auf den Platz zurück, bis zum nächsten Befehl
     (`HoldTarget`/`Holds`; das Lazarett ruft Haltende nicht). KI: Verwundete, geparkte Nahkämpfer, Bogenschützen der Schlachtordnung.

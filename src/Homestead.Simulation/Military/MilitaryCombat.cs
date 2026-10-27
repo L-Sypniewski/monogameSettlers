@@ -47,6 +47,11 @@ public sealed partial class Military
     private readonly Dictionary<int, Garrison> _guards = new();
 
     private readonly Dictionary<int, Fighter> _fighters = new();
+
+    /// <summary>
+    /// Soldier id → the tick of its next strike or shot, on the ground or from a tower. Kept by the soldier, not its order:
+    /// a new order mid-fight (a move, then fighting again) must not let it strike again at once.
+    /// </summary>
     private readonly Dictionary<int, long> _nextShot = new();
     private readonly Dictionary<int, (long Tick, float Strength)> _strengths = new();
     private const int UnreachableTicks = 200;
@@ -641,11 +646,11 @@ public sealed partial class Military
                     return;
                 soldier.Facing = FacingTowards(soldier.Position, enemy.Position);
                 SetActivity(soldier, soldier.SoldierType == SoldierType.Bowman ? Activity.Shooting : Activity.Fighting);
-                if (_world.Tick >= f.NextHit)
+                if (_world.Tick >= _nextShot.GetValueOrDefault(soldier.Id))
                 {
                     int interval = HitInterval(soldier, stats);
                     Hit(soldier, enemy);
-                    f.NextHit = _world.Tick + interval;
+                    _nextShot[soldier.Id] = _world.Tick + interval;
                     soldier.ShotTicks = interval;
                 }
                 return;
@@ -711,7 +716,7 @@ public sealed partial class Military
                     }
                     soldier.Facing = FacingTowards(soldier.Position, fightPoint);
                     SetActivity(soldier, Activity.Fighting);
-                    if (_world.Tick >= f.NextHit)
+                    if (_world.Tick >= _nextShot.GetValueOrDefault(soldier.Id))
                     {
                         int interval = HitInterval(soldier, stats);
                         // A guard still on its way back in after the repair began: the door is in the way again.
@@ -724,7 +729,7 @@ public sealed partial class Military
                             g.LastThreat = _world.Tick;
                             _world.Events.Raise("buildingAttacked", g.Building.Player, g.Building.Position, building: g.Building);
                         }
-                        f.NextHit = _world.Tick + interval;
+                        _nextShot[soldier.Id] = _world.Tick + interval;
                         soldier.ShotTicks = interval;
                     }
                     return;
@@ -1214,7 +1219,6 @@ public sealed partial class Military
 
         public Settler? Enemy { get; set; }
         public Dictionary<int, long> Unreachable { get; } = new();
-        public long NextHit { get; set; }
         public long NextReplan { get; set; }
         public long NextRetarget { get; set; }
 
