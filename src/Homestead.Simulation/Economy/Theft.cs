@@ -157,9 +157,10 @@ public sealed class Theft
         return false;
     }
 
-    /// <summary>Piles of the own buildings and loose goods on the own land are not stolen.</summary>
+    /// <summary>Piles of the own or an ally's buildings and loose goods on their land are not stolen.</summary>
     private bool IsOwn(Pile pile, int player) =>
-        pile.Owner is { } owner ? owner.Player == player : _world.Map!.OwnerAt(pile.Position) == player;
+        pile.Owner is { } owner ? _world.AreAllies(owner.Player, player)
+            : _world.Map!.OwnerAt(pile.Position) is { } land && _world.AreAllies(land, player);
 
     private void End(Job job)
     {

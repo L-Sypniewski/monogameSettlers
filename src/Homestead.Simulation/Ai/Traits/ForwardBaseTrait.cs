@@ -25,7 +25,7 @@ internal sealed class ForwardBaseTrait(JsonElement settings) : AiTrait
     internal override bool Guard(AiPlayer ai, List<Building> military, List<Settler> idle)
     {
         var world = ai.World;
-        var enemies = world.Buildings.Where(b => b.Exists && b.Player != ai.Player && b.Definition.Occupiers.Count > 0).ToList();
+        var enemies = world.Buildings.Where(b => b.Exists && ai.IsEnemy(b.Player) && b.Definition.Occupiers.Count > 0).ToList();
         if (enemies.Count == 0)
             return false;
         var config = ai.Config.Military;

@@ -38,10 +38,10 @@ public sealed class Pioneering
     /// <summary>Whether the pioneer is taking land (or on his way to).</summary>
     public bool IsClaiming(Settler pioneer) => _jobs.ContainsKey(pioneer.Id);
 
-    /// <summary>Whether the player's pioneers may take the point: free land, or another player's land no military building of theirs protects.</summary>
+    /// <summary>Whether the player's pioneers may take the point: free land, or a non-ally's land no military building of theirs protects.</summary>
     public bool IsClaimable(GridPoint p, int player) =>
-        _world.Map!.Contains(p) && _world.Map.OwnerAt(p) is var owner && owner != player
-        && (owner is null || !_world.Military.IsProtected(p));
+        _world.Map!.Contains(p) && _world.Map.OwnerAt(p) is var owner
+        && (owner is null || !_world.AreAllies(owner.Value, player) && !_world.Military.IsProtected(p));
 
     /// <summary>The pioneers among <paramref name="settlers"/> take land around them. Returns how many found some.</summary>
     public int Claim(IEnumerable<Settler> settlers)

@@ -19,7 +19,7 @@ internal sealed class FrontGarrisonTrait(JsonElement settings) : AiTrait
     public override string Id => TraitId;
 
     internal override int? GarrisonLimit(AiPlayer ai, Building building) =>
-        ai.World.Buildings.Any(b => b.Exists && b.Player != ai.Player && b.Definition.Occupiers.Count > 0
+        ai.World.Buildings.Any(b => b.Exists && ai.IsEnemy(b.Player) && b.Definition.Occupiers.Count > 0
                                     && PathFinder.Distance(b.Position, building.Position) <= _frontDistance)
             ? null
             : _backline;

@@ -412,12 +412,14 @@
       "player": "Player",
       "people": "People",
       "color": "Color",
+      "team": "Team",
       "hardcore": "Hardcore"
     },
     "fixedPeopleHint": "The map sets the people of this start position; it applies to the player starting there.",
     "you": " (you)",
     "byMap": " (map)",
     "colorHint": "Color: click to choose; “?” is drawn at the start, colors of other players are crossed out.",
+    "teamHint": "Team: click to choose; players on the same team are allies: they don’t fight, take land from or steal from each other; “-”: no team, against everybody.",
     "reroll": "Reroll"
   },
   "settings": {

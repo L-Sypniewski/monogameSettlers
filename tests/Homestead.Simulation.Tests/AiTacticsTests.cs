@@ -56,6 +56,26 @@ public class AiTacticsTests(ITestOutputHelper output)
         Assert.Contains(ai.Log, l => l.Contains("brings 1 withdrawn soldiers back into the fight") && l.Contains("healed"));
     }
 
+    [Theory]
+    [InlineData(0, true)]  // no teams: everybody against everybody
+    [InlineData(2, true)]  // other team
+    [InlineData(1, false)] // same team: allies are left alone
+    public void The_ai_strikes_soldiers_near_its_land_unless_they_are_allies(int otherTeam, bool strikes)
+    {
+        var (world, _) = Battlefield();
+        world.Teams.AddRange([otherTeam == 0 ? 0 : 1, otherTeam]);
+        for (int i = 0; i < 4; i++)
+            world.SpawnSoldier(new GridPoint(44 + i, 84), SoldierType.Swordsman);
+        for (int i = 0; i < 2; i++)
+            world.SpawnSoldier(new GridPoint(40 + i, 125), SoldierType.Swordsman, player: 1);
+        var ai = new AiPlayer(world, Romans, 0, character: "standard");
+        world.AiPlayers.Add(ai);
+
+        Run(world, 20 * World.TicksPerSecond, () => ai.Log.Any(l => l.Contains("enemies at")));
+        Assert.Equal(strikes, ai.Log.Any(l => l.Contains("enemies at")));
+        Assert.Equal(otherTeam == 1, world.AreAllies(0, 1));
+    }
+
     [Fact]
     public void With_a_hospital_in_call_range_the_wounded_go_there_instead_of_holding_a_position()
     {

@@ -12,7 +12,7 @@ namespace Homestead.Client;
 /// <summary>
 /// Start screen on the original's map selection background (<c>startScreen</c> in <c>data/ui.json</c>): the map
 /// list in the upper panel with the category buttons right of it, below the preview in the slanted window with the
-/// start positions, one row per player (people, color, hardcore), start and quit.
+/// start positions, one row per player (people, color, team, hardcore), start and quit.
 /// </summary>
 /// <remarks>
 /// The list shows one category at a time (buttons above it, as in the original), sorted by player count.
@@ -20,13 +20,16 @@ namespace Homestead.Client;
 /// maps played; every change makes the map again with the same seed, "Neu würfeln" draws a new one.
 /// On multiplayer maps the start positions are drawn at random; a click on a position's "?" assigns it a
 /// player (or makes it random again). Mouse: click selects, wheel scrolls the list, arrows change the
-/// people, a click on the color takes the next free one (right click: the previous one). Keys: up/down/PgUp/PgDn
+/// people, a click on the color or team opens its choice. Keys: up/down/PgUp/PgDn
 /// map · Tab category · Enter start · Esc quit.
 /// </remarks>
 public sealed class StartScreen : IDisposable
 {
-    /// <summary>One player's settings: <c>null</c> as people or color (palette index) means drawn at random.</summary>
-    public sealed record PlayerSetup(Civilization? People, int? Color, bool Hardcore);
+    /// <summary>
+    /// One player's settings: <c>null</c> as people or color (palette index) means drawn at random; team 1–4
+    /// (0: none, against everybody).
+    /// </summary>
+    public sealed record PlayerSetup(Civilization? People, int? Color, bool Hardcore, int Team = 0);
 
     /// <summary>
     /// What was chosen: settings per player (entry 0 is the own one) and, on multiplayer maps, per start
@@ -111,12 +114,16 @@ public sealed class StartScreen : IDisposable
     private readonly List<int?> _colors = new();
     /// <summary>The player gets the <see cref="Homestead.Simulation.Hardcore"/> head start.</summary>
     private readonly List<bool> _hardcore = new();
+    /// <summary>Team of the player, 1–4; 0: none (the default, everybody against everybody).</summary>
+    private readonly List<int> _teams = new();
     /// <summary>Per start position of the map the player assigned to it; <c>null</c>: drawn at the start.</summary>
     private int?[] _positions = [];
     /// <summary>Start position whose player menu is open.</summary>
     private int? _positionMenu;
     /// <summary>Player whose color choice is open below the swatch.</summary>
     private int? _colorMenu;
+    /// <summary>Player whose team choice is open below the box.</summary>
+    private int? _teamMenu;
     /// <summary>First player row shown when the players don't fit the table.</summary>
     private int _playerScroll;
     /// <summary>Palette index player 1 gets (<see cref="DisplaySettings.PreferredColor"/>).</summary>
@@ -206,6 +213,9 @@ public sealed class StartScreen : IDisposable
     /// <summary>For capture runs: opens the color choice of <paramref name="player"/>.</summary>
     public void OpenColorChoice(int player) => _colorMenu = Math.Clamp(player, 0, PlayerCount - 1);
 
+    /// <summary>For capture runs: opens the team choice of <paramref name="player"/>.</summary>
+    public void OpenTeamChoice(int player) => _teamMenu = Math.Clamp(player, 0, PlayerCount - 1);
+
     private string NameOf(Civilization? people) =>
         people is { } p ? Lang.T("peoples." + p) : Lang.T("start.randomPeople");
 
@@ -242,6 +252,7 @@ public sealed class StartScreen : IDisposable
             _peoples.Add(_presetPeoples is { } preset ? preset[player % preset.Count] : player == 0 ? Civilization.Roman : null);
             _colors.Add(player == 0 ? _preferredColor : null);
             _hardcore.Add(false);
+            _teams.Add(0);
         }
     }
 
@@ -265,6 +276,7 @@ public sealed class StartScreen : IDisposable
         _mapError = error;
         _positionMenu = null;
         _colorMenu = null;
+        _teamMenu = null;
         _playerScroll = 0;
         _positions = [];
         try
@@ -326,7 +338,7 @@ public sealed class StartScreen : IDisposable
 
     private static readonly Rectangle RerollButton = new(OptionLabel - 4, OptionY(RandomOptions.Length) + 2, 136, 24);
 
-    // The players' table in the lower panel: name, people with arrows, color, hardcore.
+    // The players' table in the lower panel: name, people with arrows, color, team, hardcore.
     private const int TableTop = 340, TableBottom = 536;
 
     private const int PlayerRow = 28;
@@ -347,13 +359,15 @@ public sealed class StartScreen : IDisposable
     private Rectangle Cell(int x, int player, int width = 0) =>
         new(x, RowY(player) + (PlayerRow - Control) / 2, width == 0 ? Control : width, Control);
 
-    private Rectangle LeftArrow(int player) => Cell(450, player);
+    private Rectangle LeftArrow(int player) => Cell(430, player);
 
-    private Rectangle RightArrow(int player) => Cell(570, player);
+    private Rectangle RightArrow(int player) => Cell(540, player);
 
-    private Rectangle ColorBox(int player) => Cell(608, player, 22);
+    private Rectangle ColorBox(int player) => Cell(566, player, 22);
 
-    private Rectangle HardcoreBox(int player) => Cell(660, player);
+    private Rectangle TeamBox(int player) => Cell(604, player, 22);
+
+    private Rectangle HardcoreBox(int player) => Cell(652, player);
 
     // The color choice below a swatch: "?" (random) and the palette.
     private const int ColorColumns = 6, ColorCell = 22;
@@ -368,6 +382,21 @@ public sealed class StartScreen : IDisposable
         int x = Math.Min(swatch.X - 4, Width - width - 4);
         int y = swatch.Bottom + 4 + height <= Height - 4 ? swatch.Bottom + 4 : swatch.Y - 4 - height;
         return new Rectangle(x + 3 + item % ColorColumns * ColorCell, y + 3 + item / ColorColumns * ColorCell, ColorCell - 2, ColorCell - 2);
+    }
+
+    /// <summary>Teams to choose in the order shown: 1–4, then 0 (none, "-").</summary>
+    private static readonly int[] TeamChoices = [1, 2, 3, 4, 0];
+
+    private static string TeamLabel(int team) => team == 0 ? "-" : team.ToString();
+
+    /// <summary>Entry <paramref name="item"/> of the open team choice (team <see cref="TeamChoices"/>[item]), in a row below the box.</summary>
+    private Rectangle TeamItem(int item)
+    {
+        var box = TeamBox(_teamMenu!.Value);
+        int width = TeamChoices.Length * ColorCell + 6, height = ColorCell + 6;
+        int x = Math.Min(box.X - 4, Width - width - 4);
+        int y = box.Bottom + 4 + height <= Height - 4 ? box.Bottom + 4 : box.Y - 4 - height;
+        return new Rectangle(x + 3 + item * ColorCell, y + 3, ColorCell - 2, ColorCell - 2);
     }
 
     /// <summary>Whether another player has the palette color.</summary>
@@ -468,6 +497,20 @@ public sealed class StartScreen : IDisposable
             }
             return null;
         }
+        // And an open team choice.
+        if (_teamMenu is { } member)
+        {
+            if (Pressed(Keys.Escape))
+                _teamMenu = null;
+            else if (clicked || rightClicked)
+            {
+                for (int item = 0; item < TeamChoices.Length; item++)
+                    if (clicked && TeamItem(item).Contains(at))
+                        _teams[member] = TeamChoices[item];
+                _teamMenu = null;
+            }
+            return null;
+        }
 
         quit = Pressed(Keys.Escape) || clicked && QuitButton.Contains(at);
         if (Pressed(Keys.Tab))
@@ -515,6 +558,8 @@ public sealed class StartScreen : IDisposable
             {
                 if (ColorBox(player).Contains(at))
                     _colorMenu = player;
+                if (TeamBox(player).Contains(at))
+                    _teamMenu = player;
                 int step = LeftArrow(player).Contains(at) ? -1 : RightArrow(player).Contains(at) ? 1 : 0;
                 if (step != 0 && FixedPeople(player) is null)
                     _peoples[player] = Cycle(_peoples[player], step);
@@ -541,7 +586,7 @@ public sealed class StartScreen : IDisposable
 
     private Choice Start()
     {
-        var players = Enumerable.Range(0, PlayerCount).Select(p => new PlayerSetup(_peoples[p], _colors[p], _hardcore[p])).ToArray();
+        var players = Enumerable.Range(0, PlayerCount).Select(p => new PlayerSetup(_peoples[p], _colors[p], _hardcore[p], _teams[p])).ToArray();
         var positions = RandomPositions ? _positions.ToArray() : null;
         if (_category != RandomCategory)
             return new Choice(_shown[_selected].Index, players, positions);
@@ -728,6 +773,23 @@ public sealed class StartScreen : IDisposable
                     Centered(batch, font, "×", inner, TextOn(PlayerColors.Palette[color.Value]) * 0.8f, 14, shadow: false);
             }
         }
+        // The team choice likewise: 1–4 and "-".
+        if (_teamMenu is { } member)
+        {
+            var first = TeamItem(0);
+            var frame = new Rectangle(first.X - 3, first.Y - 3, TeamChoices.Length * ColorCell + 4, ColorCell + 4);
+            batch.Draw(pixel, ToScreen(new Rectangle(frame.X - 2, frame.Y - 2, frame.Width + 4, frame.Height + 4)), Gold);
+            batch.Draw(pixel, ToScreen(frame), Ink);
+            for (int item = 0; item < TeamChoices.Length; item++)
+            {
+                var cell = TeamItem(item);
+                bool current = _teams[member] == TeamChoices[item];
+                batch.Draw(pixel, ToScreen(cell), current ? Gold : cell.Contains(hover) ? HoverText : new Color(90, 100, 115));
+                var inner = new Rectangle(cell.X + 2, cell.Y + 2, cell.Width - 4, cell.Height - 4);
+                batch.Draw(pixel, ToScreen(inner), Ink);
+                Centered(batch, font, TeamLabel(TeamChoices[item]), inner, Color.White, 12);
+            }
+        }
         if (hint is not null)
             Hint(batch, pixel, font, hint, mouse, view);
     }
@@ -765,7 +827,7 @@ public sealed class StartScreen : IDisposable
         batch.Draw(_sheet, ToScreen(new Rectangle(track.X + 2, y, 8, height)), _handle, Color.White);
     }
 
-    /// <summary>One row per player in the lower panel: people, color, hardcore. Returns the hint under the mouse.</summary>
+    /// <summary>One row per player in the lower panel: people, color, team, hardcore. Returns the hint under the mouse.</summary>
     private string? DrawPlayers(SpriteBatch batch, Texture2D pixel, UiFont font, Point hover)
     {
         string? hint = null;
@@ -774,6 +836,7 @@ public sealed class StartScreen : IDisposable
         Write(batch, font, Lang.T("start.columns.player"), 346, header, Gold, 11);
         Centered(batch, font, Lang.T("start.columns.people"), new Rectangle(LeftArrow(0).X, header, RightArrow(0).Right - LeftArrow(0).X, 12), Gold, 11);
         Centered(batch, font, Lang.T("start.columns.color"), new Rectangle(ColorBox(0).X - 10, header, ColorBox(0).Width + 20, 12), Gold, 11);
+        Centered(batch, font, Lang.T("start.columns.team"), new Rectangle(TeamBox(0).X - 10, header, TeamBox(0).Width + 20, 12), Gold, 11);
         Centered(batch, font, Lang.T("start.columns.hardcore"), new Rectangle(HardcoreBox(0).X - 20, header, HardcoreBox(0).Width + 40, 12), Gold, 11);
         var fixedHint = Lang.T("start.fixedPeopleHint");
         foreach (int player in ShownRows)
@@ -791,7 +854,8 @@ public sealed class StartScreen : IDisposable
                 Small(batch, pixel, font, right, ">");
             }
             var name = new Rectangle(left.Right, left.Y, right.X - left.Right, left.Height);
-            Centered(batch, font, NameOf(people) + (fixedPeople is null ? "" : Lang.T("start.byMap")), name, fixedPeople is null ? Text : Dim, size);
+            var label = NameOf(people) + (fixedPeople is null ? "" : Lang.T("start.byMap"));
+            Centered(batch, font, label, name, fixedPeople is null ? Text : Dim, Measure(font, label, size) > name.Width - 4 ? 11 : size);
             if (fixedPeople is not null && name.Contains(hover))
                 hint = fixedHint;
 
@@ -804,6 +868,15 @@ public sealed class StartScreen : IDisposable
                 Centered(batch, font, "?", swatch, Color.White, size);
             if (swatch.Contains(hover))
                 hint = Lang.T("start.colorHint");
+
+            // Team: its number, "-" without one.
+            var team = TeamBox(player);
+            batch.Draw(pixel, ToScreen(new Rectangle(team.X - 2, team.Y - 2, team.Width + 4, team.Height + 4)),
+                team.Contains(hover) ? Gold : new Color(120, 135, 150));
+            batch.Draw(pixel, ToScreen(team), Ink);
+            Centered(batch, font, TeamLabel(_teams[player]), team, _teams[player] == 0 ? Dim : Color.White, size);
+            if (team.Contains(hover))
+                hint = Lang.T("start.teamHint");
 
             // Hardcore: a stone box, pressed and lit while on.
             var box = HardcoreBox(player);

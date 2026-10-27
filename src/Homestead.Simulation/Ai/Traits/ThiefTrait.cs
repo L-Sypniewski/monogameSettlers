@@ -84,7 +84,7 @@ internal sealed class ThiefTrait : AiTrait
         var map = world.Map!;
         var scouts = world.Settlers.Where(s => s.Player == ai.Player && s.Profession == Profession.Scout && !s.IsDead && !s.IsInside).ToList();
         var enemySoldiers = world.Settlers
-            .Where(s => s.Profession == Profession.Soldier && s.Player != ai.Player && !s.IsInside && !s.IsDead)
+            .Where(s => s.Profession == Profession.Soldier && ai.IsEnemy(s.Player) && !s.IsInside && !s.IsDead)
             .Select(s => s.Position).ToList();
         bool guarded(GridPoint p) => enemySoldiers.Any(e => PathFinder.Distance(e, p) <= _soldierRadius);
         var border = OwnBorder(map, ai.Player);
@@ -168,8 +168,8 @@ internal sealed class ThiefTrait : AiTrait
         // hundreds of fields around each.
         return world.Piles
             .Where(p => p.Material is not null && p.Count - p.Reserved > 0 && !taken.Contains(p) && !_avoided.ContainsKey(p)
-                        && map.OwnerAt(p.Position) is { } owner && owner != ai.Player
-                        && (p.Owner is null || p.Owner.Player != ai.Player))
+                        && map.OwnerAt(p.Position) is { } owner && ai.IsEnemy(owner)
+                        && (p.Owner is null || ai.IsEnemy(p.Owner.Player)))
             .Select(p => (Pile: p, Distance: DistanceFromBorder(map, p.Position)))
             .Where(t => t.Distance <= _maxDistance && !guarded(t.Pile.Position)
                         && (t.Distance <= _edgeDepth || AtEdge(map, t.Pile.Position)))

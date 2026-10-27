@@ -3,7 +3,7 @@ namespace Homestead.Simulation;
 /// <summary>
 /// Victory and defeat of a free game, checked once a second: a player who has lost every finished military building
 /// (tower, big tower, castle – lost, destroyed or torn down) once having had one is defeated for good; the own player
-/// (player 0) defeated loses, every other player defeated wins. Decided once, then it stays; the game goes on, and the
+/// (player 0) defeated loses, every enemy (player not on its team) defeated wins. Decided once, then it stays; the game goes on, and the
 /// other players' defeats are still noted.
 /// </summary>
 public sealed class ConquestGoals : IGameGoals
@@ -35,7 +35,7 @@ public sealed class ConquestGoals : IGameGoals
                 _defeated.Add(player);
         if (_defeated.Contains(Player))
             Decide(MissionOutcome.Lost, world.Tick);
-        else if (_hadGuard.Any(p => p != Player) && _hadGuard.Where(p => p != Player).All(_defeated.Contains))
+        else if (_hadGuard.Any(p => !world.AreAllies(p, Player)) && _hadGuard.Where(p => !world.AreAllies(p, Player)).All(_defeated.Contains))
             Decide(MissionOutcome.Won, world.Tick);
     }
 

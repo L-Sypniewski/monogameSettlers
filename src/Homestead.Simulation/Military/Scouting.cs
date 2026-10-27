@@ -37,27 +37,38 @@ public sealed partial class Military
         {
             if (soldier.Profession != Profession.Soldier || soldier.IsDead || soldier.IsInside)
                 continue;
-            int bit = 1 << soldier.Player;
+            // Revealed to the soldier's whole team.
+            int bit = TeamBits(soldier.Player);
             foreach (var scout in scouts)
-                if (scout.Player != soldier.Player && !scout.IsInside && (scout.RevealedTo & bit) == 0
+                if (scout.Player != soldier.Player && !scout.IsInside && (scout.RevealedTo & bit) != bit
                     && PathFinder.Distance(soldier.Position, scout.Position) <= radius)
                     scout.RevealedTo |= bit;
         }
     }
 
+    /// <summary>Bits of the player and its allies (as in <see cref="Settler.RevealedTo"/>).</summary>
+    private int TeamBits(int player)
+    {
+        int bits = 1 << player;
+        for (int other = 0; other < Math.Min(32, _world.Teams.Count); other++)
+            if (other != player && _world.AreAllies(player, other))
+                bits |= 1 << other;
+        return bits;
+    }
+
     /// <summary>
-    /// Whether <paramref name="player"/> sees the point: within sight of an own settler outside the buildings
-    /// or of an own building with a sight (<see cref="SightOfBuilding"/>; as the fog of war, <see cref="Vision"/>).
+    /// Whether <paramref name="player"/> sees the point: within sight of an own or allied settler outside the buildings
+    /// or of such a building with a sight (<see cref="SightOfBuilding"/>; as the fog of war, <see cref="Vision"/>).
     /// The own land itself sees nothing.
     /// </summary>
     public bool Sees(int player, GridPoint p)
     {
         foreach (var settler in _world.Settlers)
-            if (settler.Player == player && !settler.IsDead && !settler.IsInside
+            if (_world.AreAllies(settler.Player, player) && !settler.IsDead && !settler.IsInside
                 && PathFinder.InCircle(settler.Position, p, SightOf(settler)))
                 return true;
         foreach (var building in _world.Buildings)
-            if (building.Player == player && SightOfBuilding(building) is { } sight && PathFinder.InCircle(building.Position, p, sight))
+            if (_world.AreAllies(building.Player, player) && SightOfBuilding(building) is { } sight && PathFinder.InCircle(building.Position, p, sight))
                 return true;
         return _world.Magic.SeesBySpell(player, p);
     }

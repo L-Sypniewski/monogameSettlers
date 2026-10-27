@@ -412,12 +412,14 @@
       "player": "Spieler",
       "people": "Volk",
       "color": "Farbe",
+      "team": "Team",
       "hardcore": "Hardcore"
     },
     "fixedPeopleHint": "Die Karte gibt das Volk dieser Startposition vor; es gilt für den Spieler, der dort startet.",
     "you": " (Du)",
     "byMap": " (Karte)",
     "colorHint": "Farbe: Klick öffnet die Auswahl; „?“ wird beim Start gelost, belegte Farben sind durchgestrichen.",
+    "teamHint": "Team: Klick öffnet die Auswahl; Spieler im selben Team sind verbündet: Sie kämpfen nicht gegeneinander, nehmen sich kein Land und bestehlen sich nicht; „-“: kein Team, gegen alle.",
     "reroll": "Neu würfeln"
   },
   "settings": {

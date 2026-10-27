@@ -65,13 +65,13 @@ public sealed partial class Military
     public int Captures { get; private set; }
 
     /// <summary>
-    /// Sends the player's soldiers against an enemy military building: idle soldiers and the soldiers
+    /// Sends the player's soldiers against an enemy military building (none of an ally): idle soldiers and the soldiers
     /// of own military buildings within <see cref="MilitaryConfig.AttackRange"/> (one stays in each), no bowmen.
     /// Returns how many go.
     /// </summary>
     public int Attack(int player, Building target)
     {
-        if (!target.Exists || target.Player == player || !_garrisons.ContainsKey(target.Id))
+        if (!target.Exists || _world.AreAllies(target.Player, player) || !_garrisons.ContainsKey(target.Id))
             return 0;
         int range = _config.AttackRange;
         var attackers = _world.Settlers
@@ -165,7 +165,7 @@ public sealed partial class Military
     {
         if (!target.Exists || !_garrisons.ContainsKey(target.Id))
             return 0;
-        var list = Commandable(soldiers.Where(s => s.SoldierType != SoldierType.Bowman)).Where(s => s.Player != target.Player).ToList();
+        var list = Commandable(soldiers.Where(s => s.SoldierType != SoldierType.Bowman)).Where(s => !_world.AreAllies(s.Player, target.Player)).ToList();
         foreach (var soldier in list)
         {
             _fighters[soldier.Id] = new Fighter(soldier) { Target = target };
@@ -245,7 +245,7 @@ public sealed partial class Military
         _combatants.Where(s => IsEnemy(s, player, bowman));
 
     private bool IsEnemy(Settler s, int player, bool bowman) =>
-        s.Player != player && !s.IsInside && !s.IsDead && !_guards.ContainsKey(s.Id) && s.IsRevealedTo(player)
+        !_world.AreAllies(s.Player, player) && !s.IsInside && !s.IsDead && !_guards.ContainsKey(s.Id) && s.IsRevealedTo(player)
         && !(bowman && s.Profession == Profession.WarMachine);
 
     /// <summary>Fields per side of a cell of <see cref="_cells"/>.</summary>
@@ -391,7 +391,7 @@ public sealed partial class Military
         foreach (var g in _garrisons.Values)
         {
             var building = g.Building;
-            if (building.Player == soldier.Player || !building.Exists || g.IsEmpty)
+            if (_world.AreAllies(building.Player, soldier.Player) || !building.Exists || g.IsEmpty)
                 continue;
             int distance = PathFinder.Distance(soldier.Position, building.Door);
             if (distance > sight || distance >= best)
@@ -670,7 +670,7 @@ public sealed partial class Military
             SetActivity(soldier, Activity.None);
         if (f.Target is { } target)
         {
-            if (!target.Exists || target.Player == soldier.Player)
+            if (!target.Exists || _world.AreAllies(target.Player, soldier.Player))
             {
                 EndAttack(f);
                 return;
@@ -876,7 +876,7 @@ public sealed partial class Military
     private void HoldingEnemy(Fighter f, SoldierStats stats)
     {
         var soldier = f.Soldier;
-        if (f.Enemy is { } current && !current.IsDead && !current.IsInside && current.Player != soldier.Player
+        if (f.Enemy is { } current && !current.IsDead && !current.IsInside && !_world.AreAllies(current.Player, soldier.Player)
             && stats.InReach(DistanceTo(soldier.Position, current)))
             return;
         f.Enemy = null;
@@ -897,7 +897,7 @@ public sealed partial class Military
     {
         var soldier = f.Soldier;
         // Gone, inside, or won over by a spell: look for another one.
-        if (f.Enemy is { } current && (current.IsDead || current.IsInside || current.Player == soldier.Player
+        if (f.Enemy is { } current && (current.IsDead || current.IsInside || _world.AreAllies(current.Player, soldier.Player)
                                        || current.Profession == Profession.Donkey && !IsLoadedDonkey(current) || DistanceTo(soldier.Position, current) > _config.Sight(soldier.SoldierType!.Value) + 4))
             f.Enemy = null;
 

@@ -313,10 +313,10 @@ public sealed class WarMachines : IAssembly
     public double DamageOf(Building building) =>
         _hits.TryGetValue(building.Id, out int hits) ? (double)hits / Rules.HitsOf(building.Definition.Name) : 0;
 
-    /// <summary>An existing enemy military building of the player (null: of anybody), finished, that war machines fire at.</summary>
-    public static bool IsTarget(Building building, int? player) =>
+    /// <summary>An existing military building of an enemy of the player (null: of anybody), finished, that war machines fire at.</summary>
+    public bool IsTarget(Building building, int? player) =>
         building.Exists && building.State == BuildingState.Finished && building.Definition.Occupiers.Count > 0
-        && (player is null || building.Player != player);
+        && (player is null || !_world.AreAllies(building.Player, player.Value));
 
     private List<Settler> Commandable(IEnumerable<Settler> machines) =>
         machines.Where(m => m.Profession == Profession.WarMachine && !m.IsDead).Distinct().ToList();

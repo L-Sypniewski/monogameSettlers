@@ -286,7 +286,7 @@ public sealed partial class AiPlayer
 
     /// <summary>Occupied military buildings of other players (where the enemy is).</summary>
     internal List<Building> EnemyMilitary() =>
-        _world.Buildings.Where(b => b.Exists && b.Player != Player && IsMilitary(b) && b.State == BuildingState.Finished).ToList();
+        _world.Buildings.Where(b => b.Exists && IsEnemy(b.Player) && IsMilitary(b) && b.State == BuildingState.Finished).ToList();
 
     /// <summary>
     /// Shares the idle soldiers out evenly among the posts (the first ones get one more where it does not
@@ -508,7 +508,7 @@ public sealed partial class AiPlayer
     /// <summary>Enemy soldiers outside buildings, joined into groups of neighbours within <paramref name="radius"/>.</summary>
     private List<EnemyGroup> FindEnemyGroups(int radius)
     {
-        var enemies = _world.Settlers.Where(s => s.Profession is Profession.Soldier or Profession.Geologist or Profession.Scout or Profession.Pioneer && s.Player != Player
+        var enemies = _world.Settlers.Where(s => s.Profession is Profession.Soldier or Profession.Geologist or Profession.Scout or Profession.Pioneer && IsEnemy(s.Player)
                                                  && !s.IsInside && !s.IsDead && s.IsRevealedTo(Player)).ToList();
         var groups = new List<EnemyGroup>();
         // Neighbours are looked for in squares of the radius (the 3 × 3 around): with a big army a search

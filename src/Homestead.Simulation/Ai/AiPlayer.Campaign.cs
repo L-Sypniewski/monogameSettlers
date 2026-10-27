@@ -57,7 +57,7 @@ public sealed partial class AiPlayer
         foreach (var (id, until) in _givenUp.ToList())
             if (_world.Tick >= until)
                 _givenUp.Remove(id);
-        foreach (var target in _world.Buildings.Where(b => b.Exists && b.Player != Player && IsMilitary(b)
+        foreach (var target in _world.Buildings.Where(b => b.Exists && IsEnemy(b.Player) && IsMilitary(b)
                                                            && b.State == BuildingState.Finished && _world.Military.IsOccupied(b)
                                                            && !_givenUp.ContainsKey(b.Id)))
         {
@@ -174,7 +174,7 @@ public sealed partial class AiPlayer
         TowerFire([target.Position], except: target) +
         _world.Military.Occupants(target).Where(s => s is not null).Sum(s => Strength(s!, target.Position))
         * (_config.Attack.GarrisonWeight?.GetValueOrDefault(target.Definition.Name, 1.0) ?? 1.0)
-        + _world.Settlers.Where(s => s.Profession == Profession.Soldier && s.Player != Player && !s.IsInside && !s.IsDead
+        + _world.Settlers.Where(s => s.Profession == Profession.Soldier && IsEnemy(s.Player) && !s.IsInside && !s.IsDead
                                      && PathFinder.Distance(s.Position, target.Position) <= _config.Attack.DefenseRadius)
             .Sum(s => Strength(s, target.Position));
 

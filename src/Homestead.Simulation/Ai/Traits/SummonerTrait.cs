@@ -57,7 +57,7 @@ internal sealed class SummonerTrait : AiTrait
             return;
 
         var enemySoldiers = world.Settlers
-            .Where(s => s.Profession == Profession.Soldier && s.Player != ai.Player && !s.IsInside && !s.IsDead)
+            .Where(s => s.Profession == Profession.Soldier && ai.IsEnemy(s.Player) && !s.IsInside && !s.IsDead)
             .Select(s => s.Position).ToList();
         var best = priests
             .SelectMany(p => Spots(ai, p.Position, enemySoldiers).Select(s => (Priest: p, s.Spot, s.Free)))

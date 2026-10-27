@@ -75,7 +75,7 @@ public sealed partial class AiPlayer
         foreach (var soldier in resting)
             if (_world.Military.Holds(soldier) && _world.Military.HoldTarget(soldier) is { } spot
                 && PathFinder.Distance(spot, RetreatDoor(soldier.Position, enemy)) > 3
-                && _world.Settlers.Any(e => e.Player != Player && e.Profession == Profession.Soldier && !e.IsInside && !e.IsDead
+                && _world.Settlers.Any(e => IsEnemy(e.Player) && e.Profession == Profession.Soldier && !e.IsInside && !e.IsDead
                                             && PathFinder.Distance(e.Position, soldier.Position) <= Chased))
                 _world.Military.Move([soldier], RetreatDoor(soldier.Position, enemy), forced: true, hold: true);
 

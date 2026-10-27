@@ -1,7 +1,7 @@
 namespace Homestead.Simulation.Map;
 
 /// <summary>
-/// What one player sees of the map (fog of war): everything within sight of their settlers outside the buildings
+/// What one player sees of the map (fog of war), shared with its allies (<see cref="World.AreAllies"/>): everything within sight of their settlers outside the buildings
 /// (donkeys hardly) and of buildings with a sight (<see cref="Military.Military.SightOfBuilding"/>: the lookout tower, occupied
 /// military buildings a little beyond their land, every other finished building a little) is visible – the own land itself sees nothing; what was visible once stays explored. Recomputed on demand (<see cref="Update"/>),
 /// not every tick. The simulation itself does not use it: computer players know the whole map (scouts stay revealed
@@ -40,18 +40,18 @@ public sealed class Vision
         Array.Clear(_visible);
         foreach (var settler in world.Settlers)
         {
-            if (settler.Player != Player || settler.IsDead || settler.IsInside)
+            if (!world.AreAllies(settler.Player, Player) || settler.IsDead || settler.IsInside)
                 continue;
             See(settler.Position, world.Military.SightOf(settler));
         }
         foreach (var ship in world.Shipping.Ships)
-            if (ship.Player == Player)
+            if (world.AreAllies(ship.Player, Player))
                 See(ship.Position, world.Shipping.Rules.ShipSight);
         foreach (var building in world.Buildings)
-            if (building.Player == Player && world.Military.SightOfBuilding(building) is { } sight)
+            if (world.AreAllies(building.Player, Player) && world.Military.SightOfBuilding(building) is { } sight)
                 See(building.Position, sight);
         foreach (var sight in world.Magic.Sights)
-            if (sight.Player == Player && sight.Until > world.Tick)
+            if (world.AreAllies(sight.Player, Player) && sight.Until > world.Tick)
             {
                 if (sight.Radius == 0)
                     Array.Fill(_visible, true);

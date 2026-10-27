@@ -22,7 +22,7 @@ public sealed partial class AiPlayer
     {
         var map = _world.Map!;
         var suspects = _world.Settlers
-            .Where(s => s.Profession == Profession.Scout && s.Player != Player && !s.IsDead && !s.IsInside
+            .Where(s => s.Profession == Profession.Scout && IsEnemy(s.Player) && !s.IsDead && !s.IsInside
                         && map.OwnerAt(s.Position) == Player && !s.IsRevealedTo(Player))
             .ToList();
         foreach (var (id, soldier) in _inspectors.ToList())

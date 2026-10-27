@@ -509,7 +509,7 @@ public sealed partial class Military
 
     /// <summary>
     /// The building takes the land in its circle that is free or not protected by its owner's occupied
-    /// buildings, and always the ground it stands on (a taken tower would otherwise stand on enemy land and
+    /// buildings (never an ally's), and always the ground it stands on (a taken tower would otherwise stand on enemy land and
     /// go down with the next change of land); other players' buildings on the land taken go down.
     /// </summary>
     private void Claim(Building building)
@@ -518,7 +518,7 @@ public sealed partial class Military
         var taken = new HashSet<GridPoint>();
         var ground = building.BlockedPoints.Append(building.Door).Where(map.Contains).ToHashSet();
         foreach (var p in TerritoryOf(building).Union(ground))
-            if (map.OwnerAt(p) is not { } owner || owner != building.Player && (ground.Contains(p) || !Covers(owner, p)))
+            if (map.OwnerAt(p) is not { } owner || !_world.AreAllies(owner, building.Player) && (ground.Contains(p) || !Covers(owner, p)))
             {
                 if (map.OwnerAt(p) is not null)
                     taken.Add(p);
@@ -534,14 +534,14 @@ public sealed partial class Military
     internal bool IsProtected(GridPoint p) => _world.Map!.OwnerAt(p) is { } owner && Covers(owner, p);
 
     /// <summary>
-    /// A pioneer takes the point for the player (free or unprotected land, see <see cref="IsProtected"/>);
+    /// A pioneer takes the point for the player (free or unprotected land of a non-ally, see <see cref="IsProtected"/>);
     /// another player's building standing there – or reaching onto it, unless its own ground is protected –
     /// goes down with its ground, as when a military building claims it.
     /// </summary>
     internal void TakeLand(GridPoint p, int player)
     {
         var map = _world.Map!;
-        if (map.OwnerAt(p) == player)
+        if (map.OwnerAt(p) is { } owner && _world.AreAllies(owner, player))
             return;
         bool foreign = map.OwnerAt(p) is not null;
         map.SetOwner(p, player);

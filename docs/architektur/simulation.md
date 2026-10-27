@@ -121,6 +121,10 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
     `pileSize` (8) einer Ware (`loadSeconds` je Einheit, wartet bis `loadWaitSeconds` auf mehr), fährt die Stopps, legt je Stapel einen losen
     Stapel auf den Strand am Ziel (kein Steg dort), zurück dieselben Stopps. Watchdog: Punkt nach 3 Versuchen nicht erreicht → Stopp übersprungen,
     Ziel → heim, Ladung neben den Steg. Handelsschiffe auf Fahrt nehmen keine Befehle (`HarborOf`, `CargoOf`).
+- Teams (`World.Teams`, `AreAllies`; vom Startscreen, gespeichert): Verbündete kämpfen nicht gegeneinander (`MilitaryCombat.IsEnemy`, `Attack`,
+  Turmschützen, Kriegsmaschinen `IsTarget`), Feind-Zauber verschonen sie (`Magic.Affects`), Türme/Pioniere nehmen kein verbündetes Land
+  (`Claim`, `TakeLand`, `IsClaimable`), Diebe stehlen nicht bei ihnen (`Theft.IsOwn`); `ConquestGoals`: gewonnen, wenn alle Feinde besiegt sind.
+  Sicht geteilt: `Vision`, `Military.Sees`, `Magic.SeesBySpell` zählen das ganze Team; ein enttarnter Späher ist dem ganzen Team des Soldaten enttarnt.
 - `Military/`: Kaserne bildet an der Tür aus (Träger wird dort im selben Moment Soldat, geht nicht hinein), Rekruten laufen zum Sammelpunkt.
   Je Waffe ein Träger zugleich (soweit die Träger-Reserve reicht, Laufende aller Kasernen zählen), jeder wird an der Tür oder direkt daneben ausgebildet. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
   nie über Infanterie-/Bogenplätze; „+“ bei vollen Infanterieplätzen ersetzt die andere Infanterieart; Überzählige kehren um oder kommen

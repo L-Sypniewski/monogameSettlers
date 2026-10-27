@@ -47,6 +47,8 @@ public sealed class MapGame : Game
     private IReadOnlyList<Civilization>? _peoples;
     /// <summary>Players with the hardcore head start (start screen).</summary>
     private IReadOnlySet<int> _hardcore = new HashSet<int>();
+    /// <summary>Team per player of the free game (0: none).</summary>
+    private int[] _teams = [];
     /// <summary>Start position (map player) per player, from the start screen; null: as the map says.</summary>
     private int[]? _positions;
     private readonly string _mapDirectory;
@@ -517,6 +519,8 @@ public sealed class MapGame : Game
                     _startScreen.ShowCategory(category);
                 if (captureStart?.EndsWith(":color") == true)
                     _startScreen.OpenColorChoice(0);
+                else if (captureStart?.EndsWith(":team") == true)
+                    _startScreen.OpenTeamChoice(0);
             }
         }
         else if (_loadSlot is { } slot)
@@ -553,6 +557,7 @@ public sealed class MapGame : Game
                               ?? Enum.GetValues<Civilization>()[_peopleDraw.Next(Enum.GetValues<Civilization>().Length)])
             .ToArray();
         _hardcore = Enumerable.Range(0, players.Count).Where(p => players[p].Hardcore).ToHashSet();
+        _teams = players.Select(p => p.Team).ToArray();
         _positions = choice.Positions is { } chosen ? StartScreen.ResolvePositions(chosen, _peopleDraw) : null;
         ShowLoading(null, () =>
         {
@@ -641,6 +646,7 @@ public sealed class MapGame : Game
             hardcore: _hardcore.Where(p => p < _map.Players.Count),
             positions: _positions?.Length == _map.Players.Count ? _positions : null,
             production: settings.Apply(production), magic: settings.Apply(magic));
+        _world.Teams.AddRange(_teams.Take(_map.Players.Count));
         // A free game is won by defeating everybody else (a mission brings its own goals).
         _world.Goals = new ConquestGoals();
         BeginSession();
@@ -655,7 +661,7 @@ public sealed class MapGame : Game
         _fog.SetTargets(_vision);
         _minimap?.Dispose();
         _minimap = new Minimap(GraphicsDevice, _map.Area);
-        _minimap.Update(_vision, all: !FogOn, _gameMap);
+        _minimap.Update(_vision, all: !FogOn, _gameMap, IsAlly);
         _nextVision = _time + VisionInterval;
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
         // Every other player is a computer player.
@@ -708,7 +714,7 @@ public sealed class MapGame : Game
         _fog.SetTargets(_vision);
         _minimap?.Dispose();
         _minimap = new Minimap(GraphicsDevice, _map.Area);
-        _minimap.Update(_vision, all: !FogOn, _gameMap);
+        _minimap.Update(_vision, all: !FogOn, _gameMap, IsAlly);
         _nextVision = _time + VisionInterval;
         PlayerColors.Restore(game.Client.GetValueOrDefault("colors"));
         _mission = MissionRef.Parse(game.Client.GetValueOrDefault("mission"));
@@ -987,7 +993,7 @@ public sealed class MapGame : Game
             }
         }
         if (outcome == MissionOutcome.Won)
-            _minimap!.Update(_vision, all: !FogOn, _gameMap); // the fog lifts from the whole map
+            _minimap!.Update(_vision, all: !FogOn, _gameMap, IsAlly); // the fog lifts from the whole map
         if (outcome == MissionOutcome.Lost)
         {
             _placing = _aiming = false;
@@ -1055,6 +1061,7 @@ public sealed class MapGame : Game
         PlayerColors.Assign(new int?[map.Players.Count], _peopleDraw);
         _peoples = null;
         _hardcore = new HashSet<int>();
+        _teams = [];
         _positions = null;
         var mission = new MissionRef(_campaign, _campaignSide, _briefingIndex);
         ShowLoading(_campaign, () =>
@@ -1335,10 +1342,10 @@ public sealed class MapGame : Game
     private readonly List<MinimapDot> _minimapDots = [];
 
     /// <summary>
-    /// Dots on the minimap (player 1's where explored, everyone else's only where seen now): buildings and construction
-    /// sites black, occupied military buildings on top in white for player 1 and red for everyone else; then units outside – soldiers, priests,
-    /// geologists, pioneers and scouts (others' only where player 1 sees now, scouts once revealed), white and red
-    /// alike, red drawn last so enemies stay visible in a crowd.
+    /// Dots on the minimap (player 1's and its allies' where explored, everyone else's only where seen now): buildings and construction
+    /// sites black, occupied military buildings on top in white for player 1, turquoise for its allies and red for everyone else; then
+    /// units outside – soldiers, priests, geologists, pioneers and scouts (allies' like the own, enemies' only where player 1 sees now,
+    /// scouts once revealed), colored alike, red drawn last so enemies stay visible in a crowd.
     /// </summary>
     private List<MinimapDot> MinimapDots()
     {
@@ -1346,22 +1353,27 @@ public sealed class MapGame : Game
         foreach (var occupied in new[] { false, true })
             foreach (var building in _world.Buildings)
                 if (building.Exists && _world.Military.IsOccupied(building) == occupied
-                    && (!FogOn || (building.Player == 0 ? _vision.IsExplored(building.Position.Y * _gameMap.Size + building.Position.X)
+                    && (!FogOn || (_world.AreAllies(building.Player, 0) ? _vision.IsExplored(building.Position.Y * _gameMap.Size + building.Position.X)
                         : _vision.IsVisible(building.Position))))
-                    _minimapDots.Add(new MinimapDot(building.Position,
-                        !occupied ? Color.Black : building.Player == 0 ? Color.White : Color.Red, Building: true));
-        foreach (var own in new[] { true, false })
+                    _minimapDots.Add(new MinimapDot(building.Position, !occupied ? Color.Black : MinimapColor(building.Player), Building: true));
+        // Own first, then allies, enemies last.
+        foreach (int side in new[] { 0, 1, 2 })
             foreach (var settler in _world.Settlers)
-                if (settler.Player == 0 == own && OnMinimap(settler))
-                    _minimapDots.Add(new MinimapDot(settler.Position, own ? Color.White : Color.Red));
+                if ((settler.Player == 0 ? 0 : IsAlly(settler.Player) ? 1 : 2) == side && OnMinimap(settler))
+                    _minimapDots.Add(new MinimapDot(settler.Position, MinimapColor(settler.Player)));
         return _minimapDots;
     }
+
+    /// <summary>Whether the player is another one on player 1's team.</summary>
+    private bool IsAlly(int player) => player != 0 && _world.AreAllies(0, player);
+
+    private Color MinimapColor(int player) => player == 0 ? Color.White : IsAlly(player) ? Minimap.AllyColor : Color.Red;
 
     private bool OnMinimap(Settler settler) =>
         settler.Profession is Profession.Soldier or Profession.Priest or Profession.Geologist or Profession.Pioneer or Profession.Scout
             or Profession.WarMachine
         && !settler.IsDead && !settler.IsInside
-        && (settler.Player == 0 || (settler.IsRevealedTo(0) && (!FogOn || _vision.IsVisible(settler.Position))));
+        && (_world.AreAllies(settler.Player, 0) || (settler.IsRevealedTo(0) && (!FogOn || _vision.IsVisible(settler.Position))));
 
     private Vector2 ToWorld(GridPoint p) => ScreenProjection.ToWorld(p.X, p.Y, _terrain.HeightAt(p.X, p.Y));
 
@@ -1476,7 +1488,7 @@ public sealed class MapGame : Game
         {
             _vision.Update(_world);
             _fog!.SetTargets(_vision);
-            _minimap!.Update(_vision, all: !FogOn, _gameMap);
+            _minimap!.Update(_vision, all: !FogOn, _gameMap, IsAlly);
             _nextVision = _time + VisionInterval;
         }
         _fog!.Advance((float)elapsed.TotalSeconds);
@@ -2134,7 +2146,7 @@ public sealed class MapGame : Game
         if (Pressed(Keys.V))
         {
             _fogChosen = !_fogChosen;
-            _minimap!.Update(_vision, all: !FogOn, _gameMap);
+            _minimap!.Update(_vision, all: !FogOn, _gameMap, IsAlly);
             _message = _fogChosen ? "fog of war on (V)" : "fog of war off (V)";
         }
         if (Pressed(Keys.O))
@@ -3973,7 +3985,7 @@ public sealed class MapGame : Game
                 _world.Step();
         _vision.Update(_world);
         _fog!.SetTargets(_vision);
-        _minimap!.Update(_vision, all: !FogOn, _gameMap);
+        _minimap!.Update(_vision, all: !FogOn, _gameMap, IsAlly);
         Console.WriteLine($"benchmark: {_world.Tick / World.TicksPerSecond / 60} min played in {clock.Elapsed.TotalSeconds:F0} s, {_world.Settlers.Count} settlers, " +
                           $"{_world.Buildings.Count(b => b.Exists)} buildings");
         // HOMESTEAD_CAPTURE_VIEW=economy: the camera stays on player 1's home; battle: it follows the biggest fight.

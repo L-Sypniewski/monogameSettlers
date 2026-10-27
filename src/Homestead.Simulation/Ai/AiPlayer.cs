@@ -89,6 +89,9 @@ public sealed partial class AiPlayer
 
     internal World World => _world;
 
+    /// <summary>Whether the player is an enemy: another player not on the own team (allies are left alone).</summary>
+    internal bool IsEnemy(int player) => !_world.AreAllies(Player, player);
+
     /// <summary>The home military building (the first one), where soldiers gather without a task.</summary>
     internal Building? Home => _home;
 

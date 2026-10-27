@@ -90,7 +90,7 @@ public sealed partial class Magic
 
     /// <summary>Whether the player sees the point by a spell.</summary>
     public bool SeesBySpell(int player, GridPoint p) =>
-        _sights.Any(v => v.Player == player && v.Until > _world.Tick && (v.Radius == 0 || PathFinder.InCircle(v.Center, p, v.Radius)));
+        _sights.Any(v => _world.AreAllies(v.Player, player) && v.Until > _world.Tick && (v.Radius == 0 || PathFinder.InCircle(v.Center, p, v.Radius)));
 
     /// <summary>Spells that took effect recently (for drawing), newest last.</summary>
     public IReadOnlyList<SpellEffect> Effects => _effects;
@@ -232,13 +232,15 @@ public sealed partial class Magic
         bool unit = s.Profession is Profession.Soldier or Profession.Priest or Profession.Scout or Profession.Geologist or Profession.Pioneer;
         bool free = !s.IsInside && !_world.Military.IsTowerBound(s);
         bool soldier = s.Profession == Profession.Soldier && (!s.IsInside || _world.Military.IsGarrisoned(s));
+        // Spells against enemies spare allies.
+        bool enemy = !_world.AreAllies(s.Player, player);
         return spell.Kind switch
         {
-            SpellKind.Convert or SpellKind.Scatter => s.Player != player && unit && free,
+            SpellKind.Convert or SpellKind.Scatter => enemy && unit && free,
             SpellKind.Reinforce => s.Player == player && unit && free,
-            SpellKind.BowsToPioneers => s.Player != player && s.SoldierType == SoldierType.Bowman && free,
-            SpellKind.Freeze => s.Player != player && soldier,
-            SpellKind.Fear => s.Player != player && soldier && map.OwnerAt(s.Position) == player,
+            SpellKind.BowsToPioneers => enemy && s.SoldierType == SoldierType.Bowman && free,
+            SpellKind.Freeze => enemy && soldier,
+            SpellKind.Fear => enemy && soldier && map.OwnerAt(s.Position) == player,
             SpellKind.Haste => s.Player == player && soldier && s.SoldierType == SoldierType.Swordsman,
             SpellKind.Strengthen or SpellKind.Shield or SpellKind.CursedArrows => s.Player == player && soldier,
             _ => false,

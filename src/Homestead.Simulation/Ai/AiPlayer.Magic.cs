@@ -71,7 +71,7 @@ public sealed partial class AiPlayer
         // Frozen ones thawing before the spell could land count as not hit.
         long thawing = _world.Tick + _world.Magic.Config.CastTicks + World.TicksPerSecond;
         var hit = _world.Settlers
-            .Where(s => !s.IsInside && !s.IsDead && _world.Magic.Affects(spell, Player, s)
+            .Where(s => !s.IsInside && !s.IsDead && _world.Magic.Affects(spell, Player, s) && (s.Player == Player || IsEnemy(s.Player))
                         && (spell.Kind != SpellKind.Freeze || s.FrozenUntil <= thawing)
                         && (spell.Kind != SpellKind.Haste || !s.IsCharmed(SpellKind.Haste, thawing)))
             .ToList();

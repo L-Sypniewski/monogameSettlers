@@ -67,6 +67,14 @@ public sealed partial class World
 
     public bool IsHardcore(int player) => HardcorePlayers.Contains(player);
 
+    /// <summary>Team per player (index = player; set before the game starts): 1–4, 0 or missing: no team, against everybody.</summary>
+    public List<int> Teams { get; } = new();
+
+    public int TeamOf(int player) => player >= 0 && player < Teams.Count ? Teams[player] : 0;
+
+    /// <summary>Whether the players are on the same team (a player is its own ally): they do not fight, take land or steal from each other.</summary>
+    public bool AreAllies(int a, int b) => a == b || TeamOf(a) != 0 && TeamOf(a) == TeamOf(b);
+
     /// <summary>Full hit points of the player's soldiers of the type and level.</summary>
     public float MaxHealth(int player, SoldierType type, int level) =>
         Military.Config.MaxHealth(type, level) * (IsHardcore(player) ? Hardcore.HealthFactor : 1);

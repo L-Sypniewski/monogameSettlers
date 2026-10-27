@@ -7,7 +7,7 @@ namespace Homestead.Client;
 
 /// <summary>
 /// The minimap's picture: one texel per grid point, landscape colors (<see cref="MapOverview"/>) where
-/// player 1 has explored, black elsewhere; territory borders white for player 1, red for everyone else (as the dots). Units and military
+/// player 1 has explored, black elsewhere; territory borders white for player 1, turquoise for its allies, red for everyone else (as the dots). Units and military
 /// buildings are dots on top (<see cref="SidePanel"/>).
 /// </summary>
 public sealed class Minimap : IDisposable
@@ -28,9 +28,10 @@ public sealed class Minimap : IDisposable
     /// Shows what <paramref name="vision"/> sees now, darker what it has only explored (everything with
     /// <paramref name="all"/>), with the borders of <paramref name="map"/>'s territories: both fields of every
     /// neighbor pair with different owners (two texels, one is lost when the map is scaled down), in the color of
-    /// the owned one – white for player 1 where explored, red for everyone else only where seen now.
+    /// the owned one – white for player 1 and turquoise for its allies (<paramref name="allied"/>) where explored, red for
+    /// everyone else only where seen now.
     /// </summary>
-    public void Update(Vision vision, bool all, GameMap map)
+    public void Update(Vision vision, bool all, GameMap map, Func<int, bool> allied)
     {
         for (int i = 0; i < _pixels.Length; i++)
             _pixels[i] = all || vision.IsVisible(i) ? _landscape[i] : vision.IsExplored(i) ? Darker(_landscape[i]) : 0xff000000;
@@ -61,10 +62,14 @@ public sealed class Minimap : IDisposable
 
         void Mark(int i, int player)
         {
-            if (all || (player == 0 ? vision.IsExplored(i) : vision.IsVisible(i)))
-                _pixels[i] = (player == 0 ? Color.White : Color.Red).PackedValue;
+            bool ally = player != 0 && allied(player);
+            if (all || (player == 0 || ally ? vision.IsExplored(i) : vision.IsVisible(i)))
+                _pixels[i] = (player == 0 ? Color.White : ally ? AllyColor : Color.Red).PackedValue;
         }
     }
+
+    /// <summary>Allies of player 1 on the minimap: borders and dots.</summary>
+    public static readonly Color AllyColor = new(64, 224, 208);
 
     /// <summary>Half the brightness of a packed color (ABGR), alpha kept.</summary>
     private static uint Darker(uint color) => 0xff000000 | ((color >> 1) & 0x7f7f7f);

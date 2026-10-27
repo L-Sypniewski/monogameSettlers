@@ -60,14 +60,15 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   sortiert nach Spielerzahl (`OriginalMap.ReadPlayerCount` liest nur MapInfo). Tab „Zufallsgenerator“: Einstellungen (Spieler, Symmetrie, Flüsse, Rohstoffe, Steine, Wälder,
   Schätze, King of the Hill; Dekoration nicht wählbar, immer mittel) – Änderung erzeugt mit gleichem Seed neu, „Neu würfeln“/R neuer Seed. Je Spieler (Tabelle feste Zeilenhöhe, mehr Spieler scrollen): Volk (oder Zufall; Kartenvorgaben gelten je Position),
   Farbe (`PlayerColors.Palette`, nach Farbton sortiert, Kennungen `Choices`; Klick öffnet Auswahl darunter mit „?“ und allen Farben, belegte
-  durchgestrichen; Spieler 1 vorbelegt mit „Bevorzugte Farbe“ der Einstellungen, Vorgabe Rot; „Zufall“ → `PlayerColors.Assign`), Hardcore.
+  durchgestrichen; Spieler 1 vorbelegt mit „Bevorzugte Farbe“ der Einstellungen, Vorgabe Rot; „Zufall“ → `PlayerColors.Assign`), Team (Klick öffnet Auswahl 1–4/„-“, Vorgabe „-“ = keins; `World.Teams`,
+  nach dem Laden gesetzt; `TeamOf`, `AreAllies`), Hardcore.
   Mehrspieler-Startpositionen gelost (Vorschau schwarz „?“, Klick weist zu/zurück; `StartScreen.ResolvePositions` → `OriginalScenario.Load(positions:)`).
   Hardcore (`World.HardcorePlayers`, `Hardcore`): +10 % Kampfkraft flach (auch über 100 %), +30 % Bewohner je Wohnhaus, +20 % Soldaten-LP
   (`World.MaxHealth`), −25 % Baumaterial je Stapel (gerundet, mind. 1, `World.ConstructionCost`), Arbeitszeiten × 0,9,
   Start +2 Schwertkämpfer, +5 Bretter, +5 Stämme (`OriginalScenario.Load(hardcore:)`).
 - **Seitenpanel** (`SidePanel`, große Variante, auf Fensterhöhe skaliert; Menüs zeichnen/prüfen Klicks im Panelraum, `SidePanel.ToPanel`):
   - Minimap oben im Originalrahmen (dahinter Schwarz; rechts schmaler Goldrand mit Ranke, Datei 4 Sequenz 3): erkundetes Gelände (`Minimap`; nicht mehr in Sicht: halb so hell, ohne Fremdes),
-    eigenes immer weiß, Gegner immer rot – Gebietsgrenzen und Punkte (`MinimapDot`):
+    eigenes immer weiß, Verbündete türkis (`Minimap.AllyColor`, wie eigenes auch unter Fog; Grenzpfosten auf der Karte bleiben in Spielerfarbe), Gegner immer rot – Gebietsgrenzen und Punkte (`MinimapDot`):
     Soldaten, Priester, Geologen, Pioniere, Späher draußen (fremde unter Fog nur in Sicht, Späher erst enttarnt), Gebäude/Baustellen als größere schwarze Quadrate (besetzte Militärgebäude innen weiß/rot), sichtbarer Ausschnitt als weißer Rahmen. Klick: Kameraflug 0,35 s; Ziehen verschiebt den Rahmen; Scrollen bricht den Flug ab;
     Rechtsklick/Alt+Rechtsklick mit Auswahl: Befehl dorthin wie auf der Karte.
   - Event-Buttons rechts neben dem Computer-Button (`EventButtons`: Info, Kampf, Rohstoffe, Handel; Platz/Bilder in `events.json` `categories`):

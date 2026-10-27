@@ -29,6 +29,8 @@ Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
   - Expansion: Türme gezielt zu fehlenden Rohstoffen (ferne Ziele Turm für Turm), meidet Plätze mit mehr als `maxWaterShare` Wasser.
   - Nach der Nahrungskette: großer Tempel, Mana-Kette, kleiner Tempel; spät Goldmine/-schmelze (Ägypter: Edelsteinmine);
     Expansion zu Gold (`lateOres`) erst, wenn die Build-Order bis zur Mine erfüllt ist.
+  - Feinde: alle Spieler außer Verbündeten (`IsEnemy` → `World.AreAllies`, Teams vom Startscreen) – deren Soldaten, Gebäude,
+    Stapel (Dieb) und Zauberziele lässt sie in Ruhe.
   - `AiPlayer.Military`: Soll-Besatzung voll (`Staff`), kennt alle Feindsoldaten, wägt jede Sekunde neu. Untätig zählen auch Soldaten auf
     einfachem Laufbefehl und auf Rückzug (erzwungen) – Rückziehende sind sofort frei für Verteidigung/Guerilla/Feldzug, laufen sonst weiter
     (Bewachung schickt sie nicht um). Verteidigung zuerst; Guerilla gegen kleinere Trupps (auch Geologen, `geologistHealth`) bei deutlicher
