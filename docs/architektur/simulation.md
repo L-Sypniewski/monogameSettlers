@@ -84,7 +84,7 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
     untätiger Soldat folgt ihm (sonst ruft sie einen aus dem nächsten Militärgebäude mit mehr als einem Soldaten).
   - `Theft`: Späher stehlen (`Steal`; Alt+Rechtsklick: `StealAt`) die nächste Ware im Umkreis `scouts.stealRadius` (5) – unreservierte Einheit,
     nicht aus eigenen Gebäuden oder losen Waren auf eigenem Land; trägt sie (`Carrying`, geduckt), Tempo `scouts.loadedSpeed` (0,5);
-    lässt sie still auf eigenem Land fallen oder wo er stirbt.
+    lässt sie still auf eigenem Land fallen oder wo er stirbt. Mit `StealAt` geschickt, läuft er mit der Ware gleich zurück, wo er beim Befehl stand.
   - `Pioneering`: Pioniere (umgewandelt/geschickt wie Späher; `Claim`, Alt+Rechtsklick `ClaimAt`) nehmen Feld für Feld: nächstes freies oder
     fremdes, nicht geschütztes Feld (`Military.IsProtected`) im Umkreis `pioneers.searchRadius` (10), Gleichstand nächst dem Zielpunkt;
     `claimSeconds` (2) Pfosten, dann gehört ihm das Feld samt unbegehbaren Nachbarn (`Military.TakeLand`, ungeschützte fremde Gebäude fallen);

@@ -8,7 +8,8 @@ namespace Homestead.Simulation.Economy;
 /// <see cref="ScoutRules.StealRadius"/> (any pile with a unit nobody is coming for), walks there and
 /// pockets one unit. Loaded, he sneaks at <see cref="ScoutRules.LoadedSpeed"/> and takes nothing more;
 /// as soon as he stands still on his own land he drops it there – where he dies too. Sent off with
-/// the order to steal (<see cref="StealAt"/>), he walks there first and starts looking on arrival.
+/// the order to steal (<see cref="StealAt"/>), he walks there first, starts looking on arrival and, once
+/// he has a good, walks straight back to where he stood when given the order.
 /// </summary>
 public sealed class Theft
 {
@@ -53,14 +54,15 @@ public sealed class Theft
     /// <summary>
     /// Sends the scouts to <paramref name="target"/>; there they steal (see <see cref="Steal"/>). With
     /// <paramref name="ranks"/> they take the best ranked good around them (lowest rank first, goods
-    /// without one last), nearest among equals. Returns how many set off.
+    /// without one last), nearest among equals. With a good each walks back to where he stood. Returns how many set off.
     /// </summary>
     public int StealAt(IEnumerable<Settler> settlers, GridPoint target, IReadOnlyDictionary<Material, int>? ranks = null)
     {
         var scouts = Scouts(settlers).Where(s => s.Carrying is null).ToList();
+        var homes = scouts.ToDictionary(s => s.Id, s => s.Position);
         int sent = _world.Geology.Send(scouts, target);
         foreach (var scout in scouts.Where(s => s.HasTask))
-            _jobs[scout.Id] = new Job(scout) { Approaching = true, Ranks = ranks };
+            _jobs[scout.Id] = new Job(scout) { Approaching = true, Ranks = ranks, Home = homes[scout.Id] };
         return sent;
     }
 
@@ -102,6 +104,8 @@ public sealed class Theft
                 {
                     scout.Carrying = job.Material;
                     End(job);
+                    if (job.Home is { } home && home != scout.Position)
+                        _world.Geology.Send([scout], home);
                 }
                 else if (!Next(job))
                     End(job);
@@ -177,6 +181,9 @@ public sealed class Theft
 
         /// <summary>Which goods he prefers (lowest rank first), or null for the nearest.</summary>
         public IReadOnlyDictionary<Material, int>? Ranks { get; init; }
+
+        /// <summary>Where he walks back to with the good (where he stood when sent), or null to stay.</summary>
+        public GridPoint? Home { get; init; }
 
         public Pile? Pile { get; set; }
         public Material Material { get; set; }

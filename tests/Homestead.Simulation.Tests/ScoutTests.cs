@@ -179,6 +179,13 @@ public class ScoutTests(ITestOutputHelper output)
 
         Assert.Equal(Material.Coal, scout.Carrying);
         Assert.Equal(1, pile.Count);
+
+        // With the good he walks straight back to where he was sent from and drops it there.
+        for (int t = 0; t < 6_000 && scout.Carrying is not null; t++)
+            world.Step();
+        Assert.Null(scout.Carrying);
+        Assert.Equal(new GridPoint(30, 40), scout.Position);
+        Assert.Single(world.Piles, p => p.Material == Material.Coal && p != pile);
     }
 
     [Fact]
