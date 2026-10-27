@@ -257,12 +257,14 @@ public sealed partial class Military
     private const int CellSize = 8;
 
     /// <summary>
-    /// The combatants by where they stood at the tick's start: indices into <see cref="_combatants"/> per cell of
-    /// <see cref="CellSize"/> fields. With hundreds of soldiers on a big map, each one going through all of them
-    /// every tick took most of the combat's time.
+    /// The combatants by player and where they stood at the tick's start: indices into <see cref="_combatants"/> per cell of
+    /// <see cref="CellSize"/> fields (all cells of player 0, then of player 1, …). With hundreds of soldiers on a big map, each one
+    /// going through all of them every tick took most of the combat's time; by player, as an army's own crowd around a
+    /// soldier was most of what it still looked through.
     /// </summary>
     [NonSerialized] private List<int>[]? _cells;
     [NonSerialized] private int _cellsPerRow;
+    [NonSerialized] private int _cellPlayers;
     [NonSerialized] private List<int>? _usedCells;
     [NonSerialized] private List<int>? _nearBuffer;
 
@@ -270,17 +272,19 @@ public sealed partial class Military
     {
         int size = _world.Map!.Size;
         _cellsPerRow = (size + CellSize - 1) / CellSize;
-        if (_cells is null || _cells.Length != _cellsPerRow * _cellsPerRow)
+        int players = Math.Max(_world.PlayerCount, _combatants.Count == 0 ? 1 : _combatants.Max(s => s.Player) + 1);
+        if (_cells is null || _cells.Length != players * _cellsPerRow * _cellsPerRow)
         {
-            _cells = new List<int>[_cellsPerRow * _cellsPerRow];
+            _cells = new List<int>[players * _cellsPerRow * _cellsPerRow];
             _usedCells = new List<int>();
         }
+        _cellPlayers = players;
         foreach (int cell in _usedCells!)
             _cells[cell].Clear();
         _usedCells.Clear();
         for (int i = 0; i < _combatants.Count; i++)
         {
-            int cell = CellOf(_combatants[i].Position);
+            int cell = _combatants[i].Player * _cellsPerRow * _cellsPerRow + CellOf(_combatants[i].Position);
             var list = _cells[cell] ??= new List<int>();
             if (list.Count == 0)
                 _usedCells.Add(cell);
@@ -303,10 +307,16 @@ public sealed partial class Military
         int reach = range + 2;
         int x0 = Math.Max(0, (from.X - reach) / CellSize), x1 = Math.Min(_cellsPerRow - 1, Math.Max(0, from.X + reach) / CellSize);
         int y0 = Math.Max(0, (from.Y - reach) / CellSize), y1 = Math.Min(_cellsPerRow - 1, Math.Max(0, from.Y + reach) / CellSize);
-        for (int cy = y0; cy <= y1; cy++)
-        for (int cx = x0; cx <= x1; cx++)
-            if (_cells![cy * _cellsPerRow + cx] is { Count: > 0 } list)
-                near.AddRange(list);
+        for (int p = 0; p < _cellPlayers; p++)
+        {
+            if (_world.AreAllies(p, player))
+                continue;
+            int first = p * _cellsPerRow * _cellsPerRow;
+            for (int cy = y0; cy <= y1; cy++)
+            for (int cx = x0; cx <= x1; cx++)
+                if (_cells![first + cy * _cellsPerRow + cx] is { Count: > 0 } list)
+                    near.AddRange(list);
+        }
         near.Sort();
         var enemies = new List<Settler>();
         foreach (int i in near)

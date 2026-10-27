@@ -129,7 +129,7 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
   Je Waffe ein Träger zugleich (soweit die Träger-Reserve reicht, Laufende aller Kasernen zählen), jeder wird an der Tür oder direkt daneben ausgebildet. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
   nie über Infanterie-/Bogenplätze; „+“ bei vollen Infanterieplätzen ersetzt die andere Infanterieart; Überzählige kehren um oder kommen
   heraus, nie der letzte – Ersatz tauscht an der Tür). Besetzte beanspruchen Land; immer ihren eigenen Grund (sonst fiele ein eroberter Turm gleich wieder).
-  - `MilitaryCombat`: Gegnersuche über Zellen (`CellSize` 8) der Kämpfer zum Tick-Beginn (`EnemiesNear`, gleiche Reihenfolge wie `EnemiesOf`).
+  - `MilitaryCombat`: Gegnersuche über Zellen (`CellSize` 8) der Kämpfer zum Tick-Beginn, je Spieler (nur Zellen der Feinde durchsucht) (`EnemiesNear`, gleiche Reihenfolge wie `EnemiesOf`).
     Untätige Soldaten und solche mit nicht erzwungenem Laufbefehl greifen feindliche Soldaten und besetzte Militärgebäude
     (Tür in Sicht) an, Näheres zuerst; Laufende gehen danach weiter; Besatzung bleibt drin. Nahkämpfer schlagen erst die Tür ein
     (`door`, HP wie Pikenier; 5 s ohne Feind im Umkreis 6 → Wächter geht rein, Tür regeneriert 0 → voll in 30 s).

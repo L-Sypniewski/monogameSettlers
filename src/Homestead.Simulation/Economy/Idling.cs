@@ -233,12 +233,20 @@ public sealed class Idling
             var p = new GridPoint(from.X + dx, from.Y + dy);
             if (PathFinder.Distance(from, p) != r || taken.Contains(p) || !_world.Map!.Contains(p) || _world.IsOccupied(p))
                 continue;
-            // Keep a field between strollers' destinations too.
-            if (taken.Any(t => PathFinder.Distance(t, p) <= 1))
+            // Keep a field between strollers' destinations too (looked up around p: there can be hundreds of them).
+            if (NextToTaken(p, taken))
                 continue;
             if (IsQuiet(p, settler) && _world.Reachable(settler, p))
                 return p;
         }
         return null;
+    }
+
+    private static bool NextToTaken(GridPoint p, HashSet<GridPoint> taken)
+    {
+        for (int d = 0; d < DirectionExtensions.Count; d++)
+            if (taken.Contains(p.Neighbor((Direction)d)))
+                return true;
+        return false;
     }
 }
