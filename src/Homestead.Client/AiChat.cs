@@ -138,16 +138,19 @@ public sealed class AiChat
     {
         try
         {
-            var response = await _client.Messages.Create(new MessageCreateParams
+            var parameters = new MessageCreateParams
             {
                 Model = _model,
                 MaxTokens = 4096,
                 OutputConfig = new OutputConfig { Effort = _effort switch { "medium" => Effort.Medium, "high" => Effort.High, _ => Effort.Low } },
-                Thinking = _model.Contains("haiku") ? new ThinkingConfigDisabled() : null,
                 System = new List<TextBlockParam> { new() { Text = _system, CacheControl = new CacheControlEphemeral() } },
                 Tools = [SayTool, AttackTool],
                 Messages = [new UserMessageParam { Content = request }],
-            });
+            };
+            // Only Haiku may answer without thinking; for the others "thinking" stays out (null is rejected).
+            if (_model.Contains("haiku"))
+                parameters = parameters with { Thinking = new ThinkingConfigDisabled() };
+            var response = await _client.Messages.Create(parameters);
             var usage = response.Usage;
             Console.WriteLine($"AI chat: {usage.InputTokens} in (cache read {usage.CacheReadInputTokens ?? 0}, written {usage.CacheCreationInputTokens ?? 0}), " +
                               $"{usage.OutputTokens} out, {_model}");
