@@ -710,6 +710,14 @@ public sealed partial class World
         return pile;
     }
 
+    /// <summary>
+    /// A donkey put a unit down on another player's land: from, to, what (not saved; the client's chat with the computer
+    /// players listens, <c>AiChat</c>).
+    /// </summary>
+    public event Action<int, int, Material>? GoodsHandedOver;
+
+    internal void HandOver(int from, int to, Material material) => GoodsHandedOver?.Invoke(from, to, material);
+
     /// <summary>Puts one unit down at or near <paramref name="near"/>, joining a loose pile of the same material if possible.</summary>
     internal void DropGoods(GridPoint near, Material material)
     {

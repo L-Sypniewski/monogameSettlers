@@ -19,7 +19,7 @@ namespace Homestead.Client;
 /// of every request go to the console. The request runs in the background, one at a time (lines said meanwhile go along
 /// with the next); its answers are applied on the game's thread (<see cref="Apply"/>). Prompt: data/ai-chat.json.
 /// </summary>
-public sealed class AiChat
+public sealed partial class AiChat
 {
     private const string Section = "aiChat";
     private const string DefaultModel = "claude-haiku-5-5";
@@ -56,6 +56,8 @@ public sealed class AiChat
         _attackCooldownTicks = data.GetProperty("attackCooldownSeconds").GetInt32() * World.TicksPerSecond;
         _truceMaxMinutes = data.GetProperty("truceMaxMinutes").GetInt32();
         _helpMaxMinutes = data.GetProperty("helpMaxMinutes").GetInt32();
+        (_reactionChance, _reactionCooldownTicks, _bigFightSoldiers, _giftPleased, _giftInsulted, var values, _giftOtherValue) = ReadReactions(data);
+        _giftValues = values;
     }
 
     /// <summary>The chat with the settings' key, or null without one (then the computer players stay silent).</summary>
@@ -86,12 +88,14 @@ public sealed class AiChat
             _pending = true;
             return;
         }
-        Ask(world);
+        Ask(world, said: true);
     }
 
     /// <summary>Once a frame on the game's thread: applies the answers come in; returns lines for the info feed (failures).</summary>
     public IEnumerable<string> Apply(World world)
     {
+        Watch(world);
+        Notice(world);
         var notes = new List<string>();
         while (_answers.TryDequeue(out var answer))
             switch (_asked == world ? answer : null)
@@ -134,10 +138,12 @@ public sealed class AiChat
                     notes.Add(Lang.T("chat.aiFailed", failed.Reason));
                     break;
             }
-        if (_pending && _running is { IsCompleted: true })
+        // Lines said or things happened meanwhile: once the request under way is answered (or none is).
+        if ((_pending || _happenings.Count > 0) && _running is null or { IsCompleted: true })
         {
+            bool said = _pending;
             _pending = false;
-            Ask(world);
+            Ask(world, said);
         }
         return notes;
     }
@@ -154,7 +160,8 @@ public sealed class AiChat
     private static bool IsVoice(World world, int player) =>
         player != 0 && world.AiPlayers.Any(a => a.Player == player) && world.Goals?.IsDefeated(player) != true;
 
-    private void Ask(World world)
+    /// <param name="said">The own player wrote something (otherwise only what happened is answered).</param>
+    private void Ask(World world, bool said)
     {
         // The world is read here, on the game's thread; only the request runs in the background.
         _asked = world;
@@ -164,6 +171,12 @@ public sealed class AiChat
         string request = $"Language: {(Lang.Current == Language.English ? "English" : "German")}\n" +
                          $"Computer players and how they talk:\n{string.Join("\n", voices)}\n" +
                          $"<situation>\n{situation}\n</situation>";
+        if (_happenings.Count > 0)
+        {
+            request += $"\n{(said ? "Also just happened" : "Nobody wrote; this just happened")}:\n- {string.Join("\n- ", _happenings)}\n" +
+                       "React in the chat with the ruler concerned, if it would say something (usually one short line); otherwise use no tool.";
+            _happenings.Clear();
+        }
         _running = Task.Run(() => Request(request));
     }
 

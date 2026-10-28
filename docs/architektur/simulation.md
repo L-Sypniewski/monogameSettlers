@@ -99,7 +99,7 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
     Anteil 1, auch aus dem Ziel selbst – mit ∞ eine Endlosschleife wie im Original). Jede Einheit am Markt ruft den nächsten freien Esel;
     er lädt bis `load` (2), läuft die Stopps (Watchdog überspringt), legt am Ziel ab (an der Tür eines eigenen Lagers in dessen Stapel),
     zurück dieselben Stopps rückwärts. Feindlicher Soldat (auch Turm-Bogenschütze) schlägt einen beladenen Esel einmal: Ware fällt,
-    Esel kehrt um (`Struck`, Event `donkeyRobbed`, Handel); leere Esel greift niemand an (nur beladene sind `_combatants`). Ziel unerreichbar → mit Ladung heim, neben den Markt.
+    Esel kehrt um (`Struck`, Event `donkeyRobbed`, Handel); Abladen auf fremdem Land → `World.GoodsHandedOver(von, an, Ware)` (C#-Event, nicht gespeichert); leere Esel greift niemand an (nur beladene sind `_combatants`). Ziel unerreichbar → mit Ladung heim, neben den Markt.
   - `Shipping`: Werft (`shipping` in `production.json`) braucht erst einen Steg (`Dock`: Uferfeld + Richtung, `dockLength` (4) Felder):
     `PlaceDock` setzt ihn sofort dorthin, wo sein Ende dem Klick am nächsten ist – freies, begehbares eigenes Ufer bis `dockDistance` (20)
     von der Werft, von ihrer Tür erreichbar, Steg über eigenes offenes Wasser (ab dem zweiten Feld ringsum Wasser), neuer ersetzt den alten,

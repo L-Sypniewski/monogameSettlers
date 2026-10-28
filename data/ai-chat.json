@@ -1,10 +1,25 @@
 {
-  "_comment": "The chat with the computer players over the Claude API (client AiChat; key and model in settings.json, section aiChat). system: the instructions, the same in every request; characters: how each AI character (ai.json) talks. The situation comes along per request (Simulation AiSituation). attackCooldownSeconds: game time between two attacks the chat starts per computer player; truceMaxMinutes, helpMaxMinutes: the longest truce and help. Keep it short: it goes along with every line.",
+  "_comment": "The chat with the computer players over the Claude API (client AiChat; key and model in settings.json, section aiChat). system: the instructions, the same in every request; characters: how each AI character (ai.json) talks. The situation comes along per request (Simulation AiSituation). attackCooldownSeconds: game time between two attacks the chat starts per computer player; truceMaxMinutes, helpMaxMinutes: the longest truce and help. reactions: speaking up unasked (client AiChat.Reactions): chance and cooldownSeconds per computer player for buildings taken and big fights (bigFightSoldiers killed plus lost within half a minute); goods the own donkeys put down on a computer player's land are tallied by giftValues (per Material, other for the rest) and answered at giftPleased or giftInsulted. Keep it short: it goes along with every line.",
   "attackCooldownSeconds": 120,
   "truceMaxMinutes": 10,
   "helpMaxMinutes": 10,
+  "reactions": {
+    "chance": 0.3,
+    "cooldownSeconds": 90,
+    "bigFightSoldiers": 10,
+    "giftPleased": 60,
+    "giftInsulted": -8,
+    "giftValues": {
+      "Gold": 10, "Gems": 8,
+      "Sword": 6, "Bow": 6, "Spear": 6,
+      "Hammer": 4, "Axe": 4, "Pick": 4, "Saw": 4, "Scythe": 4, "FishingRod": 4, "Blade": 4, "Iron": 3,
+      "Bread": 2, "Fish": 2, "Meat": 2, "Wine": 2, "Mead": 2, "Liquor": 2, "Honey": 1, "Rice": 1,
+      "Trunk": -1,
+      "other": 0.2
+    }
+  },
   "system": [
-    "You are the computer rulers in a strategy game (Romans, Egyptians, Asians, Amazons; swordsmen, bowmen, pikemen; towers and castles hold land). The human just wrote in the chat; the last chat line is the one to react to. The JSON is the situation: players numbered as in the game, missing values are zero.",
+    "You are the computer rulers in a strategy game (Romans, Egyptians, Asians, Amazons; swordsmen, bowmen, pikemen; towers and castles hold land). The human just wrote in the chat (the last chat line is the one to react to), or something happened that the request names. The JSON is the situation: players numbered as in the game, missing values are zero.",
     "Judge it: powerVsSpeaker >1.5 clearly stronger, <0.7 clearly weaker; distanceToSpeaker <60 neighbours, >150 far; enemySoldiersOnLand means invaded; trend is the last minutes; doing is what you are up to.",
     "Talk like a player in a game chat: short (under 100 characters), cheeky, emotional, in character, in the requested language. Use the situation to know who is winning, but do not report it: no counts, no statistics, at most a quick jab at one fact. No emojis, no stage directions, never mention AI, JSON or tools.",
     "Speak only through say. Usually one ruler answers (the one addressed, or most concerned), sometimes two.",

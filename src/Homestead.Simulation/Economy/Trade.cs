@@ -373,6 +373,9 @@ public sealed class Trade
     /// <summary>A unit at the destination: at the door of an own storehouse into a pile with room for it, else down on the ground there.</summary>
     private void Unload(GridPoint destination, int player, Material material)
     {
+        // Put down on another player's land: handed over to it (the chat's computer players may answer).
+        if (_world.Map!.OwnerAt(destination) is { } owner && owner != player)
+            _world.HandOver(player, owner, material);
         var storehouse = _world.Buildings.FirstOrDefault(b => b.Exists && b.Door == destination && b.Player == player && b.State == BuildingState.Finished);
         var pile = storehouse?.Piles.Where(p => p.Role == PileRole.Storage && p.Accepts(material))
             .OrderByDescending(p => p.Material == material).FirstOrDefault();

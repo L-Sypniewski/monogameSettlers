@@ -107,6 +107,33 @@ public class TradeTests
     }
 
     [Fact]
+    public void Goods_put_down_on_another_players_land_are_handed_over_to_it()
+    {
+        var map = new GameMap(90);
+        var world = new World(map, StoreNothing) { TerritoryRules = true, PlayerCount = 2 };
+        var own = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(22, 30), force: true)!;
+        var other = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(62, 70), force: true)!;
+        world.SpawnSoldier(own.Door, SoldierType.Swordsman);
+        world.SpawnSoldier(other.Door, SoldierType.Swordsman, player: 1);
+        var market = world.PlaceBuilding(Romans["market_place"], 0, new GridPoint(20, 20), force: true)!;
+        var theirs = world.PlaceBuilding(Romans["stock"], 1, new GridPoint(65, 62), force: true)!;
+        world.AddLooseGoods(new GridPoint(12, 34), Material.Gold, 5);
+        for (int i = 0; i < 3; i++)
+            world.Spawn(new GridPoint(26 + i, 30), Profession.Carrier);
+        world.Spawn(new GridPoint(30, 12), Profession.Donkey);
+        var handed = new List<(int From, int To, Material Material)>();
+        world.GoodsHandedOver += (from, to, material) => handed.Add((from, to, material));
+
+        world.Trade.SetRemaining(market, Material.Gold, 3);
+        Assert.True(world.Trade.SetDestination(market, theirs.Position));
+        for (int t = 0; t < 30_000 && world.Trade.Delivered < 3; t++)
+            world.Step();
+
+        Assert.Equal(3, world.Trade.Delivered);
+        Assert.Equal([(0, 1, Material.Gold), (0, 1, Material.Gold), (0, 1, Material.Gold)], handed);
+    }
+
+    [Fact]
     public void An_enemy_strikes_a_loaded_donkey_once_it_drops_its_load_and_goes_home_unharmed()
     {
         var map = new GameMap(90);
