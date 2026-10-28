@@ -39,17 +39,44 @@ public sealed partial class AiPlayer
     /// <summary>Per target building id: no campaign against it before this tick.</summary>
     private readonly Dictionary<int, long> _givenUp = new();
 
-    /// <param name="only">Only against this player's buildings, and without weighing the armies (<see cref="Challenge"/>).</param>
+    /// <param name="only">A challenge (<see cref="Challenge"/>): only against this player, whatever the armies, the distance, the
+    /// character's timing and its ratio say (one to one is enough).</param>
     private void StartCampaign(List<Building> military, List<Settler> spare, int? only = null)
     {
         var rules = _config.Attack;
         // Bowmen do not attack buildings: they stay home for defence and guerilla.
         var fighters = spare.Where(s => s.SoldierType != SoldierType.Bowman).ToList();
-        if (fighters.Count < rules.MinSoldiers)
+        if (fighters.Count < (only is null ? rules.MinSoldiers : 1))
             return;
         // Decision point "timing": a trait may hold campaigns back.
-        if (Character.Traits.Any(t => !t.AllowCampaign(this)))
+        if (only is null && Character.Traits.Any(t => !t.AllowCampaign(this)))
             return;
+        if (ChooseCampaign(military, fighters, only) is not { } chosen)
+            return;
+        spare.RemoveAll(chosen.Force.Contains);
+        fighters.RemoveAll(chosen.Force.Contains);
+        // A share of the other spare soldiers comes along (all of them: full strength); against a challenger at least half.
+        double commit = only is null ? rules.Commit : Math.Max(rules.Commit, ChallengeCommit);
+        var along = fighters.OrderBy(s => PathFinder.Distance(s.Position, chosen.Rally.Door))
+            .Take((int)Math.Ceiling(fighters.Count * commit)).ToList();
+        chosen.Force.AddRange(along);
+        spare.RemoveAll(along.Contains);
+        var campaign = new Campaign(chosen.Target, chosen.Force, chosen.Rally.Door, _world.Tick);
+        _campaign = campaign;
+        foreach (var trait in Character.Traits)
+            if ((campaign.Leader = trait.LeadCampaign(this, campaign, spare)) is not null)
+                return;
+        _world.Military.Move(chosen.Force, chosen.Rally.Door);
+        Note($"gathers {chosen.Force.Count} soldiers at {chosen.Rally.Position.X},{chosen.Rally.Position.Y} " +
+             $"against the {chosen.Target.Definition.Name} of player {chosen.Target.Player + 1} at {chosen.Target.Position.X},{chosen.Target.Position.Y}");
+    }
+
+    /// <summary>The target building, the own military building to gather at and the soldiers needed, or null without a target.</summary>
+    private (Building Target, Building Rally, List<Settler> Force)? ChooseCampaign(List<Building> military, List<Settler> fighters, int? only)
+    {
+        var rules = _config.Attack;
+        double ratio = only is null ? rules.Ratio : Math.Min(rules.Ratio, 1.0);
+        int minSoldiers = only is null ? rules.MinSoldiers : 1;
         var pathFinder = _world.PathFinder!;
         // The own army fights on foreign land, the enemy's at home.
         var armies = Armies();
@@ -67,45 +94,30 @@ public sealed partial class AiPlayer
                 continue;
             // An outpost far away could not be held. Measured from the own land: the own military buildings stand
             // some 30 fields behind its edge, as the enemy's do behind theirs.
-            if (rules.MaxDistance > 0 && !OwnLandWithin(target.Position, rules.MaxDistance))
+            if (only is null && rules.MaxDistance > 0 && !OwnLandWithin(target.Position, rules.MaxDistance))
                 continue;
             var rally = military.MinBy(b => PathFinder.Distance(b.Position, target.Position))!;
-            if (!pathFinder.AreConnected(rally.Door, target.Door) || !WayIsClear(rally.Door, target))
+            // A challenge fights its way through whatever stands on the way.
+            if (!pathFinder.AreConnected(rally.Door, target.Door) || only is null && !WayIsClear(rally.Door, target))
                 continue;
             double defense = Defense(target);
             var force = new List<Settler>();
             double strength = 0;
             foreach (var soldier in fighters.OrderBy(s => PathFinder.Distance(s.Position, rally.Door)))
             {
-                if (strength >= defense * rules.Ratio && force.Count >= rules.MinSoldiers)
+                if (strength >= defense * ratio && force.Count >= minSoldiers)
                     break;
                 force.Add(soldier);
                 strength += Strength(soldier, target.Position);
             }
-            if (strength < defense * rules.Ratio || force.Count < rules.MinSoldiers)
+            if (strength < defense * ratio || force.Count < minSoldiers)
                 continue;
             // Weakly defended and close to the own land first.
             double score = (defense + 1) * (1 + PathFinder.Distance(rally.Position, target.Position) / 30.0);
             if (best is null || score < best.Value.Score)
                 best = (target, rally, force, score);
         }
-        if (best is not { } chosen)
-            return;
-        spare.RemoveAll(chosen.Force.Contains);
-        fighters.RemoveAll(chosen.Force.Contains);
-        // A share of the other spare soldiers comes along (all of them: full strength).
-        var along = fighters.OrderBy(s => PathFinder.Distance(s.Position, chosen.Rally.Door))
-            .Take((int)Math.Ceiling(fighters.Count * rules.Commit)).ToList();
-        chosen.Force.AddRange(along);
-        spare.RemoveAll(along.Contains);
-        var campaign = new Campaign(chosen.Target, chosen.Force, chosen.Rally.Door, _world.Tick);
-        _campaign = campaign;
-        foreach (var trait in Character.Traits)
-            if ((campaign.Leader = trait.LeadCampaign(this, campaign, spare)) is not null)
-                return;
-        _world.Military.Move(chosen.Force, chosen.Rally.Door);
-        Note($"gathers {chosen.Force.Count} soldiers at {chosen.Rally.Position.X},{chosen.Rally.Position.Y} " +
-             $"against the {chosen.Target.Definition.Name} of player {chosen.Target.Player + 1} at {chosen.Target.Position.X},{chosen.Target.Position.Y}");
+        return best is { } b ? (b.Target, b.Rally, b.Force) : null;
     }
 
     /// <summary>Every think: wait for the gathering, attack, retreat when too weak, go home when it is over.</summary>

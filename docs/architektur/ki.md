@@ -50,7 +50,9 @@ Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
     Militärgebäude alle per `Move` zur Tür), nie Rückzug (kein `TendWounded`); Kämpfende und schon auf ihn Angesetzte bleiben dabei; Priester folgen.
     Ende, wenn der Spieler kein Gebäude mehr hat; Verbündete nie.
   - `AiPlayer.Challenge` (KI-Chat, `ChallengedBy`, gespeichert): beim nächsten Militär-Takt ein Feldzug nur gegen diesen Spieler, ohne
-    `attack.armyRatio` (auch wenn eigenes Land bedrängt ist), sonst normal (Ziel muss `attack.ratio` erfüllen); nicht während Feldzug/Assault, Verbündete nie.
+    `armyRatio`, `maxDistance`, Timing-Traits und freien Weg (auch wenn eigenes Land bedrängt ist); 1:1 gegen die Verteidigung genügt,
+    mindestens die Hälfte der übrigen freien Kämpfer zieht mit; danach normaler Feldzug. Nicht während Feldzug/Assault, Verbündete nie.
+    `CanTakeUpChallenge`: dieselbe Zielsuche trocken (für `cannotAttackSpeaker` in der Lage).
     Lage für den Chat: `AiSituation` (knappes JSON, Nullen/false weggelassen, je Spieler: Volk, Charakter, Armee, `powerVsSpeaker`, `distanceToSpeaker`, Feinde im Land, Land,
     Gebäude, Kämpfe, Trend der letzten 5 min aus `GameHistory`, `doing`; dazu letzte 16 Chatzeilen).
   - `AiPlayer.Tactics`: in kleinen Gefechten (Strike/Feldzug ≤ `military.wounded.maxSoldiers` 10) ziehen sich Kämpfende unter `withdrawHealth` (35 %)

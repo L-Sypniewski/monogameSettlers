@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Homestead.Simulation.Buildings;
@@ -22,6 +23,8 @@ public static class AiSituation
 
     private static readonly JsonSerializerOptions Json = new()
     {
+        // Umlauts as they are: escaped (\u00e4) the model sometimes writes them back that way.
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters = { new JsonStringEnumConverter() },
@@ -33,7 +36,7 @@ public static class AiSituation
     public sealed record PlayerState(
         int Player, string People, string? Character, IReadOnlyList<string>? Traits, int? Team, bool? Defeated, bool? AllyOfSpeaker,
         Army Soldiers, double? PowerVsSpeaker, int? DistanceToSpeaker, int? EnemySoldiersOnLand,
-        int Land, int MilitaryBuildings, int Buildings, Fights? Fights, Trend? Trend, string? Doing);
+        int Land, int MilitaryBuildings, int Buildings, Fights? Fights, Trend? Trend, string? Doing, bool? CannotAttackSpeaker);
 
     /// <summary>Soldiers by type (types without any left out).</summary>
     public sealed record Army(int Total, int? Swordsmen, int? Bowmen, int? Pikemen);
@@ -104,7 +107,9 @@ public static class AiSituation
                 Buildings: buildings.Count(b => b.State == BuildingState.Finished),
                 Fights: fights == new Fights(null, null, null, null) ? null : fights,
                 Trend: trend == new Trend(null, null, null, null, null, null, null) ? null : trend,
-                Doing: ai is null ? null : Doing(ai)));
+                Doing: ai is null ? null : Doing(ai),
+                CannotAttackSpeaker: ai is not null && player != speaker && !world.AreAllies(player, speaker) && ai.AssaultOn is null
+                                     && ai.ChallengedBy is null && ai.CampaignAgainst is null && !ai.CanTakeUpChallenge(speaker) ? true : null));
         }
         var chat = world.Chat.Messages.TakeLast(ChatLines)
             .Select(c => new ChatLine((int)(c.Tick / (60 * World.TicksPerSecond)), c.Player + 1, c.Text)).ToList();

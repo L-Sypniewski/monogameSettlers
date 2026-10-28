@@ -91,19 +91,25 @@ public sealed class AiChat
             switch (_asked == world ? answer : null)
             {
                 case Said said when IsVoice(world, said.Player):
-                    world.Say(said.Player, said.Text);
+                    world.Say(said.Player, Unescape(said.Text));
                     break;
                 case Attacked attack when IsVoice(world, attack.Player) && attack.Target >= 0 && attack.Target < Math.Max(world.PlayerCount, 1)
                                           && world.Goals?.IsDefeated(attack.Target) != true:
                     var ai = world.AiPlayers.First(a => a.Player == attack.Player);
+                    string order = $"AI chat: player {ai.Player + 1} attacks player {attack.Target + 1}{(attack.AllIn ? " all in" : "")}";
                     if (_lastAttack.TryGetValue(ai.Player, out long last) && world.Tick - last < _attackCooldownTicks)
+                    {
+                        Console.WriteLine($"{order}: not yet (cooldown)");
                         break;
+                    }
                     if (attack.AllIn)
                         ai.Assault(attack.Target);
                     else
                         ai.Challenge(attack.Target);
-                    if (ai.AssaultOn == attack.Target || ai.ChallengedBy == attack.Target)
+                    bool taken = ai.AssaultOn == attack.Target || ai.ChallengedBy == attack.Target;
+                    if (taken)
                         _lastAttack[ai.Player] = world.Tick;
+                    Console.WriteLine($"{order}: {(taken ? "ordered" : "refused (ally, or a campaign or assault under way)")}");
                     break;
                 case Failed failed:
                     notes.Add(Lang.T("chat.aiFailed", failed.Reason));
@@ -116,6 +122,10 @@ public sealed class AiChat
         }
         return notes;
     }
+
+    /// <summary>Umlauts the model wrote as JSON escapes (\u00e4) back as letters.</summary>
+    private static string Unescape(string text) =>
+        System.Text.RegularExpressions.Regex.Replace(text, @"\\u([0-9a-fA-F]{4})", m => ((char)Convert.ToInt32(m.Groups[1].Value, 16)).ToString());
 
     /// <summary>A computer player still in the game (not the own player 0).</summary>
     private static bool IsVoice(World world, int player) =>

@@ -15,13 +15,13 @@ public class AiChatTests(ITestOutputHelper output)
     /// Player 1 (index 0, the AI) with a tower at 40,80 and five swordsmen outside; player 2 with a tower at 40,130 held by one
     /// and a big army far off at 140,20 – too strong as a whole for a campaign of the AI's own.
     /// </summary>
-    private static (World World, AiPlayer Ai, Building EnemyTower) Standoff()
+    private static (World World, AiPlayer Ai, Building EnemyTower) Standoff(int idle = 5)
     {
         var map = new GameMap(160);
         var world = new World(map, TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
         var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 80), force: true)!;
         world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < idle; i++)
             world.SpawnSoldier(new GridPoint(44 + i, 84), SoldierType.Swordsman);
         var enemyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(40, 130), force: true)!;
         world.SpawnSoldier(enemyTower.Door, SoldierType.Swordsman, player: 1);
@@ -53,6 +53,51 @@ public class AiChatTests(ITestOutputHelper output)
         Assert.Contains(world.Settlers, s => s.Player == 0 && world.Military.AttackTarget(s) == enemyTower);
         // No second challenge while it runs.
         Assert.False(ai.Challenge(1));
+    }
+
+    [Fact]
+    public void A_skirmisher_takes_up_a_challenge_far_beyond_its_reach_with_half_its_idle_fighters()
+    {
+        // The skirmisher only campaigns within 60 fields of its land (attack.maxDistance); a challenge goes anyway (a save:
+        // the Amazons promised an attack 422 fields away twice and sent nobody).
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 20), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        for (int i = 0; i < 8; i++)
+            world.SpawnSoldier(new GridPoint(42 + i, 26), SoldierType.Swordsman);
+        var enemyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(40, 150), force: true)!;
+        world.SpawnSoldier(enemyTower.Door, SoldierType.Swordsman, player: 1);
+        var ai = new AiPlayer(world, Romans, 0, character: "skirmisher");
+        world.AiPlayers.Add(ai);
+        Run(world, 20 * World.TicksPerSecond);
+        Assert.Null(ai.CampaignAgainst);
+        Assert.True(ai.CanTakeUpChallenge(1));
+
+        Assert.True(ai.Challenge(1));
+        Run(world, 2 * World.TicksPerSecond);
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Equal(1, ai.CampaignAgainst);
+        string gathers = Assert.Single(ai.Log, l => l.Contains("gathers"));
+        int count = int.Parse(gathers.Split("gathers ")[1].Split(' ')[0]);
+        Assert.InRange(count, 4, 8);
+        Assert.False(ai.CanTakeUpChallenge(1));
+    }
+
+    [Fact]
+    public void The_situation_tells_when_a_computer_player_cannot_attack_and_keeps_umlauts()
+    {
+        var (armed, _, _) = Standoff();
+        Run(armed, 2 * World.TicksPerSecond);
+        Assert.Null(AiSituation.Build(armed, 1).Players.Single(p => p.Player == 1).CannotAttackSpeaker);
+        // Nobody but the garrison: nothing to attack with.
+        var (world, ai, _) = Standoff(idle: 0);
+        Run(world, 2 * World.TicksPerSecond);
+        world.Say(1, "Ätsch, du traust dich nicht!");
+        Assert.False(ai.CanTakeUpChallenge(1));
+        Assert.True(AiSituation.Build(world, 1).Players.Single(p => p.Player == 1).CannotAttackSpeaker);
+        Assert.Contains("Ätsch", AiSituation.Describe(world, 1));
     }
 
     [Fact]
