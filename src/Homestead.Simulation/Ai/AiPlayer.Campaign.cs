@@ -39,9 +39,10 @@ public sealed partial class AiPlayer
     /// <summary>Per target building id: no campaign against it before this tick.</summary>
     private readonly Dictionary<int, long> _givenUp = new();
 
-    /// <param name="only">A challenge (<see cref="Challenge"/>): only against this player, whatever the armies, the distance, the
-    /// character's timing and its ratio say (one to one is enough).</param>
-    private void StartCampaign(List<Building> military, List<Settler> spare, int? only = null)
+    /// <param name="only">A challenge (<see cref="Challenge"/>) or superiority (<see cref="CheckSuperiority"/>): only against this
+    /// player, whatever the armies, the distance, the character's timing and its ratio say (one to one is enough).</param>
+    /// <param name="ratio">With <paramref name="only"/>: the force against the defence instead of one to one.</param>
+    private void StartCampaign(List<Building> military, List<Settler> spare, int? only = null, double? ratio = null)
     {
         var rules = _config.Attack;
         // Bowmen do not attack buildings: they stay home for defence and guerilla.
@@ -51,7 +52,7 @@ public sealed partial class AiPlayer
         // Decision point "timing": a trait may hold campaigns back.
         if (only is null && Character.Traits.Any(t => !t.AllowCampaign(this)))
             return;
-        if (ChooseCampaign(military, fighters, only) is not { } chosen)
+        if (ChooseCampaign(military, fighters, only, ratio) is not { } chosen)
             return;
         spare.RemoveAll(chosen.Force.Contains);
         fighters.RemoveAll(chosen.Force.Contains);
@@ -72,15 +73,16 @@ public sealed partial class AiPlayer
     }
 
     /// <summary>The target building, the own military building to gather at and the soldiers needed, or null without a target.</summary>
-    private (Building Target, Building Rally, List<Settler> Force)? ChooseCampaign(List<Building> military, List<Settler> fighters, int? only)
+    private (Building Target, Building Rally, List<Settler> Force)? ChooseCampaign(List<Building> military, List<Settler> fighters, int? only,
+        double? onlyRatio = null)
     {
         var rules = _config.Attack;
-        double ratio = only is null ? rules.Ratio : Math.Min(rules.Ratio, 1.0);
+        double ratio = only is null ? rules.Ratio : onlyRatio ?? Math.Min(rules.Ratio, 1.0);
         int minSoldiers = only is null ? rules.MinSoldiers : 1;
         var pathFinder = _world.PathFinder!;
-        // The own army fights on foreign land, the enemy's at home.
+        // Team against team; the own army fights on foreign land, the enemy's at home.
         var armies = Armies();
-        double ownArmy = armies.GetValueOrDefault(Player) * _world.Military.CombatStrength(Player);
+        double ownArmy = TeamArmy(armies, Player);
         (Building Target, Building Rally, List<Settler> Force, double Score)? best = null;
         foreach (var (id, until) in _givenUp.ToList())
             if (_world.Tick >= until)
@@ -90,7 +92,7 @@ public sealed partial class AiPlayer
                                                            && !_givenUp.ContainsKey(b.Id) && (only is null ? !InTruce(b.Player) : b.Player == only)))
         {
             // Clearly stronger than that enemy as a whole.
-            if (only is null && ownArmy < armies.GetValueOrDefault(target.Player) * rules.ArmyRatio)
+            if (only is null && ownArmy < TeamArmy(armies, target.Player) * rules.ArmyRatio)
                 continue;
             // An outpost far away could not be held. Measured from the own land: the own military buildings stand
             // some 30 fields behind its edge, as the enemy's do behind theirs.
@@ -102,7 +104,8 @@ public sealed partial class AiPlayer
                 continue;
             double defense = Defense(target);
             var force = new List<Settler>();
-            double strength = 0;
+            // Allies at the target take part of it on (an ally's campaign under way is joined).
+            double strength = AlliedStrength(target.Position, rules.DefenseRadius);
             foreach (var soldier in fighters.OrderBy(s => PathFinder.Distance(s.Position, rally.Door)))
             {
                 if (strength >= defense * ratio && force.Count >= minSoldiers)
@@ -140,7 +143,8 @@ public sealed partial class AiPlayer
             return;
         }
         if (c.Attacking)
-            TendWounded(c.Soldiers, c.Resting, target.Door, Defense(target), back => _world.Military.Attack(back, target));
+            TendWounded(c.Soldiers, c.Resting, target.Door, Defense(target), AlliedStrength(target.Position, rules.DefenseRadius),
+                back => _world.Military.Attack(back, target));
         if (c.Leader is { } leader)
         {
             if (!leader.Follow(this, c))
@@ -148,7 +152,7 @@ public sealed partial class AiPlayer
             return;
         }
 
-        double strength = c.Soldiers.Sum(s => Strength(s, target.Position)), defense = Defense(target);
+        double strength = CampaignStrength(c), defense = Defense(target);
         if (!c.Attacking)
         {
             // Weighed again every think, also on the way to the gathering point.

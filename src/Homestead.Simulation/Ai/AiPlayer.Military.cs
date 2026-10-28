@@ -121,6 +121,8 @@ public sealed partial class AiPlayer
             ChallengedBy = null;
         }
         if (_campaign is null && !EnemyGroups.Any(g => g.Armed && onOwnLand(g)))
+            CheckSuperiority(military, spare);
+        if (_campaign is null && !EnemyGroups.Any(g => g.Armed && onOwnLand(g)))
             StartCampaign(military, spare);
 
         // Decision point "guarding": the first trait that takes it places the idle soldiers; without one they stay where they are.
@@ -234,7 +236,8 @@ public sealed partial class AiPlayer
                 return false;
             double opposition = Opposition(group, from);
             strikers.Clear();
-            double strength = 0;
+            // Allies fighting there already: joining them is worth more.
+            double strength = AlliedStrength(group.Center, StrikeSupportRadius);
             foreach (var soldier in candidates)
             {
                 // Geologists and scouts alone do not fight back: one soldier will do.
@@ -272,7 +275,8 @@ public sealed partial class AiPlayer
         // They would fight on the own land: there the guards have their full strength, the enemies their reduced one.
         double danger = groups.SelectMany(g => g.Soldiers).Sum(s => Power(s) * _world.Military.CombatStrength(s.Player)) * _config.Military.StrikeRatio;
         var guards = new List<Settler>();
-        double kept = 0;
+        // Allies standing against them hold part of it.
+        double kept = groups.Sum(g => AlliedStrength(g.Center, _config.Military.ThreatRange));
         foreach (var soldier in idle.OrderBy(s => groups.Select(g => PathFinder.Distance(s.Position, g.Center)).DefaultIfEmpty(0).Min()))
         {
             if (kept >= danger)
@@ -460,7 +464,8 @@ public sealed partial class AiPlayer
             }
             strike.Targets = tracked.Append(group).SelectMany(g => g.Soldiers).ToHashSet();
 
-            double strength = strike.Soldiers.Sum(s => Strength(s, group.Center));
+            double allied = AlliedStrength(group.Center, StrikeSupportRadius);
+            double strength = allied + strike.Soldiers.Sum(s => Strength(s, group.Center));
             // What they will meet: the group and whoever waits on the way to it.
             var from = CenterOf(strike.Soldiers);
             // Lured under the towers: nothing to win there.
@@ -504,7 +509,7 @@ public sealed partial class AiPlayer
             }
 
             var center = group.Center;
-            TendWounded(strike.Soldiers, strike.Resting, center, opposition, back => _world.Military.Move(back, center));
+            TendWounded(strike.Soldiers, strike.Resting, center, opposition, allied, back => _world.Military.Move(back, center));
 
             // The enemies moved: the strikers that are not fighting follow them (unless a trait leads them; not those
             // it placed on a spot to hold).

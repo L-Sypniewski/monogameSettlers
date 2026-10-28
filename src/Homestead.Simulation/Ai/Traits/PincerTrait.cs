@@ -123,7 +123,7 @@ internal sealed class PincerTrait(JsonElement settings) : AiTrait
             int near = ai.Config.Military.GuardDistance;
             long gather = ai.Config.Attack.GatherTicks;
             bool At(List<Settler> group, GridPoint p) => group.All(s => PathFinder.Distance(s.Position, p) <= near);
-            double Strength() => campaign.Soldiers.Sum(s => ai.Strength(s, target.Position));
+            double Strength() => ai.CampaignStrength(campaign);
             string where = $"{target.Position.X},{target.Position.Y}";
 
             switch (_phase)

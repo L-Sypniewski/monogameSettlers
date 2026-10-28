@@ -34,7 +34,7 @@ internal sealed class ForwardBaseTrait(JsonElement settings) : AiTrait
 
         var threats = ai.EnemyGroups.Where(g => PathFinder.Distance(g.Center, front.Position) <= config.ThreatRange).ToList();
         double danger = threats.Sum(g => g.Strength);
-        double own = idle.Sum(s => ai.Strength(s, front.Position));
+        double own = idle.Sum(s => ai.Strength(s, front.Position)) + ai.AlliedStrength(front.Position, config.ThreatRange);
         var post = front;
         if (danger > 0 && own < danger * _fallBackRatio)
         {

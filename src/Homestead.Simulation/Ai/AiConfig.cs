@@ -109,6 +109,18 @@ public sealed record AiConfig
     public sealed record AttackRules(double Ratio, int DefenseRadius, int PathClearance, int GatherTicks, int MinSoldiers,
         double ArmyRatio, double Commit = 0, double AbortRatio = 0, int MaxDistance = 0,
         IReadOnlyDictionary<string, double>? GarrisonWeight = null);
+
+    /// <summary>Campaigns out of plain superiority (see <c>superiority</c> in ai.json); null in games saved before: <see cref="SuperiorityRules.Default"/>.</summary>
+    public SuperiorityRules? Superiority { get; init; }
+
+    /// <param name="StartTicks">No such campaign before this game time.</param>
+    /// <param name="IntervalTicks">The armies are compared this often.</param>
+    /// <param name="ArmyRatio">The own whole army against an enemy's whole army (0: never).</param>
+    /// <param name="Ratio">The force against the target's defence.</param>
+    public sealed record SuperiorityRules(long StartTicks, long IntervalTicks, double ArmyRatio, double Ratio)
+    {
+        public static readonly SuperiorityRules Default = new(3600L * World.TicksPerSecond, 300L * World.TicksPerSecond, 2, 2);
+    }
     public required int MaxSites { get; init; }
     public required int MaxTowerSites { get; init; }
     public required int FreeCarriers { get; init; }
@@ -242,6 +254,11 @@ public sealed record AiConfig
                 military.TryGetProperty("hinterlandDepth", out var hinterland) ? hinterland.GetInt32() : 0,
                 military.TryGetProperty("reinforceRadius", out var reinforce) ? reinforce.GetInt32() : 0,
                 military.TryGetProperty("towerFireRatio", out var towerFire) ? towerFire.GetDouble() : 0),
+            Superiority = root.TryGetProperty("superiority", out var superiority)
+                ? new SuperiorityRules((long)Math.Round(superiority.GetProperty("startMinutes").GetDouble() * 60 * World.TicksPerSecond),
+                    (long)Math.Round(superiority.GetProperty("intervalSeconds").GetDouble() * World.TicksPerSecond),
+                    superiority.GetProperty("armyRatio").GetDouble(), superiority.GetProperty("ratio").GetDouble())
+                : SuperiorityRules.Default,
             Wounded = military.TryGetProperty("wounded", out var wounded)
                 ? new WoundedRules(wounded.GetProperty("maxSoldiers").GetInt32(), wounded.GetProperty("withdrawHealth").GetDouble(),
                     wounded.GetProperty("rejoinHealth").GetDouble(), wounded.GetProperty("holdRatio").GetDouble(),

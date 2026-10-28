@@ -53,6 +53,14 @@ Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
     `armyRatio`, `maxDistance`, Timing-Traits und freien Weg (auch wenn eigenes Land bedrängt ist); 1:1 gegen die Verteidigung genügt,
     mindestens die Hälfte der übrigen freien Kämpfer zieht mit; danach normaler Feldzug. Nicht während Feldzug/Assault, Verbündete nie.
     `CanTakeUpChallenge`: dieselbe Zielsuche trocken (für `cannotAttackSpeaker` in der Lage).
+  - `AiPlayer.Superiority` (`superiority` in `ai.json`, alle Charaktere; gegen Gegner außer Reichweite auf großen Karten): ab `startMinutes` (60)
+    alle `intervalSeconds` (300) plumper Vergleich der ganzen Armeen (alle Soldaten × Kampfkraft); gegen den schwächsten Feind mit
+    ≥ `armyRatio` (2):1 ein Feldzug wie bei der Herausforderung (ohne Entfernung, freien Weg, Timing-Traits), aber mit `ratio` (2) × Verteidigung
+    des Ziels; findet sich kein Ziel, der nächstschwächere. Nicht bei Feinden im eigenen Land, laufendem Feldzug/Assault, Waffenruhe.
+  - Verbündete in allen Kräftevergleichen (`AiPlayer.Allies`): die Feindseite zählt ohnehin alle Feinde; auf der eigenen Seite zählen
+    verbündete Soldaten draußen (`AlliedStrength`: Feldzug/Lazarett-Rückzug im `attack.defenseRadius` ums Ziel, Strike in
+    `reinforceRadius`, Zurückhalten/`forwardBase` in `threatRange`) und Bogenschützen verbündeter Militärgebäude in Reichweite mit –
+    so schließt sich die KI Kämpfen und Feldzügen Verbündeter an. `armyRatio` und `superiority` vergleichen Team gegen Team (`TeamArmy`).
   - `AiPlayer.Diplomacy` (KI-Chat, gespeichert, lazy für alte Stände): `Truce(player, ticks)` beendet Feldzug/Assault/Herausforderung
     gegen ihn (Soldaten heim), bricht Guerilla-Strikes gegen ihn ab, keine neuen bis Ablauf; Verteidigung im eigenen Land bleibt, seine
     Soldaten im eigenen Land brechen sie, `Challenge`/`Assault` beenden sie. `Help(ally, ticks)`: die Hälfte der freien Soldaten (mind. 1,

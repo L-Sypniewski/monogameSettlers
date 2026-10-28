@@ -144,6 +144,13 @@
     "_garrisonWeightComment": "Per building name: its garrison counts this many times in the defence (others once). A castle's soldiers are much harder to get at (one fighter at the door, bowmen on the roofs).",
     "garrisonWeight": { "castle": 2 }
   },
+  "superiority": {
+    "_comment": "For every player, against enemies out of reach (big maps): from startMinutes on, every intervalSeconds the whole armies are compared plainly (all soldiers, in buildings and outside, by strength). Against the weakest enemy the own army outnumbers armyRatio times (0: never) a campaign starts like a challenge: whatever the distance, the way, the character's timing and attack.armyRatio say, with ratio times the defence of that enemy's military building nearest the own land, at least half the other spare fighters along. Not while enemies stand on the own land, a campaign or an assault runs, nor against a player in truce.",
+    "startMinutes": 60,
+    "intervalSeconds": 300,
+    "armyRatio": 2.0,
+    "ratio": 2.0
+  },
   "_characterComment": "Characters (docs/KI-TACTICS.md): traits on top of the built-in behavior, in order of priority. A character may override a trait's settings under the trait's name and any general value (after the people's), e.g. \"general\": { \"traits\": [\"pincer\"], \"pincer\": { \"feintShare\": 0.5 } }. buildOrderMoves (building: places, negative = earlier) shifts every entry of a building in the people's build order. Made-up characters for trying out (arena, tournament): traits joined by '+' (pincer+guardByThreat), and @path=value on top of a character or traits (general@attack.ratio=1.3@buildOrderMoves.barrack=-5). characterWeights: which character a player gets, drawn once per game (per people under civilizations). The client and the arena can name it per player with --characters.",
   "traits": {
     "guardByThreat": {

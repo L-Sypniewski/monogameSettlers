@@ -36,13 +36,15 @@ public sealed partial class AiPlayer
     /// </summary>
     /// <param name="soldiers">All soldiers of the strike or campaign, the withdrawn among them.</param>
     /// <param name="resting">The withdrawn ones (kept up to date here).</param>
-    private void TendWounded(List<Settler> soldiers, HashSet<Settler> resting, GridPoint enemy, double opposition, Action<List<Settler>> rejoin)
+    /// <param name="allied">Strength of the allies fighting there as well.</param>
+    private void TendWounded(List<Settler> soldiers, HashSet<Settler> resting, GridPoint enemy, double opposition, double allied,
+        Action<List<Settler>> rejoin)
     {
         var rules = _config.Wounded ?? AiConfig.WoundedRules.Default;
         foreach (var (soldier, until) in _backInFight.ToList())
             if (_world.Tick >= until || soldier.IsDead)
                 _backInFight.Remove(soldier);
-        double fighting = soldiers.Where(s => !resting.Contains(s)).Sum(s => Strength(s, enemy));
+        double fighting = allied + soldiers.Where(s => !resting.Contains(s)).Sum(s => Strength(s, enemy));
         bool beaten = opposition <= fighting * rules.MopUpRatio;
 
         // Back in: healed, needed, or to finish the enemy off.
