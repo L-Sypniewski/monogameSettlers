@@ -143,6 +143,10 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   Seiten Übersicht (Tabelle, Landanteil), Wirtschaft, Militär, Waren (jede Ware je Minute), Gesellschaft – Diagramme `Charts` (Linien mit Werten
   unter der Maus, Anteile, Balken) aus `GameHistory`/`ProductionStatistics`; ←/→/Tab blättern; „Weiterspielen“ (Esc; nicht nach „Spiel beenden“),
   „Zum Hauptmenü“.
+- **Spielernamen** im Spiel (Statistik, Chat, Niederlage, Trait-Hinweise): `PlayerNames.Of` → `start.playerPeople` („Spieler 2 (Römer)“),
+  nie der KI-Charakter (nur noch in der Konsole beim Start). Im `InfoFeed` (Chat, Niederlage) steht der Name in der Spielerfarbe
+  (`Add(…, names)`; sehr dunkle Farben aufgehellt), der Rest weiß. Notizen breiter als die Box (höchstens 40 × Schriftgröße) brechen an
+  Leerzeichen um (zu lange Wörter werden geteilt), Folgezeilen weiter eingerückt (`Hang`, 1,25 × Zeilenhöhe); Umbruch je Notiz gecacht.
 - **Textbuttons** (`TextButton`): Steinknöpfe aus den Menüs vor dem Spiel (`textButton` in `ui.json`, Datei 02 GUI 0, 9-Slice), z. B. Abreißen,
   Anhalten, Ja/Nein, Rekrutierung, Statistik. Besatzung ±: Auf/Ab-Spinner wie in der Herstellung.
 - **Auswahl/Befehle**: Rahmen oder Klick wählt eigene Figuren, Vorrang Soldaten > Kriegsmaschinen (nie zusammen) > Priester > Geologen > Späher > Pioniere,

@@ -46,7 +46,7 @@ public sealed class StatisticsScreen : IDisposable
     /// <summary>The page shown (index into <see cref="Pages"/>).</summary>
     public int Page { get; set; }
 
-    public StatisticsScreen(GraphicsDevice device, GfxDirectory gfx, World world, string mapName, GoodsGrid? goods, AiNames names, bool canResume,
+    public StatisticsScreen(GraphicsDevice device, GfxDirectory gfx, World world, string mapName, GoodsGrid? goods, bool canResume,
         string? quitLabel = null)
     {
         _quitLabel = quitLabel ?? Lang.T("statistics.mainMenu");
@@ -62,13 +62,7 @@ public sealed class StatisticsScreen : IDisposable
         _goods = goods;
         _canResume = canResume;
         world.History.Sample(); // up to this moment
-        _players = world.History.Players.Select(p =>
-        {
-            string people = Lang.T("peoples." + world.PeopleOf(p));
-            var ai = world.AiPlayers.FirstOrDefault(a => a.Player == p);
-            string who = p == 0 && ai is null ? Lang.T("statistics.you") : ai is null ? Lang.T("statistics.human") : names.Character(ai.Character.Id);
-            return (p, $"{Lang.T("start.player", p + 1)} · {people} · {who}", PlayerColors.Of(p));
-        }).ToList();
+        _players = world.History.Players.Select(p => (p, PlayerNames.Of(world, p), PlayerColors.Of(p))).ToList();
     }
 
     public void Dispose() => _background.Dispose();
@@ -194,7 +188,7 @@ public sealed class StatisticsScreen : IDisposable
             return new ChartSeries(Short(p.Player), p.Color, points);
         }).ToList();
 
-    private static string Short(int player) => Lang.T("start.player", player + 1);
+    private string Short(int player) => PlayerNames.Of(_world, player);
 
     private HistorySample? Last(int player) => _world.History.Samples(player) is { Count: > 0 } s ? s[^1] : null;
 

@@ -141,7 +141,7 @@ public sealed class MapGame : Game
     {
         if (a.TraitOfNote(line) is not { } trait)
             return;
-        string who = $"{Lang.T("start.player", a.Player + 1)} ({_aiNames.Character(a.Character.Id)}) · {_aiNames.Trait(trait.Id)}";
+        string who = $"{PlayerNames.Of(_world, a.Player)} · {_aiNames.Trait(trait.Id)}";
         Console.WriteLine($"{who}: {line}");
         _message = $"{who}: {line}";
     }
@@ -779,13 +779,16 @@ public sealed class MapGame : Game
         for (; _chatShown < _world.Chat.Messages.Count; _chatShown++)
         {
             var said = _world.Chat.Messages[_chatShown];
-            _info.Add(Lang.T("chat.line", Lang.T("start.player", said.Player + 1), said.Text), _now, PlayerColors.Of(said.Player));
+            string name = PlayerNames.Of(_world, said.Player);
+            _info.Add(Lang.T("chat.line", name, said.Text), _now, PlayerColors.Of(said.Player), (name, PlayerColors.Of(said.Player)));
         }
         if (_world.Goals is { } goals)
             foreach (var ai in _world.AiPlayers.OrderBy(a => a.Player))
                 if (ai.Player != 0 && goals.IsDefeated(ai.Player) && _defeatNoted.Add(ai.Player))
-                    _info.Add(Lang.T("info.defeated", $"{Lang.T("start.player", ai.Player + 1)} ({_aiNames.Character(ai.Character.Id)})"), _now,
-                        PlayerColors.Of(ai.Player));
+                {
+                    string name = PlayerNames.Of(_world, ai.Player);
+                    _info.Add(Lang.T("info.defeated", name), _now, PlayerColors.Of(ai.Player), (name, PlayerColors.Of(ai.Player)));
+                }
         if (_captureDirectory is not null || Outcome == MissionOutcome.Lost)
             return;
         _sinceSave += real.TotalSeconds;
@@ -852,7 +855,7 @@ public sealed class MapGame : Game
             MissionOutcome.Lost => $"{Lang.T("campaign.lost")} · {_map.Name}",
             _ => _map.Name,
         };
-        _statistics = new StatisticsScreen(GraphicsDevice, _gfx, _world, name, _goodsGrid, _aiNames, canResume && outcome != MissionOutcome.Lost,
+        _statistics = new StatisticsScreen(GraphicsDevice, _gfx, _world, name, _goodsGrid, canResume && outcome != MissionOutcome.Lost,
             outcome == MissionOutcome.Open || _mission is null ? null : Lang.T("campaign.next"));
     }
 
@@ -4107,11 +4110,11 @@ public sealed class MapGame : Game
             PanCamera();
         else if (_capturedFrames > 1 && CaptureView == "battle")
             FollowFight();
-        // HOMESTEAD_CAPTURE_CHAT=<text>: players 1-3 say something, then the chat line is open with the text typed.
+        // HOMESTEAD_CAPTURE_CHAT=<text>: players 1-3 say something (player 2 a line long enough to wrap), then the chat line is open with the text typed.
         if (_capturedFrames == 0 && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_CHAT") is { } chat)
         {
             _world.Say(0, "Hello everybody");
-            _world.Say(1, "Hi!");
+            _world.Say(1, "Hi! Long time no see. Your towers at the river look rather lonely, I might drop by with a few friends before the winter comes.");
             _world.Say(2, "gl hf");
             _chat.Open();
             _chat.Paste(chat);
