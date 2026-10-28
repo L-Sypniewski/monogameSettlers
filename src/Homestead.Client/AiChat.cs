@@ -58,6 +58,7 @@ public sealed partial class AiChat
         _helpMaxMinutes = data.GetProperty("helpMaxMinutes").GetInt32();
         (_reactionChance, _reactionCooldownTicks, _bigFightSoldiers, _giftPleased, _giftInsulted, var values, _giftOtherValue) = ReadReactions(data);
         _giftValues = values;
+        _army = ReadArmy(data);
     }
 
     /// <summary>The chat with the settings' key, or null without one (then the computer players stay silent).</summary>

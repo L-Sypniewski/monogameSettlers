@@ -1,5 +1,5 @@
 {
-  "_comment": "The chat with the computer players over the Claude API (client AiChat; key and model in settings.json, section aiChat). system: the instructions, the same in every request; characters: how each AI character (ai.json) talks. The situation comes along per request (Simulation AiSituation). attackCooldownSeconds: game time between two attacks the chat starts per computer player; truceMaxMinutes, helpMaxMinutes: the longest truce and help. reactions: speaking up unasked (client AiChat.Reactions): chance and cooldownSeconds per computer player for buildings taken and big fights (bigFightSoldiers killed plus lost within half a minute); goods the own donkeys put down on a computer player's land are tallied by giftValues (per Material, other for the rest) and answered at giftPleased or giftInsulted. Keep it short: it goes along with every line.",
+  "_comment": "The chat with the computer players over the Claude API (client AiChat; key and model in settings.json, section aiChat). system: the instructions, the same in every request; characters: how each AI character (ai.json) talks. The situation comes along per request (Simulation AiSituation). attackCooldownSeconds: game time between two attacks the chat starts per computer player; truceMaxMinutes, helpMaxMinutes: the longest truce and help. reactions: speaking up unasked (client AiChat.Reactions): chance and cooldownSeconds per computer player for buildings taken and big fights (bigFightSoldiers killed plus lost within half a minute); goods the own donkeys put down on a computer player's land are tallied by giftValues (per Material, other for the rest) and answered at giftPleased or giftInsulted; army: the own soldiers outside on its land or within range of its military buildings, answered when there are soldiers of them (by its own chance and cooldown). Keep it short: it goes along with every line.",
   "attackCooldownSeconds": 120,
   "truceMaxMinutes": 10,
   "helpMaxMinutes": 10,
@@ -9,6 +9,7 @@
     "bigFightSoldiers": 10,
     "giftPleased": 60,
     "giftInsulted": -8,
+    "army": { "soldiers": 20, "range": 20, "chance": 0.3, "cooldownSeconds": 600 },
     "giftValues": {
       "Gold": 10, "Gems": 8,
       "Sword": 6, "Bow": 6, "Spear": 6,
