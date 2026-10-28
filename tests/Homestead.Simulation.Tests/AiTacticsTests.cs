@@ -106,11 +106,20 @@ public class AiTacticsTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData("standard", true)]
-    [InlineData("standard@hospital.wounded=20", false)]
-    public void More_than_five_wounded_soldiers_get_a_hospital_at_the_military_building_nearest_them(string character, bool builds)
+    [InlineData("standard", false, true)]
+    [InlineData("standard@hospital.wounded=20", false, false)]
+    [InlineData("standard@hospital.sendDistance=20", true, false)] // too far to send them there, but within hospital.spacing: no second one
+    [InlineData("standard@hospital.sendDistance=20@hospital.spacing=1", true, true)]
+    public void More_than_five_wounded_soldiers_get_a_hospital_at_the_military_building_nearest_them(string character, bool hospitalNear, bool builds)
     {
         var (world, _) = Battlefield();
+        var near = hospitalNear ? world.PlaceBuilding(Romans["hospital"], 0, new GridPoint(36, 62), force: true) : null;
+        if (near is not null)
+        {
+            world.Spawn(near.Door, Profession.Carrier); // becomes its healer: one waiting for a worker would hold back another anyway
+            Run(world, 30 * World.TicksPerSecond, () => world.Production.HasWorker(near));
+            Assert.True(world.Production.HasWorker(near));
+        }
         for (int i = 0; i < 4; i++)
         {
             world.AddLooseGoods(new GridPoint(48 + i * 2, 74), Material.Plank, 8);
@@ -128,7 +137,7 @@ public class AiTacticsTests(ITestOutputHelper output)
 
         foreach (string line in ai.Log)
             output.WriteLine(line);
-        var hospital = world.Buildings.FirstOrDefault(b => b.Exists && b.Definition.Name == "hospital");
+        var hospital = world.Buildings.FirstOrDefault(b => b.Exists && b.Definition.Name == "hospital" && b != near);
         Assert.Equal(builds, hospital is not null);
         if (hospital is not null)
             Assert.True(PathFinder.Distance(hospital.Position, new GridPoint(40, 80)) <= 30, "near the tower");

@@ -124,10 +124,12 @@
     }
   },
   "hospital": {
-    "_comment": "Wounded soldiers: below woundedHealth of their full health. Idle ones go to the nearest own hospital at most sendDistance away: the weakest to its heal spot (who stands there is healed without being called), the others wait a few fields out in front of the door for their turn. More than wounded of them (not counting those still fighting a strike or campaign) further than sendDistance from every own hospital (sites too): a hospital is built at the own military building nearest them, before the build order (like living houses). wounded 0: never.",
+    "_comment": "Wounded soldiers: below woundedHealth of their full health. Idle ones go to the nearest own hospital at most sendDistance away: the weakest to its heal spot (who stands there is healed without being called), the others wait a few fields out in front of the door for their turn. More than wounded of them (not counting those still fighting a strike or campaign) further than sendDistance from every own hospital (sites too): a hospital is built at the own military building nearest them, before the build order (like living houses) – but at most max hospitals and none within spacing fields of another (sites too). wounded 0: never.",
     "wounded": 5,
     "woundedHealth": 0.8,
-    "sendDistance": 60
+    "sendDistance": 60,
+    "spacing": 120,
+    "max": 3
   },
   "army": {
     "_comment": "Late game: a big army of lateSoldiers soldiers outside the buildings or more (its fights are too big to pull single wounded out, see military.wounded). Then the weaponsmiths make mostly spears and bows (lateShares, as in Waren > Herstellung): pikemen wear armour, bowmen shoot from behind them. Below three quarters of lateSoldiers the shares from before come back. 0: never.",

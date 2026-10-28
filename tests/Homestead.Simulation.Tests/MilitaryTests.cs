@@ -172,7 +172,7 @@ public class MilitaryTests(ITestOutputHelper output)
         int reach = world.Military.Config.GarrisonCallRadius;
         SpawnSoldiers(world, SoldierType.Swordsman, 1, new GridPoint(30 + reach + 10, 30));
         Run(world, 200);
-        Assert.Empty(world.Military.Occupants(tower).Where(s => s is not null));
+        Assert.DoesNotContain(world.Military.Occupants(tower), s => s is not null);
         Assert.Contains("0/", world.StatusOf(tower));
         Assert.DoesNotContain("on the way", world.StatusOf(tower)); // the far soldier is not called
 

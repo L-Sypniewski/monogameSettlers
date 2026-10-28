@@ -57,9 +57,15 @@ public sealed record AiConfig
     /// <param name="Wounded">A hospital is built once more than this many wounded soldiers are outside none's call range (0: never).</param>
     /// <param name="WoundedHealth">Wounded: below this share of the full health.</param>
     /// <param name="SendDistance">Idle wounded soldiers walk to the door of an own hospital at most this far away.</param>
-    public sealed record HospitalRules(int Wounded, double WoundedHealth, int SendDistance)
+    /// <param name="Spacing">No further hospital within this many fields of an own one, sites too (0 in games saved before: the default).</param>
+    /// <param name="Max">At most this many hospitals, sites too (0 in games saved before: the default).</param>
+    public sealed record HospitalRules(int Wounded, double WoundedHealth, int SendDistance, int Spacing = 120, int Max = 3)
     {
         public static readonly HospitalRules Default = new(5, 0.8, 60);
+
+        public int SpacingOrDefault => Spacing > 0 ? Spacing : Default.Spacing;
+
+        public int MaxOrDefault => Max > 0 ? Max : Default.Max;
     }
 
     /// <summary>Weapons made in the late game, with a big army (see <c>army</c> in ai.json); null in games saved before: no change.</summary>
@@ -267,7 +273,9 @@ public sealed record AiConfig
                 : WoundedRules.Default,
             Hospital = root.TryGetProperty("hospital", out var hospital)
                 ? new HospitalRules(hospital.GetProperty("wounded").GetInt32(), hospital.GetProperty("woundedHealth").GetDouble(),
-                    hospital.GetProperty("sendDistance").GetInt32())
+                    hospital.GetProperty("sendDistance").GetInt32(),
+                    hospital.TryGetProperty("spacing", out var spacing) ? spacing.GetInt32() : HospitalRules.Default.Spacing,
+                    hospital.TryGetProperty("max", out var max) ? max.GetInt32() : HospitalRules.Default.Max)
                 : HospitalRules.Default,
             Army = root.TryGetProperty("army", out var army)
                 ? new ArmyRules(army.GetProperty("lateSoldiers").GetInt32(),

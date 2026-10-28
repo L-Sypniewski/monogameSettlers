@@ -127,7 +127,8 @@ public sealed partial class AiPlayer
 
     /// <summary>
     /// Wanted hospital: more than <c>hospital.wounded</c> own wounded soldiers further than <c>hospital.sendDistance</c>
-    /// from every own hospital (sites too; nearer ones are sent there), not counting those still fighting a strike or campaign. It goes to the own military building nearest them; null while none is wanted.
+    /// from every own hospital (sites too; nearer ones are sent there), not counting those still fighting a strike or campaign. It goes to the own military building nearest them;
+    /// never more than <c>hospital.max</c> and none within <c>hospital.spacing</c> of another (sites too); null while none is wanted.
     /// </summary>
     private GridPoint? HospitalSpot(List<Building> mine)
     {
@@ -135,6 +136,8 @@ public sealed partial class AiPlayer
         if (rules.Wounded <= 0 || _catalog.Find(HospitalName) is null)
             return null;
         var hospitals = mine.Where(b => b.Definition.Name == HospitalName).Select(b => b.Door).ToList();
+        if (hospitals.Count >= rules.MaxOrDefault)
+            return null;
         // Not those still fighting a strike or campaign: they are wherever the fight is.
         var fighting = _strikes.SelectMany(k => k.Fighting).Concat(_campaign?.Soldiers.Except(_campaign.Resting) ?? []).ToHashSet();
         var wounded = _world.Settlers.Where(s => s.Player == Player && s.Profession == Profession.Soldier && !s.IsInside && !s.IsDead
@@ -143,7 +146,8 @@ public sealed partial class AiPlayer
         if (wounded.Count <= rules.Wounded)
             return null;
         var center = CenterOf(wounded);
-        return mine.Where(b => IsMilitary(b) && b.State == BuildingState.Finished).MinBy(b => PathFinder.Distance(b.Position, center))?.Position;
+        var spot = mine.Where(b => IsMilitary(b) && b.State == BuildingState.Finished).MinBy(b => PathFinder.Distance(b.Position, center))?.Position;
+        return spot is { } p && hospitals.All(h => PathFinder.Distance(h, p) > rules.SpacingOrDefault) ? spot : null;
     }
 
     /// <summary>

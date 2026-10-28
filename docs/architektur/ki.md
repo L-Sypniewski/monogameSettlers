@@ -74,7 +74,8 @@ Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
     zurück bei `rejoinHealth` (geheilt), unter `needRatio` × Gegner oder Gegner fast besiegt (`mopUpRatio`); 20 s kein erneuter Rückzug. Hitzkopf: nie.
     Lazarett (`hospital` in `ai.json`): untätige Verwundete (< `woundedHealth` 80 %) zum nächsten eigenen Lazarett bis `sendDistance` (60): der schwächste
     auf den Heilplatz, die übrigen warten 3 Felder vor der Tür (sonst schieben sie sich gegenseitig weg, der Heiler kommt nie); mehr als `wounded` (5) solche (ohne die noch Kämpfenden) weiter als `sendDistance` von jedem Lazarett
-    (auch Baustellen) → Lazarett vor der Build-Order (wie Wohnhäuser) am Militärgebäude nächst ihnen.
+    (auch Baustellen) → Lazarett vor der Build-Order (wie Wohnhäuser) am Militärgebäude nächst ihnen; höchstens `max` (3), keins im Umkreis
+    `spacing` (120) eines anderen (auch Baustellen).
     Late Game = große Armee (`army.lateSoldiers` 20 Soldaten außerhalb der Gebäude; zu groß, um Einzelne zurückzuziehen): Waffenschmied-Anteile
     `lateShares` (Speer 100 %, Bogen 80 %, Schwert 15 %); unter ¾ davon die Anteile von vorher.
     Strikes verfolgen alle Teile zerfallener Zielgruppen (nächster zuerst).
