@@ -165,6 +165,25 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_tower_calls_only_soldiers_within_reach()
+    {
+        var world = new World(new GameMap(250), TestConfig.NoTools);
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 30))!;
+        int reach = world.Military.Config.GarrisonCallRadius;
+        SpawnSoldiers(world, SoldierType.Swordsman, 1, new GridPoint(30 + reach + 10, 30));
+        Run(world, 200);
+        Assert.Empty(world.Military.Occupants(tower).Where(s => s is not null));
+        Assert.Contains("0/", world.StatusOf(tower));
+        Assert.DoesNotContain("on the way", world.StatusOf(tower)); // the far soldier is not called
+
+        SpawnSoldiers(world, SoldierType.Swordsman, 1, new GridPoint(30 + reach - 10, 30));
+        Run(world, 5_000, stopWhen: () => world.Military.IsOccupied(tower));
+        Assert.True(world.Military.IsOccupied(tower));
+        Assert.Contains(world.Settlers, s => s.SoldierType == SoldierType.Swordsman && !s.IsInside
+                                             && PathFinder.Distance(s.Position, tower.Door) > reach);
+    }
+
+    [Fact]
     public void Wanted_soldiers_never_leave_the_building_empty_or_overfull()
     {
         var world = new World(new GameMap(100), TestConfig.NoTools);

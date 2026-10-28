@@ -6,7 +6,7 @@ namespace Homestead.Simulation.Military;
 
 /// <summary>
 /// Soldiers and territory: barracks turn carriers into soldiers (one weapon each), military buildings
-/// call idle soldiers of their player into their soldier places, and an occupied military building
+/// call idle soldiers of their player within <see cref="MilitaryConfig.GarrisonCallRadius"/> into their soldier places, and an occupied military building
 /// claims the land around it.
 /// </summary>
 /// <remarks>
@@ -328,6 +328,7 @@ public sealed partial class Military
             return;
         var door = g.Building.Door;
         var pathFinder = _world.PathFinder!;
+        int reach = _config.GarrisonCallReach;
         for (int i = 0; i < g.Places.Length; i++)
         {
             // A place is free, or its soldier is no longer wanted but must stay until relieved (the last one inside).
@@ -340,7 +341,8 @@ public sealed partial class Military
                 continue;
             var soldier = outside
                 .Where(s => s.Profession == Profession.Soldier && !s.HasTask && !s.IsInside && s.Player == g.Building.Player
-                            && s.SoldierType is { } type && missing.Contains(type) && pathFinder.AreConnected(s.Position, door))
+                            && s.SoldierType is { } type && missing.Contains(type) && PathFinder.Distance(s.Position, door) <= reach
+                            && pathFinder.AreConnected(s.Position, door))
                 .MinBy(s => PathFinder.Distance(s.Position, door));
             if (soldier is null)
                 continue;

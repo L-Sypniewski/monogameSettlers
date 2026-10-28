@@ -75,6 +75,12 @@ public sealed record MilitaryConfig
     /// <summary>Pioneers (see <see cref="PioneerRules"/>); null in games saved before there were pioneers.</summary>
     public PioneerRules? Pioneers { get; init; } = PioneerRules.Default;
 
+    /// <summary>Military buildings call only soldiers within this distance of their door (0 in games saved before: 100).</summary>
+    public int GarrisonCallRadius { get; init; } = 100;
+
+    /// <summary>How far a military building calls soldiers (see <see cref="GarrisonCallRadius"/>).</summary>
+    public int GarrisonCallReach => GarrisonCallRadius > 0 ? GarrisonCallRadius : 100;
+
     /// <summary>Hospital: wounded idle soldiers within this distance of its door are called in.</summary>
     public int HospitalCallRadius { get; init; } = 20;
 
@@ -168,6 +174,7 @@ public sealed record MilitaryConfig
                     (int)Math.Round(pioneers.GetProperty("claimSeconds").GetDouble() * World.TicksPerSecond),
                     pioneers.TryGetProperty("waterReach", out var waterReach) ? waterReach.GetInt32() : PioneerRules.Default.WaterReach)
                 : PioneerRules.Default,
+            GarrisonCallRadius = root.TryGetProperty("garrisonCallRadius", out var garrisonCall) ? garrisonCall.GetInt32() : 100,
             HospitalCallRadius = root.TryGetProperty("hospital", out var hospital) ? hospital.GetProperty("callRadius").GetInt32() : 20,
             HealTicks = (int)Math.Round((hospital.ValueKind == JsonValueKind.Object ? hospital.GetProperty("healSeconds").GetDouble() : 2) * World.TicksPerSecond),
             HospitalCallPauseTicks = (int)Math.Round((hospital.ValueKind == JsonValueKind.Object ? hospital.GetProperty("callPauseSeconds").GetDouble() : 10)

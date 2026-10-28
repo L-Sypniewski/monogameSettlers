@@ -38,6 +38,8 @@
       }
     }
   },
+  "_garrisonCallRadiusComment": "Military buildings call only idle soldiers of their player within this many fields of the door; those further away stay where they are.",
+  "garrisonCallRadius": 100,
   "_hospitalComment": "Hospital: its healer calls the weakest wounded own idle soldier (least health left, ties: the nearest; not one holding its position) within callRadius fields of the door to the field in front of it. Whenever wounded own soldiers stand still at the door, the healer comes out, heals the weakest fully in healSeconds and goes back in; after a heal it waits callPauseSeconds before calling the next one (soldiers that come by themselves are healed at once).",
   "hospital": { "callRadius": 40, "healSeconds": 2, "callPauseSeconds": 10 },
   "sightRange": 15,
