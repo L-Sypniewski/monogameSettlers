@@ -53,6 +53,11 @@ Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
     `armyRatio`, `maxDistance`, Timing-Traits und freien Weg (auch wenn eigenes Land bedrängt ist); 1:1 gegen die Verteidigung genügt,
     mindestens die Hälfte der übrigen freien Kämpfer zieht mit; danach normaler Feldzug. Nicht während Feldzug/Assault, Verbündete nie.
     `CanTakeUpChallenge`: dieselbe Zielsuche trocken (für `cannotAttackSpeaker` in der Lage).
+  - `AiPlayer.Diplomacy` (KI-Chat, gespeichert, lazy für alte Stände): `Truce(player, ticks)` beendet Feldzug/Assault/Herausforderung
+    gegen ihn (Soldaten heim), bricht Guerilla-Strikes gegen ihn ab, keine neuen bis Ablauf; Verteidigung im eigenen Land bleibt, seine
+    Soldaten im eigenen Land brechen sie, `Challenge`/`Assault` beenden sie. `Help(ally, ticks)`: die Hälfte der freien Soldaten (mind. 1,
+    nicht mehr unter `IdleSoldiers`) zur stärksten Feindgruppe im Land des Verbündeten, sonst zu dessen Militärgebäude nächst einem
+    Feindgebäude; je Militär-Takt nachgeführt, nach Ablauf / ohne Gebäude des Verbündeten heim. `CanHelp` → `cannotHelpSpeaker`.
     Lage für den Chat: `AiSituation` (knappes JSON, Nullen/false weggelassen, je Spieler: Volk, Charakter, Armee, `powerVsSpeaker`, `distanceToSpeaker`, Feinde im Land, Land,
     Gebäude, Kämpfe, Trend der letzten 5 min aus `GameHistory`, `doing`; dazu letzte 16 Chatzeilen).
   - `AiPlayer.Tactics`: in kleinen Gefechten (Strike/Feldzug ≤ `military.wounded.maxSoldiers` 10) ziehen sich Kämpfende unter `withdrawHealth` (35 %)

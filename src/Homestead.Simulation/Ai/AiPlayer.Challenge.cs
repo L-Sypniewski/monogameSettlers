@@ -39,6 +39,7 @@ public sealed partial class AiPlayer
     {
         if (!IsEnemy(player) || _campaign is not null || AssaultOn is not null)
             return false;
+        EndTruce(player, "challenged");
         ChallengedBy = player;
         _nextMilitary = _world.Tick;
         return true;

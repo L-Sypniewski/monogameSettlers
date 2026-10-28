@@ -87,7 +87,7 @@ public sealed partial class AiPlayer
                 _givenUp.Remove(id);
         foreach (var target in _world.Buildings.Where(b => b.Exists && IsEnemy(b.Player) && IsMilitary(b)
                                                            && b.State == BuildingState.Finished && _world.Military.IsOccupied(b)
-                                                           && !_givenUp.ContainsKey(b.Id) && (only is null || b.Player == only)))
+                                                           && !_givenUp.ContainsKey(b.Id) && (only is null ? !InTruce(b.Player) : b.Player == only)))
         {
             // Clearly stronger than that enemy as a whole.
             if (only is null && ownArmy < armies.GetValueOrDefault(target.Player) * rules.ArmyRatio)

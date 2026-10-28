@@ -15,7 +15,7 @@ public class AiChatTests(ITestOutputHelper output)
     /// Player 1 (index 0, the AI) with a tower at 40,80 and five swordsmen outside; player 2 with a tower at 40,130 held by one
     /// and a big army far off at 140,20 – too strong as a whole for a campaign of the AI's own.
     /// </summary>
-    private static (World World, AiPlayer Ai, Building EnemyTower) Standoff(int idle = 5)
+    private static (World World, AiPlayer Ai, Building EnemyTower) Standoff(int idle = 5, int farArmy = 12)
     {
         var map = new GameMap(160);
         var world = new World(map, TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
@@ -25,7 +25,7 @@ public class AiChatTests(ITestOutputHelper output)
             world.SpawnSoldier(new GridPoint(44 + i, 84), SoldierType.Swordsman);
         var enemyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(40, 130), force: true)!;
         world.SpawnSoldier(enemyTower.Door, SoldierType.Swordsman, player: 1);
-        for (int i = 0; i < 12; i++)
+        for (int i = 0; i < farArmy; i++)
             world.SpawnSoldier(new GridPoint(130 + i % 6, 20 + i / 6), SoldierType.Swordsman, player: 1);
         var ai = new AiPlayer(world, Romans, 0, character: "standard");
         world.AiPlayers.Add(ai);
@@ -141,6 +141,82 @@ public class AiChatTests(ITestOutputHelper output)
         using var document = JsonDocument.Parse(json);
         Assert.Equal(2, document.RootElement.GetProperty("speaker").GetInt32());
         Assert.Equal(2, document.RootElement.GetProperty("players").GetArrayLength());
+    }
+
+    [Fact]
+    public void A_truce_calls_the_campaign_off_and_holds_until_it_runs_out()
+    {
+        // Without the far army the AI campaigns against the tower on its own.
+        var (world, ai, _) = Standoff(farArmy: 0);
+        Run(world, 30 * World.TicksPerSecond, () => ai.CampaignAgainst is not null);
+        Assert.Equal(1, ai.CampaignAgainst);
+
+        Assert.True(ai.Truce(1, 60 * World.TicksPerSecond));
+        Assert.Null(ai.CampaignAgainst);
+        Assert.Contains("truce with player 2", AiSituation.Build(world, 1).Players[0].Doing);
+        Run(world, 50 * World.TicksPerSecond);
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Null(ai.CampaignAgainst);
+        Run(world, 40 * World.TicksPerSecond, () => ai.CampaignAgainst is not null);
+        Assert.Equal(1, ai.CampaignAgainst);
+        Assert.Contains(ai.Log, l => l.Contains("truce with player 2 over: time is up"));
+    }
+
+    [Fact]
+    public void Enemies_on_the_own_land_break_a_truce()
+    {
+        var (world, ai, _) = Standoff(farArmy: 0);
+        Assert.True(ai.Truce(1, 300 * World.TicksPerSecond));
+        Run(world, 5 * World.TicksPerSecond);
+        world.SpawnSoldier(new GridPoint(40, 90), SoldierType.Swordsman, player: 1);
+        Run(world, 10 * World.TicksPerSecond);
+        Assert.Null(ai.TruceLeft(1));
+        Assert.Contains(ai.Log, l => l.Contains("over: its soldiers stand on the own land"));
+    }
+
+    [Fact]
+    public void A_truce_or_help_needs_the_right_side()
+    {
+        var (world, ai, _) = Standoff();
+        Assert.False(ai.Help(1, 600));
+        world.Teams.AddRange([1, 1]);
+        Assert.False(ai.Truce(1, 600));
+    }
+
+    [Fact]
+    public void Help_goes_to_the_ally_fights_the_enemies_there_and_comes_home()
+    {
+        // Player 1 (the AI) and player 2 on one team; an enemy of player 3 stands on player 2's land.
+        var map = new GameMap(160);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 3 };
+        world.Teams.AddRange([1, 1, 0]);
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 40), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        for (int i = 0; i < 6; i++)
+            world.SpawnSoldier(new GridPoint(44 + i, 46), SoldierType.Swordsman);
+        var allyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(40, 110), force: true)!;
+        world.SpawnSoldier(allyTower.Door, SoldierType.Swordsman, player: 1);
+        var ai = new AiPlayer(world, Romans, 0, character: "standard");
+        world.AiPlayers.Add(ai);
+        Run(world, 5 * World.TicksPerSecond);
+        var intruder = world.SpawnSoldier(new GridPoint(50, 116), SoldierType.Swordsman, player: 2)!;
+        Assert.True(ai.CanHelp(1));
+
+        Assert.True(ai.Help(1, 90 * World.TicksPerSecond));
+        Assert.Equal(1, ai.Helping);
+        Assert.Equal(3, ai.HelperCount);
+        Assert.False(ai.CanHelp(1));
+        Assert.Contains("helping player 2 with 3 soldiers", AiSituation.Build(world, 1).Players[0].Doing);
+        Run(world, 80 * World.TicksPerSecond, () => intruder.IsDead);
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.True(intruder.IsDead);
+        // They stay on the ally's land for the time agreed, then go home.
+        Assert.Equal(1, ai.Helping);
+        Run(world, 100 * World.TicksPerSecond, () => ai.Helping is null);
+        Assert.Null(ai.Helping);
+        Assert.Contains(ai.Log, l => l.Contains("helpers come home from player 2"));
     }
 
     private static void Run(World world, int ticks, Func<bool>? stopWhen = null)

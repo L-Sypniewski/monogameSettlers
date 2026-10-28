@@ -19,6 +19,7 @@ public sealed partial class AiPlayer
     {
         if (!IsEnemy(player))
             return;
+        EndTruce(player, "assaulted");
         AssaultOn = player;
         _strikes.Clear();
         _campaign = null;

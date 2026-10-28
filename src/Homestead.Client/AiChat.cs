@@ -13,8 +13,8 @@ namespace Homestead.Client;
 /// <summary>
 /// The computer players talk back in the chat: every line the own player says goes, with the situation
 /// (<see cref="AiSituation"/>), to the Claude API, which answers for all computer players at once through two tools –
-/// <c>say</c> (a chat line) and <c>attack</c> (<see cref="AiPlayer.Challenge"/>, or <see cref="AiPlayer.Assault"/>
-/// all in). Only with an API key: section <c>aiChat</c> of settings.json (<c>apiKey</c>, <c>model</c>, <c>effort</c>)
+/// <c>say</c> (a chat line), <c>attack</c> (<see cref="AiPlayer.Challenge"/>, or <see cref="AiPlayer.Assault"/> all in),
+/// <c>truce</c> (<see cref="AiPlayer.Truce"/>) and <c>defend</c> (<see cref="AiPlayer.Help"/>). Only with an API key: section <c>aiChat</c> of settings.json (<c>apiKey</c>, <c>model</c>, <c>effort</c>)
 /// or <c>ANTHROPIC_API_KEY</c>. Haiku answers without thinking (cheap and quick; other models always think). The tokens
 /// of every request go to the console. The request runs in the background, one at a time (lines said meanwhile go along
 /// with the next); its answers are applied on the game's thread (<see cref="Apply"/>). Prompt: data/ai-chat.json.
@@ -30,6 +30,8 @@ public sealed class AiChat
     private readonly string _system;
     private readonly IReadOnlyDictionary<string, string> _characters;
     private readonly long _attackCooldownTicks;
+    private readonly int _truceMaxMinutes;
+    private readonly int _helpMaxMinutes;
     private readonly ConcurrentQueue<Answer> _answers = new();
     private readonly Dictionary<int, long> _lastAttack = new();
     private Task? _running;
@@ -40,6 +42,8 @@ public sealed class AiChat
     private abstract record Answer;
     private sealed record Said(int Player, string Text) : Answer;
     private sealed record Attacked(int Player, int Target, bool AllIn) : Answer;
+    private sealed record Truced(int Player, int Target, int Minutes) : Answer;
+    private sealed record Defended(int Player, int Ally, int Minutes) : Answer;
     private sealed record Failed(string Reason) : Answer;
 
     private AiChat(string apiKey, string model, string effort, JsonElement data)
@@ -50,6 +54,8 @@ public sealed class AiChat
         _system = string.Join("\n", data.GetProperty("system").EnumerateArray().Select(l => l.GetString()));
         _characters = data.GetProperty("characters").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString() ?? "");
         _attackCooldownTicks = data.GetProperty("attackCooldownSeconds").GetInt32() * World.TicksPerSecond;
+        _truceMaxMinutes = data.GetProperty("truceMaxMinutes").GetInt32();
+        _helpMaxMinutes = data.GetProperty("helpMaxMinutes").GetInt32();
     }
 
     /// <summary>The chat with the settings' key, or null without one (then the computer players stay silent).</summary>
@@ -111,6 +117,19 @@ public sealed class AiChat
                         _lastAttack[ai.Player] = world.Tick;
                     Console.WriteLine($"{order}: {(taken ? "ordered" : "refused (ally, or a campaign or assault under way)")}");
                     break;
+                case Truced truce when IsVoice(world, truce.Player) && IsPlayer(world, truce.Target):
+                    int truceMinutes = Math.Clamp(truce.Minutes, 1, _truceMaxMinutes);
+                    bool agreed = world.AiPlayers.First(a => a.Player == truce.Player)
+                        .Truce(truce.Target, truceMinutes * 60L * World.TicksPerSecond);
+                    Console.WriteLine($"AI chat: player {truce.Player + 1} truce with player {truce.Target + 1} for {truceMinutes} min: " +
+                                      (agreed ? "agreed" : "refused (not an enemy)"));
+                    break;
+                case Defended help when IsVoice(world, help.Player) && IsPlayer(world, help.Ally):
+                    int helpMinutes = Math.Clamp(help.Minutes, 1, _helpMaxMinutes);
+                    bool sent = world.AiPlayers.First(a => a.Player == help.Player).Help(help.Ally, helpMinutes * 60L * World.TicksPerSecond);
+                    Console.WriteLine($"AI chat: player {help.Player + 1} helps player {help.Ally + 1} for {helpMinutes} min: " +
+                                      (sent ? "sent" : "refused (no ally, no idle soldiers or already helping)"));
+                    break;
                 case Failed failed:
                     notes.Add(Lang.T("chat.aiFailed", failed.Reason));
                     break;
@@ -126,6 +145,10 @@ public sealed class AiChat
     /// <summary>Umlauts the model wrote as JSON escapes (\u00e4) back as letters.</summary>
     private static string Unescape(string text) =>
         System.Text.RegularExpressions.Regex.Replace(text, @"\\u([0-9a-fA-F]{4})", m => ((char)Convert.ToInt32(m.Groups[1].Value, 16)).ToString());
+
+    /// <summary>A player of the game still in it.</summary>
+    private static bool IsPlayer(World world, int player) =>
+        player >= 0 && player < Math.Max(world.PlayerCount, 1) && world.Goals?.IsDefeated(player) != true;
 
     /// <summary>A computer player still in the game (not the own player 0).</summary>
     private static bool IsVoice(World world, int player) =>
@@ -154,7 +177,7 @@ public sealed class AiChat
                 MaxTokens = 4096,
                 OutputConfig = new OutputConfig { Effort = _effort switch { "medium" => Effort.Medium, "high" => Effort.High, _ => Effort.Low } },
                 System = new List<TextBlockParam> { new() { Text = _system, CacheControl = new CacheControlEphemeral() } },
-                Tools = [SayTool, AttackTool],
+                Tools = [SayTool, AttackTool, TruceTool, DefendTool],
                 Messages = [new UserMessageParam { Content = request }],
             };
             // Only Haiku may answer without thinking; for the others "thinking" stays out (null is rejected).
@@ -178,6 +201,9 @@ public sealed class AiChat
                 else if (tool.Name == "attack" && input.TryGetValue("target", out var target) && target.TryGetInt32(out int against))
                     _answers.Enqueue(new Attacked(speaker - 1, against - 1,
                         input.TryGetValue("all_in", out var allIn) && allIn.ValueKind == JsonValueKind.True));
+                else if (tool.Name is "truce" or "defend" && input.TryGetValue(tool.Name == "truce" ? "target" : "ally", out var other)
+                         && other.TryGetInt32(out int with) && input.TryGetValue("minutes", out var minutes) && minutes.TryGetInt32(out int length))
+                    _answers.Enqueue(tool.Name == "truce" ? new Truced(speaker - 1, with - 1, length) : new Defended(speaker - 1, with - 1, length));
             }
         }
         catch (AnthropicUnauthorizedException)
@@ -225,5 +251,23 @@ public sealed class AiChat
             ["player"] = new { type = "integer", description = "Number of the computer player attacking." },
             ["target"] = new { type = "integer", description = "Number of the player attacked." },
             ["all_in"] = new { type = "boolean", description = "Everything, never falling back." },
+        });
+
+    private static readonly Tool TruceTool = Schema("truce",
+        "One computer player agrees to a truce with an enemy: its attacks on that player stop and none start for the minutes given; enemies of that player on its land break it.",
+        new()
+        {
+            ["player"] = new { type = "integer", description = "Number of the computer player granting the truce." },
+            ["target"] = new { type = "integer", description = "Number of the enemy spared." },
+            ["minutes"] = new { type = "integer", description = "Length, 1 to 10." },
+        });
+
+    private static readonly Tool DefendTool = Schema("defend",
+        "One computer player sends half its idle soldiers to an ally's land for the minutes given; they fight the enemies there.",
+        new()
+        {
+            ["player"] = new { type = "integer", description = "Number of the computer player helping." },
+            ["ally"] = new { type = "integer", description = "Number of the ally helped." },
+            ["minutes"] = new { type = "integer", description = "Length, 1 to 10." },
         });
 }

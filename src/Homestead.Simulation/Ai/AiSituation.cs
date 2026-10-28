@@ -36,7 +36,7 @@ public static class AiSituation
     public sealed record PlayerState(
         int Player, string People, string? Character, IReadOnlyList<string>? Traits, int? Team, bool? Defeated, bool? AllyOfSpeaker,
         Army Soldiers, double? PowerVsSpeaker, int? DistanceToSpeaker, int? EnemySoldiersOnLand,
-        int Land, int MilitaryBuildings, int Buildings, Fights? Fights, Trend? Trend, string? Doing, bool? CannotAttackSpeaker);
+        int Land, int MilitaryBuildings, int Buildings, Fights? Fights, Trend? Trend, string? Doing, bool? CannotAttackSpeaker, bool? CannotHelpSpeaker);
 
     /// <summary>Soldiers by type (types without any left out).</summary>
     public sealed record Army(int Total, int? Swordsmen, int? Bowmen, int? Pikemen);
@@ -107,9 +107,10 @@ public static class AiSituation
                 Buildings: buildings.Count(b => b.State == BuildingState.Finished),
                 Fights: fights == new Fights(null, null, null, null) ? null : fights,
                 Trend: trend == new Trend(null, null, null, null, null, null, null) ? null : trend,
-                Doing: ai is null ? null : Doing(ai),
+                Doing: ai is null ? null : Doing(ai, players),
                 CannotAttackSpeaker: ai is not null && player != speaker && !world.AreAllies(player, speaker) && ai.AssaultOn is null
-                                     && ai.ChallengedBy is null && ai.CampaignAgainst is null && !ai.CanTakeUpChallenge(speaker) ? true : null));
+                                     && ai.ChallengedBy is null && ai.CampaignAgainst is null && !ai.CanTakeUpChallenge(speaker) ? true : null,
+                CannotHelpSpeaker: ai is not null && player != speaker && world.AreAllies(player, speaker) && !ai.CanHelp(speaker) ? true : null));
         }
         var chat = world.Chat.Messages.TakeLast(ChatLines)
             .Select(c => new ChatLine((int)(c.Tick / (60 * World.TicksPerSecond)), c.Player + 1, c.Text)).ToList();
@@ -119,10 +120,21 @@ public static class AiSituation
     /// <summary>The count, or null for none (left out of the request).</summary>
     private static int? Some(int count) => count == 0 ? null : count;
 
-    /// <summary>What the computer player is up to against others, in a few words.</summary>
-    private static string? Doing(AiPlayer ai) =>
-        ai.AssaultOn is { } assaulted ? $"all-out assault on player {assaulted + 1}"
-        : ai.ChallengedBy is { } challenger ? $"about to attack player {challenger + 1}"
-        : ai.CampaignAgainst is { } target ? $"campaign against player {target + 1} ({(ai.CampaignAttacking ? "attacking" : "gathering")})"
-        : null;
+    /// <summary>What the computer player is up to with others, in a few words each.</summary>
+    private static string? Doing(AiPlayer ai, int players)
+    {
+        var doing = new List<string>();
+        if (ai.AssaultOn is { } assaulted)
+            doing.Add($"all-out assault on player {assaulted + 1}");
+        else if (ai.ChallengedBy is { } challenger)
+            doing.Add($"about to attack player {challenger + 1}");
+        else if (ai.CampaignAgainst is { } target)
+            doing.Add($"campaign against player {target + 1} ({(ai.CampaignAttacking ? "attacking" : "gathering")})");
+        if (ai.Helping is { } ally)
+            doing.Add($"helping player {ally + 1} with {ai.HelperCount} soldiers");
+        for (int player = 0; player < players; player++)
+            if (ai.TruceLeft(player) is { } left)
+                doing.Add($"truce with player {player + 1} ({Math.Max(1, left / (60 * World.TicksPerSecond))} min left)");
+        return doing.Count == 0 ? null : string.Join("; ", doing);
+    }
 }

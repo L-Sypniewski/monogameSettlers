@@ -74,6 +74,10 @@ public sealed partial class AiPlayer
         bool near(EnemyGroup g, int range) => military.Any(b => PathFinder.Distance(b.Position, g.Center) <= range);
         bool untargeted(EnemyGroup g) => !_strikes.Any(k => g.Soldiers.Any(k.Targets.Contains));
 
+        // Enemies on the own land break a truce with their player.
+        foreach (var group in EnemyGroups.Where(g => g.Armed && onOwnLand(g)))
+            foreach (int player in group.Soldiers.Select(s => s.Player).Distinct().Where(InTruce).ToList())
+                EndTruce(player, "its soldiers stand on the own land");
         // Defence first: enemies on the own land are fought with any idle soldier.
         foreach (var group in EnemyGroups.Where(g => onOwnLand(g) && untargeted(g)).OrderByDescending(g => g.Strength))
             TryStrike(group, idle, "defends against", guerilla: false);
@@ -89,7 +93,7 @@ public sealed partial class AiPlayer
             if (_world.Tick >= until || enemy.IsDead)
                 _leftAlone.Remove(enemy);
         foreach (var group in EnemyGroups.Where(g => !onOwnLand(g) && near(g, config.StrikeRange) && untargeted(g)
-                                                     && !g.Soldiers.Any(_leftAlone.ContainsKey)).OrderBy(g => g.Strength))
+                                                     && !g.Soldiers.Any(_leftAlone.ContainsKey) && !InTruce(g)).OrderBy(g => g.Strength))
         {
             bool standing = IsStanding(group);
             if (standing && InHinterland(group))
@@ -100,6 +104,9 @@ public sealed partial class AiPlayer
             idle.RemoveAll(_strikes[^1].Soldiers.Contains);
             break;
         }
+
+        // Helping an ally: the helpers are not among the idle any more.
+        FollowHelp();
 
         // Against the enemies still close to the land enough soldiers stay back; only the rest is spare.
         var guards = Reserve(idle, EnemyGroups.Where(threatening));
@@ -413,7 +420,8 @@ public sealed partial class AiPlayer
     private List<Settler> IdleSoldiers() => _world.Settlers
         .Where(s => s.Player == Player && s.Profession == Profession.Soldier && !s.IsInside && !s.IsDead
                     && (!s.HasTask || _world.Military.MoveTarget(s) is not null || _world.Military.ForcedMoveTarget(s) is not null)
-                    && !_strikes.Any(k => k.Soldiers.Contains(s)) && _campaign?.Soldiers.Contains(s) != true)
+                    && !_strikes.Any(k => k.Soldiers.Contains(s)) && _campaign?.Soldiers.Contains(s) != true
+                    && _help?.Soldiers.Contains(s) != true)
         .ToList();
 
     /// <summary>Where an idle soldier will stand: where it walks to on a move order, otherwise where it is.</summary>

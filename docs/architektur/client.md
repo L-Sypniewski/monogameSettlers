@@ -92,8 +92,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
     KI-Chat (`AiChat`, nur mit Schlüssel: Abschnitt `aiChat` der `settings.json` mit `apiKey`, `model` (Standard `claude-haiku-5-5`, ohne Denken;
     andere Modelle denken immer), `effort` (`low`), sonst `ANTHROPIC_API_KEY`; Token je Anfrage auf der Konsole): jede eigene Zeile → im Hintergrund eine Anfrage an die Claude-API (Anthropic-SDK), eine zur Zeit
     (dazwischen Gesagtes geht mit der nächsten). Prompt und Charakterstimmen in `data/ai-chat.json` (System gecacht), Lage `AiSituation`.
-    Claude spricht für alle Computergegner über Werkzeuge `say` (→ `World.Say`) und `attack` (→ `AiPlayer.Challenge`, `all_in` → `Assault`;
-    je Gegner höchstens alle `attackCooldownSeconds`); angewendet im Spiel-Thread, Antworten zu einem anderen Spiel verworfen; Fehler `chat.aiFailed`; Angriffsbefehle mit Ergebnis auf der Konsole; als `\u00e4` geschriebene Umlaute zurückgewandelt.
+    Claude spricht für alle Computergegner über Werkzeuge `say` (→ `World.Say`), `attack` (→ `AiPlayer.Challenge`, `all_in` → `Assault`;
+    je Gegner höchstens alle `attackCooldownSeconds`), `truce` (→ `Truce`, bis `truceMaxMinutes`) und `defend` (→ `Help`, bis `helpMaxMinutes`); angewendet im Spiel-Thread, Antworten zu einem anderen Spiel verworfen; Fehler `chat.aiFailed`; Angriffsbefehle mit Ergebnis auf der Konsole; als `\u00e4` geschriebene Umlaute zurückgewandelt.
     Mehrspieler später: nur der Server fragt und verteilt die Ergebnisse als Befehle.
   - Computer-Button unten links (`SystemMenu`, `PanelTab.System`): „Spiel speichern“ (8 Slots mit Karte, Datum, Volk; leere gestrichelt;
     Klick speichert, auch überschreibend), „Spiel beenden“ mit Rückfrage (Ja unten links → Statistik, Nein unten rechts).
