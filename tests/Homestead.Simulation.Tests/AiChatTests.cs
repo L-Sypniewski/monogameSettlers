@@ -80,7 +80,10 @@ public class AiChatTests(ITestOutputHelper output)
         Assert.Null(human.Character);
         Assert.Equal(6, computer.Soldiers.Total);
         Assert.Equal(13, human.Soldiers.Swordsmen);
-        Assert.Equal(Math.Round(6 / 13.0, 2), computer.PowerVsSpeaker!.Value, 2);
+        Assert.Equal(0.5, computer.PowerVsSpeaker!.Value, 2);
+        Assert.Null(computer.Soldiers.Bowmen);
+        Assert.Null(computer.Team);
+        Assert.Null(computer.Defeated);
         Assert.Null(human.PowerVsSpeaker);
         Assert.InRange(computer.DistanceToSpeaker!.Value, 40, 60);
         Assert.Equal("about to attack player 2", computer.Doing);

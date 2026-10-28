@@ -15,13 +15,14 @@ namespace Homestead.Client;
 /// (<see cref="AiSituation"/>), to the Claude API, which answers for all computer players at once through two tools –
 /// <c>say</c> (a chat line) and <c>attack</c> (<see cref="AiPlayer.Challenge"/>, or <see cref="AiPlayer.Assault"/>
 /// all in). Only with an API key: section <c>aiChat</c> of settings.json (<c>apiKey</c>, <c>model</c>, <c>effort</c>)
-/// or <c>ANTHROPIC_API_KEY</c>. The request runs in the background, one at a time (lines said meanwhile go along
+/// or <c>ANTHROPIC_API_KEY</c>. Haiku answers without thinking (cheap and quick; other models always think). The tokens
+/// of every request go to the console. The request runs in the background, one at a time (lines said meanwhile go along
 /// with the next); its answers are applied on the game's thread (<see cref="Apply"/>). Prompt: data/ai-chat.json.
 /// </summary>
 public sealed class AiChat
 {
     private const string Section = "aiChat";
-    private const string DefaultModel = "claude-opus-5-5";
+    private const string DefaultModel = "claude-haiku-5-5";
 
     private readonly AnthropicClient _client;
     private readonly string _model;
@@ -142,10 +143,14 @@ public sealed class AiChat
                 Model = _model,
                 MaxTokens = 4096,
                 OutputConfig = new OutputConfig { Effort = _effort switch { "medium" => Effort.Medium, "high" => Effort.High, _ => Effort.Low } },
+                Thinking = _model.Contains("haiku") ? new ThinkingConfigDisabled() : null,
                 System = new List<TextBlockParam> { new() { Text = _system, CacheControl = new CacheControlEphemeral() } },
                 Tools = [SayTool, AttackTool],
                 Messages = [new UserMessageParam { Content = request }],
             });
+            var usage = response.Usage;
+            Console.WriteLine($"AI chat: {usage.InputTokens} in (cache read {usage.CacheReadInputTokens ?? 0}, written {usage.CacheCreationInputTokens ?? 0}), " +
+                              $"{usage.OutputTokens} out, {_model}");
             if (response.StopReason == "refusal")
                 return;
             foreach (var block in response.Content)
@@ -197,15 +202,15 @@ public sealed class AiChat
     private static readonly Tool SayTool = Schema("say", "One computer player writes a line in the global chat.", new()
     {
         ["player"] = new { type = "integer", description = "Number of the computer player speaking." },
-        ["text"] = new { type = "string", description = "The chat line, at most 200 characters." },
+        ["text"] = new { type = "string", description = "The chat line, under 100 characters." },
     });
 
     private static readonly Tool AttackTool = Schema("attack",
-        "One computer player sends its soldiers against another player: a campaign against that player's nearest weakly held military building (it gathers, attacks and retreats when beaten), or with all_in everything it has until that player's buildings are gone.",
+        "One computer player sends soldiers against another player: a campaign against a weakly held military building (retreats when beaten), or all_in: everything, until that player is gone.",
         new()
         {
             ["player"] = new { type = "integer", description = "Number of the computer player attacking." },
             ["target"] = new { type = "integer", description = "Number of the player attacked." },
-            ["all_in"] = new { type = "boolean", description = "Throw everything in and never fall back." },
+            ["all_in"] = new { type = "boolean", description = "Everything, never falling back." },
         });
 }

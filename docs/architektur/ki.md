@@ -51,7 +51,7 @@ Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
     Ende, wenn der Spieler kein Gebäude mehr hat; Verbündete nie.
   - `AiPlayer.Challenge` (KI-Chat, `ChallengedBy`, gespeichert): beim nächsten Militär-Takt ein Feldzug nur gegen diesen Spieler, ohne
     `attack.armyRatio` (auch wenn eigenes Land bedrängt ist), sonst normal (Ziel muss `attack.ratio` erfüllen); nicht während Feldzug/Assault, Verbündete nie.
-    Lage für den Chat: `AiSituation` (JSON je Spieler: Volk, Charakter, Armee, `powerVsSpeaker`, `distanceToSpeaker`, Feinde im Land, Land,
+    Lage für den Chat: `AiSituation` (knappes JSON, Nullen/false weggelassen, je Spieler: Volk, Charakter, Armee, `powerVsSpeaker`, `distanceToSpeaker`, Feinde im Land, Land,
     Gebäude, Kämpfe, Trend der letzten 5 min aus `GameHistory`, `doing`; dazu letzte 16 Chatzeilen).
   - `AiPlayer.Tactics`: in kleinen Gefechten (Strike/Feldzug ≤ `military.wounded.maxSoldiers` 10) ziehen sich Kämpfende unter `withdrawHealth` (35 %)
     zurück (erzwungen, Position halten `restDistance` vom Feind Richtung `RetreatDoor`; verfolgt → zum Gebäude; eigenes Lazarett in Rufweite, nicht

@@ -89,8 +89,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
     nicht im Einstellungsbildschirm); sonst sagt ein zufälliger Computergegner (nicht verbündet, nicht besiegt) `chat.noCheats` im Chat.
     `/cheats` öffnet/schließt das Cheat-Menü (`CheatMenu`: Soldaten je Typ/Stufe, Priester, Geologen, Späher, Pioniere, Träger,
     Kriegsmaschinen, +50 Mana, Mission geschafft/verloren, Fog of War an/aus); `/attackme`: alle nicht besiegten Computergegner `AiPlayer.Assault(0)` (Info `chat.attackMe`); Unbekanntes: `chat.unknown` mit der Liste.
-    KI-Chat (`AiChat`, nur mit Schlüssel: Abschnitt `aiChat` der `settings.json` mit `apiKey`, `model` (Standard `claude-opus-5-5`), `effort`
-    (`low`), sonst `ANTHROPIC_API_KEY`): jede eigene Zeile → im Hintergrund eine Anfrage an die Claude-API (Anthropic-SDK), eine zur Zeit
+    KI-Chat (`AiChat`, nur mit Schlüssel: Abschnitt `aiChat` der `settings.json` mit `apiKey`, `model` (Standard `claude-haiku-5-5`, ohne Denken;
+    andere Modelle denken immer), `effort` (`low`), sonst `ANTHROPIC_API_KEY`; Token je Anfrage auf der Konsole): jede eigene Zeile → im Hintergrund eine Anfrage an die Claude-API (Anthropic-SDK), eine zur Zeit
     (dazwischen Gesagtes geht mit der nächsten). Prompt und Charakterstimmen in `data/ai-chat.json` (System gecacht), Lage `AiSituation`.
     Claude spricht für alle Computergegner über Werkzeuge `say` (→ `World.Say`) und `attack` (→ `AiPlayer.Challenge`, `all_in` → `Assault`;
     je Gegner höchstens alle `attackCooldownSeconds`); angewendet im Spiel-Thread, Antworten zu einem anderen Spiel verworfen; Fehler `chat.aiFailed`.
