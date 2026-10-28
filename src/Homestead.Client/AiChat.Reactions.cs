@@ -9,14 +9,14 @@ namespace Homestead.Client;
 /// The computer players also speak up unasked (<c>reactions</c> in data/ai-chat.json): goods the own player's donkeys put
 /// down on their land (<see cref="World.GoodsHandedOver"/>) are tallied by worth per receiver and answered once the tally
 /// reaches <c>giftPleased</c> or falls to <c>giftInsulted</c> (raw logs are worth less than nothing); a military building
-/// taken or a big fight within one statistics sample (<c>bigFightSoldiers</c> killed and lost) is answered by chance
-/// (<c>chance</c>), at most once per <c>cooldownSeconds</c> per computer player; the own army marching up (<c>army</c>: at
-/// least <c>soldiers</c> outside on its land or within <c>range</c> of its military buildings, counted once a second) by its
-/// own chance and cooldown, once each time it gets that many. Such a request says what happened instead of a chat line.
+/// taken (<c>captureChance</c>) or a big fight within one statistics sample (<c>bigFightSoldiers</c> killed and lost,
+/// <c>chance</c>) is answered by chance, at most once per <c>cooldownSeconds</c> per computer player; the own army marching up
+/// at an enemy (<c>army</c>: at least <c>soldiers</c> outside on its land or within <c>range</c> of its military buildings,
+/// counted once a second; allies are not threatened by it) by its own chance and cooldown, once each time it gets that many. Such a request says what happened instead of a chat line.
 /// </summary>
 public sealed partial class AiChat
 {
-    private readonly double _reactionChance;
+    private readonly double _reactionChance, _captureChance;
     private readonly long _reactionCooldownTicks;
     private readonly int _bigFightSoldiers;
     private readonly double _giftPleased, _giftInsulted;
@@ -47,7 +47,7 @@ public sealed partial class AiChat
             army.GetProperty("cooldownSeconds").GetInt32() * (long)World.TicksPerSecond);
     }
 
-    private static (double Chance, long CooldownTicks, int BigFight, double Pleased, double Insulted, Dictionary<Material, double> Values, double Other)
+    private static (double Chance, double Capture, long CooldownTicks, int BigFight, double Pleased, double Insulted, Dictionary<Material, double> Values, double Other)
         ReadReactions(JsonElement data)
     {
         var r = data.GetProperty("reactions");
@@ -60,7 +60,7 @@ public sealed partial class AiChat
             else if (Enum.TryParse(entry.Name, out Material material))
                 values[material] = entry.Value.GetDouble();
         }
-        return (r.GetProperty("chance").GetDouble(), r.GetProperty("cooldownSeconds").GetInt32() * (long)World.TicksPerSecond,
+        return (r.GetProperty("chance").GetDouble(), r.GetProperty("captureChance").GetDouble(), r.GetProperty("cooldownSeconds").GetInt32() * (long)World.TicksPerSecond,
             r.GetProperty("bigFightSoldiers").GetInt32(), r.GetProperty("giftPleased").GetDouble(), r.GetProperty("giftInsulted").GetDouble(),
             values, other);
     }
@@ -113,7 +113,7 @@ public sealed partial class AiChat
             int winner = captured.Player;
             int? loser = fresh.FirstOrDefault(e => e.Definition.Id == "buildingLost" && e.Building == captured.Building)?.Player;
             string what = captured.Building!.Definition.Name;
-            React(world, [winner, .. loser is { } l ? [l] : Array.Empty<int>()],
+            React(world, _captureChance, [winner, .. loser is { } l ? [l] : Array.Empty<int>()],
                 $"Player {winner + 1} just took a {what}{(loser is { } from ? $" from player {from + 1}" : "")}.");
         }
         foreach (var ai in world.AiPlayers)
@@ -128,7 +128,7 @@ public sealed partial class AiChat
             if (kills + losses < _bigFightSoldiers)
                 continue;
             string outcome = kills >= 2 * losses ? "won a big fight" : losses >= 2 * kills ? "lost a big fight" : "came out of a bloody fight";
-            React(world, [ai.Player], $"Player {ai.Player + 1} {outcome} just now ({kills} enemies killed, {losses} own soldiers lost).");
+            React(world, _reactionChance, [ai.Player], $"Player {ai.Player + 1} {outcome} just now ({kills} enemies killed, {losses} own soldiers lost).");
         }
         if (world.Tick - _armyCounted >= World.TicksPerSecond)
         {
@@ -142,7 +142,7 @@ public sealed partial class AiChat
     {
         var map = world.Map!;
         var soldiers = world.Settlers.Where(s => s.Player == 0 && s.Profession == Profession.Soldier && !s.IsDead && !s.IsInside).ToList();
-        foreach (var ai in world.AiPlayers.Where(a => IsVoice(world, a.Player)))
+        foreach (var ai in world.AiPlayers.Where(a => IsVoice(world, a.Player) && !world.AreAllies(0, a.Player)))
         {
             var military = world.Buildings.Where(b => b.Exists && b.Player == ai.Player && b.Definition.Occupiers.Count > 0)
                 .Select(b => b.Position).ToList();
@@ -163,10 +163,10 @@ public sealed partial class AiChat
     }
 
     /// <summary>By chance, and not while one of the computer players concerned spoke up lately: says it along with the next request.</summary>
-    private void React(World world, int[] concerned, string happening)
+    private void React(World world, double chance, int[] concerned, string happening)
     {
         var voices = concerned.Where(p => IsVoice(world, p)).ToList();
-        if (voices.Count == 0 || _random.NextDouble() >= _reactionChance
+        if (voices.Count == 0 || _random.NextDouble() >= chance
             || voices.Any(p => _lastReaction.TryGetValue(p, out long last) && world.Tick - last < _reactionCooldownTicks))
             return;
         foreach (int p in voices)

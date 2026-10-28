@@ -56,7 +56,7 @@ public sealed partial class AiChat
         _attackCooldownTicks = data.GetProperty("attackCooldownSeconds").GetInt32() * World.TicksPerSecond;
         _truceMaxMinutes = data.GetProperty("truceMaxMinutes").GetInt32();
         _helpMaxMinutes = data.GetProperty("helpMaxMinutes").GetInt32();
-        (_reactionChance, _reactionCooldownTicks, _bigFightSoldiers, _giftPleased, _giftInsulted, var values, _giftOtherValue) = ReadReactions(data);
+        (_reactionChance, _captureChance, _reactionCooldownTicks, _bigFightSoldiers, _giftPleased, _giftInsulted, var values, _giftOtherValue) = ReadReactions(data);
         _giftValues = values;
         _army = ReadArmy(data);
     }

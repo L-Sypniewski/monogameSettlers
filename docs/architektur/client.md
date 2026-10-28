@@ -96,10 +96,10 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
     je Gegner höchstens alle `attackCooldownSeconds`), `truce` (→ `Truce`, bis `truceMaxMinutes`) und `defend` (→ `Help`, bis `helpMaxMinutes`); angewendet im Spiel-Thread, Antworten zu einem anderen Spiel verworfen; Fehler `chat.aiFailed`;
     unaufgefordert (`AiChat.Reactions`, `reactions` in ai-chat.json): Waren, die eigene Esel auf dem Land eines Computergegners abladen
     (`World.GoodsHandedOver`), nach `giftValues` aufsummiert (Gold 10 … Nahrung 2, Rest 0,2, Stamm −1), bei `giftPleased` (60) bzw.
-    `giftInsulted` (−8) eine versteckte Anfrage „das ist passiert“; eroberte Militärgebäude (`buildingCaptured`/`buildingLost`) und große
-    Kämpfe (≥ `bigFightSoldiers` Tote je Statistik-Probe) mit `chance` 30 %, je Gegner höchstens alle `cooldownSeconds` (90);
-    eigene Armee rückt an (`army`: ≥ 20 eigene Soldaten draußen in seinem Land oder ≤ 20 Felder vor seinen Militärgebäuden, je Sekunde
-    gezählt, beim Erreichen) mit 30 %, je Gegner höchstens alle 10 min; Angriffsbefehle mit Ergebnis auf der Konsole; als `\u00e4` geschriebene Umlaute zurückgewandelt.
+    `giftInsulted` (−8) eine versteckte Anfrage „das ist passiert“; eroberte Militärgebäude (`buildingCaptured`/`buildingLost`, `captureChance` 15 %) und große
+    Kämpfe (≥ `bigFightSoldiers` Tote je Statistik-Probe, `chance` 30 %), je Gegner höchstens alle `cooldownSeconds` (90);
+    eigene Armee rückt bei einem Gegner an (`army`, Verbündete nicht: ≥ 20 eigene Soldaten draußen in seinem Land oder ≤ 20 Felder vor seinen Militärgebäuden, je Sekunde
+    gezählt, beim Erreichen) mit 30 %, je Gegner höchstens alle 10 min; Prompt: Bündnisse halten das ganze Spiel, verbündete Soldaten im Land schützen; Angriffsbefehle mit Ergebnis auf der Konsole; als `\u00e4` geschriebene Umlaute zurückgewandelt.
     Mehrspieler später: nur der Server fragt und verteilt die Ergebnisse als Befehle.
   - Computer-Button unten links (`SystemMenu`, `PanelTab.System`): „Spiel speichern“ (8 Slots mit Karte, Datum, Volk; leere gestrichelt;
     Klick speichert, auch überschreibend), „Spiel beenden“ mit Rückfrage (Ja unten links → Statistik, Nein unten rechts).
