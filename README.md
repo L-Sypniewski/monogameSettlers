@@ -184,6 +184,8 @@ Measurements from the original, savegames showing odd behaviour and pull request
   Its readers for the original file formats, its building and animation tables and its many details about the game were
   an enormous help; parts of its code and data are used here under the MIT License (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
 - **[Blue Byte](https://bluebyte.ubisoft.com/en/)** for creating The Settlers III in 1998.
+- **[Siedler 3 Wiki](https://wiki.siedler3.net)** and **[StrategyWiki](https://strategywiki.org/wiki/The_Settlers_III)** – their collected
+  knowledge about buildings, goods, spells and game mechanics helped a lot to get the details right.
 - **[MonoGame](https://monogame.net/)** and **[FontStashSharp](https://github.com/FontStashSharp/FontStashSharp)**.
 
 ## Contributing
