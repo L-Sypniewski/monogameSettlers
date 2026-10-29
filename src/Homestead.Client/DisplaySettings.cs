@@ -26,9 +26,8 @@ public sealed record DisplaySettings
 
     public bool FullScreen { get; init; }
 
-    /// <summary>Until chosen: German on a German system, English otherwise.</summary>
-    public Language Language { get; init; } =
-        System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de" ? Language.German : Language.English;
+    /// <summary>English until chosen, whatever the system's language.</summary>
+    public Language Language { get; init; } = Language.English;
 
     public Theme Theme { get; init; } = Theme.Normal;
 

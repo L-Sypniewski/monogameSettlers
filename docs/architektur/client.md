@@ -47,7 +47,7 @@ MonoGame-Spiel. Capture-Optionen: [capture.md](capture.md).
 - **Einstellungen** (`SettingsScreen`): Hintergrund Datei 02 GUI 14 (`settingsScreen` in `ui.json`, Marmor daneben); oben in den vier
   Kästchen Reiter mit Icons der Original-Statistikmenüs (Datei 03, dunkel = eingedrückt gewählt, sonst hell; Tab/Shift+Tab): Rohstoffe,
   Wirtschaft (noch leer), Militär, Darstellung; je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch
-  100/75/50/25/10 %/∞; Militär: Zauberkosten-Anstieg konstant/+10/+25/+50 % → `MagicConfig.CostIncrease`; Darstellung: Hardware-Cursor, Vollbild, Sprache Deutsch/English,
+  100/75/50/25/10 %/∞; Militär: Zauberkosten-Anstieg konstant/+10/+25/+50 % → `MagicConfig.CostIncrease`; Darstellung: Hardware-Cursor, Vollbild, Sprache Deutsch/English (Vorgabe English, unabhängig von der Systemsprache; gilt auch für den Installationsdialog),
   Thema Normal/Gold/Classic/Amazonen (Titelbild und Ladebildschirm; `titleScreen.themes` in `ui.json` mit Gravurfarben, Normal = Gold; `HOMESTEAD_THEME` überstimmt), Musik/Effekte 100/75/50/25 %/aus, Musik je Volk, Bevorzugte Farbe (`DisplaySettings.PreferredColor`, Farbfelder, als Kennung gespeichert), Automatisch speichern
 (Ja/Nein, Vorgabe Nein: alle 15 min Echtzeit im Spiel und bei „Spiel beenden“ in Slot 8, nicht nach Verlust, nicht in Captures), Intro-Video (Ja/Nein, Vorgabe Ja: `MapGame.IntroVideo` = `S3/ADD/001/01_00_00.DAT` bei jedem Start vor dem Titelbildschirm, Ende/Klick → Titel) – Musik ohne Wahl nach Systemsprache; `Lang.Use` setzt auch die Kultur;
 Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGUAGE=de|en` überstimmt, z. B. für Captures).
