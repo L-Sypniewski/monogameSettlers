@@ -1,0 +1,38 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "ship",
+  // Shipflow is vendored in .opencode/shipflow (pipeline tools, guards, worktree strategy); agents, commands and rules
+  // live in .opencode/ next to it. Dependencies: bash .opencode/scripts/ensure-shipflow-deps.sh
+  "plugins": [
+    {
+      "package": "./.opencode/shipflow",
+      "options": {
+        // No auto-merge: PRs are only flipped to ready, merging stays manual.
+        "autoMerge": false,
+        "fastChecks": {
+          "script": "scripts/fast-checks.sh",
+          "sourceDirs": ["src/", "tests/", "data/"]
+        },
+        "temperatures": {
+          "ship": 0.1,
+          "plan-orchestrator": 0.1,
+          "code-review": 0.2,
+          "resource-scout": 0.1,
+          "worker": 0.1,
+          "software-engineer": 0.2
+        },
+        "worktree": {
+          "postCreate": ["bash .opencode/scripts/worktree-postcreate.sh"]
+        }
+      }
+    }
+  ],
+  "permissions": [
+    { "action": "shell", "resource": "dotnet build *", "effect": "allow" },
+    { "action": "shell", "resource": "dotnet test *", "effect": "allow" },
+    { "action": "shell", "resource": "git push *-f *", "effect": "deny" },
+    // This repo is a fork: never open PRs, issues or comments against the upstream project.
+    { "action": "shell", "resource": "gh * --repo meue/*", "effect": "deny" },
+    { "action": "shell", "resource": "git push upstream*", "effect": "deny" }
+  ]
+}

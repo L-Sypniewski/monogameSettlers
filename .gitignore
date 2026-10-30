@@ -16,3 +16,7 @@ export/
 
 # Trait tournament results (tools/trait-tournament.py)
 tournament-results/
+
+# Devcontainer / shipflow local state
+.devcontainer/.env
+.opencode/node_modules/
