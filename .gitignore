@@ -20,3 +20,5 @@ tournament-results/
 # Devcontainer / shipflow local state
 .devcontainer/.env
 .opencode/node_modules/
+.devcontainer/no-game/
+.devcontainer/game-dir

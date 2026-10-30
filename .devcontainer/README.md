@@ -21,7 +21,12 @@ On the host, run `gh repo set-default L-Sypniewski/monogameSettlers` once per cl
 
 - `dotnet build Homestead.sln` and `dotnet test`: the test project references only `Homestead.Simulation` and `Homestead.Assets`, so no display or native game libraries are needed. MinVer reads the git history, so keep the full clone.
 - Shaders: the compiled `.mgfx` files are committed, so Wine and `tools/compile-shaders.sh` are not needed unless you edit a `.fx` file (do that on the host).
-- Tests that read the original maps or GFX pass unchecked without a game installation (`HOMESTEAD_GAME_DIR`). To run them, add a bind mount of your installation to a local devcontainer override and set `HOMESTEAD_GAME_DIR` to its container path. It is not mounted by default because the path differs per machine.
+- Original game installation: set `HOMESTEAD_GAME_DIR` once on the host (e.g. `export HOMESTEAD_GAME_DIR=~/Games/Settlers3` in `~/.zshrc`).
+  The game reads the same variable, so a built game on the host and the container share one path. On start the container mounts that folder
+  read-only at `/mnt/settlers3` (`initializeCommand` links it to `.devcontainer/game-dir`) and `link-game-dir.sh` writes it as `gameDirectory` into the container's settings.
+  Without the variable the mount is an empty folder and the tests that need the original files pass unchecked; with it they run for real.
+  The variable has to be visible to whatever starts the container (a terminal, or an IDE launched from one). A game started from the Dock or Finder does not see shell variables:
+  there the installation dialog stores the path in `~/.config/homestead/settings.json` instead.
 - Running the game (DesktopGL) needs a desktop: use the host.
 
 ## Shipflow
