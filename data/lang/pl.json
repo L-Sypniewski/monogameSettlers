@@ -14,10 +14,10 @@
     "buttons": {
       "continue": "Kontynuuj",
       "campaign": "Kampania",
-      "missionCd": "Mission CD",
+      "missionCd": "Nowe misje",
       "amazonCampaign": "Kampania Amazonek",
-      "singlePlayer": "Gra pojedyncza",
-      "load": "Wczytaj grę",
+      "singlePlayer": "Jeden gracz",
+      "load": "Ładuj grę",
       "settings": "Ustawienia",
       "readme": "Readme",
       "contribution": "Współtworzenie",
@@ -60,8 +60,8 @@
     "chooseSide": "Wybierz stronę",
     "levels": {
       "Roman": "Rzymianie (dla początkujących)",
-      "Egyptian": "Egipcjanie (dla ekspertów)",
-      "Asian": "Azjaci (dla wprawnych)"
+      "Egyptian": "Egipcjanie (dla profesjonalistów)",
+      "Asian": "Azjaci (dla zaawansowanych)"
     },
     "sides": {
       "amazons": "Amazonki",
@@ -77,7 +77,7 @@
   "goods": {
     "PLANK": "Deski",
     "STONE": "Kamienie",
-    "TRUNK": "Pnie",
+    "TRUNK": "Kłody",
     "COAL": "Węgiel",
     "IRONORE": "Ruda żelaza",
     "GOLDORE": "Ruda złota",
@@ -118,13 +118,13 @@
     },
     "menus": {
       "stock": "Inwentarz",
-      "tools": "Broń i narzędzia",
-      "distribution": "Dystrybucja towarów",
+      "tools": "Narzędzia i broń",
+      "distribution": "Dystrybucja materiałów",
       "transport": "Priorytety w transporcie",
       "overview": "Populacja",
       "professions": "Zawody",
       "soldiers": "Wojsko",
-      "statistics": "Statystyki"
+      "statistics": "Produkcja"
     },
     "comingSoon": "Wkrótce."
   },
@@ -137,46 +137,46 @@
     "lookout_tower": "Wieża obserwacyjna",
     "coalmine": "Kopalnia węgla",
     "goldmine": "Kopalnia złota",
-    "ironmine": "Kopalnia żelaza",
+    "ironmine": "Kopalnia rudy żelaza",
     "gemsmine": "Kopalnia kamieni szlachetnych",
     "sulfurmine": "Kopalnia siarki",
-    "goldmelt": "Piec do przetapiania złota",
-    "ironmelt": "Piec hutniczy",
+    "goldmelt": "Huta przetapiająca złoto",
+    "ironmelt": "Huta żelaza",
     "toolsmith": "Kuźnia",
-    "weaponsmith": "Pracownia płatnerza",
+    "weaponsmith": "Warsztat płatnerza",
     "winegrower": "Winiarnia",
     "brewery": "Browar",
     "distillery": "Gorzelnia",
-    "mead_brewery": "Gorzelnia miodu",
+    "mead_brewery": "Chata miodziarza",
     "beekeeping": "Chata pszczelarza",
-    "rice_farm": "Uprawy ryżu",
-    "laboratory": "Jaskinia alchemika",
+    "rice_farm": "Farma ryżu",
+    "laboratory": "Laboratorium alchemika",
     "charcoal_burner": "Manufaktura węgla drzewnego",
-    "tower": "Mała wieża strażnicza",
-    "big_tower": "Duża wieża strażnicza",
+    "tower": "Wieża strażnicza",
+    "big_tower": "Wielka wieża strażnicza",
     "castle": "Zamek",
     "barrack": "Koszary",
-    "hospital": "Uzdrowiciel",
+    "hospital": "Dom uzdrowiciela",
     "baker": "Piekarnia",
-    "mill": "Młyn",
+    "mill": "Młyn zbożowy",
     "slaughterhouse": "Rzeźnia",
-    "pig_farm": "Hodowla świń",
-    "farm": "Gospodarstwo",
+    "pig_farm": "Farma świnek",
+    "farm": "Gospodarstwo rolne",
     "fisher": "Chata rybaka",
     "waterworks": "Wodociągi",
-    "donkey_farm": "Hodowla osłów",
-    "small_livinghouse": "Mały dom",
-    "medium_livinghouse": "Średni dom",
-    "big_livinghouse": "Duży dom",
+    "donkey_farm": "Ośla farma",
+    "small_livinghouse": "Mała rezydencja",
+    "medium_livinghouse": "Średnia rezydencja",
+    "big_livinghouse": "Duża rezydencja",
     "dockyard": "Stocznia",
     "harbor": "Przystań",
-    "market_place": "Targowisko",
+    "market_place": "Rynek",
     "temple": "Mała świątynia",
     "big_temple": "Wielka świątynia",
     "catapult_works": "Warsztat katapult",
     "ballista_works": "Warsztat balist",
     "cannon_works": "Warsztat armat",
-    "gong_works": "Warsztat gongów",
+    "gong_works": "Wytwórnia gongów",
     "gunpowder_maker": "Rusznikarnia"
   },
   "soldiers": {
@@ -288,14 +288,14 @@
     "texts": {
       "noStaff": "{building}: brak pracowników.",
       "noTool": "{building}: brak narzędzia.",
-      "attacked": "Twój lud jest atakowany!",
+      "attacked": "Zostałeś zaatakowany!",
       "buildingAttacked": "{building} jest atakowany!",
       "buildingLost": "Wróg zajął: {building}!",
       "buildingDestroyed": "Wrogie machiny wojenne zniszczyły: {building}!",
-      "buildingCaptured": "Zająłeś: {building}.",
-      "mineExhausted": "{building} jest wyczerpany.",
+      "buildingCaptured": "Zdobyłeś budynek: {building}.",
+      "mineExhausted": "{building}: złoże wyeksploatowane.",
       "noResources": "{building} nie znajduje już niczego.",
-      "donkeyRobbed": "Osioł został okradziony: jego towary leżą na ziemi!"
+      "donkeyRobbed": "Osiołek został zaatakowany: jego materiały leżą na ziemi!"
     },
     "categories": {
       "info": "Info",
@@ -314,8 +314,8 @@
     "IronToGold": "Dotyk Midasa",
     "SummonGoods": "Dary z Niebios",
     "Fear": "Dwukrotne Osłabienie",
-    "Growth": "Szaleństwo Zieleni",
-    "Grassland": "Boski Plon",
+    "Growth": "Boski Plon",
+    "Grassland": "Szaleństwo Zieleni",
     "MagicEye": "Magiczne Oko",
     "BowsToPioneers": "Łuczników w Pionierów",
     "Scatter": "Złudny Lot",
@@ -331,29 +331,29 @@
     "FishFlood": "Ryby w Bród",
     "StoneCurse": "Kamienne Zaklęcie",
     "MeltSnow": "Topniejący Śnieg",
-    "CursedArrows": "Tępe strzały",
-    "CallGoods": "Sprowadzenie dóbr",
-    "GoldToStone": "Złoto w kamień",
-    "SendGoods": "Przeniesienie dóbr",
-    "Freeze": "Stój głupcze",
-    "GrowForest": "Hołd lasu",
-    "RevealMap": "Rozwianie mgieł"
+    "CursedArrows": "Przeklęte strzały",
+    "CallGoods": "Zamów materiały",
+    "GoldToStone": "Złoto w Kamienie",
+    "SendGoods": "Wyślij materiały",
+    "Freeze": "Zamrożenie wroga",
+    "GrowForest": "Łaska Lasu",
+    "RevealMap": "Odkryj mapę"
   },
   "system": {
     "save": "Zapisz grę",
-    "quit": "Zakończ grę",
+    "quit": "Opuść grę",
     "paused": "Pauza",
     "pausedHint": "P lub Esc: wznów",
     "wonHint": "Wszyscy przeciwnicy pokonani – graj dalej lub zakończ grę.",
     "lostHint": "Utracono wszystkie budynki wojskowe. Esc: opuść grę.",
-    "quitQuestion": "Na pewno zakończyć grę?"
+    "quitQuestion": "Zakończysz grę. Jesteś pewien?"
   },
   "start": {
     "categories": {
-      "singlePlayer": "Pojedynczy gracz",
+      "singlePlayer": "Jeden gracz",
       "multiplayer": "Wielu graczy",
       "user": "Mapy użytkownika",
-      "random": "Mapy losowe"
+      "random": "Mapa losowa"
     },
     "levels": {
       "few": "mało",
@@ -401,7 +401,7 @@
     "positionHint": "Pozycja startowa: „?” oznacza losowanie na starcie, kliknięcie przydziela ją graczowi.",
     "kind": {
       "random": "Mapa losowa",
-      "singlePlayer": "Pojedynczy gracz",
+      "singlePlayer": "Jeden gracz",
       "multiplayer": "Wielu graczy"
     },
     "facts": "{0} · graczy: {1} · {2} × {2} pól",
@@ -411,7 +411,7 @@
     "noMapsInCategory": "Brak map w tej kategorii.",
     "columns": {
       "player": "Gracz",
-      "people": "Lud",
+      "people": "Nacja",
       "color": "Kolor",
       "team": "Drużyna",
       "hardcore": "Hardcore"
@@ -559,7 +559,7 @@
       "carriers": "Tragarze",
       "room": "Mieszkania",
       "striking": "Strajkujący",
-      "mana": "Zdobyta mana",
+      "mana": "Zdobyta manna",
       "captured": "Zdobyte budynki",
       "destroyed": "Utracone budynki (zburzone, zdobyte)",
       "goodPerMinute": "{0}: wytworzono na minutę",
@@ -568,11 +568,11 @@
     }
   },
   "soldiersMenu": {
-    "offensive": "Ofensywa: {0}%",
-    "divine": "Boskie ulepszenie: {0}%",
-    "manual": "Ręcznie",
-    "automatic": "Automatycznie",
-    "recruitment": "Werbunek"
+    "offensive": "Siła ataku: {0}%",
+    "divine": "Awans: {0}%",
+    "manual": "Ręczna",
+    "automatic": "Automatyczna",
+    "recruitment": "Rekrutacja"
   },
   "professions": {
     "carriers": "Tragarze",
@@ -581,11 +581,11 @@
     "special": "Specjaliści"
   },
   "selection": {
-    "steal": "Kradnij towary",
-    "claim": "Zajmij ziemię",
+    "steal": "Kradnij materiały",
+    "claim": "Zajmij terytorium",
     "hold": "Utrzymaj pozycję",
-    "reload": "Załaduj amunicję",
-    "combatStrength": "Siła bojowa: {0}%"
+    "reload": "Zbierz amunicję",
+    "combatStrength": "Siła: {0}%"
   },
   "manufacture": {
     "tools": "Narzędzia",
@@ -594,9 +594,9 @@
   "spellMenu": {
     "title": "Kapłani",
     "placeholder": "Jeszcze nie zaimplementowano",
-    "mana": "Mana: {0}",
-    "cost": "{0} – {1} many",
-    "clickPlace": "Kliknij miejsce docelowe, prawy przycisk anuluje",
+    "mana": "Manna: {0}",
+    "cost": "{0} – {1} manny",
+    "clickPlace": "Wybierz miejsce na cud, prawy przycisk anuluje",
     "clickOwn": "Kliknij własnych żołnierzy, prawy przycisk anuluje",
     "clickEnemies": "Kliknij wrogich żołnierzy, prawy przycisk anuluje"
   },
@@ -619,19 +619,19 @@
   },
   "building": {
     "ammoLoads": "Amunicja: {0}",
-    "trade": "Handel – ląd",
-    "seaTrade": "Handel – morze",
+    "trade": "Handel-Ląd",
+    "seaTrade": "Handel-Statek",
     "garrison": "Załoga (obecna / oczekiwana)",
-    "resume": "Wznów pracę",
-    "pause": "Wstrzymaj pracę",
+    "resume": "Pracuj dalej",
+    "pause": "Przestań pracować",
     "priority": "Najwyższy priorytet",
     "status": "Stan",
     "chanceBelowOne": "Szansa powodzenia: poniżej 1 %",
     "chance": "Szansa powodzenia: {0} %",
     "goods": "Towary",
-    "material": "Materiał budowlany",
-    "demolish": "Zburz",
-    "demolishQuestion": "Czy na pewno chcesz zburzyć ten budynek?",
+    "material": "Potrzebne materiały",
+    "demolish": "Zburz budynek",
+    "demolishQuestion": "Czy naprawdę chcesz zburzyć ten budynek?",
     "soldiers": "Żołnierzy: {0}/{1}",
     "soldiersOnTheWay": ", w drodze: {0}",
     "door": ", drzwi {0} %"
@@ -644,11 +644,11 @@
     "unknown": "Nieznane polecenie {0}. Polecenia: {1}"
   },
   "info": {
-    "defeated": "{0} został pokonany.",
+    "defeated": "Gracz {0} został zniszczony.",
     "saved": "Zapisano grę w slocie {0}.",
     "autoSaved": "Zapisano automatycznie w slocie {0}.",
     "saveFailed": "Nie udało się zapisać w slocie {0}.",
     "notSaved": "Nie zapisano od {0} min.",
-    "lastTower": "To ostatnia wieża"
+    "lastTower": "To jest ostatnia wieża"
   }
 }
