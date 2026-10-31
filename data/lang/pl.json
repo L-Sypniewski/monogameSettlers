@@ -2,8 +2,8 @@
   "common": {
     "cancel": "Anuluj",
     "ok": "OK",
-    "yes": "Tak",
-    "no": "Nie",
+    "yes": "TAK",
+    "no": "NIE",
     "on": "Wł.",
     "off": "Wył."
   },
@@ -44,11 +44,11 @@
   },
   "campaign": {
     "choosePeople": "Wybierz swoją nację",
-    "back": "Wstecz",
+    "back": "Cofnij",
     "next": "Dalej",
     "saveName": "{0}: {1}, misja {2}",
-    "won": "Gra wygrana",
-    "lost": "Gra przegrana",
+    "won": "Wygrałeś!",
+    "lost": "Przegrałeś!",
     "wonHint": "Zakończ grę, aby przejść do następnej misji.",
     "lostHint": "Esc: opuść grę – misja zacznie się od nowa.",
     "chooseMission": "Wybierz misję",
@@ -81,7 +81,7 @@
     "COAL": "Węgiel",
     "IRONORE": "Ruda żelaza",
     "GOLDORE": "Ruda złota",
-    "IRON": "Sztabki żelaza",
+    "IRON": "Żelazo",
     "HAMMER": "Młotki",
     "BLADE": "Łopaty",
     "AXE": "Siekiery",
@@ -105,7 +105,7 @@
     "LIQUOR": "Wódka ryżowa",
     "RICE": "Ryż",
     "SULFUR": "Siarka",
-    "GOLD": "Sztabki złota",
+    "GOLD": "Złoto",
     "GEMS": "Kamienie szlachetne",
     "MEAD": "Miód pitny",
     "GUN_POWDER": "Proch"
@@ -149,8 +149,8 @@
     "distillery": "Gorzelnia",
     "mead_brewery": "Chata miodziarza",
     "beekeeping": "Chata pszczelarza",
-    "rice_farm": "Farma ryżu",
-    "laboratory": "Laboratorium alchemika",
+    "rice_farm": "Plantacja ryżu",
+    "laboratory": "Laboratorium",
     "charcoal_burner": "Manufaktura węgla drzewnego",
     "tower": "Wieża strażnicza",
     "big_tower": "Wielka wieża strażnicza",
@@ -230,7 +230,7 @@
       "everyOtherTower": "Co druga wieża",
       "rotatingTowers": "Wieże na zmianę",
       "thief": "Lepkie palce",
-      "summoner": "Przywoływacz towarów"
+      "summoner": "Przywoływacz materiałów"
     }
   },
   "ships": {
@@ -268,7 +268,7 @@
     "noDestination": "Brak celu",
     "donkeysOnTheWay": "Osły w drodze",
     "waitingForDonkey": "Czekanie na osła",
-    "waitingForTradeGoods": "Czekanie na towary",
+    "waitingForTradeGoods": "Czekanie na materiały",
     "noDock": "Brak nabrzeża",
     "noShipOrdered": "Nie zamówiono statku",
     "waitingForShipMaterial": "Czekanie na materiał na statek",
@@ -290,18 +290,18 @@
       "noTool": "{building}: brak narzędzia.",
       "attacked": "Zostałeś zaatakowany!",
       "buildingAttacked": "{building} jest atakowany!",
-      "buildingLost": "Wróg zajął: {building}!",
-      "buildingDestroyed": "Wrogie machiny wojenne zniszczyły: {building}!",
+      "buildingLost": "Przeciwnik zdobył jeden z Twoich budynków: {building}.",
+      "buildingDestroyed": "Przeciwnik zniszczył jeden z Twoich budynków: {building}.",
       "buildingCaptured": "Zdobyłeś budynek: {building}.",
       "mineExhausted": "{building}: złoże wyeksploatowane.",
       "noResources": "{building} nie znajduje już niczego.",
       "donkeyRobbed": "Osiołek został zaatakowany: jego materiały leżą na ziemi!"
     },
     "categories": {
-      "info": "Info",
-      "combat": "Walka",
-      "resources": "Surowce",
-      "trade": "Handel"
+      "info": "Różne",
+      "combat": "Wojskowe",
+      "resources": "Geologiczne",
+      "trade": "Handlowe"
     },
     "dates": {
       "12-25": "Wesołych Świąt!",
@@ -326,7 +326,7 @@
     "Desertify": "Wypalenie",
     "Reinforce": "Lotem Bliżej",
     "Haste": "Miecz Samuraja",
-    "Shield": "Pancerz Ch'ih-Yu",
+    "Shield": "Pancerz Ch’ih-Yu",
     "StoneToIron": "Kamienie w Żelazo",
     "FishFlood": "Ryby w Bród",
     "StoneCurse": "Kamienne Zaklęcie",
@@ -336,7 +336,7 @@
     "GoldToStone": "Złoto w Kamienie",
     "SendGoods": "Wyślij materiały",
     "Freeze": "Zamrożenie wroga",
-    "GrowForest": "Łaska Lasu",
+    "GrowForest": "Klątwa Lasu",
     "RevealMap": "Odkryj mapę"
   },
   "system": {
@@ -352,19 +352,19 @@
     "categories": {
       "singlePlayer": "Jeden gracz",
       "multiplayer": "Wielu graczy",
-      "user": "Mapy użytkownika",
+      "user": "Użytkownik",
       "random": "Mapa losowa"
     },
     "levels": {
-      "few": "mało",
-      "medium": "średnio",
-      "many": "dużo",
-      "none": "brak",
+      "few": "Mało",
+      "medium": "Średnia",
+      "many": "Dużo",
+      "none": "Brak",
       "normal": "normalnie"
     },
     "symmetry": {
       "none": "Brak",
-      "mirror": "Lustrzana",
+      "mirror": "Odbicie lustrzane",
       "repeat": "Powtarzana"
     },
     "random": {
@@ -384,7 +384,7 @@
       "kingOfTheHill": "Król wzgórza",
       "kingOfTheHillHint": "Środek mapy to wzgórze warte utrzymania: skarbiec ze złotem i bronią, góry pełne złota, klejnotów i węgla, otoczone wrzosowiskiem z jednym przejściem dla każdego gracza."
     },
-    "randomPeople": "Losowy",
+    "randomPeople": "Losowo",
     "noMaps": "brak map w tej kategorii",
     "hardcoreHint": "Hardcore: +10 % siły bojowej, +30 % osadników na dom, +20 % punktów życia, −25 % kosztów budowy, 10 % szybsza produkcja, więcej wyposażenia na start.",
     "player": "Gracz {0}",
@@ -396,8 +396,8 @@
     "keysRandom": "Enter start · Esc wyjście · R losuj ponownie · Tab kategoria",
     "keys": "Enter start · Esc wyjście · ↑/↓ mapa · Tab kategoria",
     "randomShort": "Losowo",
-    "start": "Start",
-    "quit": "Wstecz",
+    "start": "Nowa gra",
+    "quit": "Cofnij",
     "positionHint": "Pozycja startowa: „?” oznacza losowanie na starcie, kliknięcie przydziela ją graczowi.",
     "kind": {
       "random": "Mapa losowa",
@@ -411,9 +411,9 @@
     "noMapsInCategory": "Brak map w tej kategorii.",
     "columns": {
       "player": "Gracz",
-      "people": "Nacja",
+      "people": "Rasa",
       "color": "Kolor",
-      "team": "Drużyna",
+      "team": "Zespół",
       "hardcore": "Hardcore"
     },
     "fixedPeopleHint": "Mapa narzuca lud dla tej pozycji startowej; dotyczy gracza, który tam startuje.",
@@ -511,7 +511,7 @@
     "maps": "Mapy: {0}."
   },
   "statistics": {
-    "title": "Statystyki",
+    "title": "Statystyki produkcji",
     "subtitle": "{0} · czas gry: {1} godz. · graczy: {2}",
     "resume": "Wznów",
     "mainMenu": "Menu główne",
@@ -524,7 +524,7 @@
       "overview": "Przegląd",
       "economy": "Gospodarka",
       "military": "Wojsko",
-      "goods": "Towary",
+      "goods": "Materiały",
       "society": "Społeczeństwo"
     },
     "columns": {
@@ -545,8 +545,8 @@
       "settlers": "Osadnicy",
       "soldiers": "Żołnierze",
       "buildings": "Budynki",
-      "producedPerMinute": "Towary wytworzone na minutę",
-      "producedTotal": "Towary wytworzone (razem)",
+      "producedPerMinute": "Materiały wytworzone na minutę",
+      "producedTotal": "Materiały wytworzone (razem)",
       "stock": "Zapasy",
       "finished": "Ukończone budynki",
       "sites": "Place budowy",
@@ -628,7 +628,7 @@
     "status": "Stan",
     "chanceBelowOne": "Szansa powodzenia: poniżej 1 %",
     "chance": "Szansa powodzenia: {0} %",
-    "goods": "Towary",
+    "goods": "Materiały",
     "material": "Potrzebne materiały",
     "demolish": "Zburz budynek",
     "demolishQuestion": "Czy naprawdę chcesz zburzyć ten budynek?",
