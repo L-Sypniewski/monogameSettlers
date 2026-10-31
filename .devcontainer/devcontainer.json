@@ -14,7 +14,12 @@
     },
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
   },
+  // devcontainer substitution has no nested defaults, so a host symlink picks the mount source: HOMESTEAD_GAME_DIR if set,
+  // else an empty dir (a bind source must exist).
+  "initializeCommand": "mkdir -p .devcontainer/no-game && ln -sfn \"${HOMESTEAD_GAME_DIR:-$PWD/.devcontainer/no-game}\" .devcontainer/game-dir",
   "mounts": [
+    // Original game installation, read-only, from the same variable the game itself reads (.devcontainer/game-dir -> /mnt/settlers3).
+    "source=${localWorkspaceFolder}/.devcontainer/game-dir,target=/mnt/settlers3,type=bind,readonly",
     // mise installs and the NuGet global-packages folder live on named volumes: they survive rebuilds.
     "source=mise-data-volume,target=/mnt/mise-data,type=volume",
     "source=nuget-cache-volume,target=/mnt/nuget-cache,type=volume"
@@ -29,7 +34,7 @@
   "onCreateCommand": "sudo mkdir -p /home/vscode/.local /mnt/mise-data /mnt/nuget-cache && sudo chown -R vscode:vscode /home/vscode/.local /mnt/mise-data /mnt/nuget-cache && export PATH=\"/mnt/mise-data/shims:$PATH\" && mise trust \"$(pwd)/.mise.toml\" && mise install && for i in 1 2 3 4 5; do curl -fsSL https://opencode.ai/v2/install | bash && break; [ \"$i\" = 5 ] && exit 1; sleep $((i * 5)); done && sudo ln -sf /home/vscode/.opencode/bin/opencode /usr/local/bin/opencode",
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   // mise-trust covers this worktree's path (trust state persists on the mise-data volume).
-  "postStartCommand": "export PATH=\"/mnt/mise-data/shims:$PATH\"; mise trust \"$(pwd)/.mise.toml\" >/dev/null 2>&1 || true; bash .devcontainer/set-git-identity.sh || true",
+  "postStartCommand": "export PATH=\"/mnt/mise-data/shims:$PATH\"; mise trust \"$(pwd)/.mise.toml\" >/dev/null 2>&1 || true; bash .devcontainer/set-git-identity.sh || true; bash .devcontainer/link-game-dir.sh || true",
   "containerEnv": {
     // Agent shells run under a PTY: git/gh pagers block forever without these.
     "GIT_PAGER": "cat",
