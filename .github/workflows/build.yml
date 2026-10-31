@@ -34,6 +34,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
+      - uses: oven-sh/setup-bun@v2
+      - name: Skills lock
+        run: bun run scripts/check-skills-lock.ts
       - name: Build
         run: dotnet build Homestead.sln -c Release
       # Tests with the original maps pass unchecked without an installation.
