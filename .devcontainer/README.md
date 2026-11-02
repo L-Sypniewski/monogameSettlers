@@ -35,3 +35,22 @@ The agent pipeline is vendored in the repo: the plugin (pipeline tools, guards, 
 agents/commands/rules in `.opencode/`, skills in `.agents/skills/`, Claude Code wrappers in `.claude/scripts/`, repo policy in `.shipflow.json`.
 Its only dependency is installed by `bash .opencode/scripts/ensure-shipflow-deps.sh` (run by `post-create.sh`).
 `scripts/fast-checks.sh` (build + tests) is the drift gate shipflow runs between edits.
+
+## Fork vs upstream porting
+
+The fork's `main` is `upstream/main` plus a small set of fork-only tooling commits rebased on top.
+The fork-only paths live in `.opencode/scripts/port-upstream.exclude` (one path per line, plus
+`owned`/`marker` lines for shared files whose fork-added parts cannot be path-excluded); a commit
+touching only those `owned` files is also skipped as tooling - upstream-able changes to them must
+be submitted directly upstream (the skip log is the signal).
+Keep commits pure: either only shared paths or only fork-only
+paths - the port tooling relies on it.
+
+`/port-upstream <branch>` replays the branch's upstream-able commits onto `upstream/main`,
+builds and tests the result, and pushes `port/<branch>` to origin. The printed compare URL and
+`gh pr create` command are for the human - nothing in the pipeline may push to or open anything
+in upstream.
+
+Realignment after upstream moved: `git fetch upstream`, rebase the tooling commits onto the new
+`upstream/main`, drop superseded duplicates, then the human force-pushes `main` (deny-gated for
+agents).
