@@ -29,9 +29,11 @@ done
 [ -n "$SOURCE" ] || { echo "usage: $0 <source-branch> [port-branch-name] [--force]" >&2; exit 1; }
 [ -n "$PORT" ] || PORT="port/$(basename "$SOURCE")"
 
-# --- fork-only exclusion data: paths (skip commits, reject mixes) + content markers
+# --- fork-only exclusion data: paths (skip commits, reject mixes), owned shared files
+# (their entire fork delta is fork-only content) + content markers
 [ -f "$EXCLUDE" ] || die "missing exclusion config: $EXCLUDE"
 FORK_PATHS=()
+OWNED=()
 MARKERS=()
 while read -r line; do
   case "$line" in
@@ -39,6 +41,9 @@ while read -r line; do
     marker\ *)
       read -r -a words <<< "$line"; mfile="${words[1]}"
       MARKERS+=("$mfile"$'\t'"${line#marker "$mfile" }")
+      ;;
+    owned\ *)
+      read -r -a words <<< "$line"; OWNED+=("${words[1]}")
       ;;
     *) FORK_PATHS+=("$line") ;;
   esac
@@ -53,6 +58,12 @@ is_fork_only() {
       *)  [[ "$f" == "$entry" ]] && return 0 ;;
     esac
   done
+  return 1
+}
+
+is_owned_shared() {
+  local f="$1" entry
+  for entry in "${OWNED[@]}"; do [[ "$f" == "$entry" ]] && return 0; done
   return 1
 }
 
@@ -84,23 +95,25 @@ PORTED_LOG=()
 SKIPPED_LOG=()
 for sha in $CANDIDATES; do
   subject=$(git log -1 --format=%s "$sha")
-  shared=""; forkonly=""
+  shared=""; forkonly=""; unowned=""
   while IFS= read -r f; do
-    if is_fork_only "$f"; then forkonly+="$f"$'\n'; else shared+="$f"$'\n'; fi
+    if is_fork_only "$f"; then forkonly+="$f"$'\n'
+    elif is_owned_shared "$f"; then shared+="$f"$'\n'
+    else shared+="$f"$'\n'; unowned+="$f"$'\n'; fi
   done < <(git diff-tree --no-commit-id --name-only -r "$sha")
-  if [ -z "$shared" ]; then
-    log "skip tooling commit ${sha:0:9} $subject"
-    SKIPPED_LOG+=("${sha:0:9} $subject")
-  elif [ -n "$forkonly" ]; then
+  if [ -n "$forkonly" ] && [ -n "$unowned" ]; then
     die "commit ${sha:0:9} ($subject) mixes fork-only and shared paths - split the commit, then re-run.
 fork-only files:
 $forkonly
 shared files:
 $shared"
-  else
+  elif [ -n "$unowned" ]; then
     log "port commit ${sha:0:9} $subject"
     PORTED_SHAS+=("$sha")
     PORTED_LOG+=("${sha:0:9} $subject")
+  else
+    log "skip tooling commit ${sha:0:9} $subject"
+    SKIPPED_LOG+=("${sha:0:9} $subject")
   fi
 done
 [ ${#PORTED_SHAS[@]} -gt 0 ] || die "nothing upstream-able on $SOURCE (every commit is fork tooling)"
