@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Port the upstream-able commits of a fork branch: replay them onto upstream/main, verify the
 # result contains no fork-only paths or content, push it as port/<branch> to origin, and print
-# the compare URL + human gh command for the upstream PR. Recovery from a hard fail is manual
-# by design - a contaminated port branch is worse than a stopped script.
+# the compare URL + human gh command for the upstream PR. Re-runs RESUME an existing port
+# branch (already-applied commits are detected by patch-id and kept; --force re-ports fresh).
+# Recovery from a hard fail is manual by design - a contaminated port branch is worse than a
+# stopped script.
 set -euo pipefail
 
-EXCLUDE="$(dirname "$0")/port-upstream.exclude"
+EXCLUDE="$(cd "$(dirname "$0")" && pwd)/port-upstream.exclude"
 UPSTREAM_MAIN=upstream/main
 FORK_REMOTE=origin
 PORT_PREFIX=L-Sypniewski
@@ -28,6 +30,10 @@ for arg in "$@"; do
 done
 [ -n "$SOURCE" ] || { echo "usage: $0 <source-branch> [port-branch-name] [--force]" >&2; exit 1; }
 [ -n "$PORT" ] || PORT="port/$(basename "$SOURCE")"
+[ "$PORT" != "$SOURCE" ] || die "port branch name must differ from the source branch"
+
+# the port gate builds Homestead.sln, which is resolved relative to the repo root
+cd "$(git rev-parse --show-toplevel)"
 
 # --- fork-only exclusion data: paths (skip commits, reject mixes), owned shared files
 # (their entire fork delta is fork-only content) + content markers
@@ -74,16 +80,36 @@ git fetch origin
 git rev-parse --verify -q "$UPSTREAM_MAIN" >/dev/null || die "$UPSTREAM_MAIN not found after fetch"
 git rev-parse --verify -q "$SOURCE" >/dev/null || die "source branch not found: $SOURCE"
 if ! { git diff --quiet && git diff --cached --quiet; }; then
+  if [ -f "$(git rev-parse --git-dir)/CHERRY_PICK_HEAD" ]; then
+    die "working tree not clean - an interrupted cherry-pick is in progress.
+Finish it (resolve, 'git add' the resolutions, 'git cherry-pick --continue') or
+'git cherry-pick --abort' it, then re-run WITHOUT --force: picks already on the
+port branch are kept and the run resumes at the first unapplied commit."
+  fi
   die "working tree not clean - commit or stash first"
 fi
 
-# --- 2. refuse an existing remote port branch unless --force (delete + recreate)
-if git ls-remote --heads "$FORK_REMOTE" "$PORT" | grep -q .; then
-  if [ "$FORCE" = true ]; then
-    log "--force: deleting existing $FORK_REMOTE/$PORT and re-porting"
-    git push "$FORK_REMOTE" --delete "$PORT"
-  else
-    die "$PORT already exists on $FORK_REMOTE. Recovery: re-run with --force (delete + recreate)."
+# --- 2. port-branch state: resume by default, --force = fresh re-port ---------------
+if [ "$FORCE" = true ] && git ls-remote --heads "$FORK_REMOTE" "refs/heads/$PORT" | grep -q .; then
+  log "--force: deleting existing $FORK_REMOTE/$PORT and re-porting fresh"
+  git push "$FORK_REMOTE" --delete "$PORT"
+fi
+if ! git show-ref --verify --quiet "refs/heads/$PORT" &&
+   git ls-remote --heads "$FORK_REMOTE" "refs/heads/$PORT" | grep -q .; then
+  log "no local $PORT - seeding it from $FORK_REMOTE/$PORT"
+  git branch "$PORT" "$FORK_REMOTE/$PORT"
+fi
+RESUME=false
+if [ "$FORCE" != true ] && git show-ref --verify --quiet "refs/heads/$PORT"; then
+  if [ "$(git rev-parse "$PORT")" != "$(git rev-parse "$UPSTREAM_MAIN")" ]; then
+    if git merge-base --is-ancestor "$UPSTREAM_MAIN" "$PORT"; then
+      RESUME=true
+      log "resuming $PORT: commits already on it are kept"
+    else
+      die "$PORT does not descend from the current $UPSTREAM_MAIN (upstream moved
+since $PORT was created). Re-run with --force for a fresh port - the resolutions
+on $PORT will be discarded."
+    fi
   fi
 fi
 
@@ -118,15 +144,34 @@ $shared"
 done
 [ ${#PORTED_SHAS[@]} -gt 0 ] || die "nothing upstream-able on $SOURCE (every commit is fork tooling)"
 
-# --- 5. replay the selected commits onto upstream/main -------------------------
-log "creating $PORT from $UPSTREAM_MAIN"
-git checkout -B "$PORT" "$UPSTREAM_MAIN"
-for sha in "${PORTED_SHAS[@]}"; do
-  git cherry-pick "$sha" || die "cherry-pick of ${sha:0:9} conflicted (worktree left on $PORT mid-cherry-pick).
-Recovery: resolve the conflicts, 'git add' the resolutions, 'git cherry-pick --continue',
-then re-run this script with --force."
-  log "cherry-picked ${sha:0:9}"
-done
+# --- 5. replay: fresh from upstream/main, or resume appending the missing tail -----
+if [ "$RESUME" = true ]; then
+  git checkout "$PORT"
+  cherry_status=$(git cherry "$PORT" "$SOURCE" "$UPSTREAM_MAIN")
+  PICK_SHAS=()
+  for sha in "${PORTED_SHAS[@]}"; do
+    if printf '%s\n' "$cherry_status" | grep -q "^- $sha$"; then
+      log "already applied on $PORT: ${sha:0:9} $(git log -1 --format=%s "$sha")"
+    else
+      PICK_SHAS+=("$sha")
+    fi
+  done
+else
+  log "creating $PORT from $UPSTREAM_MAIN"
+  git checkout -B "$PORT" "$UPSTREAM_MAIN"
+  PICK_SHAS=("${PORTED_SHAS[@]}")
+fi
+if [ ${#PICK_SHAS[@]} -gt 0 ]; then
+  for sha in "${PICK_SHAS[@]}"; do
+    git cherry-pick "$sha" || die "cherry-pick of ${sha:0:9} conflicted (worktree left on $PORT mid-cherry-pick).
+Recovery: resolve the conflicts, 'git add' the resolutions, 'git cherry-pick --continue'
+(or 'git cherry-pick --abort' to discard the pick), then re-run this script WITHOUT
+--force: picks already on $PORT are kept and the run resumes at the first unapplied commit."
+    log "cherry-picked ${sha:0:9}"
+  done
+else
+  log "nothing new to cherry-pick - $PORT already carries every upstream-able commit"
+fi
 
 # --- 6. assert A: port branch diff contains no fork-only path ------------------
 leaked=""
@@ -147,8 +192,14 @@ log "asserts passed: no fork-only paths, no fork-only content markers"
 
 # --- 8. build + test on the port branch (direct dotnet: fast-checks.sh is fork-only)
 log "building and testing $PORT"
-dotnet build Homestead.sln -c Release --nologo -v q
-dotnet test Homestead.sln -c Release --no-build --nologo
+if command -v mise >/dev/null 2>&1; then
+  mise exec -- dotnet build Homestead.sln -c Release --nologo -v q
+  mise exec -- dotnet test Homestead.sln -c Release --no-build --nologo
+else
+  echo "port-upstream: WARNING: mise not on PATH - building with an SDK the repo does not pin (.mise.toml pins dotnet 9)" >&2
+  dotnet build Homestead.sln -c Release --nologo -v q
+  dotnet test Homestead.sln -c Release --no-build --nologo
+fi
 
 # --- 9. push the port branch to origin - the only push, and never elsewhere ----
 git push -u "$FORK_REMOTE" "$PORT"

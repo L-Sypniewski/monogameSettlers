@@ -16,13 +16,20 @@ skills-lock.json
 scripts/check-skills-lock.ts
 scripts/fast-checks.sh
 
-# Shared files whose entire fork-side delta is fork-only content: a commit mixing
-# fork-only paths with ONLY these files is tooling (skipped by port-upstream.sh);
-# the marker lines below describe that content and the port asserts on its absence.
+# Shared files whose entire fork-side delta is fork-only content: a commit touching
+# only these files (with or without fork-only paths) is also tooling and is skipped -
+# upstream-able changes to these files must be submitted directly upstream; the skip
+# log is the signal. The marker lines below describe that content; the port asserts
+# on its absence.
 owned .github/workflows/build.yml
 owned .gitignore
 
 # Shared files with fork-only content: fixed strings that must NOT appear on a port branch.
 marker .github/workflows/build.yml oven-sh/setup-bun
 marker .github/workflows/build.yml Skills lock
+marker .github/workflows/build.yml scripts/check-skills-lock.ts
 marker .gitignore # Devcontainer / shipflow local state
+marker .gitignore .devcontainer/.env
+marker .gitignore .opencode/node_modules/
+marker .gitignore .devcontainer/no-game/
+marker .gitignore .devcontainer/game-dir
