@@ -1,0 +1,22 @@
+# Fork-only paths: never ported (git pathspec-style, one per line).
+# A commit touching ONLY these is fork tooling (skipped by port-upstream.sh);
+# a commit mixing these with shared paths fails the port (split it first).
+.agents/
+.claude/
+.opencode/
+.devcontainer/
+.plans/
+docs/sessions/
+docs/reviews/
+.mise.toml
+.shipflow.json
+AGENTS.md
+opencode.jsonc
+skills-lock.json
+scripts/check-skills-lock.ts
+scripts/fast-checks.sh
+
+# Shared files with fork-only content: fixed strings that must NOT appear on a port branch.
+marker .github/workflows/build.yml oven-sh/setup-bun
+marker .github/workflows/build.yml Skills lock
+marker .gitignore # Devcontainer / shipflow local state
