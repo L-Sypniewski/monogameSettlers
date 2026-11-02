@@ -40,7 +40,9 @@ Its only dependency is installed by `bash .opencode/scripts/ensure-shipflow-deps
 
 The fork's `main` is `upstream/main` plus a small set of fork-only tooling commits rebased on top.
 The fork-only paths live in `.opencode/scripts/port-upstream.exclude` (one path per line, plus
-`owned`/`marker` lines for shared files whose fork-added parts cannot be path-excluded).
+`owned`/`marker` lines for shared files whose fork-added parts cannot be path-excluded); a commit
+touching only those `owned` files is also skipped as tooling - upstream-able changes to them must
+be submitted directly upstream (the skip log is the signal).
 Keep commits pure: either only shared paths or only fork-only
 paths - the port tooling relies on it.
 
