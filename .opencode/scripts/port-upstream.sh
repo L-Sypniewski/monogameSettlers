@@ -191,10 +191,22 @@ done
 log "asserts passed: no fork-only paths, no fork-only content markers"
 
 # --- 8. build + test on the port branch (direct dotnet: fast-checks.sh is fork-only)
+# The port branch carries no .mise.toml (fork-only path), so a bare `mise exec` here
+# resolves the ambient SDK, not the repo pin. Read the pin from the SOURCE branch's
+# config and enforce it; MISE_DOTNET_ISOLATED mirrors dotnet.isolated=true there
+# (a co-installed SDK must not win over the pinned one).
 log "building and testing $PORT"
+MISE_DOTNET_PIN=$(git show "$SOURCE":.mise.toml 2>/dev/null | sed -n 's/^[[:space:]]*dotnet[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
 if command -v mise >/dev/null 2>&1; then
-  mise exec -- dotnet build Homestead.sln -c Release --nologo -v q
-  mise exec -- dotnet test Homestead.sln -c Release --no-build --nologo
+  dotnet_gate() {
+    if [ -n "$MISE_DOTNET_PIN" ]; then
+      MISE_DOTNET_VERSION="$MISE_DOTNET_PIN" MISE_DOTNET_ISOLATED=true mise exec -- dotnet "$@"
+    else
+      mise exec -- dotnet "$@"
+    fi
+  }
+  dotnet_gate build Homestead.sln -c Release --nologo -v q
+  dotnet_gate test Homestead.sln -c Release --no-build --nologo
 else
   echo "port-upstream: WARNING: mise not on PATH - building with an SDK the repo does not pin (.mise.toml pins dotnet 9)" >&2
   dotnet build Homestead.sln -c Release --nologo -v q
