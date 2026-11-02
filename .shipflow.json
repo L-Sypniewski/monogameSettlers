@@ -1,3 +1,4 @@
 {
-  "agentLabels": ["bug", "enhancement", "documentation"]
+  "agentLabels": ["bug", "enhancement", "documentation"],
+  "board": { "owner": "L-Sypniewski", "number": 4, "statusTodo": "Todo" }
 }
