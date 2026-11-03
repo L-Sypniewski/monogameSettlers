@@ -260,10 +260,11 @@ public sealed class Logistics
 
     /// <summary>
     /// Where a unit of the offer goes. Among the targets that want it now – construction sites (as one,
-    /// <see cref="Construction"/>) and each type of building using it – one is drawn by the player's
-    /// shares (<see cref="ShareOf"/>; share 0 gets nothing, unless the player set every target of the
-    /// material to 0), then the nearest target of that kind with room; the storehouse only when no one
-    /// else wants it. A construction site with the highest priority comes before all of them.
+    /// <see cref="Construction"/>) and each type of building using it – one is drawn per player by that
+    /// player's own shares (<see cref="ShareOf"/>; share 0 gets nothing, unless the player set every
+    /// target of the material to 0), then the nearest target of that kind with room; of the players'
+    /// draws the nearest to the offer wins. The storehouse only when no one else wants it. A
+    /// construction site with the highest priority comes before all of them.
     /// </summary>
     private Pile? ChooseTarget(Pile offer, List<Pile> requests, HashSet<int> players)
     {
@@ -278,18 +279,24 @@ public sealed class Logistics
             return urgent;
 
         var users = candidates.Where(c => c.Role != PileRole.Storage).ToList();
-        if (users.Count > 0 && !AllZero(users[0].Owner!.Player, material))
-            users = users.Where(u => Share(u.Owner!.Player, TargetOf(u)) > 0).ToList();
-        if (users.Count > 0)
+        Pile? best = null;
+        foreach (var group in users.GroupBy(u => u.Owner!.Player))
         {
-            int player = users[0].Owner!.Player;
-            var types = users.Select(TargetOf).Distinct().ToList();
+            int player = group.Key;
+            var own = group.ToList();
+            if (!AllZero(player, material))
+                own = own.Where(u => Share(player, TargetOf(u)) > 0).ToList();
+            if (own.Count == 0)
+                continue;
+            var types = own.Select(TargetOf).Distinct().ToList();
             string type = DrawType(types, t => Share(player, t));
-            if (Nearest(users.Where(u => TargetOf(u) == type)) is { } drawn)
-                return drawn;
-            if (Nearest(users) is { } nearest)
-                return nearest;
+            var drawn = Nearest(own.Where(u => TargetOf(u) == type)) ?? Nearest(own);
+            if (drawn is { } && (best is null
+                                || PathFinder.Distance(offer.Position, drawn.Position) < PathFinder.Distance(offer.Position, best.Position)))
+                best = drawn;
         }
+        if (best is { } chosen)
+            return chosen;
         return Nearest(candidates.Where(c => c.Role == PileRole.Storage));
 
         Pile? Nearest(IEnumerable<Pile> targets) => targets
