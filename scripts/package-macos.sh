@@ -34,7 +34,6 @@ codesign --verify --deep "$app"
 mkdir "$name"
 mv "$app" "$name/"
 cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
-xattr -cr "$name"
 # ditto keeps the bundle's attributes and signature, unlike zip.
 ditto -c -k --keepParent "$name" "$name.zip"
 popd
