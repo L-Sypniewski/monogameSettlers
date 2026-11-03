@@ -408,6 +408,31 @@ public class LogisticsTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Without_territory_each_players_carriers_follow_only_that_players_shares()
+    {
+        // Without territory rules one ownerless pile feeds every player: each draws by its own shares.
+        var world = new World(new GameMap(80), ProductionConfig.Load() with { MineFoodPileCapacity = 8 }) { PlayerCount = 2 };
+        TestMaps.Mountain(world.Map!, new GridPoint(25, 30));
+        var coal0 = world.PlaceBuilding(Romans["coalmine"], 0, new GridPoint(25, 30))!; // placed first: led the draw before
+        TestMaps.Mountain(world.Map!, new GridPoint(55, 30));
+        var coal1 = world.PlaceBuilding(Romans["coalmine"], 1, new GridPoint(55, 30))!;
+        foreach (string target in world.Production.Config.Distribution[Material.Bread].Keys)
+            world.Logistics.SetShare(0, Material.Bread, target, 0); // player 0 zeroed every target: all get it alike
+        world.Logistics.SetShare(1, Material.Bread, "coalmine", 0); // player 1 barred its coal mine alone
+        world.AddLooseGoods(new GridPoint(48, 40), Material.Bread, 8); // nearer player 1's mine
+        for (int i = 0; i < 4; i++)
+        {
+            world.Spawn(new GridPoint(36 + i, 50), Profession.Carrier, 0);
+            world.Spawn(new GridPoint(41 + i, 50), Profession.Carrier, 1);
+        }
+
+        Run(world, 6000);
+
+        Assert.Equal(8, coal0.Piles.Where(p => p.Material == Material.Bread).Sum(p => p.Count));
+        Assert.Equal(0, coal1.Piles.Where(p => p.Material == Material.Bread).Sum(p => p.Count));
+    }
+
+    [Fact]
     public void A_target_with_share_0_gets_nothing_even_when_no_one_else_wants_it()
     {
         var world = new World(new GameMap(80), ProductionConfig.Load() with { MineFoodPileCapacity = 8 });
