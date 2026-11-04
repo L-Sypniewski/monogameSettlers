@@ -220,6 +220,9 @@ public sealed class MapGame : Game
     private Spell? _aimSpell;
     private ControlGroups _controlGroups = new(0);
     private readonly CheatMenu _cheats = new();
+
+    /// <summary>The water lab flags as seen last frame: a flip applies live (rings rebuilds the baked terrain tint).</summary>
+    private WaterLabState _waterFlags = WaterLab.Current with { };
     private readonly BuildingInfo _buildingInfo = new();
     private UiFont _font = null!;
     private int _placeIndex;
@@ -1666,6 +1669,14 @@ public sealed class MapGame : Game
         // Capture runs ignore input: keyboard and mouse state are global and would leak in from other windows.
         if (_captureDirectory is null)
             HandleInput(gameTime);
+
+        // Water lab live toggles: the rings tint is baked into terrain vertex colors, so flipping it (either way)
+        // throws away the chunks; everything else reads the flags per draw.
+        if (WaterLab.Current.Rings != _waterFlags.Rings)
+        {
+            _terrain.InvalidateAll();
+            _waterFlags = WaterLab.Current with { };
+        }
 
         // Capture runs use fixed frame times at 4x speed, so long processes fit into a short run.
         var elapsed = _captureDirectory is null ? gameTime.ElapsedGameTime : TimeSpan.FromSeconds(4 / 60.0);

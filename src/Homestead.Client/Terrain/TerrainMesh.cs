@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Homestead.Assets.Maps;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -88,6 +89,10 @@ public sealed class TerrainMesh : IDisposable
     private readonly VertexBuffer?[] _chunks;
     private readonly int _chunksPerRow;
 
+    private Stopwatch? _rebuildClock;
+    private int _rebuiltAfterInvalidate;
+    private static bool _loggedRebuild;
+
     public TerrainMesh(GraphicsDevice device, MapArea area)
     {
         _device = device;
@@ -132,6 +137,22 @@ public sealed class TerrainMesh : IDisposable
         chunk = null;
     }
 
+    /// <summary>
+    /// Throws away every chunk; the next draws rebuild the ones they visit (the water lab's rings tint is baked
+    /// into the vertex colors, so flipping it needs a rebuild). The rebuild time of the first visible set is
+    /// logged once per session.
+    /// </summary>
+    public void InvalidateAll()
+    {
+        foreach (ref var chunk in _chunks.AsSpan())
+        {
+            chunk?.Dispose();
+            chunk = null;
+        }
+        if (!_loggedRebuild)
+            _rebuildClock = Stopwatch.StartNew();
+    }
+
     /// <summary>Draws all chunks that intersect the visible world rectangle. Chunks are built on first use.</summary>
     public void Draw(BasicEffect effect, RectangleF visibleWorld)
     {
@@ -142,6 +163,8 @@ public sealed class TerrainMesh : IDisposable
                 continue;
 
             ref var buffer = ref _chunks[cy * _chunksPerRow + cx];
+            if (buffer is null && _rebuildClock is not null)
+                _rebuiltAfterInvalidate++;
             buffer ??= BuildChunk(cx, cy);
             if (buffer.VertexCount == 0)
                 continue;
@@ -152,6 +175,15 @@ public sealed class TerrainMesh : IDisposable
                 pass.Apply();
                 _device.DrawPrimitives(PrimitiveType.TriangleList, 0, buffer.VertexCount / 3);
             }
+        }
+
+        // One frame after an invalidate-all pays the whole visible rebuild: the cost that matters, logged once.
+        if (_rebuildClock is { } clock && _rebuiltAfterInvalidate > 0)
+        {
+            Console.WriteLine($"water lab rings: {_rebuiltAfterInvalidate} chunks rebuilt in {clock.Elapsed.TotalMilliseconds:F0} ms");
+            _loggedRebuild = true;
+            _rebuildClock = null;
+            _rebuiltAfterInvalidate = 0;
         }
     }
 
@@ -297,10 +329,12 @@ public sealed class TerrainMesh : IDisposable
         int height = HeightAt(p.X, p.Y);
         float light = LightAt(p.X, p.Y);
 
+        // The water lab's rings tint is baked here (read live); flipping the flag invalidates all chunks.
+        var tint = WaterLab.Rings ? WaterLabTint.For(KindAt(p.X, p.Y)) : Vector3.One;
         var position = ScreenProjection.ToWorld(p.X, p.Y, height);
         vertices.Add(new VertexPositionColorTexture(
             new Vector3(position, 0),
-            new Color(light, light, light),
+            new Color(light * tint.X, light * tint.Y, light * tint.Z),
             uv));
     }
 

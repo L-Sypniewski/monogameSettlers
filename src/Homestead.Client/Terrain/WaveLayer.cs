@@ -212,7 +212,8 @@ public sealed class WaveLayer
                 // The light of a slope from the lifted heights; the point above is lifted by its own wave.
                 float height = _terrain.HeightAt(cx, cy) + _lift[i];
                 float light = TerrainMesh.Light(_terrain.HeightAt(cx, cy - 1) + _lift[i - width], height);
-                _water[water++] = Vertex(cx, cy, height, new Color(light, light, light), uv[c]);
+                var tint = WaterLab.Rings ? WaterLabTint.For(_terrain.KindAt(cx, cy)) : Vector3.One;
+                _water[water++] = Vertex(cx, cy, height, new Color(light * tint.X, light * tint.Y, light * tint.Z), uv[c]);
             }
 
             int i0 = (y - y0) * width + x - x0;
