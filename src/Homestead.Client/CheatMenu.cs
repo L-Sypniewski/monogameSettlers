@@ -54,8 +54,11 @@ public sealed class CheatMenu
         }
     }
 
+    /// <summary>Where the menu ends (the water lab menu stacks below an open cheat menu).</summary>
+    public int Bottom => Top + 24 + _entries.Count * (ButtonHeight + Gap) + Gap;
+
     private Rectangle Frame(int width) =>
-        new(width - Margin - Width, Top, Width, 24 + _entries.Count * (ButtonHeight + Gap) + Gap);
+        new(width - Margin - Width, Top, Width, Bottom - Top);
 
     private Rectangle Button(int width, int i) =>
         new(width - Margin - Width + 4, Top + 24 + i * (ButtonHeight + Gap), Width - 8, ButtonHeight);

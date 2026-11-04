@@ -220,6 +220,10 @@ public sealed class MapGame : Game
     private Spell? _aimSpell;
     private ControlGroups _controlGroups = new(0);
     private readonly CheatMenu _cheats = new();
+    private readonly WaterLabMenu _waterMenu = new();
+    /// <summary>Corner text announcing the last live toggle of the water lab, and until when it shows.</summary>
+    private string _waterMessage = "";
+    private TimeSpan _waterShownUntil;
 
     /// <summary>The water lab flags as seen last frame: a flip applies live (rings rebuilds the baked terrain tint).</summary>
     private WaterLabState _waterFlags = WaterLab.Current with { };
@@ -1694,15 +1698,36 @@ public sealed class MapGame : Game
         if (_captureDirectory is null)
             HandleInput(gameTime);
 
-        // Water lab live toggles: the rings tint is baked into terrain vertex colors, so flipping it (either way)
-        // throws away the chunks; everything else reads the flags per draw.
-        if (WaterLab.Current.Rings != _waterFlags.Rings)
+        static string On(WaterLabState state, string flag) => flag switch
         {
-            _terrain.InvalidateAll();
+            "flatwater" => state.FlatWater ? "on" : "off",
+            "pixelsurf" => state.Pixelsurf ? "on" : "off",
+            "normals" => state.Normals ? "on" : "off",
+            "foam" => state.Foam ? "on" : "off",
+            _ => state.Rings ? "on" : "off",
+        };
+
+        // Water lab live toggles: the rings tint is baked into terrain vertex colors, so flipping it (either way)
+        // throws away the chunks; everything else reads the flags per draw. A flip announces itself in the
+        // corner: the single flag when exactly one changed, otherwise the whole set (a preset was clicked).
+        if (WaterLab.Current != _waterFlags)
+        {
+            if (WaterLab.Current.Rings != _waterFlags.Rings)
+                _terrain.InvalidateAll();
+            string[] turned =
+            [
+                .. WaterLab.Current.FlatWater != _waterFlags.FlatWater ? new[] { "flatwater" } : [],
+                .. WaterLab.Current.Pixelsurf != _waterFlags.Pixelsurf ? new[] { "pixelsurf" } : [],
+                .. WaterLab.Current.Normals != _waterFlags.Normals ? new[] { "normals" } : [],
+                .. WaterLab.Current.Foam != _waterFlags.Foam ? new[] { "foam" } : [],
+                .. WaterLab.Current.Rings != _waterFlags.Rings ? new[] { "rings" } : [],
+            ];
+            _waterMessage = turned.Length == 1
+                ? $"Water {turned[0]}: {On(WaterLab.Current, turned[0])}"
+                : $"Water: {WaterLab.Current}";
+            _waterShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
             _waterFlags = WaterLab.Current with { };
         }
-        if (WaterLab.Current != _waterFlags)
-            _waterFlags = WaterLab.Current with { };
         // The lit frames live in the wave pass: under flatwater alone they would never show.
         if (!_loggedNormalsCombo && WaterLab.Normals && WaterLab.FlatWater && !WaterLab.Pixelsurf)
         {
@@ -1987,10 +2012,14 @@ public sealed class MapGame : Game
         if (groupIcon is { } clickedGroup && released && !lost)
             SelectGroup(clickedGroup);
         onMenu |= groupIcon is not null;
-        // The cheat menu below them (/cheats).
+        // The cheat menu below them (/cheats), the water lab menu (F5) below that.
         if (released && !lost)
             _cheats.Click(cursorScreen, GraphicsDevice.Viewport.Width);
         onMenu |= _cheats.Contains(cursorScreen, GraphicsDevice.Viewport.Width);
+        _waterMenu.Top = _cheats.IsOpen ? _cheats.Bottom + 4 : _cheats.Top;
+        if (released && !lost)
+            _waterMenu.Click(cursorScreen, GraphicsDevice.Viewport.Width);
+        onMenu |= _waterMenu.Contains(cursorScreen, GraphicsDevice.Viewport.Width);
         if (!PriestsSelected)
             _aiming = false;
         // The main tabs (build, goods, settlers): a click shows that menu instead of the selection.
@@ -2451,6 +2480,8 @@ public sealed class MapGame : Game
                 _buildingInfo.Cancel();
             else if (_placing)
                 _placing = false;
+            else if (_waterMenu.IsOpen)
+                _waterMenu.IsOpen = false;
             else
                 TogglePause();
         }
@@ -2459,6 +2490,8 @@ public sealed class MapGame : Game
             _scaling = (Scaling)(((int)_scaling + 1) % Enum.GetValues<Scaling>().Length);
             _scalingShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
         }
+        if (Pressed(Keys.F5))
+            _waterMenu.IsOpen = !_waterMenu.IsOpen;
         // Tab: of the selection only the wounded soldiers stay selected.
         if (Pressed(Keys.Tab) && _group.Count > 0)
             _group.RemoveAll(s => s.Profession != Profession.Soldier || s.SoldierType is not { } type
@@ -3651,6 +3684,7 @@ public sealed class MapGame : Game
         _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, SidePanel.Scale(viewport.Height), _font, _settlerRenderer, PortraitsOf, _group,
             _ships, SdlMouse.GetState().Position.ToVector2());
         _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, SdlMouse.GetState().Position.ToVector2());
+        _waterMenu.Draw(_spriteBatch, _pixel, viewport.Width, _font, SdlMouse.GetState().Position.ToVector2());
         _buildMenu?.DrawTooltip(_spriteBatch, _pixel, _font, SdlMouse.GetState().Position.ToVector2(), viewport.Bounds,
             SidePanel.Scale(viewport.Height), _now);
         DrawOutcome(viewport);
@@ -3665,6 +3699,8 @@ public sealed class MapGame : Game
             bottom = DrawCornerText(GameTime(), bottom);
         if (gameTime.TotalGameTime < _scalingShownUntil)
             DrawCornerText($"Skalierung: {_scaling}", bottom);
+        if (gameTime.TotalGameTime < _waterShownUntil)
+            DrawCornerText(_waterMessage, bottom);
         _spriteBatch.End();
         if (_loading is not null)
         {
