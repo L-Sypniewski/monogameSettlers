@@ -224,6 +224,9 @@ public sealed class MapGame : Game
     /// <summary>The water lab flags as seen last frame: a flip applies live (rings rebuilds the baked terrain tint).</summary>
     private WaterLabState _waterFlags = WaterLab.Current with { };
     private GfxFile _landscapeFile = null!;
+    /// <summary>The water lab's pixelsurf effect, null when the shader toolchain did not build it.</summary>
+    private Effect? _waterShader;
+    private static bool _loggedPixelsurfStub;
     /// <summary>The normals strip of the water lab, built on first use (also live after a popup toggle).</summary>
     private Texture2D? _waterNormalsStrip;
     private static bool _loggedNormalsCombo;
@@ -441,6 +444,22 @@ public sealed class MapGame : Game
         {
             shader.CopyTo(bytes);
             _upscale = new Effect(GraphicsDevice, bytes.ToArray());
+        }
+        // The water lab's pixelsurf effect; absent when the shader toolchain could not build it (the flag logs a stub).
+        try
+        {
+            using var water = typeof(MapGame).Assembly.GetManifestResourceStream("Water.mgfx");
+            if (water is not null)
+            {
+                using var waterBytes = new MemoryStream();
+                water.CopyTo(waterBytes);
+                _waterShader = new Effect(GraphicsDevice, waterBytes.ToArray());
+            }
+        }
+        catch (Exception e)
+        {
+            _waterShader = null;
+            Console.WriteLine($"water lab: pixelsurf effect not loaded ({e.Message})");
         }
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData([Color.White]);
@@ -1689,6 +1708,11 @@ public sealed class MapGame : Game
         {
             _loggedNormalsCombo = true;
             Console.WriteLine("water lab: normals needs the wave pass or pixelsurf");
+        }
+        if (!_loggedPixelsurfStub && WaterLab.Pixelsurf && _waterShader is null)
+        {
+            _loggedPixelsurfStub = true;
+            Console.WriteLine("water lab: pixelsurf unavailable (shader toolchain)");
         }
 
         // Capture runs use fixed frame times at 4x speed, so long processes fit into a short run.
@@ -3402,7 +3426,7 @@ public sealed class MapGame : Game
         _terrain.Draw(_effect, visible);
         if (WaterLab.Normals && _waterNormalsStrip is null)
             _waterNormalsStrip = WaterLabNormals.BuildStrip(GraphicsDevice, _landscapeFile);
-        _waves.Draw(GraphicsDevice, _effect, visible, (float)_time.TotalSeconds, WaterLab.Normals ? _waterNormalsStrip : null);
+        _waves.Draw(GraphicsDevice, _effect, visible, (float)_time.TotalSeconds, WaterLab.Normals ? _waterNormalsStrip : null, _waterShader);
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldView);
         _waves.DrawGlitter(_spriteBatch, _sprites, visible, (float)_time.TotalSeconds);

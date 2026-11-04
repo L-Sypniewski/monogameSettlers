@@ -23,6 +23,9 @@
     <EmbeddedResource Include="Shaders\Upscale.mgfx">
       <LogicalName>Upscale.mgfx</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Shaders\Water.mgfx">
+      <LogicalName>Water.mgfx</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Anthropic" />
