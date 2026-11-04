@@ -198,8 +198,9 @@ public sealed class MapGame : Game
     /// <summary>HOMESTEAD_CAPTURE_EVENT=1: a capture run jumps to every new event, to show the arrows.</summary>
     private readonly bool _captureEvent = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVENT") == "1";
 
-    /// <summary>HOMESTEAD_TERRAIN=upscale2x,mips,depth,foam: landscape and water rendering experiments.</summary>
-    private readonly TerrainExperiments _terrainEx = TerrainExperiments.Parse(Environment.GetEnvironmentVariable("HOMESTEAD_TERRAIN"));
+    /// <summary>HOMESTEAD_TERRAIN=upscale2x,mips,depth,foam: landscape and water rendering experiments.
+    /// F5 flips them for this session between their selected set and off.</summary>
+    private readonly TerrainExperimentSession _terrainEx = new(Environment.GetEnvironmentVariable("HOMESTEAD_TERRAIN"));
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
     private ProfessionsMenu? _professionsMenu;
@@ -242,6 +243,18 @@ public sealed class MapGame : Game
     private MapObjectLayer _objects = null!;
     private GameMap _gameMap = null!;
     private Texture2D _atlas = null!;
+    /// <summary>The 1x atlas, kept while the 2x one runs so F5 can swap back.</summary>
+    private Texture2D _atlas1x = null!;
+    /// <summary>The 2x atlas once the background build finished; kept for later swaps.</summary>
+    private Texture2D? _atlas2x;
+    /// <summary>The background upscale + compose for the 2x atlas; at most one per session.</summary>
+    private Task<uint[]?>? _atlas2xBuild;
+    /// <summary>Set when the upscaler failed; upscale2x stays off for the rest of the session.</summary>
+    private bool _atlas2xFailed;
+    /// <summary>Real time until which the terrain experiments chosen with F5 are shown.</summary>
+    private TimeSpan _terrainShownUntil;
+    /// <summary>Runs from dropping all terrain chunks (atlas swap) until the next terrain draw, which rebuilds them.</summary>
+    private System.Diagnostics.Stopwatch? _terrainRebuildWatch;
     private BasicEffect _effect = null!;
     private SpriteBatch _spriteBatch = null!;
     private Texture2D _pixel = null!;
@@ -450,10 +463,14 @@ public sealed class MapGame : Game
             ApplyVolumes(_display);
         }
         if (_terrainEx.IsOn)
-            Console.WriteLine($"HOMESTEAD_TERRAIN experiments on: {_terrainEx}");
+            Console.WriteLine($"HOMESTEAD_TERRAIN experiments on: {_terrainEx.Active}");
         foreach (string entry in _terrainEx.Unknown)
             Console.WriteLine($"HOMESTEAD_TERRAIN: unknown entry \"{entry}\" ignored");
-        _atlas = TerrainAtlas.Build(GraphicsDevice, _gfx.Open(0), _terrainEx);
+        _atlas = _atlas1x = TerrainAtlas.Build(GraphicsDevice, _gfx.Open(0), _terrainEx.Active.Mips);
+        // With upscale2x the 2x atlas is not built here: the game starts on the 1x one, the background build
+        // swaps it in when it is done (the same path F5 takes).
+        if (_terrainEx.Active.Upscale2x)
+            StartAtlas2x();
         _effect = new BasicEffect(GraphicsDevice)
         {
             TextureEnabled = true,
@@ -1611,6 +1628,7 @@ public sealed class MapGame : Game
     {
         SdlMouse.NextFrame();
         _now = gameTime.TotalGameTime.TotalSeconds;
+        FinishAtlas2xBuild();
         if (_audio is not null)
         {
             // The own people's music in the game (statistics included), silence in the menus before it.
@@ -1868,6 +1886,8 @@ public sealed class MapGame : Game
             }
             if (Pressed(Keys.F11))
                 ToggleFullScreen();
+            if (Pressed(Keys.F5))
+                ToggleTerrainExperiments(gameTime);
             if (Pressed(Keys.F3))
                 _showPerf = !_showPerf;
             if (Pressed(Keys.T))
@@ -2394,6 +2414,93 @@ public sealed class MapGame : Game
         }
     }
 
+    /// <summary>
+    /// F5: flips the terrain experiments between off and the selected set (the variable's, or all four without
+    /// one). mips, depth and foam apply at once; upscale2x swaps the atlas when its texture is there. If the 2x
+    /// build is still running, presses in between only change the set — the swap then happens when the build
+    /// finishes (or not, when it was turned off again), so no press is lost, none is ignored, and neither a
+    /// double build nor a half-swapped state can happen.
+    /// </summary>
+    private void ToggleTerrainExperiments(GameTime gameTime)
+    {
+        _terrainEx.Toggle();
+        if (_terrainEx.Active.Upscale2x)
+            StartAtlas2x();
+        ApplyTerrainAtlas();
+        _terrainShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
+    }
+
+    /// <summary>The announcement of the F5 state, like F2's scaling hint: "Terrain: on" or "off", with
+    /// " (building…)" while the 2x atlas upscale2x asked for is still being built.</summary>
+    private string TerrainAnnouncement() =>
+        $"Terrain: {(_terrainEx.IsOn ? "on" : "off")}"
+        + (_terrainEx.Active.Upscale2x && _atlas2x is null && !_atlas2xFailed ? " (building…)" : "");
+
+    /// <summary>
+    /// Kicks the 2x atlas build (decode, upscale, compose) onto a background thread, at most once per session.
+    /// Reading the GFX file is safe there: it is immutable once opened.
+    /// </summary>
+    private void StartAtlas2x()
+    {
+        if (_atlas2x is not null || _atlas2xBuild is not null || _atlas2xFailed)
+            return;
+        GfxFile file = _gfx.Open(0);
+        _atlas2xBuild = Task.Run(() =>
+        {
+            try
+            {
+                var upscaled = TerrainAtlas.UpscaleAll(file, TerrainAtlas.Count(file));
+                return upscaled is null ? null : TerrainAtlas.Compose(file, upscaled.Length, upscaled, 2);
+            }
+            catch (Exception e)
+            {
+                // Observed here, so quitting during the build cannot leave an unobserved task exception behind.
+                Console.WriteLine($"HOMESTEAD_TERRAIN upscale2x: {e.Message}");
+                return null;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Applies the active set's atlas: the 2x texture when upscale2x is on and it exists, otherwise the 1x one.
+    /// The atlas scale belongs to the UVs baked into the terrain chunks, so on a swap all of them are dropped
+    /// and rebuilt on the next draw.
+    /// </summary>
+    private void ApplyTerrainAtlas()
+    {
+        bool two = _terrainEx.Active.Upscale2x && _atlas2x is not null;
+        var atlas = two ? _atlas2x! : _atlas1x;
+        if (_atlas == atlas)
+            return;
+        _atlas = atlas;
+        _effect.Texture = atlas;
+        TerrainAtlas.Scale = two ? 2 : 1;
+        _terrain?.InvalidateAll();
+        _terrainRebuildWatch = System.Diagnostics.Stopwatch.StartNew();
+    }
+
+    /// <summary>
+    /// Ends a finished background build on the graphics thread (texture creation and SetData must not run
+    /// elsewhere): creates the texture, swaps it in when upscale2x is still wanted and announces that. When the
+    /// upscaler failed, upscale2x goes off for the session; the other experiments are not touched.
+    /// </summary>
+    private void FinishAtlas2xBuild()
+    {
+        if (_atlas2xBuild is not { IsCompleted: true } build)
+            return;
+        _atlas2xBuild = null;
+        if (build.Result is not { } pixels)
+        {
+            _atlas2xFailed = true;
+            _terrainEx.Upscale2xFailed();
+            return;
+        }
+        _atlas2x = TerrainAtlas.CreateTexture(GraphicsDevice, pixels, 2, _terrainEx.Active.Mips);
+        ApplyTerrainAtlas();
+        if (_terrainEx.Active.Upscale2x)
+            _terrainShownUntil = TimeSpan.FromSeconds(_now + 2);
+    }
+
     /// <summary>The game's keys (not once the game is lost): pause, view, groups, placing and debugging.</summary>
     private void HandleKeys(KeyboardState keys, Vector2 cursorScreen, GameTime gameTime)
     {
@@ -2418,6 +2525,8 @@ public sealed class MapGame : Game
             _scaling = (Scaling)(((int)_scaling + 1) % Enum.GetValues<Scaling>().Length);
             _scalingShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
         }
+        if (Pressed(Keys.F5))
+            ToggleTerrainExperiments(gameTime);
         // Tab: of the selection only the wounded soldiers stay selected.
         if (Pressed(Keys.Tab) && _group.Count > 0)
             _group.RemoveAll(s => s.Profession != Profession.Soldier || s.SoldierType is not { } type
@@ -3380,10 +3489,16 @@ public sealed class MapGame : Game
         GraphicsDevice.RasterizerState = RasterizerState.CullNone;
         // Point sampling: linear filtering would bleed neighboring atlas cells into the texture edges. The mips
         // experiment tries exactly that on a mipmapped atlas; sprite batches bring their own sampler state.
-        GraphicsDevice.SamplerStates[0] = _terrainEx.Mips ? SamplerState.LinearClamp : SamplerState.PointClamp;
+        GraphicsDevice.SamplerStates[0] = _terrainEx.Active.Mips ? SamplerState.LinearClamp : SamplerState.PointClamp;
         GraphicsDevice.BlendState = BlendState.Opaque;
         GraphicsDevice.DepthStencilState = DepthStencilState.None;
         _terrain.Draw(_effect, visible);
+        if (_terrainRebuildWatch is { } rebuild)
+        {
+            _terrainRebuildWatch = null;
+            Console.WriteLine(
+                $"HOMESTEAD_TERRAIN atlas {TerrainAtlas.Scale}x: visible terrain chunks rebuilt in {rebuild.Elapsed.TotalMilliseconds:F0} ms");
+        }
         _waves.Draw(GraphicsDevice, _effect, visible, (float)_time.TotalSeconds);
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldView);
@@ -3622,7 +3737,9 @@ public sealed class MapGame : Game
         if (_showClock)
             bottom = DrawCornerText(GameTime(), bottom);
         if (gameTime.TotalGameTime < _scalingShownUntil)
-            DrawCornerText($"Skalierung: {_scaling}", bottom);
+            bottom = DrawCornerText($"Skalierung: {_scaling}", bottom);
+        if (gameTime.TotalGameTime < _terrainShownUntil)
+            bottom = DrawCornerText(TerrainAnnouncement(), bottom);
         _spriteBatch.End();
         if (_loading is not null)
         {
@@ -4712,7 +4829,8 @@ public sealed class MapGame : Game
         _transportMenu?.Dispose();
         _tabs?.Dispose();
         _font.Dispose();
-        _atlas.Dispose();
+        _atlas1x.Dispose();
+        _atlas2x?.Dispose();
         _effect.Dispose();
         UiSounds.Audio = null;
         _ambience.Dispose();

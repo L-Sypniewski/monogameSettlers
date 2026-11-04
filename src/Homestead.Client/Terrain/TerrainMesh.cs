@@ -132,6 +132,17 @@ public sealed class TerrainMesh : IDisposable
         chunk = null;
     }
 
+    /// <summary>Drops every chunk; each is rebuilt on the next draw. For a swap of the atlas scale, whose UVs
+    /// are baked into the chunk vertices.</summary>
+    public void InvalidateAll()
+    {
+        for (int i = 0; i < _chunks.Length; i++)
+        {
+            _chunks[i]?.Dispose();
+            _chunks[i] = null;
+        }
+    }
+
     /// <summary>Draws all chunks that intersect the visible world rectangle. Chunks are built on first use.</summary>
     public void Draw(BasicEffect effect, RectangleF visibleWorld)
     {

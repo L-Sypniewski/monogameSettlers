@@ -9,10 +9,20 @@ public sealed record TerrainExperiments(bool Upscale2x, bool Mips, bool Depth, b
 {
     public static readonly TerrainExperiments Off = new(false, false, false, false);
 
+    /// <summary>All four experiments: what F5 turns on when the variable selected none.</summary>
+    public static readonly TerrainExperiments All = new(true, true, true, true);
+
     /// <summary>Entries of the variable that no experiment matched.</summary>
     public IReadOnlyList<string> Unknown { get; private init; } = [];
 
     public bool IsOn => Upscale2x || Mips || Depth || Foam;
+
+    /// <summary>Equality is the four flags only; <see cref="Unknown"/> is parse diagnostics for the log.</summary>
+    public bool Equals(TerrainExperiments? other) =>
+        other is not null && Upscale2x == other.Upscale2x && Mips == other.Mips
+        && Depth == other.Depth && Foam == other.Foam;
+
+    public override int GetHashCode() => HashCode.Combine(Upscale2x, Mips, Depth, Foam);
 
     public override string ToString()
     {
@@ -56,5 +66,49 @@ public sealed record TerrainExperiments(bool Upscale2x, bool Mips, bool Depth, b
             }
         }
         return new TerrainExperiments(upscale2x, mips, depth, foam) { Unknown = unknown };
+    }
+}
+
+/// <summary>
+/// What runs this session: <see cref="Active"/> starts as the variable's set (off without one, so nothing
+/// changes until F5 or the variable) and F5 flips it to <see cref="Selected"/> and back. Selected is the
+/// variable's set, or all four experiments when it selected none (the packaged app has no variable, F5 is
+/// the only way in). Everything that renders reads <see cref="Active"/> live, so a flip applies at once.
+/// </summary>
+public sealed class TerrainExperimentSession
+{
+    private readonly IReadOnlyList<string> _unknown;
+
+    public TerrainExperimentSession(string? environment)
+    {
+        var parsed = TerrainExperiments.Parse(environment);
+        _unknown = parsed.Unknown;
+        Selected = parsed.IsOn ? parsed : TerrainExperiments.All;
+        Active = parsed;
+    }
+
+    /// <summary>The set F5 turns on.</summary>
+    public TerrainExperiments Selected { get; private set; }
+
+    /// <summary>What runs now.</summary>
+    public TerrainExperiments Active { get; private set; }
+
+    public bool IsOn => Active.IsOn;
+
+    public IReadOnlyList<string> Unknown => _unknown;
+
+    /// <summary>F5: on → off, off → the selected set.</summary>
+    public TerrainExperiments Toggle()
+    {
+        Active = Active.IsOn ? TerrainExperiments.Off : Selected;
+        return Active;
+    }
+
+    /// <summary>The upscaler failed: upscale2x leaves both sets for the rest of the session, the other
+    /// experiments keep toggling.</summary>
+    public void Upscale2xFailed()
+    {
+        Selected = Selected with { Upscale2x = false };
+        Active = Active with { Upscale2x = false };
     }
 }

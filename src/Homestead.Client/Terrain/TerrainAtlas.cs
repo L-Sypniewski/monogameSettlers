@@ -17,8 +17,8 @@ public static class TerrainAtlas
     public const int Size = 1024;
     public const int Cell = 32;
 
-    /// <summary>Pixel scale of the atlas built last: 2 when every landscape image was upscaled. The constants
-    /// above and the texel math in <see cref="TerrainMesh"/> stay in 1x pixels and multiply by this.</summary>
+    /// <summary>Pixel scale of the atlas in use: 2 while the upscaled one is shown (swapped by MapGame, F5).
+    /// The constants above and the texel math in <see cref="TerrainMesh"/> stay in 1x pixels and multiply by this.</summary>
     public static int Scale { get; internal set; } = 1;
 
     /// <summary>Per landscape image: cell x, cell y, cell count (1 = single tile, n = (n-1) cells repeat size).</summary>
@@ -56,14 +56,29 @@ public static class TerrainAtlas
         (0, 24, 1), (1, 24, 1), (2, 24, 1),
     ];
 
-    public static Texture2D Build(GraphicsDevice device, GfxFile landscapeFile, TerrainExperiments? experiments = null)
-    {
-        experiments ??= TerrainExperiments.Off;
-        int count = Math.Min(Positions.Length, landscapeFile.LandscapeCount);
-        var upscaled = experiments.Upscale2x ? UpscaleAll(landscapeFile, count) : null;
-        Scale = upscaled is null ? 1 : 2;
+    /// <summary>How many landscape images the atlas holds.</summary>
+    public static int Count(GfxFile landscapeFile) => Math.Min(Positions.Length, landscapeFile.LandscapeCount);
 
-        int size = Size * Scale, cell = Cell * Scale;
+    /// <summary>
+    /// The 1x atlas texture, mipmapped when the mips experiment is on at startup. The 2x atlas is never built
+    /// here: its pixels are composed off the graphics thread (<see cref="UpscaleAll"/>, <see cref="Compose"/>)
+    /// and uploaded later with <see cref="CreateTexture"/>.
+    /// </summary>
+    public static Texture2D Build(GraphicsDevice device, GfxFile landscapeFile, bool mips = false)
+    {
+        Scale = 1;
+        return CreateTexture(device, Compose(landscapeFile, Count(landscapeFile), null, 1), 1, mips);
+    }
+
+    /// <summary>
+    /// The atlas pixels: every landscape image in its cell, continuous ones repeated to fill it. Pure CPU over
+    /// the immutable GFX file, so it may run off the graphics thread; with <paramref name="upscaled"/> null the
+    /// 1x images are decoded from the file, otherwise the upscaled ones are laid out on <paramref name="scale"/>
+    /// sized cells.
+    /// </summary>
+    public static uint[] Compose(GfxFile landscapeFile, int count, GfxBitmap?[]? upscaled, int scale)
+    {
+        int size = Size * scale, cell = Cell * scale;
         var data = new uint[size * size];
         for (int index = 0; index < count; index++)
         {
@@ -81,17 +96,25 @@ public static class TerrainAtlas
                     data[dstRow + x] = bitmap.Pixels[srcRow + x % bitmap.Width];
             }
         }
+        return data;
+    }
 
-        var texture = new Texture2D(device, size, size, experiments.Mips, SurfaceFormat.Color);
-        texture.SetData(data);
+    /// <summary>Uploads atlas pixels as the square texture (graphics thread only; mipmaps when the mips
+    /// experiment is in the active set at that moment).</summary>
+    public static Texture2D CreateTexture(GraphicsDevice device, uint[] pixels, int scale, bool mips)
+    {
+        int size = Size * scale;
+        var texture = new Texture2D(device, size, size, mips, SurfaceFormat.Color);
+        texture.SetData(pixels);
         return texture;
     }
 
     /// <summary>
     /// The 2x upscale of every landscape image (one shared model session; the images are small). All or nothing:
-    /// when any image fails, null comes back and the atlas stays 1x, so no cell mixes resolutions.
+    /// when any image fails, null comes back and the atlas stays 1x, so no cell mixes resolutions. Pure CPU:
+    /// runs on a background thread while the 1x atlas is shown.
     /// </summary>
-    private static GfxBitmap?[]? UpscaleAll(GfxFile landscapeFile, int count)
+    public static GfxBitmap?[]? UpscaleAll(GfxFile landscapeFile, int count)
     {
         var watch = Stopwatch.StartNew();
         using var upscaler = new OnnxUpscaler();

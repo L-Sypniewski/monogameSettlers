@@ -66,18 +66,17 @@ public sealed class WaveLayer
     private float[] _lift = [];
     private float[] _glint = [];
     private float[] _crest = [];
-    private readonly bool _depthShading, _foamOn;
+    private readonly TerrainExperimentSession? _experiments;
     private VertexPositionColorTexture[] _water = [];
     private VertexPositionColorTexture[] _shine = [];
     private VertexPositionColorTexture[] _foam = [];
     private Rectangle? _glitterTile;
 
-    public WaveLayer(TerrainMesh terrain, TerrainExperiments? experiments = null)
+    public WaveLayer(TerrainMesh terrain, TerrainExperimentSession? experiments = null)
     {
         _terrain = terrain;
         _size = terrain.Size;
-        _depthShading = experiments?.Depth == true;
-        _foamOn = experiments?.Foam == true;
+        _experiments = experiments;
         _strength = new float[_size * _size];
         var distance = ShoreDistances();
         for (int i = 0; i < _strength.Length; i++)
@@ -168,6 +167,8 @@ public sealed class WaveLayer
         if (x1 <= x0 || y1 <= y0)
             return;
 
+        // depth/foam (HOMESTEAD_TERRAIN, F5): read per draw so a flip applies without a restart.
+        bool depthShading = _experiments?.Active.Depth == true, foamOn = _experiments?.Active.Foam == true;
         int width = x1 - x0 + 1;
         int points = width * (y1 - y0 + 1);
         if (_lift.Length < points)
@@ -220,10 +221,10 @@ public sealed class WaveLayer
                 float light = TerrainMesh.Light(_terrain.HeightAt(cx, cy - 1) + _lift[i - width], height);
                 var depth = DepthFactors(StrengthAt(cx, cy));
                 _water[water++] = Vertex(cx, cy, height,
-                    _depthShading ? new Color(light * depth.X, light * depth.Y, light * depth.Z) : new Color(light, light, light), uv[c]);
+                    depthShading ? new Color(light * depth.X, light * depth.Y, light * depth.Z) : new Color(light, light, light), uv[c]);
             }
 
-            if (_foamOn)
+            if (foamOn)
             {
                 bool shore = false;
                 for (int c = 0; c < 3; c++)
@@ -267,13 +268,13 @@ public sealed class WaveLayer
                 float alpha = _crest[i], light = _terrain.LightAt(cx, cy) * (alpha + _glint[i]);
                 var depth = DepthFactors(StrengthAt(cx, cy));
                 _shine[shine++] = Vertex(cx, cy, _terrain.HeightAt(cx, cy) + _lift[i],
-                    _depthShading ? new Color(light * depth.X, light * depth.Y, light * depth.Z, alpha) : new Color(light, light, light, alpha), uv[c]);
+                    depthShading ? new Color(light * depth.X, light * depth.Y, light * depth.Z, alpha) : new Color(light, light, light, alpha), uv[c]);
             }
         }
 
         Draw(device, effect, _water, water, BlendState.Opaque);
         Draw(device, effect, _shine, shine, BlendState.AlphaBlend);
-        if (_foamOn)
+        if (foamOn)
             Draw(device, effect, _foam, foam, BlendState.AlphaBlend);
         device.BlendState = BlendState.Opaque;
     }
