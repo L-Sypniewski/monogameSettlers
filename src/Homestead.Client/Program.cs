@@ -26,6 +26,8 @@ string? capture = Option("--capture");
 Lang.Use(Environment.GetEnvironmentVariable("HOMESTEAD_LANGUAGE") is { } language
     ? Lang.Parse(language)
     : DisplaySettings.Load().Language);
+// HOMESTEAD_WATER=flatwater,pixelsurf,normals,foam,rings: the water lab's initial set (F5 popup changes it live).
+Homestead.Client.Terrain.WaterLab.LogPreselection();
 // The installation is checked on every start; without a valid one the dialog asks for it (capture runs just fail,
 // unless HOMESTEAD_CAPTURE_DIALOG captures the dialog too). It runs as a process of its own: a second game window
 // in the same process breaks SDL/GL on quitting.
