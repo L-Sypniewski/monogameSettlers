@@ -106,7 +106,55 @@ public static class TerrainAtlas
         int size = Size * scale;
         var texture = new Texture2D(device, size, size, mips, SurfaceFormat.Color);
         texture.SetData(pixels);
+        if (mips)
+            UploadMipChain(texture, pixels, size);
         return texture;
+    }
+
+    /// <summary>
+    /// Uploads the mip levels above the level 0 already set: DesktopGL does not build them from it, so every
+    /// level is filtered out of the one below on the CPU, down to 1x1.
+    /// </summary>
+    private static void UploadMipChain(Texture2D texture, uint[] pixels, int size)
+    {
+        for (int level = 1; size > 1; level++)
+        {
+            pixels = BoxFilter(pixels, size, size, out int half, out _);
+            size = half;
+            texture.SetData(level, null, pixels, 0, pixels.Length);
+        }
+    }
+
+    /// <summary>
+    /// One mip level out of the next larger one: every 2x2 block averaged per channel, an odd last row or
+    /// column repeats its edge. Straight RGBA, no premultiplied alpha: every pixel of this atlas is opaque,
+    /// so alpha cannot darken an average.
+    /// </summary>
+    internal static uint[] BoxFilter(uint[] pixels, int width, int height, out int halfWidth, out int halfHeight)
+    {
+        halfWidth = Math.Max(1, width / 2);
+        halfHeight = Math.Max(1, height / 2);
+        var half = new uint[halfWidth * halfHeight];
+        for (int y = 0; y < halfHeight; y++)
+        for (int x = 0; x < halfWidth; x++)
+        {
+            int right = Math.Min(2 * x + 1, width - 1), below = Math.Min(2 * y + 1, height - 1);
+            half[y * halfWidth + x] = Average(pixels[2 * y * width + 2 * x], pixels[2 * y * width + right],
+                pixels[below * width + 2 * x], pixels[below * width + right]);
+        }
+        return half;
+    }
+
+    /// <summary>Per-channel average of four RGBA pixels.</summary>
+    private static uint Average(uint a, uint b, uint c, uint d)
+    {
+        uint average = 0;
+        for (int shift = 0; shift < 32; shift += 8)
+        {
+            uint sum = ((a >> shift) & 0xFF) + ((b >> shift) & 0xFF) + ((c >> shift) & 0xFF) + ((d >> shift) & 0xFF);
+            average |= sum / 4 << shift;
+        }
+        return average;
     }
 
     /// <summary>

@@ -66,6 +66,7 @@ public sealed class WaveLayer
     private float[] _lift = [];
     private float[] _glint = [];
     private float[] _crest = [];
+    private float[] _foamAlpha = [];
     private readonly TerrainExperimentSession? _experiments;
     private VertexPositionColorTexture[] _water = [];
     private VertexPositionColorTexture[] _shine = [];
@@ -130,7 +131,7 @@ public sealed class WaveLayer
     /// </summary>
     private static float Wave(float x, float y, float seconds)
     {
-        var p = new Vector2(x - y / 2, y * ScreenProjection.RowHeight / ScreenProjection.TileWidth);
+        var p = SwellPosition(x, y);
         float along = Vector2.Dot(p, Heading), across = Vector2.Dot(p, new Vector2(-Heading.Y, Heading.X));
         float swell = 0.5f + 0.5f * MathF.Sin(SwellPhase(along, seconds));
         swell *= swell * swell * swell;
@@ -142,7 +143,25 @@ public sealed class WaveLayer
     /// <summary>The phase of the swell (radians) at a distance along its heading, in fields as on the screen.</summary>
     private static float SwellPhase(float along, float seconds) => (along - seconds * Speed) * (MathHelper.TwoPi / Length);
 
+    /// <summary>A grid position in the fields the swell measures it in (fractional between grid points).</summary>
+    private static Vector2 SwellPosition(float x, float y) =>
+        new(x - y / 2, y * ScreenProjection.RowHeight / ScreenProjection.TileWidth);
+
     private float StrengthAt(int x, int y) => _strength[Math.Clamp(y, 0, _size - 1) * _size + Math.Clamp(x, 0, _size - 1)];
+
+    /// <summary>
+    /// The foam band over the wave strength: smoothsteps in over the first half of <see cref="FoamRange"/> and
+    /// out over the second, so neither the shore nor the open sea end of the band shows an edge.
+    /// </summary>
+    private static float FoamBand(float strength)
+    {
+        if (strength <= 0 || strength >= FoamRange)
+            return 0;
+        float half = FoamRange / 2, rise = Math.Min(strength / half, 1), fall = Math.Min((FoamRange - strength) / half, 1);
+        rise *= rise * (3 - 2 * rise);
+        fall *= fall * (3 - 2 * fall);
+        return rise * fall;
+    }
 
     /// <summary>Per color channel the share of the light the depth shading leaves at a wave strength.</summary>
     private static Vector3 DepthFactors(float strength) =>
@@ -176,6 +195,7 @@ public sealed class WaveLayer
             _lift = new float[points];
             _glint = new float[points];
             _crest = new float[points];
+            _foamAlpha = new float[points];
         }
         for (int y = y0; y <= y1; y++)
         for (int x = x0; x <= x1; x++)
@@ -184,7 +204,7 @@ public sealed class WaveLayer
             float strength = _strength[y * _size + x];
             if (strength <= 0)
             {
-                _lift[i] = _glint[i] = _crest[i] = 0;
+                _lift[i] = _glint[i] = _crest[i] = _foamAlpha[i] = 0;
                 continue;
             }
             float wave = Wave(x, y, seconds);
@@ -193,6 +213,9 @@ public sealed class WaveLayer
             // The front faces the viewer: the water a row higher on the screen stands higher.
             float behind = Wave(x - 0.5f, y - 1, seconds);
             _glint[i] = Glint * strength * MathHelper.Clamp((behind - wave) * 3, 0, 1);
+            // Per corner like the values above, so the foam over a corner shared by triangles has no edge.
+            float along = Vector2.Dot(SwellPosition(x, y), Heading);
+            _foamAlpha[i] = FoamAlpha * FoamBand(strength) * (0.5f + 0.5f * MathF.Sin(SwellPhase(along, seconds)));
         }
 
         int water = 0, shine = 0, foam = 0;
@@ -224,36 +247,24 @@ public sealed class WaveLayer
                     depthShading ? new Color(light * depth.X, light * depth.Y, light * depth.Z) : new Color(light, light, light), uv[c]);
             }
 
-            if (foamOn)
-            {
-                bool shore = false;
-                for (int c = 0; c < 3; c++)
-                    shore |= StrengthAt(corners[c].X, corners[c].Y) is > 0 and <= FoamRange;
-                if (shore)
-                {
-                    if (_foam.Length < foam + 3)
-                        Array.Resize(ref _foam, Math.Max(3072, _foam.Length * 2));
-                    TerrainMesh.ContinuousUv(CrestImage, x, y, up, uv);
-                    // Both triangles' center lies at (x + 2/3, y + 2/3); the foam pulses with the swell there.
-                    var middle = new Vector2(x + 2f / 3 - (y + 2f / 3) / 2,
-                        (y + 2f / 3) * ScreenProjection.RowHeight / ScreenProjection.TileWidth);
-                    float pulse = 0.5f + 0.5f * MathF.Sin(SwellPhase(Vector2.Dot(middle, Heading), seconds));
-                    for (int c = 0; c < 3; c++)
-                    {
-                        var (cx, cy) = corners[c];
-                        int i = (cy - y0) * width + cx - x0;
-                        // Fades out towards the open sea (the end of the band) and pulses as the swell passes.
-                        float alpha = FoamAlpha * pulse * (1 - Math.Clamp(StrengthAt(cx, cy) / FoamRange, 0, 1));
-                        float light = _terrain.LightAt(cx, cy) * alpha;
-                        _foam[foam++] = Vertex(cx, cy, _terrain.HeightAt(cx, cy) + _lift[i],
-                            new Color(light, light, light, alpha), uv[c]);
-                    }
-                }
-            }
-
             int i0 = (y - y0) * width + x - x0;
             int i1 = (corners[1].Y - y0) * width + corners[1].X - x0;
             int i2 = (corners[2].Y - y0) * width + corners[2].X - x0;
+            if (foamOn && _foamAlpha[i0] + _foamAlpha[i1] + _foamAlpha[i2] >= 0.01f)
+            {
+                if (_foam.Length < foam + 3)
+                    Array.Resize(ref _foam, Math.Max(3072, _foam.Length * 2));
+                TerrainMesh.ContinuousUv(CrestImage, x, y, up, uv);
+                for (int c = 0; c < 3; c++)
+                {
+                    var (cx, cy) = corners[c];
+                    int i = (cy - y0) * width + cx - x0;
+                    // Premultiplied like the shine pass: the rasterizer interpolates the corners' alphas, so the foam stays continuous across triangles.
+                    float alpha = _foamAlpha[i], light = _terrain.LightAt(cx, cy) * alpha;
+                    _foam[foam++] = Vertex(cx, cy, _terrain.HeightAt(cx, cy) + _lift[i],
+                        new Color(light, light, light, alpha), uv[c]);
+                }
+            }
             if (_crest[i0] + _crest[i1] + _crest[i2] + _glint[i0] + _glint[i1] + _glint[i2] < 0.01f)
                 continue;
             if (_shine.Length < shine + 3)
