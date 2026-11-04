@@ -28,6 +28,9 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Homestead.Client.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Anthropic" />
     <PackageReference Include="FontStashSharp.MonoGame" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" />

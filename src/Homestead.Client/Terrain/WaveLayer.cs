@@ -39,6 +39,15 @@ public sealed class WaveLayer
     /// <summary>Fields of calm water along the shore, then over how many the waves grow to full height.</summary>
     private const int CalmFields = 1, RampFields = 14;
 
+    /// <summary>
+    /// Depth shading (HOMESTEAD_TERRAIN=depth): how much light open water loses per unit of <see cref="_strength"/>,
+    /// per color channel (red most, green and blue a little less), so the sea gets darker and a touch cooler offshore.
+    /// </summary>
+    private const float DepthDark = 0.10f;
+
+    /// <summary>Foam (HOMESTEAD_TERRAIN=foam): the shore band of <see cref="_strength"/> it shows in and its peak alpha.</summary>
+    private const float FoamRange = 0.18f, FoamAlpha = 0.15f;
+
     /// <summary>How far the highest wave lifts the water, in height steps.</summary>
     private const float MaxLift = 4;
 
@@ -57,14 +66,18 @@ public sealed class WaveLayer
     private float[] _lift = [];
     private float[] _glint = [];
     private float[] _crest = [];
+    private readonly bool _depthShading, _foamOn;
     private VertexPositionColorTexture[] _water = [];
     private VertexPositionColorTexture[] _shine = [];
+    private VertexPositionColorTexture[] _foam = [];
     private Rectangle? _glitterTile;
 
-    public WaveLayer(TerrainMesh terrain)
+    public WaveLayer(TerrainMesh terrain, TerrainExperiments? experiments = null)
     {
         _terrain = terrain;
         _size = terrain.Size;
+        _depthShading = experiments?.Depth == true;
+        _foamOn = experiments?.Foam == true;
         _strength = new float[_size * _size];
         var distance = ShoreDistances();
         for (int i = 0; i < _strength.Length; i++)
@@ -132,6 +145,10 @@ public sealed class WaveLayer
 
     private float StrengthAt(int x, int y) => _strength[Math.Clamp(y, 0, _size - 1) * _size + Math.Clamp(x, 0, _size - 1)];
 
+    /// <summary>Per color channel the share of the light the depth shading leaves at a wave strength.</summary>
+    private static Vector3 DepthFactors(float strength) =>
+        new(1 - DepthDark * strength, 1 - DepthDark * 0.99f * strength, 1 - DepthDark * 0.97f * strength);
+
     /// <summary>How far the waves lift something floating at a grid position (fractional while it moves), in world pixels.</summary>
     public float LiftAt(Vector2 grid, float seconds) =>
         ScreenProjection.HeightStep * MaxLift * StrengthAt((int)MathF.Round(grid.X), (int)MathF.Round(grid.Y)) * Wave(grid.X, grid.Y, seconds);
@@ -177,7 +194,7 @@ public sealed class WaveLayer
             _glint[i] = Glint * strength * MathHelper.Clamp((behind - wave) * 3, 0, 1);
         }
 
-        int water = 0, shine = 0;
+        int water = 0, shine = 0, foam = 0;
         Span<Vector2> uv = stackalloc Vector2[3];
         Span<(int X, int Y)> corners = stackalloc (int, int)[3];
         for (int y = y0 + 1; y < y1; y++)
@@ -201,7 +218,36 @@ public sealed class WaveLayer
                 // The light of a slope from the lifted heights; the point above is lifted by its own wave.
                 float height = _terrain.HeightAt(cx, cy) + _lift[i];
                 float light = TerrainMesh.Light(_terrain.HeightAt(cx, cy - 1) + _lift[i - width], height);
-                _water[water++] = Vertex(cx, cy, height, new Color(light, light, light), uv[c]);
+                var depth = DepthFactors(StrengthAt(cx, cy));
+                _water[water++] = Vertex(cx, cy, height,
+                    _depthShading ? new Color(light * depth.X, light * depth.Y, light * depth.Z) : new Color(light, light, light), uv[c]);
+            }
+
+            if (_foamOn)
+            {
+                bool shore = false;
+                for (int c = 0; c < 3; c++)
+                    shore |= StrengthAt(corners[c].X, corners[c].Y) is > 0 and <= FoamRange;
+                if (shore)
+                {
+                    if (_foam.Length < foam + 3)
+                        Array.Resize(ref _foam, Math.Max(3072, _foam.Length * 2));
+                    TerrainMesh.ContinuousUv(CrestImage, x, y, up, uv);
+                    // Both triangles' center lies at (x + 2/3, y + 2/3); the foam pulses with the swell there.
+                    var middle = new Vector2(x + 2f / 3 - (y + 2f / 3) / 2,
+                        (y + 2f / 3) * ScreenProjection.RowHeight / ScreenProjection.TileWidth);
+                    float pulse = 0.5f + 0.5f * MathF.Sin(SwellPhase(Vector2.Dot(middle, Heading), seconds));
+                    for (int c = 0; c < 3; c++)
+                    {
+                        var (cx, cy) = corners[c];
+                        int i = (cy - y0) * width + cx - x0;
+                        // Fades out towards the open sea (the end of the band) and pulses as the swell passes.
+                        float alpha = FoamAlpha * pulse * (1 - Math.Clamp(StrengthAt(cx, cy) / FoamRange, 0, 1));
+                        float light = _terrain.LightAt(cx, cy) * alpha;
+                        _foam[foam++] = Vertex(cx, cy, _terrain.HeightAt(cx, cy) + _lift[i],
+                            new Color(light, light, light, alpha), uv[c]);
+                    }
+                }
             }
 
             int i0 = (y - y0) * width + x - x0;
@@ -219,12 +265,16 @@ public sealed class WaveLayer
                 // Premultiplied: the light texture times (blend + glint) over what lies below times one minus the blend;
                 // the glint only adds.
                 float alpha = _crest[i], light = _terrain.LightAt(cx, cy) * (alpha + _glint[i]);
-                _shine[shine++] = Vertex(cx, cy, _terrain.HeightAt(cx, cy) + _lift[i], new Color(light, light, light, alpha), uv[c]);
+                var depth = DepthFactors(StrengthAt(cx, cy));
+                _shine[shine++] = Vertex(cx, cy, _terrain.HeightAt(cx, cy) + _lift[i],
+                    _depthShading ? new Color(light * depth.X, light * depth.Y, light * depth.Z, alpha) : new Color(light, light, light, alpha), uv[c]);
             }
         }
 
         Draw(device, effect, _water, water, BlendState.Opaque);
         Draw(device, effect, _shine, shine, BlendState.AlphaBlend);
+        if (_foamOn)
+            Draw(device, effect, _foam, foam, BlendState.AlphaBlend);
         device.BlendState = BlendState.Opaque;
     }
 

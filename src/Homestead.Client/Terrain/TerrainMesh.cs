@@ -242,26 +242,31 @@ public sealed class TerrainMesh : IDisposable
     private static void Uv(int image, float[] corners, int x, int y, Span<Vector2> uv)
     {
         var (cellX, cellY, cells) = TerrainAtlas.Positions[image];
-        float offsetU = cellX * TerrainAtlas.Cell, offsetV = cellY * TerrainAtlas.Cell;
+        // Texel values in 1x atlas pixels; an upscaled atlas (TerrainAtlas.Scale) doubles them all, so the
+        // normalized coordinates come out the same either way.
+        int scale = TerrainAtlas.Scale;
+        float cell = TerrainAtlas.Cell * scale, border = BorderOffset * scale;
+        float offsetU = cellX * cell, offsetV = cellY * cell;
         if (cells >= 2)
         {
             // Continuous textures: pick the part of the repeating texture under this triangle.
-            int period = (cells - 1) * TerrainAtlas.Cell;
-            offsetU += Modulo(x * ScreenProjection.TileWidth - y * ScreenProjection.TileWidth / 2, period);
-            offsetV += Modulo(y * (int)TexUnit, period);
+            int period = (cells - 1) * TerrainAtlas.Cell * scale;
+            offsetU += Modulo((x * ScreenProjection.TileWidth - y * ScreenProjection.TileWidth / 2) * scale, period);
+            offsetV += Modulo(y * (int)TexUnit * scale, period);
         }
 
         // Coordinates exactly on a cell edge (v = 0 every few rows, v = 32 for some tile orientations)
         // sample the neighboring atlas cell and show up as thin lines. Keep half a texel inside.
-        float cellLeft = cellX * TerrainAtlas.Cell, cellTop = cellY * TerrainAtlas.Cell;
-        float minU = cellLeft + BorderOffset, minV = cellTop + BorderOffset;
-        float maxU = cellLeft + cells * TerrainAtlas.Cell - BorderOffset;
-        float maxV = cellTop + cells * TerrainAtlas.Cell - BorderOffset;
+        float cellLeft = cellX * cell, cellTop = cellY * cell;
+        float minU = cellLeft + border, minV = cellTop + border;
+        float maxU = cellLeft + cells * cell - border;
+        float maxV = cellTop + cells * cell - border;
+        float size = TerrainAtlas.Size * scale;
         // Corner order: first = (up ? apex : upper left), second = (up ? lower left : bottom), third = right.
         for (int i = 0; i < 3; i++)
             uv[i] = new Vector2(
-                Math.Clamp(corners[i * 2] + offsetU, minU, maxU),
-                Math.Clamp(corners[i * 2 + 1] + offsetV, minV, maxV)) / TerrainAtlas.Size;
+                Math.Clamp(corners[i * 2] * scale + offsetU, minU, maxU),
+                Math.Clamp(corners[i * 2 + 1] * scale + offsetV, minV, maxV)) / size;
     }
 
     private static int? TransitionImage(TerrainKind left, TerrainKind a, TerrainKind right, int variant)

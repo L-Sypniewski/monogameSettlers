@@ -1,4 +1,7 @@
+using System.Diagnostics;
 using Homestead.Assets.Gfx;
+using Homestead.Client.Neural;
+using Microsoft.ML.OnnxRuntime;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace Homestead.Client.Terrain;
@@ -13,6 +16,10 @@ public static class TerrainAtlas
 {
     public const int Size = 1024;
     public const int Cell = 32;
+
+    /// <summary>Pixel scale of the atlas built last: 2 when every landscape image was upscaled. The constants
+    /// above and the texel math in <see cref="TerrainMesh"/> stay in 1x pixels and multiply by this.</summary>
+    public static int Scale { get; internal set; } = 1;
 
     /// <summary>Per landscape image: cell x, cell y, cell count (1 = single tile, n = (n-1) cells repeat size).</summary>
     public static readonly (int X, int Y, int Cells)[] Positions =
@@ -49,29 +56,76 @@ public static class TerrainAtlas
         (0, 24, 1), (1, 24, 1), (2, 24, 1),
     ];
 
-    public static Texture2D Build(GraphicsDevice device, GfxFile landscapeFile)
+    public static Texture2D Build(GraphicsDevice device, GfxFile landscapeFile, TerrainExperiments? experiments = null)
     {
-        var data = new uint[Size * Size];
+        experiments ??= TerrainExperiments.Off;
         int count = Math.Min(Positions.Length, landscapeFile.LandscapeCount);
+        var upscaled = experiments.Upscale2x ? UpscaleAll(landscapeFile, count) : null;
+        Scale = upscaled is null ? 1 : 2;
+
+        int size = Size * Scale, cell = Cell * Scale;
+        var data = new uint[size * size];
         for (int index = 0; index < count; index++)
         {
-            var bitmap = landscapeFile.ReadLandscape(index);
+            var bitmap = upscaled?[index] ?? landscapeFile.ReadLandscape(index);
             if (bitmap.Width == 0 || bitmap.Height == 0)
                 continue;
 
             var (cellX, cellY, cells) = Positions[index];
-            int left = cellX * Cell, top = cellY * Cell, extent = cells * Cell;
-            for (int y = 0; y < extent && top + y < Size; y++)
+            int left = cellX * cell, top = cellY * cell, extent = cells * cell;
+            for (int y = 0; y < extent && top + y < size; y++)
             {
                 int srcRow = y % bitmap.Height * bitmap.Width;
-                int dstRow = (top + y) * Size + left;
-                for (int x = 0; x < extent && left + x < Size; x++)
+                int dstRow = (top + y) * size + left;
+                for (int x = 0; x < extent && left + x < size; x++)
                     data[dstRow + x] = bitmap.Pixels[srcRow + x % bitmap.Width];
             }
         }
 
-        var texture = new Texture2D(device, Size, Size);
+        var texture = new Texture2D(device, size, size, experiments.Mips, SurfaceFormat.Color);
         texture.SetData(data);
         return texture;
+    }
+
+    /// <summary>
+    /// The 2x upscale of every landscape image (one shared model session; the images are small). All or nothing:
+    /// when any image fails, null comes back and the atlas stays 1x, so no cell mixes resolutions.
+    /// </summary>
+    private static GfxBitmap?[]? UpscaleAll(GfxFile landscapeFile, int count)
+    {
+        var watch = Stopwatch.StartNew();
+        using var upscaler = new OnnxUpscaler();
+        var bitmaps = new GfxBitmap?[count];
+        int done = 0;
+        string? failure = null;
+        try
+        {
+            for (int index = 0; index < count && failure is null; index++)
+            {
+                var source = landscapeFile.ReadLandscape(index);
+                if (source.Width == 0 || source.Height == 0)
+                {
+                    bitmaps[index] = source;
+                    continue;
+                }
+                bitmaps[index] = upscaler.Upscale(source);
+                if (bitmaps[index] is null)
+                    failure = $"landscape {index} was not upscaled";
+                else
+                    done++;
+            }
+        }
+        catch (OnnxRuntimeException e)
+        {
+            failure = e.Message;
+        }
+        if (failure is not null)
+        {
+            Console.WriteLine($"HOMESTEAD_TERRAIN upscale2x: {failure}; building the 1x atlas instead " +
+                              $"({done} of {count} images, {watch.Elapsed.TotalSeconds:F1}s)");
+            return null;
+        }
+        Console.WriteLine($"HOMESTEAD_TERRAIN upscale2x: {done} images in {watch.Elapsed.TotalSeconds:F1}s");
+        return bitmaps;
     }
 }

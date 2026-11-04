@@ -197,6 +197,9 @@ public sealed class MapGame : Game
 
     /// <summary>HOMESTEAD_CAPTURE_EVENT=1: a capture run jumps to every new event, to show the arrows.</summary>
     private readonly bool _captureEvent = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVENT") == "1";
+
+    /// <summary>HOMESTEAD_TERRAIN=upscale2x,mips,depth,foam: landscape and water rendering experiments.</summary>
+    private readonly TerrainExperiments _terrainEx = TerrainExperiments.Parse(Environment.GetEnvironmentVariable("HOMESTEAD_TERRAIN"));
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
     private ProfessionsMenu? _professionsMenu;
@@ -446,7 +449,11 @@ public sealed class MapGame : Game
             UiSounds.Audio = _audio;
             ApplyVolumes(_display);
         }
-        _atlas = TerrainAtlas.Build(GraphicsDevice, _gfx.Open(0));
+        if (_terrainEx.IsOn)
+            Console.WriteLine($"HOMESTEAD_TERRAIN experiments on: {_terrainEx}");
+        foreach (string entry in _terrainEx.Unknown)
+            Console.WriteLine($"HOMESTEAD_TERRAIN: unknown entry \"{entry}\" ignored");
+        _atlas = TerrainAtlas.Build(GraphicsDevice, _gfx.Open(0), _terrainEx);
         _effect = new BasicEffect(GraphicsDevice)
         {
             TextureEnabled = true,
@@ -843,7 +850,7 @@ public sealed class MapGame : Game
         _terrain?.Dispose();
         _map = map;
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
-        _waves = new WaveLayer(_terrain);
+        _waves = new WaveLayer(_terrain, _terrainEx);
         var start = setup.Start(map);
         _world = start.World;
         var report = start.Report;
@@ -897,7 +904,7 @@ public sealed class MapGame : Game
         _terrain?.Dispose();
         _map = game.Map;
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
-        _waves = new WaveLayer(_terrain);
+        _waves = new WaveLayer(_terrain, _terrainEx);
         _world = game.World;
         _local = int.TryParse(game.Client.GetValueOrDefault("player"), out int local) ? local : 0;
         _gameMap = _world.Map!;
@@ -3371,8 +3378,9 @@ public sealed class MapGame : Game
         _effect.View = worldView;
         _effect.Projection = worldProjection;
         GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-        // Point sampling: linear filtering would bleed neighboring atlas cells into the texture edges.
-        GraphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
+        // Point sampling: linear filtering would bleed neighboring atlas cells into the texture edges. The mips
+        // experiment tries exactly that on a mipmapped atlas; sprite batches bring their own sampler state.
+        GraphicsDevice.SamplerStates[0] = _terrainEx.Mips ? SamplerState.LinearClamp : SamplerState.PointClamp;
         GraphicsDevice.BlendState = BlendState.Opaque;
         GraphicsDevice.DepthStencilState = DepthStencilState.None;
         _terrain.Draw(_effect, visible);
