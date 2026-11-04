@@ -132,9 +132,14 @@ public sealed class WaveLayer
 
     private float StrengthAt(int x, int y) => _strength[Math.Clamp(y, 0, _size - 1) * _size + Math.Clamp(x, 0, _size - 1)];
 
-    /// <summary>How far the waves lift something floating at a grid position (fractional while it moves), in world pixels.</summary>
+    /// <summary>
+    /// How far the waves lift something floating at a grid position (fractional while it moves), in world pixels.
+    /// Zero while the water lab draws still water: ships sit still, like the original's.
+    /// </summary>
     public float LiftAt(Vector2 grid, float seconds) =>
-        ScreenProjection.HeightStep * MaxLift * StrengthAt((int)MathF.Round(grid.X), (int)MathF.Round(grid.Y)) * Wave(grid.X, grid.Y, seconds);
+        WaterLab.FlatWater || WaterLab.Pixelsurf
+            ? 0
+            : ScreenProjection.HeightStep * MaxLift * StrengthAt((int)MathF.Round(grid.X), (int)MathF.Round(grid.Y)) * Wave(grid.X, grid.Y, seconds);
 
     /// <summary>
     /// Draws the visible water with waves over the terrain: its triangles again with lifted corners and their own
@@ -143,6 +148,12 @@ public sealed class WaveLayer
     /// </summary>
     public void Draw(GraphicsDevice device, BasicEffect effect, RectangleF visible, float seconds)
     {
+        // Still water (flatwater in the water lab): the terrain mesh already draws the water tiles flat,
+        // the lifted pass and the crest/glint shine would only wobble them. The glitter keeps running (as
+        // in the original), the foam pass of the water lab draws on the flat water as well.
+        if (WaterLab.FlatWater && !WaterLab.Pixelsurf)
+            return;
+
         // One row more above: the row above a point lights it.
         int y0 = Math.Max(1, (int)(visible.Y / ScreenProjection.RowHeight) - 2);
         int y1 = Math.Min(_size - 1, (int)((visible.Y + visible.Height + 255 * ScreenProjection.HeightStep) / ScreenProjection.RowHeight) + 1);
