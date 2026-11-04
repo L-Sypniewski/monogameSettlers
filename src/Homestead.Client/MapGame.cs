@@ -198,8 +198,8 @@ public sealed class MapGame : Game
     /// <summary>HOMESTEAD_CAPTURE_EVENT=1: a capture run jumps to every new event, to show the arrows.</summary>
     private readonly bool _captureEvent = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVENT") == "1";
 
-    /// <summary>HOMESTEAD_TERRAIN=upscale2x,mips,depth,foam: landscape and water rendering experiments.
-    /// F5 flips them for this session between their selected set and off.</summary>
+    /// <summary>HOMESTEAD_TERRAIN=upscale2x,mips,depth,foam,tess2,tess4,softlight: landscape and water rendering
+    /// experiments. F5 flips them for this session between their selected set and off.</summary>
     private readonly TerrainExperimentSession _terrainEx = new(Environment.GetEnvironmentVariable("HOMESTEAD_TERRAIN"));
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;

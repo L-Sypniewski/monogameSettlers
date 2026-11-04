@@ -48,8 +48,12 @@ public sealed class WaveLayer
     /// <summary>Foam (HOMESTEAD_TERRAIN=foam): the shore band of <see cref="_strength"/> it shows in and its peak alpha.</summary>
     private const float FoamRange = 0.18f, FoamAlpha = 0.15f;
 
+    /// <summary>Softlight (HOMESTEAD_TERRAIN=softlight): the share of the water pass's remaining darkness it
+    /// leaves — masks residual faceting.</summary>
+    private const float SoftLight = 0.6f;
+
     /// <summary>How far the highest wave lifts the water, in height steps.</summary>
-    private const float MaxLift = 4;
+    internal const float MaxLift = 4;
 
     /// <summary>Length of the swell in fields (as on the screen), its speed in fields per second.</summary>
     private const float Length = 18, Speed = 1.8f;
@@ -67,6 +71,11 @@ public sealed class WaveLayer
     private float[] _glint = [];
     private float[] _crest = [];
     private float[] _foamAlpha = [];
+    /// <summary>Per sub-corner of the water pass, a grid finer by the tessellation factor over the visible
+    /// window: wave lift and strength. tess2/tess4 re-sample the analytic field at every subdivision point;
+    /// at factor 1 the grids alias the field-corner values (index-identical to <see cref="_lift"/>).</summary>
+    private float[] _subLift = [];
+    private float[] _subStrength = [];
     private readonly TerrainExperimentSession? _experiments;
     private VertexPositionColorTexture[] _water = [];
     private VertexPositionColorTexture[] _shine = [];
@@ -129,7 +138,7 @@ public sealed class WaveLayer
     /// (a row is 9/16 of a field's width): the swell with narrow crests and wide troughs, a little higher and lower
     /// along its crests, and a faint ripple across it.
     /// </summary>
-    private static float Wave(float x, float y, float seconds)
+    internal static float Wave(float x, float y, float seconds)
     {
         var p = SwellPosition(x, y);
         float along = Vector2.Dot(p, Heading), across = Vector2.Dot(p, new Vector2(-Heading.Y, Heading.X));
@@ -148,6 +157,25 @@ public sealed class WaveLayer
         new(x - y / 2, y * ScreenProjection.RowHeight / ScreenProjection.TileWidth);
 
     private float StrengthAt(int x, int y) => _strength[Math.Clamp(y, 0, _size - 1) * _size + Math.Clamp(x, 0, _size - 1)];
+
+    /// <summary>Bilinear sample of a per-grid-point field at a fractional position; indices clamp at the edges
+    /// and grid points give the exact value (weights 0 stay exact in float arithmetic).</summary>
+    internal static float Bilinear(float[] values, int size, float x, float y)
+    {
+        x = Math.Clamp(x, 0, size - 1);
+        y = Math.Clamp(y, 0, size - 1);
+        int x0 = (int)MathF.Floor(x), y0 = (int)MathF.Floor(y);
+        int x1 = Math.Min(x0 + 1, size - 1), y1 = Math.Min(y0 + 1, size - 1);
+        float tx = x - x0, ty = y - y0;
+        return (1 - tx) * (1 - ty) * values[y0 * size + x0]
+            + tx * (1 - ty) * values[y0 * size + x1]
+            + (1 - tx) * ty * values[y1 * size + x0]
+            + tx * ty * values[y1 * size + x1];
+    }
+
+    /// <summary>The wave strength at a fractional grid position, bilinear between the per-grid-point values
+    /// (the strength field is smooth by construction, unlike the stepped heights).</summary>
+    internal float StrengthBilinear(float x, float y) => Bilinear(_strength, _size, x, y);
 
     /// <summary>
     /// The foam band over the wave strength: smoothsteps in over the first half of <see cref="FoamRange"/> and
@@ -173,8 +201,9 @@ public sealed class WaveLayer
 
     /// <summary>
     /// Draws the visible water with waves over the terrain: its triangles again with lifted corners and their own
-    /// texture (opaque), then the crests and glints with the light water texture (premultiplied). Expects the terrain
-    /// effect (atlas texture, vertex colors).
+    /// texture (opaque; tess2/tess4 subdivide this pass, every sub-corner re-sampling the wave field), then the
+    /// crests and glints with the light water texture (premultiplied). Expects the terrain effect (atlas texture,
+    /// vertex colors).
     /// </summary>
     public void Draw(GraphicsDevice device, BasicEffect effect, RectangleF visible, float seconds)
     {
@@ -186,39 +215,15 @@ public sealed class WaveLayer
         if (x1 <= x0 || y1 <= y0)
             return;
 
-        // depth/foam (HOMESTEAD_TERRAIN, F5): read per draw so a flip applies without a restart.
+        // depth/foam/tess2/tess4/softlight (HOMESTEAD_TERRAIN, F5): read per draw so a flip applies without a restart.
         bool depthShading = _experiments?.Active.Depth == true, foamOn = _experiments?.Active.Foam == true;
+        int tess = Math.Max(1, _experiments?.Active.Tessellation ?? 1);
+        bool softLight = _experiments?.Active.SoftLight == true;
         int width = x1 - x0 + 1;
-        int points = width * (y1 - y0 + 1);
-        if (_lift.Length < points)
-        {
-            _lift = new float[points];
-            _glint = new float[points];
-            _crest = new float[points];
-            _foamAlpha = new float[points];
-        }
-        for (int y = y0; y <= y1; y++)
-        for (int x = x0; x <= x1; x++)
-        {
-            int i = (y - y0) * width + x - x0;
-            float strength = _strength[y * _size + x];
-            if (strength <= 0)
-            {
-                _lift[i] = _glint[i] = _crest[i] = _foamAlpha[i] = 0;
-                continue;
-            }
-            float wave = Wave(x, y, seconds);
-            _lift[i] = MaxLift * strength * wave;
-            _crest[i] = CrestBlend * strength * wave;
-            // The front faces the viewer: the water a row higher on the screen stands higher.
-            float behind = Wave(x - 0.5f, y - 1, seconds);
-            _glint[i] = Glint * strength * MathHelper.Clamp((behind - wave) * 3, 0, 1);
-            // Per corner like the values above, so the foam over a corner shared by triangles has no edge.
-            float along = Vector2.Dot(SwellPosition(x, y), Heading);
-            _foamAlpha[i] = FoamAlpha * FoamBand(strength) * (0.5f + 0.5f * MathF.Sin(SwellPhase(along, seconds)));
-        }
+        Precompute(x0, x1, y0, y1, width, seconds, tess);
+        int water = EmitWater(x0, x1, y0, y1, depthShading, softLight, tess);
 
-        int water = 0, shine = 0, foam = 0;
+        int shine = 0, foam = 0;
         Span<Vector2> uv = stackalloc Vector2[3];
         Span<(int X, int Y)> corners = stackalloc (int, int)[3];
         for (int y = y0 + 1; y < y1; y++)
@@ -232,21 +237,6 @@ public sealed class WaveLayer
             corners[2] = up ? (x + 1, y + 1) : (x + 1, y);
             if (StrengthAt(corners[0].X, corners[0].Y) + StrengthAt(corners[1].X, corners[1].Y) + StrengthAt(corners[2].X, corners[2].Y) <= 0)
                 continue;
-            if (_water.Length < water + 3)
-                Array.Resize(ref _water, Math.Max(3072, _water.Length * 2));
-            _terrain.TriangleUv(x, y, up, uv);
-            for (int c = 0; c < 3; c++)
-            {
-                var (cx, cy) = corners[c];
-                int i = (cy - y0) * width + cx - x0;
-                // The light of a slope from the lifted heights; the point above is lifted by its own wave.
-                float height = _terrain.HeightAt(cx, cy) + _lift[i];
-                float light = TerrainMesh.Light(_terrain.HeightAt(cx, cy - 1) + _lift[i - width], height);
-                var depth = DepthFactors(StrengthAt(cx, cy));
-                _water[water++] = Vertex(cx, cy, height,
-                    depthShading ? new Color(light * depth.X, light * depth.Y, light * depth.Z) : new Color(light, light, light), uv[c]);
-            }
-
             int i0 = (y - y0) * width + x - x0;
             int i1 = (corners[1].Y - y0) * width + corners[1].X - x0;
             int i2 = (corners[2].Y - y0) * width + corners[2].X - x0;
@@ -289,6 +279,168 @@ public sealed class WaveLayer
             Draw(device, effect, _foam, foam, BlendState.AlphaBlend);
         device.BlendState = BlendState.Opaque;
     }
+
+    /// <summary>
+    /// The visible window's per-grid-point values — wave lift, crest, glint and foam, which stay at field
+    /// granularity — and the water pass's sub-corner grids: at factor 1 they alias the field-corner values,
+    /// above it every subdivision point re-samples the analytic wave field with bilinear
+    /// <see cref="StrengthBilinear"/> strength. Re-sampling instead of interpolating the corner values is
+    /// the point: the swell keeps its curvature between fields.
+    /// </summary>
+    internal void Precompute(int x0, int x1, int y0, int y1, int width, float seconds, int tess)
+    {
+        int points = width * (y1 - y0 + 1);
+        if (_lift.Length < points)
+        {
+            _lift = new float[points];
+            _glint = new float[points];
+            _crest = new float[points];
+            _foamAlpha = new float[points];
+        }
+        int cols = (x1 - x0) * tess + 1, rows = (y1 - y0) * tess + 1;
+        if (_subLift.Length < rows * cols)
+        {
+            _subLift = new float[rows * cols];
+            _subStrength = new float[rows * cols];
+        }
+        for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++)
+        {
+            int i = (y - y0) * width + x - x0;
+            float strength = _strength[y * _size + x];
+            if (strength <= 0)
+            {
+                _lift[i] = _glint[i] = _crest[i] = _foamAlpha[i] = 0;
+                if (tess == 1)
+                    _subLift[i] = _subStrength[i] = 0;
+                continue;
+            }
+            float wave = Wave(x, y, seconds);
+            _lift[i] = MaxLift * strength * wave;
+            _crest[i] = CrestBlend * strength * wave;
+            // The front faces the viewer: the water a row higher on the screen stands higher.
+            float behind = Wave(x - 0.5f, y - 1, seconds);
+            _glint[i] = Glint * strength * MathHelper.Clamp((behind - wave) * 3, 0, 1);
+            // Per corner like the values above, so the foam over a corner shared by triangles has no edge.
+            float along = Vector2.Dot(SwellPosition(x, y), Heading);
+            _foamAlpha[i] = FoamAlpha * FoamBand(strength) * (0.5f + 0.5f * MathF.Sin(SwellPhase(along, seconds)));
+            if (tess == 1)
+            {
+                _subLift[i] = _lift[i];
+                _subStrength[i] = strength;
+            }
+        }
+        if (tess > 1)
+        {
+            for (int row = 0; row < rows; row++)
+            {
+                float fy = y0 + row / (float)tess;
+                for (int col = 0; col < cols; col++)
+                {
+                    int g = row * cols + col;
+                    float fx = x0 + col / (float)tess;
+                    float strength = StrengthBilinear(fx, fy);
+                    if (strength <= 0)
+                    {
+                        _subLift[g] = _subStrength[g] = 0;
+                        continue;
+                    }
+                    _subStrength[g] = strength;
+                    _subLift[g] = MaxLift * strength * Wave(fx, fy, seconds);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The opaque water pass: the field cells' triangles with lifted corners and their own light and texture.
+    /// tess2/tess4 (HOMESTEAD_TERRAIN) emit n×n sub-cells of two triangles per field cell instead — the same
+    /// diagonal pattern at a finer scale — with every sub-corner's height, light and lift from its own sample
+    /// of the wave field. Only the terrain height stays that of the nearest grid point, so the shore silhouette
+    /// keeps the land mesh's steps (the stepped heights are never interpolated). softlight compresses the light
+    /// toward white, masking residual faceting. At n=1 the sub-corners are the field corners and the emission is
+    /// the classic one, value for value and in the same order.
+    /// </summary>
+    internal int EmitWater(int x0, int x1, int y0, int y1, bool depthShading, bool softLight, int tess)
+    {
+        int cols = (x1 - x0) * tess + 1;
+        int water = 0;
+        Span<Vector2> uvUp = stackalloc Vector2[3], uvDown = stackalloc Vector2[3];
+        Span<(float U, float V)> corner = stackalloc (float U, float V)[3];
+        Span<int> grid = stackalloc int[3];
+        for (int y = y0 + 1; y < y1; y++)
+        for (int x = x0; x < x1; x++)
+        {
+            _terrain.TriangleUv(x, y, true, uvUp);
+            _terrain.TriangleUv(x, y, false, uvDown);
+            int gx = (x - x0) * tess, gy = (y - y0) * tess;
+            for (int sy = 0; sy < tess; sy++)
+            for (int sx = 0; sx < tess; sx++)
+            for (int half = 0; half < 2; half++)
+            {
+                bool up = half == 0;
+                var (a, b, c) = SubCellCorners(sx, sy, tess, up);
+                corner[0] = a;
+                corner[1] = b;
+                corner[2] = c;
+                grid[0] = (gy + sy) * cols + gx + sx;
+                grid[1] = (gy + sy + 1) * cols + gx + (up ? sx : sx + 1);
+                grid[2] = (gy + (up ? sy + 1 : sy)) * cols + gx + sx + 1;
+                if (_subStrength[grid[0]] + _subStrength[grid[1]] + _subStrength[grid[2]] <= 0)
+                    continue;
+                if (_water.Length < water + 3)
+                    Array.Resize(ref _water, Math.Max(3072, _water.Length * 2));
+                bool parentUp = ParentIsUp(sx, sy, up);
+                for (int k = 0; k < 3; k++)
+                {
+                    float fx = x + corner[k].U, fy = y + corner[k].V;
+                    // The light of a slope from the lifted heights; the point above is lifted by its own wave.
+                    float height = _terrain.HeightAt((int)MathF.Round(fx), (int)MathF.Round(fy)) + _subLift[grid[k]];
+                    float above = _terrain.HeightAt((int)MathF.Round(fx), (int)MathF.Round(fy - 1)) + _subLift[grid[k] - cols];
+                    float light = TerrainMesh.Light(above, height);
+                    if (softLight)
+                        light = 1 - (1 - light) * SoftLight;
+                    var depth = DepthFactors(_subStrength[grid[k]]);
+                    var parent = parentUp ? uvUp : uvDown;
+                    var (w0, w1, w2) = ParentUvWeights(corner[k].U, corner[k].V, parentUp);
+                    var uv = parent[0] * w0 + parent[1] * w1 + parent[2] * w2;
+                    _water[water++] = Vertex(fx, fy, height,
+                        depthShading ? new Color(light * depth.X, light * depth.Y, light * depth.Z) : new Color(light, light, light), uv);
+                }
+            }
+        }
+        return water;
+    }
+
+    /// <summary>
+    /// The corners of sub-cell (sx, sy) of a field cell as shares of it (0…1), in the terrain's up/down triangle
+    /// order: up (0,0) (0,1) (1,1), down (0,0) (1,1) (1,0) — the cell's diagonal pattern at the finer scale.
+    /// </summary>
+    internal static ((float U, float V) A, (float U, float V) B, (float U, float V) C) SubCellCorners(int sx, int sy, int tess, bool up)
+    {
+        float u0 = sx / (float)tess, u1 = (sx + 1) / (float)tess;
+        float v0 = sy / (float)tess, v1 = (sy + 1) / (float)tess;
+        return up ? ((u0, v0), (u0, v1), (u1, v1)) : ((u0, v0), (u1, v1), (u1, v0));
+    }
+
+    /// <summary>
+    /// Which of the field cell's two triangles a sub-triangle takes its texture from. A sub-cell's diagonal runs
+    /// parallel to the cell's, so every sub-triangle lies in one closed half of the cell: those on or above the
+    /// cell diagonal (up: sx ≤ sy; down: sx &lt; sy) in the up triangle's half, the rest in the down's. On the
+    /// diagonal itself a corner follows its own sub-triangle's orientation, as the field corners do at n=1.
+    /// </summary>
+    internal static bool ParentIsUp(int sx, int sy, bool up) => up ? sx <= sy : sx < sy;
+
+    /// <summary>
+    /// Barycentric weight of each parent-triangle corner (up: (0,0) (0,1) (1,1); down: (0,0) (1,1) (1,0)) at a
+    /// sub-corner of the cell. At the cell corners exactly one weight is 1, so the classic corner UVs come out
+    /// bit for bit (multiplying by 1 and adding 0 keeps float values).
+    /// </summary>
+    internal static (float W0, float W1, float W2) ParentUvWeights(float u, float v, bool parentUp) =>
+        parentUp ? (1 - v, v - u, u) : (1 - u, v, u - v);
+
+    /// <summary>The last water pass's vertex buffer; headless tests compare it against the classic emission.</summary>
+    internal VertexPositionColorTexture[] WaterBuffer => _water;
 
     /// <summary>
     /// Draws the glitter over the visible water: the glitter frames as overlapping tiles in rows (<see cref="GlitterStep"/>),
@@ -370,7 +522,7 @@ public sealed class WaveLayer
         }
     }
 
-    private static VertexPositionColorTexture Vertex(int x, int y, float height, Color color, Vector2 uv) =>
+    private static VertexPositionColorTexture Vertex(float x, float y, float height, Color color, Vector2 uv) =>
         new(new Vector3(x * ScreenProjection.TileWidth - y * ScreenProjection.TileWidth / 2f,
             y * ScreenProjection.RowHeight - height * ScreenProjection.HeightStep, 0), color, uv);
 }

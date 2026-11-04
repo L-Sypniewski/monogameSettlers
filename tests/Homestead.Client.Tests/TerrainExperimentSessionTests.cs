@@ -10,6 +10,8 @@ public class TerrainExperimentSessionTests
         var session = new TerrainExperimentSession(null);
 
         Assert.Equal(TerrainExperiments.Off, session.Active);
+        Assert.Equal(4, TerrainExperiments.All.Tessellation);
+        Assert.True(TerrainExperiments.All.SoftLight);
         Assert.False(session.IsOn);
         Assert.Equal(TerrainExperiments.All, session.Selected);
         Assert.True(TerrainExperiments.All.IsOn);
