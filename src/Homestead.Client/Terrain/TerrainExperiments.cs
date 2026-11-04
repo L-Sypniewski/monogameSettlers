@@ -9,8 +9,14 @@ public sealed record TerrainExperiments(bool Upscale2x, bool Mips, bool Depth, b
 {
     public static readonly TerrainExperiments Off = new(false, false, false, false);
 
-    /// <summary>All experiments, the water at tessellation 4: what F5 turns on when the variable selected none.</summary>
+    /// <summary>All experiments, the water at tessellation 4.</summary>
     public static readonly TerrainExperiments All = new(true, true, true, true, 4, true);
+
+    /// <summary>The water experiments: depth shading, shore foam, the water at tessellation 4 and softlight.</summary>
+    public static readonly TerrainExperiments Water = new(false, false, true, true, 4, true);
+
+    /// <summary>The landscape experiments: the 2x atlas and its mipmaps.</summary>
+    public static readonly TerrainExperiments Terrain = new(true, true, false, false);
 
     /// <summary>Entries of the variable that no experiment matched.</summary>
     public IReadOnlyList<string> Unknown { get; private init; } = [];
@@ -85,44 +91,82 @@ public sealed record TerrainExperiments(bool Upscale2x, bool Mips, bool Depth, b
 
 /// <summary>
 /// What runs this session: <see cref="Active"/> starts as the variable's set (off without one, so nothing
-/// changes until F5 or the variable) and F5 flips it to <see cref="Selected"/> and back. Selected is the
-/// variable's set, or all experiments when it selected none (the packaged app has no variable, F5 is
-/// the only way in). Everything that renders reads <see cref="Active"/> live, so a flip applies at once.
+/// changes until F5 or the variable) and F5 steps it around a fixed ring of presets: off, all, water,
+/// terrain, then off again. Everything that renders reads <see cref="Active"/> live, so a step applies at once.
 /// </summary>
 public sealed class TerrainExperimentSession
 {
+    /// <summary>The F5 ring, in cycle order.</summary>
+    private static readonly (string Name, TerrainExperiments Set)[] Ring =
+    [
+        ("off", TerrainExperiments.Off),
+        ("all", TerrainExperiments.All),
+        ("water", TerrainExperiments.Water),
+        ("terrain", TerrainExperiments.Terrain),
+    ];
+
     private readonly IReadOnlyList<string> _unknown;
+    private bool _upscale2xDropped;
 
     public TerrainExperimentSession(string? environment)
     {
         var parsed = TerrainExperiments.Parse(environment);
         _unknown = parsed.Unknown;
-        Selected = parsed.IsOn ? parsed : TerrainExperiments.All;
         Active = parsed;
+        // The ring starts at the stop the variable's set equals, so the first F5 goes to that stop's successor.
+        // A set equal to no stop is the variable's custom one: its index is -1, so the first F5 goes to off
+        // (-1 + 1 = 0) and the ring continues normally from there — the first step is predictable from any start.
+        NextPresetIndex = (IndexOfPreset(parsed) + 1) % Ring.Length;
     }
-
-    /// <summary>The set F5 turns on.</summary>
-    public TerrainExperiments Selected { get; private set; }
 
     /// <summary>What runs now.</summary>
     public TerrainExperiments Active { get; private set; }
+
+    /// <summary>The ring stop the next F5 steps to.</summary>
+    public int NextPresetIndex { get; private set; }
 
     public bool IsOn => Active.IsOn;
 
     public IReadOnlyList<string> Unknown => _unknown;
 
-    /// <summary>F5: on → off, off → the selected set.</summary>
-    public TerrainExperiments Toggle()
+    /// <summary>The announcement names the ring stop whose set runs (degraded like the ring after an upscaler
+    /// failure), or the set itself while the variable's custom one runs.</summary>
+    public string ActiveName
     {
-        Active = Active.IsOn ? TerrainExperiments.Off : Selected;
+        get
+        {
+            for (int i = 0; i < Ring.Length; i++)
+                if (Preset(i).Equals(Active))
+                    return Ring[i].Name;
+            return Active.ToString();
+        }
+    }
+
+    /// <summary>F5: the next stop of the ring, wrapping around.</summary>
+    public TerrainExperiments Cycle()
+    {
+        Active = Preset(NextPresetIndex);
+        NextPresetIndex = (NextPresetIndex + 1) % Ring.Length;
         return Active;
     }
 
-    /// <summary>The upscaler failed: upscale2x leaves both sets for the rest of the session, the other
-    /// experiments keep toggling.</summary>
+    /// <summary>The upscaler failed: upscale2x leaves the active set and every ring preset that has it for the
+    /// rest of the session, the other experiments keep cycling.</summary>
     public void Upscale2xFailed()
     {
-        Selected = Selected with { Upscale2x = false };
+        _upscale2xDropped = true;
         Active = Active with { Upscale2x = false };
     }
+
+    private static int IndexOfPreset(TerrainExperiments set)
+    {
+        for (int i = 0; i < Ring.Length; i++)
+            if (Ring[i].Set.Equals(set))
+                return i;
+        return -1;
+    }
+
+    /// <summary>A ring stop's set, without upscale2x everywhere once the upscaler failed.</summary>
+    private TerrainExperiments Preset(int index) =>
+        _upscale2xDropped && Ring[index].Set.Upscale2x ? Ring[index].Set with { Upscale2x = false } : Ring[index].Set;
 }

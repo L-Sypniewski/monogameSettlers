@@ -215,7 +215,7 @@ public sealed class WaveLayer
         if (x1 <= x0 || y1 <= y0)
             return;
 
-        // depth/foam/tess2/tess4/softlight (HOMESTEAD_TERRAIN, F5): read per draw so a flip applies without a restart.
+        // depth/foam/tess2/tess4/softlight (HOMESTEAD_TERRAIN, F5): read per draw so a step of the ring applies without a restart.
         bool depthShading = _experiments?.Active.Depth == true, foamOn = _experiments?.Active.Foam == true;
         int tess = Math.Max(1, _experiments?.Active.Tessellation ?? 1);
         bool softLight = _experiments?.Active.SoftLight == true;

@@ -199,7 +199,7 @@ public sealed class MapGame : Game
     private readonly bool _captureEvent = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVENT") == "1";
 
     /// <summary>HOMESTEAD_TERRAIN=upscale2x,mips,depth,foam,tess2,tess4,softlight: landscape and water rendering
-    /// experiments. F5 flips them for this session between their selected set and off.</summary>
+    /// experiments. F5 steps them for this session through the preset ring: off, all, water, terrain.</summary>
     private readonly TerrainExperimentSession _terrainEx = new(Environment.GetEnvironmentVariable("HOMESTEAD_TERRAIN"));
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
@@ -1887,7 +1887,7 @@ public sealed class MapGame : Game
             if (Pressed(Keys.F11))
                 ToggleFullScreen();
             if (Pressed(Keys.F5))
-                ToggleTerrainExperiments(gameTime);
+                CycleTerrainExperiments(gameTime);
             if (Pressed(Keys.F3))
                 _showPerf = !_showPerf;
             if (Pressed(Keys.T))
@@ -2415,25 +2415,25 @@ public sealed class MapGame : Game
     }
 
     /// <summary>
-    /// F5: flips the terrain experiments between off and the selected set (the variable's, or all four without
-    /// one). mips, depth and foam apply at once; upscale2x swaps the atlas when its texture is there. If the 2x
-    /// build is still running, presses in between only change the set — the swap then happens when the build
-    /// finishes (or not, when it was turned off again), so no press is lost, none is ignored, and neither a
-    /// double build nor a half-swapped state can happen.
+    /// F5: steps the terrain experiments to the next preset of the ring (off, all, water, terrain). mips,
+    /// depth and foam apply at once; upscale2x swaps the atlas when its texture is there. If the 2x build is
+    /// still running, presses in between only change the set — the swap then happens when the build finishes
+    /// (or not, when it was turned off again), so no press is lost, none is ignored, and neither a double
+    /// build nor a half-swapped state can happen.
     /// </summary>
-    private void ToggleTerrainExperiments(GameTime gameTime)
+    private void CycleTerrainExperiments(GameTime gameTime)
     {
-        _terrainEx.Toggle();
+        _terrainEx.Cycle();
         if (_terrainEx.Active.Upscale2x)
             StartAtlas2x();
         ApplyTerrainAtlas();
         _terrainShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
     }
 
-    /// <summary>The announcement of the F5 state, like F2's scaling hint: "Terrain: on" or "off", with
-    /// " (building…)" while the 2x atlas upscale2x asked for is still being built.</summary>
+    /// <summary>The announcement of the F5 state, like F2's scaling hint: the preset's name ("Terrain: all",
+    /// "Terrain: off" …), with " (building…)" while the 2x atlas upscale2x asked for is still being built.</summary>
     private string TerrainAnnouncement() =>
-        $"Terrain: {(_terrainEx.IsOn ? "on" : "off")}"
+        $"Terrain: {_terrainEx.ActiveName}"
         + (_terrainEx.Active.Upscale2x && _atlas2x is null && !_atlas2xFailed ? " (building…)" : "");
 
     /// <summary>
@@ -2526,7 +2526,7 @@ public sealed class MapGame : Game
             _scalingShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
         }
         if (Pressed(Keys.F5))
-            ToggleTerrainExperiments(gameTime);
+            CycleTerrainExperiments(gameTime);
         // Tab: of the selection only the wounded soldiers stay selected.
         if (Pressed(Keys.Tab) && _group.Count > 0)
             _group.RemoveAll(s => s.Profession != Profession.Soldier || s.SoldierType is not { } type
