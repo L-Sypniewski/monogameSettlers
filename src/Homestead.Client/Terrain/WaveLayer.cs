@@ -59,6 +59,7 @@ public sealed class WaveLayer
     private float[] _crest = [];
     private float[] _foam = [];
     private VertexPositionColorTexture[] _water = [];
+    private VertexPositionColorTexture[] _waterLit = [];
     private VertexPositionColorTexture[] _shine = [];
     private VertexPositionColorTexture[] _foamVertices = [];
     private Rectangle? _glitterTile;
@@ -146,9 +147,11 @@ public sealed class WaveLayer
     /// <summary>
     /// Draws the visible water with waves over the terrain: its triangles again with lifted corners and their own
     /// texture (opaque), then the crests and glints with the light water texture (premultiplied). Expects the terrain
-    /// effect (atlas texture, vertex colors).
+    /// effect (atlas texture, vertex colors). With the water lab's normals on, the continuous water triangles sample
+    /// the lit frames of <paramref name="normalsStrip"/> instead of the atlas (the UVs are redirected per frame);
+    /// transition tiles keep the atlas.
     /// </summary>
-    public void Draw(GraphicsDevice device, BasicEffect effect, RectangleF visible, float seconds)
+    public void Draw(GraphicsDevice device, BasicEffect effect, RectangleF visible, float seconds, Texture2D? normalsStrip = null)
     {
         // Still water (flatwater in the water lab): the terrain mesh already draws the water tiles flat,
         // the lifted pass and the crest/glint shine would only wobble them. The glitter keeps running (as
@@ -203,7 +206,9 @@ public sealed class WaveLayer
             _glint[i] = Glint * strength * MathHelper.Clamp((behind - wave) * 3, 0, 1);
         }
 
-        int water = 0, shine = 0, foamCount = 0;
+        int water = 0, lit = 0, shine = 0, foamCount = 0;
+        bool normals = !flat && normalsStrip is not null;
+        int frame = (int)(seconds * WaterLabNormals.FramesPerSecond) % WaterLabNormals.Frames;
         Span<Vector2> uv = stackalloc Vector2[3];
         Span<(int X, int Y)> corners = stackalloc (int, int)[3];
         for (int y = y0 + 1; y < y1; y++)
@@ -241,6 +246,36 @@ public sealed class WaveLayer
 
             if (flat)
                 continue;
+            // Continuous water (all corners of one water kind) may sample the lit frames instead of the atlas;
+            // mixed corners draw one of the ring transition tiles, which have no frames.
+            var cornerKind = _terrain.KindAt(x, y);
+            bool continuous = normals && WaterLabNormals.RowOf(cornerKind.ImageNumber()) >= 0
+                && _terrain.KindAt(corners[1].X, corners[1].Y) == cornerKind
+                && _terrain.KindAt(corners[2].X, corners[2].Y) == cornerKind;
+            if (continuous)
+            {
+                if (_waterLit.Length < lit + 3)
+                    Array.Resize(ref _waterLit, Math.Max(3072, _waterLit.Length * 2));
+                _terrain.TriangleUv(x, y, up, uv);
+                var (cellX, cellY, _) = TerrainAtlas.Positions[cornerKind.ImageNumber()];
+                int row = WaterLabNormals.RowOf(cornerKind.ImageNumber());
+                for (int c = 0; c < 3; c++)
+                {
+                    var (cx, cy) = corners[c];
+                    int i = (cy - y0) * width + cx - x0;
+                    float height = _terrain.HeightAt(cx, cy) + _lift[i];
+                    // The frames carry their own lighting; only the rings tint (if on) still multiplies in.
+                    var tint = WaterLab.Rings ? WaterLabTint.For(cornerKind) : Vector3.One;
+                    // The atlas UV inside the image's cell block, folded back into the single 32x32 tile.
+                    float localU = MathHelper.Clamp((uv[c].X * TerrainAtlas.Size - cellX * TerrainAtlas.Cell) % TerrainAtlas.Cell, 0.5f, 31.5f);
+                    float localV = MathHelper.Clamp((uv[c].Y * TerrainAtlas.Size - cellY * TerrainAtlas.Cell) % TerrainAtlas.Cell, 0.5f, 31.5f);
+                    var frameUv = new Vector2(
+                        (frame * WaterLabNormals.Tile + localU) / WaterLabNormals.StripSize,
+                        (row * WaterLabNormals.Tile + localV) / WaterLabNormals.StripSize);
+                    _waterLit[lit++] = Vertex(cx, cy, height, new Color(tint.X, tint.Y, tint.Z), frameUv);
+                }
+                continue;
+            }
             if (_water.Length < water + 3)
                 Array.Resize(ref _water, Math.Max(3072, _water.Length * 2));
             _terrain.TriangleUv(x, y, up, uv);
@@ -272,6 +307,14 @@ public sealed class WaveLayer
         }
 
         Draw(device, effect, _water, water, BlendState.Opaque);
+        if (lit > 0)
+        {
+            // One texture switch per frame: every continuous water triangle samples the strip at its frame.
+            var atlas = effect.Texture;
+            effect.Texture = normalsStrip!;
+            Draw(device, effect, _waterLit, lit, BlendState.Opaque);
+            effect.Texture = atlas!;
+        }
         Draw(device, effect, _shine, shine, BlendState.AlphaBlend);
         Draw(device, effect, _foamVertices, foamCount, BlendState.AlphaBlend);
         device.BlendState = BlendState.Opaque;

@@ -223,6 +223,10 @@ public sealed class MapGame : Game
 
     /// <summary>The water lab flags as seen last frame: a flip applies live (rings rebuilds the baked terrain tint).</summary>
     private WaterLabState _waterFlags = WaterLab.Current with { };
+    private GfxFile _landscapeFile = null!;
+    /// <summary>The normals strip of the water lab, built on first use (also live after a popup toggle).</summary>
+    private Texture2D? _waterNormalsStrip;
+    private static bool _loggedNormalsCombo;
     private readonly BuildingInfo _buildingInfo = new();
     private UiFont _font = null!;
     private int _placeIndex;
@@ -449,7 +453,8 @@ public sealed class MapGame : Game
             UiSounds.Audio = _audio;
             ApplyVolumes(_display);
         }
-        _atlas = TerrainAtlas.Build(GraphicsDevice, _gfx.Open(0));
+        _landscapeFile = _gfx.Open(0);
+        _atlas = TerrainAtlas.Build(GraphicsDevice, _landscapeFile);
         _effect = new BasicEffect(GraphicsDevice)
         {
             TextureEnabled = true,
@@ -1676,6 +1681,14 @@ public sealed class MapGame : Game
         {
             _terrain.InvalidateAll();
             _waterFlags = WaterLab.Current with { };
+        }
+        if (WaterLab.Current != _waterFlags)
+            _waterFlags = WaterLab.Current with { };
+        // The lit frames live in the wave pass: under flatwater alone they would never show.
+        if (!_loggedNormalsCombo && WaterLab.Normals && WaterLab.FlatWater && !WaterLab.Pixelsurf)
+        {
+            _loggedNormalsCombo = true;
+            Console.WriteLine("water lab: normals needs the wave pass or pixelsurf");
         }
 
         // Capture runs use fixed frame times at 4x speed, so long processes fit into a short run.
@@ -3387,7 +3400,9 @@ public sealed class MapGame : Game
         GraphicsDevice.BlendState = BlendState.Opaque;
         GraphicsDevice.DepthStencilState = DepthStencilState.None;
         _terrain.Draw(_effect, visible);
-        _waves.Draw(GraphicsDevice, _effect, visible, (float)_time.TotalSeconds);
+        if (WaterLab.Normals && _waterNormalsStrip is null)
+            _waterNormalsStrip = WaterLabNormals.BuildStrip(GraphicsDevice, _landscapeFile);
+        _waves.Draw(GraphicsDevice, _effect, visible, (float)_time.TotalSeconds, WaterLab.Normals ? _waterNormalsStrip : null);
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldView);
         _waves.DrawGlitter(_spriteBatch, _sprites, visible, (float)_time.TotalSeconds);
