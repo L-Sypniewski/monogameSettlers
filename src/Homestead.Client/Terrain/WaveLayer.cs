@@ -57,8 +57,10 @@ public sealed class WaveLayer
     private float[] _lift = [];
     private float[] _glint = [];
     private float[] _crest = [];
+    private float[] _foam = [];
     private VertexPositionColorTexture[] _water = [];
     private VertexPositionColorTexture[] _shine = [];
+    private VertexPositionColorTexture[] _foamVertices = [];
     private Rectangle? _glitterTile;
 
     public WaveLayer(TerrainMesh terrain)
@@ -151,7 +153,9 @@ public sealed class WaveLayer
         // Still water (flatwater in the water lab): the terrain mesh already draws the water tiles flat,
         // the lifted pass and the crest/glint shine would only wobble them. The glitter keeps running (as
         // in the original), the foam pass of the water lab draws on the flat water as well.
-        if (WaterLab.FlatWater && !WaterLab.Pixelsurf)
+        bool flat = WaterLab.FlatWater && !WaterLab.Pixelsurf;
+        bool foam = WaterLab.Foam;
+        if (flat && !foam)
             return;
 
         // One row more above: the row above a point lights it.
@@ -169,13 +173,24 @@ public sealed class WaveLayer
             _lift = new float[points];
             _glint = new float[points];
             _crest = new float[points];
+            _foam = new float[points];
         }
+        // On still water the foam washes in and out at half speed: without the passing swell to carry it,
+        // the original's tempo looks hectic.
+        float pulseSeconds = flat ? seconds * 0.5f : seconds;
         for (int y = y0; y <= y1; y++)
         for (int x = x0; x <= x1; x++)
         {
             int i = (y - y0) * width + x - x0;
             float strength = _strength[y * _size + x];
             if (strength <= 0)
+            {
+                _lift[i] = _glint[i] = _crest[i] = _foam[i] = 0;
+                continue;
+            }
+            float along = (x - y / 2f) * Heading.X + y * ScreenProjection.RowHeight / ScreenProjection.TileWidth * Heading.Y;
+            _foam[i] = foam ? WaterLabFoam.Alpha(strength, SwellPhase(along, pulseSeconds), x, y) : 0;
+            if (flat)
             {
                 _lift[i] = _glint[i] = _crest[i] = 0;
                 continue;
@@ -188,7 +203,7 @@ public sealed class WaveLayer
             _glint[i] = Glint * strength * MathHelper.Clamp((behind - wave) * 3, 0, 1);
         }
 
-        int water = 0, shine = 0;
+        int water = 0, shine = 0, foamCount = 0;
         Span<Vector2> uv = stackalloc Vector2[3];
         Span<(int X, int Y)> corners = stackalloc (int, int)[3];
         for (int y = y0 + 1; y < y1; y++)
@@ -200,7 +215,31 @@ public sealed class WaveLayer
             corners[0] = (x, y);
             corners[1] = up ? (x, y + 1) : (x + 1, y + 1);
             corners[2] = up ? (x + 1, y + 1) : (x + 1, y);
+            int i0 = (y - y0) * width + x - x0;
+            int i1 = (corners[1].Y - y0) * width + corners[1].X - x0;
+            int i2 = (corners[2].Y - y0) * width + corners[2].X - x0;
             if (StrengthAt(corners[0].X, corners[0].Y) + StrengthAt(corners[1].X, corners[1].Y) + StrengthAt(corners[2].X, corners[2].Y) <= 0)
+                continue;
+
+            // The foam pass runs over the still water as well, as an extra shine-style overlay.
+            if (foam && _foam[i0] + _foam[i1] + _foam[i2] >= 0.01f)
+            {
+                if (_foamVertices.Length < foamCount + 3)
+                    Array.Resize(ref _foamVertices, Math.Max(3072, _foamVertices.Length * 2));
+                TerrainMesh.ContinuousUv(CrestImage, x, y, up, uv);
+                for (int c = 0; c < 3; c++)
+                {
+                    var (cx, cy) = corners[c];
+                    int i = (cy - y0) * width + cx - x0;
+                    // Premultiplied like the shine: the light water texture times the foam's alpha over the water.
+                    float alpha = _foam[i];
+                    float light = _terrain.LightAt(cx, cy) * alpha;
+                    _foamVertices[foamCount++] = Vertex(cx, cy, _terrain.HeightAt(cx, cy) + _lift[i],
+                        new Color(light, light, light, alpha), uv[c]);
+                }
+            }
+
+            if (flat)
                 continue;
             if (_water.Length < water + 3)
                 Array.Resize(ref _water, Math.Max(3072, _water.Length * 2));
@@ -216,9 +255,6 @@ public sealed class WaveLayer
                 _water[water++] = Vertex(cx, cy, height, new Color(light * tint.X, light * tint.Y, light * tint.Z), uv[c]);
             }
 
-            int i0 = (y - y0) * width + x - x0;
-            int i1 = (corners[1].Y - y0) * width + corners[1].X - x0;
-            int i2 = (corners[2].Y - y0) * width + corners[2].X - x0;
             if (_crest[i0] + _crest[i1] + _crest[i2] + _glint[i0] + _glint[i1] + _glint[i2] < 0.01f)
                 continue;
             if (_shine.Length < shine + 3)
@@ -237,6 +273,7 @@ public sealed class WaveLayer
 
         Draw(device, effect, _water, water, BlendState.Opaque);
         Draw(device, effect, _shine, shine, BlendState.AlphaBlend);
+        Draw(device, effect, _foamVertices, foamCount, BlendState.AlphaBlend);
         device.BlendState = BlendState.Opaque;
     }
 
