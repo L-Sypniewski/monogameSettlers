@@ -657,6 +657,11 @@
   },
   "building": {
     "workArea": "Arbeitsbereich versetzen",
+    "workAreaArmed": "Auf den Zielort des Arbeitsbereichs klicken, Rechtsklick bricht ab",
+    "workAreaUndone": "Auswahl des Arbeitsbereichs aufgehoben",
+    "workAreaMoved": "Arbeitsbereich nach {0},{1} versetzt",
+    "workAreaMovedCapped": "Arbeitsbereich nach {0},{1} versetzt (max. {2} Felder)",
+    "gatheringPointMoved": "Sammelpunkt nach {0},{1} versetzt",
     "ammoLoads": "Munition: {0}",
     "trade": "Handel – Land",
     "seaTrade": "Handel – Meer",

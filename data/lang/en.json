@@ -657,6 +657,11 @@
   },
   "building": {
     "workArea": "Move work area",
+    "workAreaArmed": "Click where the work area goes, right-click cancels",
+    "workAreaUndone": "Work area choice undone",
+    "workAreaMoved": "Work area moved to {0},{1}",
+    "workAreaMovedCapped": "Work area moved to {0},{1} (at most {2} fields away)",
+    "gatheringPointMoved": "Gathering point moved to {0},{1}",
     "ammoLoads": "Ammunition: {0}",
     "trade": "Trade – land",
     "seaTrade": "Trade – sea",

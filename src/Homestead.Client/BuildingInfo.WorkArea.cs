@@ -45,11 +45,11 @@ public sealed partial class BuildingInfo
         if (AimsWorkCenter(building))
         {
             _workAiming = null;
-            return "work area choice undone";
+            return Lang.T("building.workAreaUndone");
         }
         _workAiming = building;
         UiSounds.Toggle();
-        return "click where the work area goes (right click: cancel)";
+        return Lang.T("building.workAreaArmed");
     }
 
     /// <summary>
@@ -64,8 +64,8 @@ public sealed partial class BuildingInfo
             if (_workAiming == building)
                 _workAiming = null;
             UiSounds.WorkArea();
-            return building.HasGatheringPoint ? $"gathering point moved to {center.X},{center.Y}"
-                : center == clicked ? $"work area moved to {center.X},{center.Y}"
-                : $"work area moved to {center.X},{center.Y} (at most {World.MaxWorkCenterDistance} fields away)";
+            return building.HasGatheringPoint ? Lang.T("building.gatheringPointMoved", center.X, center.Y)
+                : center == clicked ? Lang.T("building.workAreaMoved", center.X, center.Y)
+                : Lang.T("building.workAreaMovedCapped", center.X, center.Y, World.MaxWorkCenterDistance);
         });
 }

@@ -657,6 +657,11 @@
   },
   "building": {
     "workArea": "Przesuń obszar roboczy",
+    "workAreaArmed": "Kliknij miejsce, gdzie przesunąć obszar roboczy, prawy przycisk anuluje",
+    "workAreaUndone": "Cofnięto wybór obszaru roboczego",
+    "workAreaMoved": "Przesunięto obszar roboczy na {0},{1}",
+    "workAreaMovedCapped": "Przesunięto obszar roboczy na {0},{1} (najwyżej {2} pól)",
+    "gatheringPointMoved": "Przesunięto punkt zbiórki na {0},{1}",
     "ammoLoads": "Amunicja: {0}",
     "trade": "Handel-Ląd",
     "seaTrade": "Handel-Statek",
