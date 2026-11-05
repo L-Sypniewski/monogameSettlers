@@ -24,7 +24,9 @@ As of 2026-11-01: merged into `main` (#9).
   replaced by `DeterministicMath` (basic arithmetic only, ~1e-12 accurate). New trigonometric functions in the simulation only through it.
 - `WorldChecksum.Of(world)`: checksum over tick, settlers, buildings, piles, map, mana – for desync detection.
 - `DeterminismTests`: AI game on `random:4:mirror:11`, 25 min, a checksum per minute. The build job `determinism` runs it on
-  Linux x64, Windows x64 and macOS ARM, `determinism-compare` compares. **Result: all three bit-identical.**
+  Linux x64 and Windows x64; the macOS ARM leg is the separate job `determinism-macos`, staggered behind `package` (macOS
+  runner-pool congestion since the Nov 2026 macos-14 retirement). `determinism-compare` compares all three.
+  **Result: all three bit-identical.**
   On branches the build only runs manually (Actions → Build → Run workflow).
 
 ### Command layer (commit 1604922)
