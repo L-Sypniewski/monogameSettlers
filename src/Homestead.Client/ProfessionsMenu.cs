@@ -101,7 +101,11 @@ public sealed class ProfessionsMenu : IDisposable
             string name = Lang.T("professions." + key);
             var spinner = Spinner(row);
             batch.Draw(_spinner, spinner, Color.White);
-            if (spinner.Contains(cursor))
+            // A raise the other two shares leave no room for is greyed out (like the garrison's blocked halves).
+            bool raiseBlocked = world.Recruitment.BudgetOf(player, share) <= world.Recruitment.ShareOf(player, share);
+            if (raiseBlocked)
+                batch.Draw(pixel, SpinnerHalf(spinner, upper: true), Color.Black * 0.55f);
+            if (spinner.Contains(cursor) && !(raiseBlocked && cursor.Y < spinner.Center.Y))
                 batch.Draw(pixel, SpinnerHalf(spinner, cursor.Y < spinner.Center.Y), Color.White * 0.15f);
             int percent = (int)Math.Round(world.Recruitment.ShareOf(player, share) * 100);
             Write(batch, font, $"{sign} {percent} % {name}", new Vector2(spinner.Right + 8, spinner.Y + 6), Text, 15);

@@ -37,8 +37,13 @@ public sealed class Recruitment
         _ => _config.MaxBuilders,
     };
 
-    /// <summary>Sets a share (clamped to 0–1, rounded to whole percent).</summary>
-    public void SetShare(int player, Share share, double value) => _shares[(player, share)] = Math.Round(Math.Clamp(value, 0, 1), 2);
+    /// <summary>The most the share may take with the other two as they are (the three together stay within 100 %).</summary>
+    public double BudgetOf(int player, Share share) =>
+        Math.Max(0, Math.Round(1 - Enum.GetValues<Share>().Where(s => s != share).Sum(s => ShareOf(player, s)), 2));
+
+    /// <summary>Sets a share (clamped to 0–1, rounded to whole percent) so the three together stay within 100 %.</summary>
+    public void SetShare(int player, Share share, double value) =>
+        _shares[(player, share)] = Math.Min(Math.Round(Math.Clamp(value, 0, 1), 2), BudgetOf(player, share));
 
     /// <summary>The player's carriers and specialists (soldiers, priests, donkeys and war machines not counted), the base of the shares.</summary>
     public int Civilians(int player) =>
