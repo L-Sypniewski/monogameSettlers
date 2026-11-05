@@ -70,16 +70,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # The determinism job's macOS leg, staggered behind the macOS packaging legs on purpose:
-  # since the Nov 2 2026 macos-14 retirement the macOS standard pools are congested at t=0
-  # (github/community#211885) and a direct queue entry gets reaped ("not acquired by Runner
-  # of type hosted"), while packaging legs acquire runners reliably - so this enters the
-  # queue only as the second leg releases its runner (package-macos runs one leg at a time,
-  # max-parallel 1). macos-15 like package-macos: macos-latest (= macOS 26 arm64) pool is
-  # starved, macos-15 is a separate standard pool.
+  # The determinism job's macOS leg, staggered behind the macOS packaging legs (package-macos
+  # runs one leg at a time, max-parallel 1): since the Nov 2026 macos-14 retirement the GA
+  # pools macos-15 and macos-26 are congested (github/community#211885) - even single
+  # sequential acquisitions get reaped ("not acquired by Runner of type hosted"). xcode-27
+  # like package-macos: a standard-priced beta-preview macOS image label whose pool is nearly
+  # unused; the image content is irrelevant here (dotnet + bash), only the pool matters.
   determinism-macos:
     needs: package-macos
-    runs-on: macos-15
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
         with:
@@ -188,14 +187,16 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # package's macOS legs, split out and serialized: since the Nov 2 2026 macos-14 retirement
-  # the macOS standard pools are congested (github/community#211885), and parallel legs each
-  # took a separate lottery ticket for runner acquisition. max-parallel 1 keeps at most ONE
-  # macOS runner at a time - the second leg queues as the first finishes, on the runner the
-  # first just released.
+  # package's macOS legs, split out and serialized (max-parallel 1: at most ONE macOS runner
+  # at a time). Since the Nov 2 2026 macos-14 retirement the GA pools macos-15 and macos-26
+  # are congested (github/community#211885) - parallel legs each took a separate lottery
+  # ticket for runner acquisition, and even single sequential acquisitions get reaped. Hence
+  # xcode-27: a standard-priced beta-preview macOS image label whose pool is nearly unused.
+  # The image content is irrelevant to this job (dotnet + ditto/zip + bash), only the pool
+  # matters; beta images have no SLA, acceptable for CI.
   package-macos:
     needs: test
-    runs-on: macos-15  # pinned: macos-latest (= macOS 26 arm64) pool is starved since the Nov 2 2026 macos-14 retirement (github/community#211885); macos-15 is a separate standard pool
+    runs-on: xcode-27  # standard-priced beta-preview label with a nearly unused pool - GA pools congested, github/community#211885 (full rationale in the job comment above)
     strategy:
       max-parallel: 1
       matrix:
