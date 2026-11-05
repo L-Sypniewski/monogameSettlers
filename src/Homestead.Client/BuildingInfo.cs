@@ -356,11 +356,23 @@ public sealed partial class BuildingInfo
         bool assembling = world.Shipping.Building(building) is not null || world.WarMachines.Current(building) is not null;
         Write(batch, font, Lang.T(building.State == BuildingState.Finished && !assembling ? "building.goods" : "building.material"), new Vector2(Left, y), Label, 12);
         y += 16;
+        // The goods sit centered in the space below the label: two columns (one for a single good), the
+        // block midway between the label and the panel's end.
+        int columns = goods.Count == 1 ? 1 : 2;
+        int rows = (goods.Count + columns - 1) / columns;
+        int cellWidth = Inner / columns;
+        int offset = (Inner - columns * cellWidth) / 2;
+        y += Math.Max(0, (limit - y - rows * 32) / 2);
         for (int i = 0; i < goods.Count; i++)
         {
-            var cell = new Rectangle(Left + i % 2 * (Inner / 2), y + i / 2 * 32, Inner / 2, 30);
+            var cell = new Rectangle(Left + offset + i % columns * cellWidth, y + i / columns * 32, cellWidth, 30);
             if (cell.Bottom > limit)
                 break;
+            if (goods.Count == 1)
+            {
+                int width = 29 + (int)Math.Round(font.Measure(goods[i].Text).X);
+                cell = new Rectangle(cell.Center.X - width / 2, cell.Y, width, 30);
+            }
             economy.DrawMaterialIcon(batch, goods[i].Material, new Rectangle(cell.X, cell.Y, 26, 28));
             Write(batch, font, goods[i].Text, new Vector2(cell.X + 29, cell.Y + 6), Text);
         }
