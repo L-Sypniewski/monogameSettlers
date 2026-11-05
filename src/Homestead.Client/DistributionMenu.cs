@@ -25,8 +25,8 @@ public sealed class DistributionMenu
     private readonly List<(GoodsGrid.Good Good, List<(string Target, string Name)> Targets)> _goods = new();
     private int _chosen;
 
-    /// <summary>The chosen good the caption line counts were wrapped for, and the counts.</summary>
-    private (int Chosen, int[] Lines) _captionLines = (-1, Array.Empty<int>());
+    /// <summary>The chosen good and font the caption line counts were wrapped for, and the counts.</summary>
+    private (int Chosen, UiFont? Font, int[] Lines) _captionLines = (-1, null, Array.Empty<int>());
 
     /// <summary>The target whose bar is being dragged, while the button is held.</summary>
     private string? _dragging;
@@ -66,11 +66,11 @@ public sealed class DistributionMenu
 
     private static int EntryX => Left + 42;
 
-    /// <summary>Line count of each of the chosen good's target captions, wrapped once per chosen good.</summary>
+    /// <summary>Line count of each of the chosen good's target captions, wrapped once per chosen good and font.</summary>
     private int[] CaptionLines(UiFont font)
     {
-        if (_captionLines.Chosen != _chosen)
-            _captionLines = (_chosen, _goods.Count == 0 ? Array.Empty<int>()
+        if (_captionLines.Chosen != _chosen || !ReferenceEquals(_captionLines.Font, font))
+            _captionLines = (_chosen, font, _goods.Count == 0 ? Array.Empty<int>()
                 : _goods[_chosen].Targets.Select(t => font.Wrap(t.Name, Left + Width - EntryX, 15).Count()).ToArray());
         return _captionLines.Lines;
     }
