@@ -308,8 +308,8 @@ public sealed class EconomyRenderer
     }
 
     /// <summary>
-    /// The finished building as in the game (unscaled), standing on the bottom of the box and centered;
-    /// what does not fit is cut off at the sides and the top.
+    /// The finished building as in the game, standing on the bottom of the box and centered, scaled down
+    /// to fit it - so never cut off at the sides and the top.
     /// </summary>
     public void DrawBuildingImage(SpriteBatch batch, BuildingDefinition definition, Rectangle box, Color playerColor)
     {
@@ -318,9 +318,10 @@ public sealed class EconomyRenderer
         if (bounds.Count == 0)
             return;
         var all = bounds.Aggregate(Rectangle.Union);
-        var anchor = new Vector2(box.Center.X - all.Center.X, box.Bottom - all.Bottom);
+        float scale = Math.Min(1f, Math.Min((box.Width - 4f) / all.Width, (box.Height - 4f) / all.Height));
+        var anchor = new Vector2(box.Center.X - (all.X + all.Width / 2f) * scale, box.Bottom - (all.Y + all.Height) * scale);
         foreach (var (sprites, frame) in layers)
-            sprites.DrawClipped(batch, frame, anchor, box, playerColor);
+            sprites.Draw(batch, frame, anchor, scale, playerColor);
     }
 
     /// <summary>A small pile of one unit of a good fitted into a box (info panel).</summary>
