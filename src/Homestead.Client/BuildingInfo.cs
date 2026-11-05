@@ -50,7 +50,7 @@ public sealed partial class BuildingInfo
     private int _demolishImage;
 
     /// <summary>Stop work (house), go on (hand), the highest priority and the same given (<c>buildingInfo</c> in <c>ui.json</c>);
-    /// the work area's own rings come from <see cref="CreateWorkAreaIcon"/>.</summary>
+    /// the work area's own rings come from <see cref="LoadWorkAreaIcon"/>.</summary>
     private Texture2D? _pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon, _workAreaIcon;
 
     private readonly int[] _headImages;
@@ -85,7 +85,7 @@ public sealed partial class BuildingInfo
             return texture;
         }).ToArray();
         (_pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon) = (head[0], head[1], head[2], head[3]);
-        _workAreaIcon = CreateWorkAreaIcon(device);
+        _workAreaIcon = LoadWorkAreaIcon(device);
         LoadMarketIcons(device, gui, ui);
         LoadDockyardIcons(device, gfx, gui, ui);
         LoadWarWorksIcons(device, gfx, ui);
