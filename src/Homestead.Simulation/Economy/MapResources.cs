@@ -4,16 +4,17 @@ namespace Homestead.Simulation.Economy;
 
 /// <summary>
 /// The map's own lifecycle: saplings become trees, crops grow stage by stage and stumps of felled trees
-/// rot away; depleted resource fields regain their amount step by step. The per-kind depletion counters
-/// decide when a gathered unit uses up the ground; spells reach in through <see cref="Hasten"/>,
-/// <see cref="GrowsSlowerThan"/> and <see cref="BurnTree"/>.
+/// rot away; depleted resource fields regain their amount step by step. The per-kind depletion counter
+/// (<see cref="_depletionDue"/>) and the per-point bookkeeping counters (<see cref="_stoneCuts"/>,
+/// <see cref="_resourceTaken"/>) decide when a gathered unit uses up the ground; spells reach in through
+/// <see cref="Hasten"/>, <see cref="GrowsSlowerThan"/> and <see cref="BurnTree"/>.
 /// </summary>
 public sealed partial class Production
 {
     /// <summary>Saplings and crops (by point index) and when they change next.</summary>
     private readonly Dictionary<int, long> _growing = new();
 
-    /// <summary>Stones already taken at the current size of a quarry stone (see StonesPerCut).</summary>
+    /// <summary>Stones already taken at the current size of a quarry stone (see StonesPerCut); advanced by the stone step in Production.FinishGathering.</summary>
     private readonly Dictionary<int, int> _stoneCuts = new();
 
     /// <summary>Units already taken at the current amount step of a resource field (see OrePerAmount).</summary>

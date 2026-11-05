@@ -69,7 +69,8 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
     Abriss/Verlust der Imkerei nimmt ihre Stöcke sofort mit. Stock voll in 720 s, mit `idealTrees` (10) ausgewachsenen Bäumen im Umkreis `treeRadius` (5) `1 + treeBonus` (3) × so schnell = 240 s
     (12 Stöcke à ~20 s Erntegang → 3 Honig/min wie im Original; weniger Bäume anteilig).
   - `MapResources` (`Production`-Teil `MapResources.cs`): Setzlinge und Feldfrüchte wachsen stufenweise, Stümpfe verrotten, erschöpfte Rohstofffelder
-    regenerieren (`Regenerate`); Erschöpfung je Art über `UsesUp`/`TakeResource` (`_depletionDue`), Zauber greifen über `Hasten`/`GrowsSlowerThan`/`BurnTree` ein.
+    regenerieren (`Grow`, `Regenerate`); Erschöpfung je Art über `UsesUp` (`_depletionDue`), je Feld über `TakeResource` (`_resourceTaken`/`_regenerating`),
+    Steine schrumpfen über `UsesUp`/`_stoneCuts`; Zauber greifen über `Hasten`/`GrowsSlowerThan`/`BurnTree` ein.
   - `Healing`: Lazarett-Heiler ruft den schwächsten (wenigste LP, Gleichstand: nächster) verwundeten untätigen eigenen Soldaten im Umkreis
     `hospital.callRadius` (40) auf den Heilplatz vor der Tür (`HealSpotOf`; Haltende nicht); wer still neben Tür, Heilerplatz oder Heilplatz steht,
     wird ohne Ruf geheilt (der schwächste zuerst),
