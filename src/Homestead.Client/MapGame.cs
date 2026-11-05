@@ -814,7 +814,7 @@ public sealed class MapGame : Game
         _buildingInfo.Issue = IssueReported;
         _buildingInfo.LoadIcons(GraphicsDevice, _gfx);
         _spellMenu.LoadIcons(GraphicsDevice, _gfx);
-        _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf);
+        _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf, _font);
         _transportMenu?.Dispose();
         _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid);
         _buildingInfo.StorehouseGoods = _goodsGrid;

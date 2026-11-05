@@ -20,8 +20,8 @@ public sealed class DistributionMenu
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Color Selected = new(220, 30, 20);
     private const int IconStep = 34;
-    private const int EntryHeight = 46;
 
+    private readonly UiFont _font;
     private readonly GoodsGrid _grid;
     private readonly List<(GoodsGrid.Good Good, List<(string Target, string Name)> Targets)> _goods = new();
     private int _chosen;
@@ -29,9 +29,10 @@ public sealed class DistributionMenu
     /// <summary>The target whose bar is being dragged, while the button is held.</summary>
     private string? _dragging;
 
-    public DistributionMenu(GoodsGrid grid, BuildingCatalog catalog, Func<BuildingDefinition, string> nameOf)
+    public DistributionMenu(GoodsGrid grid, BuildingCatalog catalog, Func<BuildingDefinition, string> nameOf, UiFont font)
     {
         _grid = grid;
+        _font = font;
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
         var buildings = catalog.All.Where(b => b.Name != "stock").ToList();
         foreach (var entry in document.RootElement.GetProperty("distributionMenu").GetProperty("goods").EnumerateArray())
@@ -63,8 +64,19 @@ public sealed class DistributionMenu
     private static Rectangle Icon(int i) => new(Left, Top + i * IconStep, GoodsGrid.IconSize, GoodsGrid.IconSize);
 
     private static int EntryX => Left + 42;
-    private static int EntryY(int i) => Top + i * EntryHeight;
-    private static Rectangle Bar(int i) => new(EntryX + 46, EntryY(i) + 21, Left + Width - EntryX - 46, ShareBar.Height);
+
+    /// <summary>Captions that do not fit the content width wrap; a row grows by one line's height per extra line.</summary>
+    private int CaptionLines(string name) => _font.Wrap(name, Left + Width - EntryX, 15).Count();
+
+    private int EntryHeight => _goods.Count == 0 ? 46 : 46 + 17 * (_goods[_chosen].Targets.Max(t => CaptionLines(t.Name)) - 1);
+
+    private int EntryY(int i) => Top + i * EntryHeight;
+
+    private bool RowFits(int i) => EntryY(i) + EntryHeight <= BuildMenu.Content.Bottom;
+
+    private int PercentY(int i) => EntryY(i) + (CaptionLines(_goods[_chosen].Targets[i].Name) - 1) * 17 + 20;
+
+    private Rectangle Bar(int i) => new(EntryX + 46, PercentY(i) + 1, Left + Width - EntryX - 46, ShareBar.Height);
 
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
     {
@@ -83,11 +95,18 @@ public sealed class DistributionMenu
         double total = targets.Sum(t => world.Logistics.ShareOf(player, good.Material, t.Target));
         for (int i = 0; i < targets.Count; i++)
         {
+            if (!RowFits(i))
+                break;
             var (target, name) = targets[i];
             double share = world.Logistics.ShareOf(player, good.Material, target);
-            SelectionPanel.Shadowed(batch, font, name, new Vector2(EntryX, EntryY(i)), 15, Text);
+            int y = EntryY(i);
+            foreach (string line in _font.Wrap(name, Left + Width - EntryX, 15))
+            {
+                SelectionPanel.Shadowed(batch, font, line, new Vector2(EntryX, y), 15, Text);
+                y += 17;
+            }
             string percent = $"{(total > 0 ? share / total * 100 : 0):0}%";
-            SelectionPanel.Shadowed(batch, font, percent, new Vector2(EntryX, EntryY(i) + 20), 15, Text);
+            SelectionPanel.Shadowed(batch, font, percent, new Vector2(EntryX, PercentY(i)), 15, Text);
             ShareBar.Draw(batch, pixel, Bar(i), share);
         }
     }
@@ -113,7 +132,7 @@ public sealed class DistributionMenu
                     return $"{_goods[i].Good.Name}: distribution";
                 }
             for (int i = 0; i < targets.Count; i++)
-                if (Bar(i).Contains(panel))
+                if (RowFits(i) && Bar(i).Contains(panel))
                     _dragging = targets[i].Target;
         }
         if (_dragging is not { } dragged || targets.FindIndex(t => t.Target == dragged) is var index && index < 0)
@@ -133,7 +152,7 @@ public sealed class DistributionMenu
         {
             var (good, targets) = _goods[_chosen];
             for (int i = 0; i < targets.Count; i++)
-                if (Bar(i).Contains(panel))
+                if (RowFits(i) && Bar(i).Contains(panel))
                     return $"{good.Name} for {targets[i].Name} (click or drag; empty: only when no one else wants it)";
         }
         return null;
