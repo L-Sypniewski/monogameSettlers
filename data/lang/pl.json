@@ -591,12 +591,14 @@
     "geologists": "Geolodzy",
     "pioneers": "Pionierzy",
     "scouts": "Zwiadowcy",
-    "share": "Udział {0}: ±5 %",
-    "findWorld": "Zaznacz wszystkich {0} na mapie",
-    "findScreen": "Zaznacz wszystkich {0} na ekranie",
-    "findOne": "Przejdź do następnego z {0}",
-    "convert": "Zamień {0} tragarzy na {1}",
-    "toCarriers": "{0} Pionier(ów) na tragarzy"
+    "share": "Udział – {0}: ±5 %",
+    "shareFull": "{0}: udziały sumują się już do 100 %",
+    "shareZero": "{0}: udział wynosi już 0 %",
+    "findWorld": "Zaznacz wszystkich na mapie: {0}",
+    "findScreen": "Zaznacz wszystkich na ekranie: {0}",
+    "findOne": "Przejdź do następnego: {0}",
+    "convert": "Zamień {0} tragarzy: {1}",
+    "toCarriers": "{0} pionier(ów) na tragarzy"
   },
   "selection": {
     "steal": "Kradnij materiały",
@@ -656,11 +658,11 @@
     "fog": "Mgła wojny wł./wył."
   },
   "building": {
-    "workArea": "Ustal nowy rejon prac:",
-    "workAreaArmed": "Wybierz nowy rejon do pracy",
-    "workAreaUndone": "Cofnięto wybór obszaru roboczego",
-    "workAreaMoved": "Przesunięto obszar roboczy na {0},{1}",
-    "workAreaMovedCapped": "Przesunięto obszar roboczy na {0},{1} (najwyżej {2} pól)",
+    "workArea": "Ustal nowy rejon prac",
+    "workAreaArmed": "Wybierz nowy rejon prac",
+    "workAreaUndone": "Cofnięto wybór rejonu prac",
+    "workAreaMoved": "Przesunięto rejon prac na {0},{1}",
+    "workAreaMovedCapped": "Przesunięto rejon prac na {0},{1} (najwyżej {2} pól)",
     "gatheringPointMoved": "Przesunięto punkt zbiórki na {0},{1}",
     "ammoLoads": "Amunicja: {0}",
     "trade": "Handel-Ląd",

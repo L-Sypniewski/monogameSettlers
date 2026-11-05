@@ -183,9 +183,9 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
                 bool up = panel.Y < Spinner(row).Center.Y;
                 // The half Draw greys out neither commands nor sounds, like the garrison's blocked halves.
                 if (up && world.Recruitment.BudgetOf(player, share) <= world.Recruitment.ShareOf(player, share))
-                    return $"{name}: the shares already sum to 100 %";
+                    return Lang.T("professions.shareFull", Lang.T("professions." + Shares[row].Key));
                 if (!up && world.Recruitment.ShareOf(player, share) <= 0)
-                    return $"{name}: its share is already 0 %";
+                    return Lang.T("professions.shareZero", Lang.T("professions." + Shares[row].Key));
                 issue(new SetRecruitmentShare(player, share, world.Recruitment.ShareOf(player, share) + (up ? Step : -Step)),
                     _ => $"{name}: {world.Recruitment.ShareOf(player, share) * 100:0} %");
                 UiSounds.Step(up);

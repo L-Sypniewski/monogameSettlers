@@ -9,7 +9,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
 
 ## Verbindliche Regeln
 - Keine Original-Assets (GFX, SND, Karten, Musik, exportierte PNGs) in Repo oder Build. Prüf-Exporte nur in temporäre Verzeichnisse.
-  Einzige Ausnahme: README-Screenshots in `docs/screenshots/` (in `.gitignore` freigegeben).
+  Einzige Ausnahmen: README-Screenshots in `docs/screenshots/` und die selbst generierten UI-Icons in `data/ui-icons/` (`tools/gen-ui-icons.py`, beide in `.gitignore` freigegeben).
 - Original-EXE/-DLLs (auch `GFX/Siedler3_18…dat`, eine DLL) nie dekompilieren, disassemblieren, analysieren. Nur Datenformate.
 - Kein Kopierschutz/DRM umgehen.
 - JSettlers-Code (MIT) darf übernommen werden → `THIRD_PARTY_NOTICES.md` pflegen.

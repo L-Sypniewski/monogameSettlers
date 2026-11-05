@@ -21,6 +21,10 @@ public sealed class TransportMenu : IPanelMenu, IDisposable
     private static readonly Color Selected = new(220, 30, 20);
     internal static readonly Color StoredDot = new(60, 210, 60);
     internal static readonly Color NotStoredDot = new(225, 45, 30);
+
+    /// <summary>The buttons' lang keys in button order; the tooltip and the hover text both consume them, so the pairing cannot drift.</summary>
+    private static readonly string[] ButtonKeys =
+        ["transport.store", "transport.doNotStore", "transport.top", "transport.up", "transport.down", "transport.bottom"];
     private const int Columns = 6;
     private const int ColumnStep = 31;
     private const int Stair = 4;
@@ -183,10 +187,9 @@ public sealed class TransportMenu : IPanelMenu, IDisposable
         for (int i = 0; i < goods.Count; i++)
             if (IconAt(goods[i]).Contains(panel))
                 return $"{goods[i].Name}: {Lang.T("transport.place", i + 1)}";
-        string[] keys = ["transport.store", "transport.doNotStore", "transport.top", "transport.up", "transport.down", "transport.bottom"];
-        for (int i = 0; i < _buttons.Length && i < keys.Length; i++)
+        for (int i = 0; i < _buttons.Length && i < ButtonKeys.Length; i++)
             if (Button(i).Contains(panel))
-                return Lang.T(keys[i]);
+                return Lang.T(ButtonKeys[i]);
         return null;
     }
 
@@ -196,10 +199,9 @@ public sealed class TransportMenu : IPanelMenu, IDisposable
         foreach (var good in Ordered(world, player))
             if (IconAt(good).Contains(panel))
                 return $"{good.Name}: {(world.Logistics.IsStored(player, good.Material) ? "goes to storehouses" : "stays with its producer")}";
-        string[] names = ["store", "do not store", "highest priority", "priority +1", "priority -1", "lowest priority"];
-        for (int i = 0; i < _buttons.Length && i < names.Length; i++)
+        for (int i = 0; i < _buttons.Length && i < ButtonKeys.Length; i++)
             if (Button(i).Contains(panel))
-                return _chosen is null ? $"{names[i]} (choose a good first)" : names[i];
+                return _chosen is null ? $"{Lang.T(ButtonKeys[i])} (choose a good first)" : Lang.T(ButtonKeys[i]);
         return null;
     }
 

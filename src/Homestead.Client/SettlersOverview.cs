@@ -126,7 +126,7 @@ public sealed class SettlersOverview : IPanelMenu, IDisposable
     /// <summary>The kind's localized name (the soldiers' types reuse the soldiers menu's names).</summary>
     private static string NameOf(string kind) => kind switch
     {
-        SettlerKinds.Swordsman or SettlerKinds.Bowman or SettlerKinds.Pikeman => Lang.Find("soldiers.types." + kind[0] + kind[1..].ToLowerInvariant()) ?? kind,
+        SettlerKinds.Swordsman or SettlerKinds.Bowman or SettlerKinds.Pikeman => SettlerKinds.TypeName(kind),
         _ => Lang.T("settlers." + kind.ToLowerInvariant()),
     };
 
@@ -183,4 +183,7 @@ internal static class SettlerKinds
     public const string Thief = "THIEF";
     public const string Pioneer = "PIONEER";
     public const string Donkey = "DONKEY";
+
+    /// <summary>The soldier type's localized name; the one place the <c>soldiers.types.*</c> keys are derived from a kind.</summary>
+    public static string TypeName(string kind) => Lang.Find("soldiers.types." + kind[0] + kind[1..].ToLowerInvariant()) ?? kind;
 }
