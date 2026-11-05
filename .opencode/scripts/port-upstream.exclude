@@ -10,6 +10,7 @@ docs/sessions/
 docs/reviews/
 .mise.toml
 .shipflow.json
+.herdr-workflow.json
 AGENTS.md
 opencode.jsonc
 skills-lock.json

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Client.Terrain;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
@@ -27,21 +26,12 @@ public sealed class WarMachineRenderer
 
     private sealed record Look(int File, int Body, int? Wheels, int Fire, int? Shot, bool ShotPerDirection, bool Walks);
 
-    public WarMachineRenderer(SpriteLibrary library)
+    public WarMachineRenderer(SpriteLibrary library, UiLayout ui)
     {
         _library = library;
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        if (!document.RootElement.TryGetProperty("warMachines", out var machines))
-            return;
-        foreach (var people in machines.EnumerateObject().Where(p => !p.Name.StartsWith('_')))
-        {
-            var e = people.Value;
-            int? Optional(string name) => e.TryGetProperty(name, out var v) ? v.GetInt32() : null;
-            _looks[Enum.Parse<Civilization>(people.Name)] = new Look(e.GetProperty("file").GetInt32(), e.GetProperty("body").GetInt32(),
-                Optional("wheels"), e.GetProperty("fire").GetInt32(), Optional("shot"),
-                e.TryGetProperty("shotPerDirection", out var perDirection) && perDirection.GetBoolean(),
-                e.TryGetProperty("walks", out var walks) && walks.GetBoolean());
-        }
+        foreach (var (people, look) in ui.WarMachines.Peoples)
+            _looks[Enum.Parse<Civilization>(people)] = new Look(look.File, look.Body, look.Wheels, look.Fire, look.Shot,
+                look.ShotPerDirection, look.Walks);
     }
 
     /// <summary>Index of a direction in the original's order (SW, W, NW, NE, E, SE).</summary>

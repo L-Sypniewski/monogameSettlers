@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation.Buildings;
 using Microsoft.Xna.Framework;
@@ -50,10 +49,8 @@ public sealed class LoadingScreen : IDisposable
 
     /// <param name="campaign">The campaign of the game (<c>settlers</c>, <c>missionCd</c>, <c>amazons</c>), null for a free game.</param>
     /// <param name="theme">Other than normal, the theme's picture whatever the campaign.</param>
-    public LoadingScreen(GraphicsDevice device, GfxDirectory gfx, string? campaign, Theme theme)
+    public LoadingScreen(GraphicsDevice device, GfxDirectory gfx, string? campaign, Theme theme, UiLayout ui)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var look = document.RootElement.GetProperty("loadingScreen");
         campaign = theme switch
         {
             Theme.Gold => null,
@@ -61,9 +58,9 @@ public sealed class LoadingScreen : IDisposable
             Theme.Amazons => "amazons",
             _ => campaign,
         };
-        if (campaign is null || !look.TryGetProperty(campaign, out var image))
-            image = look.GetProperty("game");
-        var bitmap = gfx.Open(image[0].GetInt32()).ReadGui(image[1].GetInt32());
+        var image = campaign is not null && ui.LoadingScreen.TryGetValue(campaign, out var campaignImage) ? campaignImage
+            : ui.LoadingScreen["game"];
+        var bitmap = gfx.Open(image.File).ReadGui(image.Index);
         _image = new Texture2D(device, bitmap.Width, bitmap.Height);
         _image.SetData(bitmap.Pixels);
     }

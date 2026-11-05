@@ -41,7 +41,7 @@ public sealed partial class BuildingInfo
     /// <summary>The good the buttons below the goods change.</summary>
     public Material TradeGood { get; private set; } = Material.Plank;
 
-    private void LoadMarketIcons(GraphicsDevice device, GfxFile gui)
+    private void LoadMarketIcons(GraphicsDevice device, GfxFile gui, UiLayout ui)
     {
         Texture2D Load(int index)
         {
@@ -51,29 +51,28 @@ public sealed partial class BuildingInfo
             return texture;
         }
 
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var market = document.RootElement.GetProperty("market");
-        _routeStrip = Load(market.GetProperty("route").GetInt32());
-        _seaRouteStrip = Load(market.GetProperty("seaRoute").GetInt32());
-        _allIcon = Load(market.GetProperty("all").GetInt32());
-        _noneIcon = Load(market.GetProperty("none").GetInt32());
-        _tradeArrows = document.RootElement.GetProperty("soldiersMenu").GetProperty("arrows").EnumerateArray().Select(i => Load(i.GetInt32())).ToArray();
+        var market = ui.Market;
+        _routeStrip = Load(market.Route);
+        _seaRouteStrip = Load(market.SeaRoute);
+        _allIcon = Load(market.All);
+        _noneIcon = Load(market.None);
+        _tradeArrows = ui.SoldiersMenu.Arrows.Select(Load).ToArray();
     }
 
     // Layout (panel space): below the name the route strip, then the goods with their amounts, the buttons at the bottom.
-    private static int RouteTop => Top + DemolishSize + 4;
+    private int RouteTop => Top + DemolishSize + 4;
     private const int RouteHeight = 24;
-    private static int MarketGoodsTop => RouteTop + RouteHeight + 6;
+    private int MarketGoodsTop => RouteTop + RouteHeight + 6;
     private const int MarketRow = 41;
-    private static Rectangle AllButton => new(Left, Bottom - 32, 30, 30);
-    private static Rectangle NoneButton => new(Left + 34, Bottom - 32, 30, 30);
-    private static Rectangle TradeArrow(int i) => new(Left + Inner - (4 - i) * 22 - 2, Bottom - 32, 20, 30);
+    private Rectangle AllButton => new(Left, Bottom - 32, 30, 30);
+    private Rectangle NoneButton => new(Left + 34, Bottom - 32, 30, 30);
+    private Rectangle TradeArrow(int i) => new(Left + Inner - (4 - i) * 22 - 2, Bottom - 32, 20, 30);
 
     /// <summary>
     /// A button of the route strip: the stops, then the destination, side by side; at a harbor (<paramref name="sea"/>) after
     /// the dock button (<paramref name="i"/> −1).
     /// </summary>
-    private static Rectangle RouteButton(int i, bool sea)
+    private Rectangle RouteButton(int i, bool sea)
     {
         int count = Trade.Stops + (sea ? 2 : 1), at = i + (sea ? 1 : 0);
         return new(Left + at * Inner / count, RouteTop, Inner / count, RouteHeight);
@@ -95,9 +94,9 @@ public sealed partial class BuildingInfo
             if (world.Shipping.DockOf(building) is null)
                 batch.Draw(pixel, dock, Color.Black * 0.45f);
             if (AimsDock(building))
-                Frame(batch, pixel, dock, Color.White);
+                PanelUi.Frame(batch, pixel, dock, Color.White, 2);
             else if (dock.Contains(cursor))
-                batch.Draw(pixel, dock, HoverColor);
+                PanelUi.HoverOverlay(batch, pixel, dock);
         }
         for (int i = 0; i <= Trade.Stops; i++)
         {
@@ -106,20 +105,20 @@ public sealed partial class BuildingInfo
             if (!set)
                 batch.Draw(pixel, button, Color.Black * 0.45f);
             if (i == RouteSlot && AimsRoute(building))
-                Frame(batch, pixel, button, Color.White);
+                PanelUi.Frame(batch, pixel, button, Color.White, 2);
             else if (button.Contains(cursor))
-                batch.Draw(pixel, button, HoverColor);
+                PanelUi.HoverOverlay(batch, pixel, button);
         }
 
         var grid = StorehouseGoods!;
         grid.Draw(batch, MarketGoodsTop, MarketRow);
         foreach (var good in grid.Goods)
         {
-            var rect = GoodsGrid.IconRect(good, MarketGoodsTop, MarketRow);
+            var rect = grid.IconRect(good, MarketGoodsTop, MarketRow);
             if (good.Material == TradeGood)
-                Frame(batch, pixel, rect, Selected);
+                PanelUi.Frame(batch, pixel, rect, Selected, 2);
             else if (rect.Contains(cursor))
-                batch.Draw(pixel, rect, HoverColor);
+                PanelUi.HoverOverlay(batch, pixel, rect);
             int amount = trade.Remaining(building, good.Material);
             if (amount == Trade.Unlimited)
                 batch.Draw(_allIcon!, new Rectangle(rect.Center.X - 7, rect.Bottom, 14, 11), Color.White);
@@ -140,16 +139,8 @@ public sealed partial class BuildingInfo
         {
             batch.Draw(icon, rect, Color.White);
             if (rect.Contains(cursor))
-                batch.Draw(pixel, rect, HoverColor);
+                PanelUi.HoverOverlay(batch, pixel, rect);
         }
-    }
-
-    private static void Frame(SpriteBatch batch, Texture2D pixel, Rectangle rect, Color color)
-    {
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 2), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 2, rect.Width, 2), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, 2, rect.Height), color);
-        batch.Draw(pixel, new Rectangle(rect.Right - 2, rect.Y, 2, rect.Height), color);
     }
 
     /// <summary>A click on a market's panel (panel space). Returns a message, or null if it hit nothing.</summary>

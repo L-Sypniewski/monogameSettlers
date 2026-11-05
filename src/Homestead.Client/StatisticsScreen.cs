@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
@@ -47,13 +46,11 @@ public sealed class StatisticsScreen : IDisposable
     public int Page { get; set; }
 
     public StatisticsScreen(GraphicsDevice device, GfxDirectory gfx, World world, string mapName, GoodsGrid? goods, bool canResume,
-        string? quitLabel = null)
+        UiLayout ui, string? quitLabel = null)
     {
         _quitLabel = quitLabel ?? Lang.T("statistics.mainMenu");
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var root = document.RootElement;
-        var background = root.GetProperty("statisticsBackground");
-        var bitmap = gfx.Open(background.GetProperty("file").GetInt32()).ReadGui(background.GetProperty("gui").GetInt32());
+        var background = ui.StatisticsBackground;
+        var bitmap = gfx.Open(background.File).ReadGui(background.Index);
         _background = new Texture2D(device, bitmap.Width, bitmap.Height);
         _background.SetData(bitmap.Pixels);
 

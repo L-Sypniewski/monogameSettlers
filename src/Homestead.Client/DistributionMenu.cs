@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Simulation;
 using Homestead.Simulation.Commands;
 using Homestead.Simulation.Buildings;
@@ -15,15 +14,20 @@ namespace Homestead.Client;
 /// (<see cref="Logistics.ShareOf"/>, <see cref="ShareBar"/>). Goods in <c>data/ui.json</c>
 /// (<c>distributionMenu</c>). Panel space.
 /// </summary>
-public sealed class DistributionMenu
+public sealed class DistributionMenu : IPanelMenu
 {
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Color Selected = new(220, 30, 20);
     private const int IconStep = 34;
 
     private readonly GoodsGrid _grid;
+    private readonly PanelLayout _layout;
     private readonly List<(GoodsGrid.Good Good, List<(string Target, string Name)> Targets)> _goods = new();
     private int _chosen;
+
+    /// <summary>The font the captions were last drawn with - hit-tests wrap with the same metrics
+    /// (null until the first draw, so bars hit-test as nothing for that one pass).</summary>
+    private UiFont? _font;
 
     /// <summary>The chosen good and font the caption line counts were wrapped for, and the counts.</summary>
     private (int Chosen, UiFont? Font, int[] Lines) _captionLines = (-1, null, Array.Empty<int>());
@@ -31,14 +35,14 @@ public sealed class DistributionMenu
     /// <summary>The target whose bar is being dragged, while the button is held.</summary>
     private string? _dragging;
 
-    public DistributionMenu(GoodsGrid grid, BuildingCatalog catalog, Func<BuildingDefinition, string> nameOf)
+    public DistributionMenu(GoodsGrid grid, BuildingCatalog catalog, Func<BuildingDefinition, string> nameOf, PanelLayout layout, UiLayout ui)
     {
         _grid = grid;
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
+        _layout = layout;
         var buildings = catalog.All.Where(b => b.Name != "stock").ToList();
-        foreach (var entry in document.RootElement.GetProperty("distributionMenu").GetProperty("goods").EnumerateArray())
+        foreach (var entry in ui.DistributionMenu.Goods)
         {
-            var material = Materials.Parse(entry.GetString()!)!.Value;
+            var material = Materials.Parse(entry)!.Value;
             var targets = new List<(string, string)>();
             if (buildings.Any(b => b.ConstructionPiles.Any(p => p.Material == material)))
                 targets.Add((Logistics.Construction, Lang.T("distribution.construction")));
@@ -58,13 +62,13 @@ public sealed class DistributionMenu
     }
 
     // Layout (panel space), top down in the content area.
-    private static int Left => BuildMenu.Content.X + 4;
-    private static int Width => BuildMenu.Content.Width - 8;
-    private static int Top => BuildMenu.Content.Y + 26; // below the title
+    private int Left => _layout.Content.X + 4;
+    private int Width => _layout.Content.Width - 8;
+    private int Top => _layout.Content.Y + 26; // below the title
 
-    private static Rectangle Icon(int i) => new(Left, Top + i * IconStep, GoodsGrid.IconSize, GoodsGrid.IconSize);
+    private Rectangle Icon(int i) => new(Left, Top + i * IconStep, GoodsGrid.IconSize, GoodsGrid.IconSize);
 
-    private static int EntryX => Left + 42;
+    private int EntryX => Left + 42;
 
     /// <summary>Line count of each of the chosen good's target captions, wrapped once per chosen good and font.</summary>
     private int[] CaptionLines(UiFont font)
@@ -81,22 +85,23 @@ public sealed class DistributionMenu
 
     private int EntryY(int i, UiFont font) => Top + i * EntryHeight(font);
 
-    private bool RowFits(int i, UiFont font) => EntryY(i, font) + EntryHeight(font) <= BuildMenu.Content.Bottom;
+    private bool RowFits(int i, UiFont font) => EntryY(i, font) + EntryHeight(font) <= _layout.Content.Bottom;
 
     private int PercentY(int i, UiFont font) => EntryY(i, font) + (CaptionLines(font)[i] - 1) * 17 + 20;
 
     private Rectangle Bar(int i, UiFont font) => new(EntryX + 46, PercentY(i, font) + 1, Left + Width - EntryX - 46, ShareBar.Height);
 
-    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
+    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor, float seconds)
     {
+        _font = font;
         for (int i = 0; i < _goods.Count; i++)
         {
             var icon = Icon(i);
             batch.Draw(_goods[i].Good.Icon, icon, Color.White);
             if (i == _chosen)
-                Frame(batch, pixel, icon);
+                PanelUi.Frame(batch, pixel, icon, Selected, 2);
             else if (icon.Contains(cursor))
-                batch.Draw(pixel, icon, Color.White * 0.15f);
+                PanelUi.HoverOverlay(batch, pixel, icon);
         }
         if (_goods.Count == 0)
             return;
@@ -124,7 +129,7 @@ public sealed class DistributionMenu
     /// Mouse handling (panel space): a press on a good chooses it, a press on a bar starts dragging it;
     /// while held, the dragged bar follows the cursor. Returns a message, or null.
     /// </summary>
-    public string? Update(Vector2 panel, UiFont font, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue)
+    public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue)
     {
         if (!pressed || _goods.Count == 0)
         {
@@ -140,24 +145,27 @@ public sealed class DistributionMenu
                     _chosen = i;
                     return $"{_goods[i].Good.Name}: distribution";
                 }
-            for (int i = 0; i < targets.Count; i++)
-                if (RowFits(i, font) && Bar(i, font).Contains(panel))
-                    _dragging = targets[i].Target;
+            if (_font is { } font)
+                for (int i = 0; i < targets.Count; i++)
+                    if (RowFits(i, font) && Bar(i, font).Contains(panel))
+                        _dragging = targets[i].Target;
         }
         if (_dragging is not { } dragged || targets.FindIndex(t => t.Target == dragged) is var index && index < 0)
             return null;
-        double share = ShareBar.ValueAt(Bar(index, font), panel.X);
+        double share = ShareBar.ValueAt(Bar(index, _font!), panel.X);
         issue(new SetDistribution(player, good.Material, dragged, share));
         return $"{good.Name} for {targets[index].Name}: share {share * 100:0} %";
     }
 
+    public void ResetInput() { }
+
     /// <summary>What the element under the point does (hover text), or null.</summary>
-    public string? Hover(Vector2 panel, UiFont font)
+    public string? Hover(Vector2 panel, World world, int player)
     {
         for (int i = 0; i < _goods.Count; i++)
             if (Icon(i).Contains(panel))
                 return $"{_goods[i].Good.Name}: show its distribution";
-        if (_goods.Count > 0)
+        if (_goods.Count > 0 && _font is { } font)
         {
             var (good, targets) = _goods[_chosen];
             for (int i = 0; i < targets.Count; i++)
@@ -174,13 +182,5 @@ public sealed class DistributionMenu
             if (Icon(i).Contains(panel))
                 return _goods[i].Good.Name;
         return null;
-    }
-
-    private static void Frame(SpriteBatch batch, Texture2D pixel, Rectangle rect)
-    {
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 2), Selected);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 2, rect.Width, 2), Selected);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, 2, rect.Height), Selected);
-        batch.Draw(pixel, new Rectangle(rect.Right - 2, rect.Y, 2, rect.Height), Selected);
     }
 }

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
@@ -19,11 +18,14 @@ public sealed class GoodsGrid : IDisposable
     public const int IconSize = 30;
     private const int CellWidth = 31;
 
+    private readonly PanelLayout _layout;
     private readonly List<Good> _goods = new();
     private readonly HashSet<Material> _makeable;
 
-    public GoodsGrid(GraphicsDevice device, GfxDirectory gfx, BuildingCatalog catalog, ProductionConfig production)
+    public GoodsGrid(GraphicsDevice device, GfxDirectory gfx, BuildingCatalog catalog, ProductionConfig production, PanelLayout layout,
+        UiLayout ui)
     {
+        _layout = layout;
         var files = new Dictionary<int, GfxFile>();
         Texture2D Load(int file, int index)
         {
@@ -35,22 +37,23 @@ public sealed class GoodsGrid : IDisposable
             return texture;
         }
 
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var root = document.RootElement;
-        var weapons = root.GetProperty("soldiersMenu").GetProperty("weapons").GetProperty(catalog.Civilization.ToString());
+        var weapons = ui.SoldiersMenu.Weapons[catalog.Civilization.ToString()];
         int row = 0;
-        foreach (var line in root.GetProperty("goodsGrid").GetProperty("goods").EnumerateArray())
+        foreach (var line in ui.GoodsGrid.Goods)
         {
             int column = 0;
-            foreach (var entry in line.EnumerateArray())
+            foreach (var entry in line)
             {
-                string good = entry.GetProperty("good").GetString()!;
-                var material = Materials.Parse(good)!.Value;
-                var icon = entry.GetProperty("icon");
-                var texture = icon.ValueKind == JsonValueKind.Array
-                    ? Load(icon[0].GetInt32(), icon[1].GetInt32())
-                    : Load(weapons.GetProperty("file").GetInt32(), weapons.GetProperty(WeaponKey(material)).GetInt32());
-                _goods.Add(new Good(material, Lang.T("goods." + good), texture, row, column++));
+                var material = Materials.Parse(entry.Good)!.Value;
+                var texture = entry.Icon is { } icon
+                    ? Load(icon.File, icon.Index)
+                    : Load(weapons.File, material switch
+                    {
+                        Material.Sword => weapons.Swordsman,
+                        Material.Bow => weapons.Bowman,
+                        _ => weapons.Pikeman,
+                    });
+                _goods.Add(new Good(material, Lang.T("goods." + entry.Good), texture, row, column++));
             }
             row++;
         }
@@ -60,13 +63,6 @@ public sealed class GoodsGrid : IDisposable
     public IReadOnlyList<Good> Goods => _goods;
 
     public bool IsMakeable(Material material) => _makeable.Contains(material);
-
-    private static string WeaponKey(Material weapon) => weapon switch
-    {
-        Material.Sword => "SWORDSMAN",
-        Material.Bow => "BOWMAN",
-        _ => "PIKEMAN",
-    };
 
     /// <summary>What the people's buildings make: workshop, mine and smith products, gathered goods (not the forester's trees).</summary>
     private static HashSet<Material> Makeable(BuildingCatalog catalog, ProductionConfig production)
@@ -92,9 +88,9 @@ public sealed class GoodsGrid : IDisposable
     }
 
     /// <summary>Where a good's icon lies: the grid centered in the content area from <paramref name="top"/> on, rows <paramref name="rowHeight"/> apart.</summary>
-    public static Rectangle IconRect(Good good, int top, int rowHeight)
+    public Rectangle IconRect(Good good, int top, int rowHeight)
     {
-        var content = BuildMenu.Content;
+        var content = _layout.Content;
         int x = content.X + (content.Width - Columns * CellWidth) / 2 + good.Column * CellWidth;
         return new Rectangle(x, top + good.Row * rowHeight, IconSize, IconSize);
     }

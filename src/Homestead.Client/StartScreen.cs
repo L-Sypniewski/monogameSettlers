@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Assets.Maps;
 using Homestead.Simulation;
@@ -150,7 +149,7 @@ public sealed class StartScreen : IDisposable
     /// <param name="local">The player played here (from 0).</param>
     /// <param name="multiplayer">Opening a multiplayer game: the players can be humans (seats) or computer players.</param>
     public StartScreen(GraphicsDevice device, GfxDirectory gfx, IReadOnlyList<string> mapFiles, string mapDirectory, int selected,
-        IReadOnlyList<Civilization>? peoples, int preferredColor = 0, int local = 0, bool multiplayer = false)
+        IReadOnlyList<Civilization>? peoples, UiLayout ui, int preferredColor = 0, int local = 0, bool multiplayer = false)
     {
         _device = device;
         _local = local;
@@ -172,31 +171,25 @@ public sealed class StartScreen : IDisposable
             return new MapEntry(index, Path.GetFileNameWithoutExtension(file), players, CategoryOf(folder));
         }).ToArray();
         _presetPeoples = peoples is { Count: > 0 } ? peoples : null;
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var look = document.RootElement.GetProperty("startScreen");
-        var file = gfx.Open(look.GetProperty("file").GetInt32());
-        Texture2D Image(string name)
+        var look = ui.StartScreen;
+        var file = gfx.Open(look.File);
+        Texture2D Image(int index)
         {
-            var bitmap = file.ReadGui(look.GetProperty(name).GetInt32());
+            var bitmap = file.ReadGui(index);
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
         }
-        Rectangle Source(string name)
-        {
-            var e = look.GetProperty(name);
-            return new Rectangle(e[0].GetInt32(), e[1].GetInt32(), e[2].GetInt32(), e[3].GetInt32());
-        }
-        _background = Image("background");
-        _marble = Image("marble");
-        _sheet = Image("sheet");
-        _rowBar = Image("rowBar");
-        _scrollTop = Image("scrollTop");
-        _scrollTrack = Image("scrollTrack");
-        _scrollBottom = Image("scrollBottom");
-        _oval = Source("oval");
-        _ovalPressed = Source("ovalPressed");
-        _handle = Source("handle");
+        _background = Image(look.Background);
+        _marble = Image(look.Marble);
+        _sheet = Image(look.Sheet);
+        _rowBar = Image(look.RowBar);
+        _scrollTop = Image(look.ScrollTop);
+        _scrollTrack = Image(look.ScrollTrack);
+        _scrollBottom = Image(look.ScrollBottom);
+        _oval = look.Oval;
+        _ovalPressed = look.OvalPressed;
+        _handle = look.Handle;
         var preset = _entries.FirstOrDefault(e => e.Index == selected);
         ShowCategory(preset?.Category ?? 1);
         Select(Math.Max(0, Array.IndexOf(_shown, preset)));

@@ -37,8 +37,11 @@ public sealed class SystemMenu
     /// <summary>The computer button at the bottom left of the panel (measured on the panel image).</summary>
     public static readonly Rectangle Button = new(10, 494, 34, 38);
 
+    private readonly PanelLayout _layout;
     private Page _page;
     private SaveInfo?[] _slots = new SaveInfo?[SaveSlots.Count];
+
+    public SystemMenu(PanelLayout layout) => _layout = layout;
 
     /// <summary>The slot chosen by the last <see cref="SystemAction.Save"/>.</summary>
     public int ChosenSlot { get; private set; }
@@ -53,12 +56,12 @@ public sealed class SystemMenu
         _page = page == "save" ? Page.Save : page == "quit" ? Page.Quit : Page.Overview;
     }
 
-    private static Rectangle Content => BuildMenu.Content;
-    private static Rectangle SaveItem => new(Content.X, Content.Y, Content.Width, 24);
-    private static Rectangle QuitItem => new(Content.X, Content.Bottom - 28, Content.Width, 24);
-    private static Rectangle Slot(int i) => new(Content.X + 4, Content.Y + 30 + i * SlotHeight, Content.Width - 8, SlotHeight - 2);
-    private static Rectangle Yes => new(Content.X + 4, Content.Bottom - 28, 70, 24);
-    private static Rectangle No => new(Content.Right - 74, Content.Bottom - 28, 70, 24);
+    private Rectangle Content => _layout.Content;
+    private Rectangle SaveItem => new(Content.X, Content.Y, Content.Width, 24);
+    private Rectangle QuitItem => new(Content.X, Content.Bottom - 28, Content.Width, 24);
+    private Rectangle Slot(int i) => new(Content.X + 4, Content.Y + 30 + i * SlotHeight, Content.Width - 8, SlotHeight - 2);
+    private Rectangle Yes => new(Content.X + 4, Content.Bottom - 28, 70, 24);
+    private Rectangle No => new(Content.Right - 74, Content.Bottom - 28, 70, 24);
 
     /// <summary>Reads what the slots hold (after saving, or when the list opens).</summary>
     public void Refresh() => _slots = Enumerable.Range(0, SaveSlots.Count).Select(SaveSlots.Info).ToArray();

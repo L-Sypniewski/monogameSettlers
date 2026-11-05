@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Commands;
@@ -16,7 +15,7 @@ namespace Homestead.Client;
 /// order or need). A click on a bar sets it, dragging moves it (<see cref="ShareBar"/>).
 /// Panel space.
 /// </summary>
-public sealed class ManufactureMenu : IDisposable
+public sealed class ManufactureMenu : IPanelMenu, IDisposable
 {
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Material[] Tools = [Material.Hammer, Material.Blade, Material.Pick, Material.Axe, Material.Saw, Material.Scythe, Material.FishingRod];
@@ -24,17 +23,18 @@ public sealed class ManufactureMenu : IDisposable
 
     private const int RowHeight = 30;
     private readonly GoodsGrid _grid;
+    private readonly PanelLayout _layout;
     private readonly Texture2D _spinner;
 
     /// <summary>The bar being dragged (its product), while the button is held.</summary>
     private Material? _dragging;
 
-    public ManufactureMenu(GraphicsDevice device, GfxDirectory gfx, GoodsGrid grid)
+    public ManufactureMenu(GraphicsDevice device, GfxDirectory gfx, GoodsGrid grid, PanelLayout layout, UiLayout ui)
     {
         _grid = grid;
+        _layout = layout;
         // The spinner of Siedler › Berufe.
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var bitmap = gfx.Open(3).ReadGui(document.RootElement.GetProperty("professionsMenu").GetProperty("spinner").GetInt32());
+        var bitmap = gfx.Open(3).ReadGui(ui.ProfessionsMenu.Spinner);
         _spinner = new Texture2D(device, bitmap.Width, bitmap.Height);
         _spinner.SetData(bitmap.Pixels);
     }
@@ -45,23 +45,23 @@ public sealed class ManufactureMenu : IDisposable
     public Texture2D SpinnerImage => _spinner;
 
     // Layout (panel space): no title, the two headings instead.
-    private static int Left => BuildMenu.Content.X + 4;
-    private static int Width => BuildMenu.Content.Width - 8;
-    private static int ToolsY => BuildMenu.Content.Y + 22;
-    private static int WeaponsHeadingY => ToolsY + Tools.Length * RowHeight + 2;
-    private static int WeaponsY => WeaponsHeadingY + 22;
+    private int Left => _layout.Content.X + 4;
+    private int Width => _layout.Content.Width - 8;
+    private int ToolsY => _layout.Content.Y + 22;
+    private int WeaponsHeadingY => ToolsY + Tools.Length * RowHeight + 2;
+    private int WeaponsY => WeaponsHeadingY + 22;
 
-    private static IEnumerable<(Material Product, int Y)> Rows() =>
+    private IEnumerable<(Material Product, int Y)> Rows() =>
         Tools.Select((m, i) => (m, ToolsY + i * RowHeight)).Concat(Weapons.Select((m, i) => (m, WeaponsY + i * RowHeight)));
 
-    private static Rectangle Icon(int y) => new(Left, y, 28, 28);
-    private static Rectangle Spinner(int y) => new(Left + 58, y, 19, 28);
-    private static Rectangle Bar(int y) => new(Left + 84, y + 5, Width - 84, ShareBar.Height);
+    private Rectangle Icon(int y) => new(Left, y, 28, 28);
+    private Rectangle Spinner(int y) => new(Left + 58, y, 19, 28);
+    private Rectangle Bar(int y) => new(Left + 84, y + 5, Width - 84, ShareBar.Height);
 
-    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
+    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor, float seconds)
     {
-        Heading(batch, font, Lang.T("manufacture.tools"), ToolsY - 22);
-        Heading(batch, font, Lang.T("manufacture.weapons"), WeaponsHeadingY);
+        PanelUi.Heading(batch, font, Lang.T("manufacture.tools"), Left, Width, ToolsY - 22);
+        PanelUi.Heading(batch, font, Lang.T("manufacture.weapons"), Left, Width, WeaponsHeadingY);
         foreach (var (product, y) in Rows())
         {
             if (_grid.Goods.FirstOrDefault(g => g.Material == product) is { } good)
@@ -73,7 +73,7 @@ public sealed class ManufactureMenu : IDisposable
             var spinner = Spinner(y);
             batch.Draw(_spinner, spinner, Color.White);
             if (spinner.Contains(cursor))
-                batch.Draw(pixel, Half(spinner, cursor.Y < spinner.Center.Y), Color.White * 0.15f);
+                PanelUi.HoverOverlay(batch, pixel, PanelUi.SpinnerHalf(spinner, cursor.Y < spinner.Center.Y));
 
             ShareBar.Draw(batch, pixel, Bar(y), world.Production.ShareOf(player, product));
         }
@@ -111,6 +111,8 @@ public sealed class ManufactureMenu : IDisposable
         return $"{NameOf(dragged)}: {share * 100:0} %";
     }
 
+    public void ResetInput() { }
+
     /// <summary>What the element under the point does (hover text), or null.</summary>
     public string? Hover(Vector2 panel, World world, int player)
     {
@@ -137,12 +139,4 @@ public sealed class ManufactureMenu : IDisposable
 
     private string NameOf(Material product) => _grid.Goods.FirstOrDefault(g => g.Material == product)?.Name ?? product.ToString();
 
-    private static Rectangle Half(Rectangle spinner, bool upper) =>
-        new(spinner.X, upper ? spinner.Y : spinner.Center.Y, spinner.Width, spinner.Height / 2);
-
-    private static void Heading(SpriteBatch batch, UiFont font, string text, int y)
-    {
-        var size = font.Measure(text, 16);
-        SelectionPanel.Shadowed(batch, font, text, new Vector2(Left + (Width - size.X) / 2, y), 16, Text);
-    }
 }

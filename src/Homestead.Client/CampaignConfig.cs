@@ -34,9 +34,22 @@ public sealed class CampaignConfig
     /// <summary>Per campaign its name (a text key).</summary>
     public IReadOnlyDictionary<string, string> Names { get; }
 
+    /// <summary>The campaigns per data directory, read once (<c>campaign.json</c> does not change while the game runs).</summary>
+    private static readonly Dictionary<string, CampaignConfig> Cache = new();
+
     public static CampaignConfig Load(string? dataDirectory = null)
     {
         string path = Path.Combine(dataDirectory ?? BuildingCatalog.DefaultDataDirectory, "campaign.json");
+        lock (Cache)
+        {
+            if (!Cache.TryGetValue(path, out var config))
+                Cache[path] = config = LoadFrom(path);
+            return config;
+        }
+    }
+
+    private static CampaignConfig LoadFrom(string path)
+    {
         using var document = JsonDocument.Parse(File.ReadAllText(path));
         var campaigns = document.RootElement.GetProperty("campaigns").EnumerateObject().ToArray();
         return new CampaignConfig(campaigns.ToDictionary(

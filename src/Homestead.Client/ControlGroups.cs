@@ -144,7 +144,7 @@ public sealed class ControlGroups
                 portraits(people).Draw(batch, type, rect, settlers, people, PlayerColors.Of(_player), scale * Portraits.Size.Y / PortraitSize(group[0]).Y);
             }
             if (rect.Contains(cursor))
-                batch.Draw(pixel, rect, Color.White * 0.15f);
+                PanelUi.HoverOverlay(batch, pixel, rect);
             SelectionPanel.Shadowed(batch, font, (index + 1).ToString(), new Vector2(rect.X + 4 * scale, rect.Y + 2 * scale), textSize);
             string count = Size(index).ToString();
             var size = font.Measure(count, textSize);

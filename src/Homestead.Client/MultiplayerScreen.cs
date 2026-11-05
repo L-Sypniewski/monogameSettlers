@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
@@ -78,22 +77,20 @@ public sealed class MultiplayerScreen : IDisposable
     private KeyboardState _previousKeys = Keyboard.GetState();
     private MouseState _previousMouse = SdlMouse.GetState();
 
-    public MultiplayerScreen(GraphicsDevice device, GfxDirectory gfx)
+    public MultiplayerScreen(GraphicsDevice device, GfxDirectory gfx, UiLayout ui)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var look = document.RootElement.GetProperty("missionScreen");
-        Texture2D Image(string name)
+        var look = ui.MissionScreen;
+        Texture2D Image(int index)
         {
-            var bitmap = gfx.Open(look.GetProperty("file").GetInt32()).ReadGui(look.GetProperty(name).GetInt32());
+            var bitmap = gfx.Open(look.File).ReadGui(index);
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
         }
-        static Rectangle Box(JsonElement e) => new(e[0].GetInt32(), e[1].GetInt32(), e[2].GetInt32(), e[3].GetInt32());
-        _background = Image("background");
-        _marble = Image("marble");
-        _headingBox = Box(look.GetProperty("heading"));
-        _list = Box(look.GetProperty("list"));
+        _background = Image(look.Background);
+        _marble = Image(look.Marble);
+        _headingBox = look.Heading;
+        _list = look.List;
         var settings = MultiplayerSettings.Load();
         _name = settings.Name;
         _server = settings.Server;

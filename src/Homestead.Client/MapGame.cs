@@ -178,7 +178,7 @@ public sealed class MapGame : Game
         if (people == Own.Civilization)
             return _portraits!;
         if (!_peoplePortraits.TryGetValue(people, out var portraits))
-            _peoplePortraits[people] = portraits = new Portraits(GraphicsDevice, _gfx, people);
+            _peoplePortraits[people] = portraits = new Portraits(GraphicsDevice, _gfx, people, _uiLayout);
         return portraits;
     }
 
@@ -197,6 +197,15 @@ public sealed class MapGame : Game
 
     /// <summary>HOMESTEAD_CAPTURE_EVENT=1: a capture run jumps to every new event, to show the arrows.</summary>
     private readonly bool _captureEvent = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVENT") == "1";
+    /// <summary>The areas of the blue side panel (panel space), the menus' shared coordinate frame.</summary>
+    private readonly PanelLayout _panelLayout = new(new Rectangle(10, 118, 196, 354), new Rectangle(10, 64, 196, 39));
+    /// <summary>Everything the screens and menus read from <c>data/ui.json</c> (loaded once, pure data).</summary>
+    private readonly UiLayout _uiLayout = UiLayout.Load();
+    /// <summary>The open sub-menu of the side panel by its id in <c>panelTabs.menus</c> (made per people).</summary>
+    private readonly Dictionary<string, IPanelMenu> _panelMenus = new();
+    /// <summary>The sub-menu whose <see cref="IPanelMenu.Update"/> ran this input pass (null while none does):
+    /// the next pass resets a menu that was absent, whatever switched it away mid-press.</summary>
+    private string? _menuUpdated;
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
     private ProfessionsMenu? _professionsMenu;
@@ -208,19 +217,19 @@ public sealed class MapGame : Game
     private TransportMenu? _transportMenu;
     private bool _captureManualRecruitment;
     private readonly int? _loadSlot;
-    private readonly SystemMenu _systemMenu = new();
+    private SystemMenu _systemMenu = null!;
     private Homestead.Simulation.Economy.Material? _captureGood;
     private SidePanel _sidePanel = null!;
     private Minimap? _minimap;
-    private readonly SelectionPanel _selectionPanel = new();
-    private readonly SpellMenu _spellMenu = new();
+    private SelectionPanel _selectionPanel = null!;
+    private SpellMenu _spellMenu = null!;
 
     /// <summary>A spell button was clicked: the next click on the map casts <see cref="_aimSpell"/>.</summary>
     private bool _aiming;
     private Spell? _aimSpell;
     private ControlGroups _controlGroups = new(0);
     private readonly CheatMenu _cheats = new();
-    private readonly BuildingInfo _buildingInfo = new();
+    private BuildingInfo _buildingInfo = null!;
     private UiFont _font = null!;
     private int _placeIndex;
     private bool _placing;
@@ -417,6 +426,10 @@ public sealed class MapGame : Game
 
     protected override void LoadContent()
     {
+        _systemMenu = new SystemMenu(_panelLayout);
+        _selectionPanel = new SelectionPanel(_panelLayout);
+        _spellMenu = new SpellMenu(_panelLayout, _uiLayout);
+        _buildingInfo = new BuildingInfo(_panelLayout, _uiLayout);
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         Window.TextInput += (_, e) =>
         {
@@ -456,8 +469,8 @@ public sealed class MapGame : Game
         };
         _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
         _sidePanel = new SidePanel(GraphicsDevice, _gfx);
-        TextButton.Load(GraphicsDevice, _gfx);
-        _tabs = new PanelTabs(GraphicsDevice, _gfx);
+        TextButton.Load(GraphicsDevice, _gfx, _uiLayout);
+        _tabs = new PanelTabs(GraphicsDevice, _gfx, _panelLayout, _uiLayout);
         _eventButtons = new EventButtons(GraphicsDevice, _gfx, remember: _captureDirectory is null);
         // HOMESTEAD_CAPTURE_TAB=goods|settlers[:<sub-menu id>[:manual|<good>]]: a capture run shows that main tab
         // (and sub-menu; manual recruitment, or the good chosen in Waren › Verteilung or Warentransport).
@@ -478,12 +491,12 @@ public sealed class MapGame : Game
         if (_captureDirectory is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_COLORS") is { } captureColors)
             PlayerColors.Assign(captureColors.Split(',').Select(c => int.TryParse(c, out int color) ? color : (int?)null).ToArray(), _random);
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
-        _shipRenderer = new ShipRenderer(_sprites);
-        _statusIcons = new StatusIcons(_sprites);
+        _shipRenderer = new ShipRenderer(_sprites, _uiLayout);
+        _statusIcons = new StatusIcons(_sprites, _uiLayout);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
         _economyRenderer = new EconomyRenderer(_sprites);
-        _machineRenderer = new WarMachineRenderer(_sprites);
+        _machineRenderer = new WarMachineRenderer(_sprites, _uiLayout);
         SelectionPanel.UsesAmmo = machine => _world.WarMachines.KindOf(machine) is { Shots: > 0 };
         ControlGroups.PortraitSize = s => SettlerRenderer.TypeOf(s) is { } type ? PortraitsOf(_settlerRenderer.PeopleOf(s)).SizeOf(type) : Portraits.Size;
         ControlGroups.DrawShip = _buildingInfo.DrawShipIcon;
@@ -505,23 +518,23 @@ public sealed class MapGame : Game
             bool campaignCapture = captureStart?.StartsWith("campaign") == true || captureStart?.StartsWith("amazons") == true
                 || captureStart?.StartsWith("missionCd") == true;
             if (captureStart?.StartsWith("loading") == true)
-                _loading = new LoadingScreen(GraphicsDevice, _gfx, captureStart.Split(':') is [_, var campaign] ? campaign : null, _display.Theme);
+                _loading = new LoadingScreen(GraphicsDevice, _gfx, captureStart.Split(':') is [_, var campaign] ? campaign : null, _display.Theme, _uiLayout);
             else if (captureStart is null or "intro" || captureStart.StartsWith("title") || captureStart.StartsWith("settings")
                      || captureStart?.StartsWith("multiplayer") == true || campaignCapture || CaptureServer is not null)
             {
-                _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
+                _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme, _uiLayout);
                 // =multiplayer: connecting; =multiplayer:create: the start screen opening a game.
                 if (captureStart?.StartsWith("multiplayer") == true)
-                    _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx);
+                    _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx, _uiLayout);
                 if (captureStart == "multiplayer:lobby")
                     _multiplayerScreen!.ShowSampleLobby();
                 if (captureStart == "multiplayer:create")
                     _multiplayerCreate = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples,
-                        _display.PreferredColor, local: 0, multiplayer: true);
+                        ui: _uiLayout, preferredColor: _display.PreferredColor, local: 0, multiplayer: true);
                 // HOMESTEAD_CAPTURE_SERVER=<ws://…/ws>: a multiplayer game against a computer player through that server.
                 if (CaptureServer is { } server)
                 {
-                    _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx);
+                    _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx, _uiLayout);
                     _multiplayerScreen.Automate(server, SoloSetup(_randomMap is { } random ? MapChoice.Generated(random.Settings, random.Seed)
                         : MapChoice.Generated(new RandomMapSettings(), 1), 2, local: 0) with { Seed = 1 });
                 }
@@ -533,7 +546,7 @@ public sealed class MapGame : Game
                     var parts = captureStart!.Split(':');
                     _campaign = parts[0] is "amazons" or "missionCd" ? parts[0] : "settlers";
                     // HOMESTEAD_CAPTURE_HOVER=<side>: that side as if under the mouse.
-                    _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign) { Hovered = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_HOVER") };
+                    _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign, _uiLayout) { Hovered = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_HOVER") };
                     if (parts.Length > 1)
                     {
                         _campaignSide = CampaignConfig.Load().Campaigns[_campaign].Keys.First(k => k.Equals(parts[1], StringComparison.OrdinalIgnoreCase));
@@ -556,7 +569,7 @@ public sealed class MapGame : Game
                 }
                 if (captureStart?.StartsWith("settings") == true)
                 {
-                    _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
+                    _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx, _uiLayout);
                     if (captureStart.StartsWith("settings:"))
                         _settingsScreen.Show(captureStart["settings:".Length..]);
                 }
@@ -567,7 +580,7 @@ public sealed class MapGame : Game
             }
             else
             {
-                _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, _display.PreferredColor, _chosenLocal);
+                _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, ui: _uiLayout, preferredColor: _display.PreferredColor, local: _chosenLocal);
                 if (int.TryParse(captureStart?.Split(':')[0], out int category))
                     _startScreen.ShowCategory(category);
                 if (captureStart?.EndsWith(":color") == true)
@@ -591,7 +604,7 @@ public sealed class MapGame : Game
         {
             _startScreen.Dispose();
             _startScreen = null;
-            _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
+            _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme, _uiLayout);
             return;
         }
         if (Keyboard.GetState().IsKeyDown(Keys.F11) && !_previousKeys.IsKeyDown(Keys.F11))
@@ -656,7 +669,7 @@ public sealed class MapGame : Game
                 break;
             case MultiplayerAction.Create:
                 _multiplayerCreate = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples,
-                    _display.PreferredColor, local: 0, multiplayer: true);
+                    ui: _uiLayout, preferredColor: _display.PreferredColor, local: 0, multiplayer: true);
                 break;
             case MultiplayerAction.Started:
                 var started = screen.Started!;
@@ -782,7 +795,7 @@ public sealed class MapGame : Game
             return;
         }
         _loading?.Dispose();
-        _loading = new LoadingScreen(GraphicsDevice, _gfx, campaign, _display.Theme);
+        _loading = new LoadingScreen(GraphicsDevice, _gfx, campaign, _display.Theme, _uiLayout);
         _afterLoading = load;
     }
 
@@ -795,28 +808,40 @@ public sealed class MapGame : Game
         if (!force && _buildMenu is not null && _placeable.FirstOrDefault()?.Civilization == catalog.Civilization)
             return;
         _buildMenu?.Dispose();
-        _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog);
+        _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog, _panelLayout, _uiLayout);
         _portraits?.Dispose();
-        _portraits = new Portraits(GraphicsDevice, _gfx, catalog.Civilization);
+        _portraits = new Portraits(GraphicsDevice, _gfx, catalog.Civilization, _uiLayout);
         DisposePeoplePortraits();
         _soldiersMenu?.Dispose();
-        _soldiersMenu = new SoldiersMenu(GraphicsDevice, _gfx, catalog.Civilization);
+        _soldiersMenu = new SoldiersMenu(GraphicsDevice, _gfx, catalog.Civilization, _portraits, _settlerRenderer, _buildingInfo,
+            _panelLayout, _uiLayout);
         _settlersOverview?.Dispose();
-        _settlersOverview = new SettlersOverview(GraphicsDevice, _gfx, catalog.Civilization);
-        _professionsMenu ??= new ProfessionsMenu(GraphicsDevice, _gfx);
+        _settlersOverview = new SettlersOverview(GraphicsDevice, _gfx, catalog.Civilization, _portraits, _settlerRenderer,
+            _panelLayout, _uiLayout);
+        _professionsMenu?.Dispose();
+        _professionsMenu = new ProfessionsMenu(GraphicsDevice, _gfx, catalog.Civilization, _portraits, _settlerRenderer,
+            _panelLayout, _uiLayout, find => Find(find.Profession, find.Mode), SelectConverted, CarriersByCenter);
         _goodsGrid?.Dispose();
-        _goodsGrid = new GoodsGrid(GraphicsDevice, _gfx, catalog, Homestead.Simulation.Economy.ProductionConfig.Load());
-        _statisticsMenu = new StatisticsMenu(_goodsGrid);
-        _stockMenu = new StockMenu(_goodsGrid);
+        _goodsGrid = new GoodsGrid(GraphicsDevice, _gfx, catalog, Homestead.Simulation.Economy.ProductionConfig.Load(), _panelLayout, _uiLayout);
+        _statisticsMenu = new StatisticsMenu(_goodsGrid, _panelLayout);
+        _stockMenu = new StockMenu(_goodsGrid, _panelLayout);
         _manufactureMenu?.Dispose();
-        _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid);
+        _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid, _panelLayout, _uiLayout);
         _buildingInfo.Spinner = _manufactureMenu.SpinnerImage;
         _buildingInfo.Issue = IssueReported;
-        _buildingInfo.LoadIcons(GraphicsDevice, _gfx);
+        _buildingInfo.LoadIcons(GraphicsDevice, _gfx, _uiLayout);
         _spellMenu.LoadIcons(GraphicsDevice, _gfx);
-        _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf);
+        _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf, _panelLayout, _uiLayout);
         _transportMenu?.Dispose();
-        _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid);
+        _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid, _panelLayout, _uiLayout);
+        _panelMenus["stock"] = _stockMenu;
+        _panelMenus["tools"] = _manufactureMenu;
+        _panelMenus["distribution"] = _distributionMenu;
+        _panelMenus["transport"] = _transportMenu;
+        _panelMenus["overview"] = _settlersOverview;
+        _panelMenus["professions"] = _professionsMenu;
+        _panelMenus["soldiers"] = _soldiersMenu;
+        _panelMenus["statistics"] = _statisticsMenu;
         _buildingInfo.StorehouseGoods = _goodsGrid;
         if (_captureGood is { } chosenGood)
             _transportMenu.Choose(chosenGood);
@@ -1051,7 +1076,7 @@ public sealed class MapGame : Game
             _ => _map.Name,
         };
         _statistics = new StatisticsScreen(GraphicsDevice, _gfx, _world, name, _goodsGrid, canResume && outcome != MissionOutcome.Lost,
-            outcome == MissionOutcome.Open || _mission is null ? null : Lang.T("campaign.next"));
+            _uiLayout, outcome == MissionOutcome.Open || _mission is null ? null : Lang.T("campaign.next"));
     }
 
     /// <summary>The outcome of the campaign mission or the free game for the local player.</summary>
@@ -1091,7 +1116,7 @@ public sealed class MapGame : Game
         EndNetworkGame();
         _tabs.Current = PanelTab.Build;
         _ownAi = null;
-        _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
+        _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme, _uiLayout);
     }
 
     /// <summary>
@@ -1143,7 +1168,7 @@ public sealed class MapGame : Game
             ? new ListRow($"{slot + 1}.  {Lang.SaveName(info)}",
                 $"{info.SavedAt.ToString(Lang.T("formats.savedAt"), Lang.Culture)} · {Lang.T("peoples." + info.People)}")
             : new ListRow($"{slot + 1}.  ------------", "", Enabled: false)).ToArray();
-        _loadList = new ListScreen(GraphicsDevice, _gfx, Lang.T("title.buttons.load"), rows);
+        _loadList = new ListScreen(GraphicsDevice, _gfx, Lang.T("title.buttons.load"), rows, _uiLayout);
     }
 
     /// <summary>Loads a saved game from the title screen (behind the loading screen); one that does not load is told there.</summary>
@@ -1181,7 +1206,7 @@ public sealed class MapGame : Game
         var texts = _gfx.Open(7).ReadTexts(Lang.TextIndex(Lang.Current), Lang.CodePage(Lang.Current));
         var names = Side.Missions.Select(m => m.Text < texts.Count ? MissionSelectScreen.NameOf(texts[m.Text]) : $"{m.Text}").ToArray();
         _missionSelect = new MissionSelectScreen(GraphicsDevice, _gfx, Lang.T(Side.Name), names,
-            CampaignProgress.Load().Accomplished(_campaign, _campaignSide), Side.Intro is not null, Side.Outro is not null);
+            CampaignProgress.Load().Accomplished(_campaign, _campaignSide), _uiLayout, Side.Intro is not null, Side.Outro is not null);
     }
 
     /// <summary>
@@ -1235,7 +1260,7 @@ public sealed class MapGame : Game
             return;
         _campaign = mission.Campaign;
         _campaignSide = mission.Side;
-        _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign);
+        _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign, _uiLayout);
         OpenMissionSelect();
         int next = outcome == MissionOutcome.Won ? mission.Index + 1 : mission.Index;
         if (next < Side.Missions.Count)
@@ -1252,7 +1277,7 @@ public sealed class MapGame : Game
         try
         {
             _briefing = new BriefingScreen(GraphicsDevice, _gfx, _installation, Side.Missions[mission],
-                Lang.Current, _display.EffectsVolume / 100f);
+                Lang.Current, _display.EffectsVolume / 100f, _uiLayout);
         }
         catch (Exception e) when (e is IOException or InvalidDataException)
         {
@@ -1388,7 +1413,7 @@ public sealed class MapGame : Game
                     if (newTheme)
                     {
                         _title!.Dispose();
-                        _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
+                        _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme, _uiLayout);
                     }
                 }
                 _settingsScreen.Dispose();
@@ -1411,19 +1436,19 @@ public sealed class MapGame : Game
         else if (action == TitleAction.Load)
             OpenLoadList();
         else if (action == TitleAction.Settings)
-            _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
+            _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx, _uiLayout);
         else if (action is TitleAction.Campaign or TitleAction.MissionCd or TitleAction.AmazonCampaign)
         {
             _campaign = action switch { TitleAction.Campaign => "settlers", TitleAction.MissionCd => "missionCd", _ => "amazons" };
-            _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign);
+            _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign, _uiLayout);
         }
         else if (action == TitleAction.Multiplayer)
-            _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx);
+            _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx, _uiLayout);
         else if (action == TitleAction.SinglePlayer)
         {
             _title.Dispose();
             _title = null;
-            _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, _display.PreferredColor, _chosenLocal);
+            _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, ui: _uiLayout, preferredColor: _display.PreferredColor, local: _chosenLocal);
         }
     }
 
@@ -1867,6 +1892,8 @@ public sealed class MapGame : Game
         var mouse = SdlMouse.GetState();
         bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
         var cursorScreen = mouse.Position.ToVector2();
+        string? menuUpdatedLastPass = _menuUpdated;
+        _menuUpdated = null;
 
         // A lost game leaves no command: the camera, the minimap, the events and the computer menu (save, quit) still work;
         // Esc leaves (→ statistics).
@@ -1997,7 +2024,7 @@ public sealed class MapGame : Game
             _selectedBuilding = null;
             _placing = _aiming = false;
         }
-        else if (onMenu && ShowsSelection && _ships.Count > 0 && BuildingInfo.UnloadAt(panelCursor, _ships))
+        else if (onMenu && ShowsSelection && _ships.Count > 0 && _buildingInfo.UnloadAt(panelCursor, _ships))
         {
             _message = "unload: everybody on board goes ashore (the ship must lie near land)";
             if (released)
@@ -2032,7 +2059,7 @@ public sealed class MapGame : Game
                 }
             }
         }
-        else if (onMenu && ShowsSelection && SelectionPanel.ActionAt(_group, panelCursor) is { } action)
+        else if (onMenu && ShowsSelection && _selectionPanel.ActionAt(_group, panelCursor) is { } action)
         {
             if (action == SelectionAction.Steal)
             {
@@ -2183,63 +2210,29 @@ public sealed class MapGame : Game
         else if (!ShowsSelection && _tabs.Current != PanelTab.Build)
         {
             if (onMenu && released && _tabs.MenuAt(panelCursor) is { } menu)
+            {
+                // The tab consumes this release; forget the open menu's press-state (also when it stays open)
+                // so it cannot fire a phantom click when it sees input again.
+                if (_tabs.CurrentMenu is { } current && _panelMenus.TryGetValue(current, out var open))
+                    open.ResetInput();
                 _tabs.ShowMenu(menu);
-            else if (_tabs.CurrentMenu == "soldiers" && onMenu)
-            {
-                if (_soldiersMenu!.Hover(panelCursor, _world, _local, _buildingInfo) is { } hover)
-                    _message = hover;
-                if (released && _soldiersMenu.Click(panelCursor, _world, _local, _buildingInfo, IssueReported) is { } done)
-                    _message = done;
             }
-            else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "tools")
+            else if (_tabs.CurrentMenu is { } id && _panelMenus.TryGetValue(id, out var panel))
             {
-                if (onMenu && _manufactureMenu!.Hover(panelCursor, _world, _local) is { } hover)
+                // A menu that saw no Update last pass was switched away mid-press (whatever consumed that
+                // release); its remembered press is stale and must not fire now that it resumes.
+                if (menuUpdatedLastPass != id)
+                    panel.ResetInput();
+                _menuUpdated = id;
+                if (onMenu && panel.Hover(panelCursor, _world, _local) is { } hover)
                     _message = hover;
-                bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
+                // While a selection box is being dragged on the map the menus see no press, as with a click there.
+                // A button released while the window is inactive deliberately fires nothing: without seeing the
+                // hold, the menus' release-tracking never arms.
+                bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive && _dragStart is null;
                 bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
-                if (_manufactureMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
+                if (panel.Update(panelCursor, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
                     _message = done;
-            }
-            else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "distribution")
-            {
-                if (onMenu && _distributionMenu!.Hover(panelCursor, _font) is { } hover)
-                    _message = hover;
-                bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
-                bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
-                if (_distributionMenu!.Update(panelCursor, _font, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
-                    _message = done;
-            }
-            else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "transport" && onMenu)
-            {
-                if (_transportMenu!.Hover(panelCursor, _world, _local) is { } hover)
-                    _message = hover;
-                if (released && _transportMenu.Click(panelCursor, _world, _local, IssueReported) is { } done)
-                    _message = done;
-            }
-            else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "stock" && onMenu)
-            {
-                if (_stockMenu!.Hover(panelCursor, _world, _local) is { } hover)
-                    _message = hover;
-            }
-            else if (_tabs.CurrentMenu == "statistics" && onMenu)
-            {
-                if (_statisticsMenu!.Hover(panelCursor, _world, _local) is { } hover)
-                    _message = hover;
-                if (released && _statisticsMenu.Click(panelCursor, _world, _local) is { } done)
-                    _message = done;
-            }
-            else if (_tabs.CurrentMenu == "professions" && onMenu)
-            {
-                if (_professionsMenu!.Hover(panelCursor) is { } hover)
-                    _message = hover;
-                if (released)
-                {
-                    string? done = _professionsMenu.Click(panelCursor, _world, _local, IssueReported, out var find, SelectConverted, CarriersByCenter());
-                    if (find is { } f)
-                        Find(f.Profession, f.Mode);
-                    else if (done is not null)
-                        _message = done;
-                }
             }
         }
         else if (!ShowsSelection)
@@ -2791,7 +2784,7 @@ public sealed class MapGame : Game
     {
         if (_shownEvent is not { } e)
             return;
-        var content = BuildMenu.Content;
+        var content = _panelLayout.Content;
         int y = content.Y;
         SelectionPanel.Shadowed(_spriteBatch, _font, _eventButtons.NameOf(e.Category), new Vector2(content.X + 4, y), 16, new Color(240, 225, 190));
         y += 28;
@@ -3592,7 +3585,7 @@ public sealed class MapGame : Game
                     _aiming ? _aimSpell : null, panelMouse);
             else
                 _selectionPanel.Draw(_spriteBatch, _font, _settlerRenderer, PortraitsOf, Own.Civilization, _local, _group,
-                    _world.Military.CombatStrength(_local), BuildMenu.Content.Y, panelMouse);
+                    _world.Military.CombatStrength(_local), _panelLayout.Content.Y, panelMouse);
         }
         else if (_tabs.Current == PanelTab.System)
             _systemMenu.Draw(_spriteBatch, _font, panelMouse);
@@ -3607,24 +3600,11 @@ public sealed class MapGame : Game
         else
         {
             string? menu = _tabs.CurrentMenu;
+            // This id list mirrors the _panelMenus keys (and data/ui.json): a new sub-menu is added in all of them.
             _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview" or "professions" or "statistics" or "stock" or "tools" or "distribution" or "transport"),
                 title: menu != "tools");
-            if (menu == "soldiers")
-                _soldiersMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
-            else if (menu == "overview")
-                _settlersOverview!.Draw(_spriteBatch, _font, _world, _local, _portraits!, _settlerRenderer, Own.Civilization);
-            else if (menu == "transport")
-                _transportMenu!.Draw(_spriteBatch, _pixel, _world, _local, panelMouse, (float)gameTime.ElapsedGameTime.TotalSeconds);
-            else if (menu == "distribution")
-                _distributionMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, panelMouse);
-            else if (menu == "tools")
-                _manufactureMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, panelMouse);
-            else if (menu == "stock")
-                _stockMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, panelMouse);
-            else if (menu == "statistics")
-                _statisticsMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, panelMouse);
-            else if (menu == "professions")
-                _professionsMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
+            if (menu is not null && _panelMenus.TryGetValue(menu, out var panel))
+                panel.Draw(_spriteBatch, _pixel, _font, _world, _local, panelMouse, (float)gameTime.ElapsedGameTime.TotalSeconds);
         }
         _tabs.DrawTabs(_spriteBatch);
         _eventButtons.Draw(_spriteBatch, _now);

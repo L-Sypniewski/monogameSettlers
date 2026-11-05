@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation.Buildings;
 using Microsoft.Xna.Framework;
@@ -17,12 +16,11 @@ public sealed class Portraits : IDisposable
 
     private readonly Dictionary<string, Texture2D> _images = new();
 
-    public Portraits(GraphicsDevice device, GfxDirectory gfx, Civilization people)
+    public Portraits(GraphicsDevice device, GfxDirectory gfx, Civilization people, UiLayout ui)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        if (!document.RootElement.TryGetProperty("portraits", out var all) || !all.TryGetProperty(people.ToString(), out var own))
+        if (!ui.Portraits.Peoples.TryGetValue(people.ToString(), out var own))
             return;
-        var file = gfx.Open(own.GetProperty("file").GetInt32());
+        var file = gfx.Open(own.File);
         void Load(string type, int index, GfxFile? from = null)
         {
             var bitmap = (from ?? file).ReadGui(index);
@@ -30,22 +28,15 @@ public sealed class Portraits : IDisposable
             texture.SetData(bitmap.Pixels);
             _images[type] = texture;
         }
-        foreach (var entry in own.EnumerateObject())
-            if (entry.Name.ToUpperInvariant() == entry.Name)
-                Load(entry.Name, entry.Value.GetInt32());
-        if (all.TryGetProperty("common", out var common))
+        foreach (var (type, index) in own.Types)
+            Load(type, index);
+        if (ui.Portraits.Common is { } common)
         {
-            var commonFile = gfx.Open(common.GetProperty("file").GetInt32());
-            foreach (var entry in common.EnumerateObject())
-                if (entry.Name.ToUpperInvariant() == entry.Name)
-                {
-                    if (entry.Value.ValueKind == JsonValueKind.Array)
-                        Load(entry.Name, entry.Value[1].GetInt32(), gfx.Open(entry.Value[0].GetInt32()));
-                    else
-                        Load(entry.Name, entry.Value.GetInt32(), commonFile);
-                }
+            var commonFile = gfx.Open(common.File);
+            foreach (var (type, image) in common.Entries)
+                Load(type, image.Index, image.File == common.File ? commonFile : gfx.Open(image.File));
         }
-        int first = own.GetProperty("soldiers").GetInt32();
+        int first = own.Soldiers;
         for (int level = 1; level <= 3; level++)
         for (int t = 0; t < SoldierTypes.Length; t++)
             Load($"{SoldierTypes[t]}_L{level}", first + 9 * (level - 1) + 3 * t);
