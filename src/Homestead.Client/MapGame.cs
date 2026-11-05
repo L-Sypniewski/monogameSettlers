@@ -4719,6 +4719,7 @@ public sealed class MapGame : Game
         _goodsGrid?.Dispose();
         _manufactureMenu?.Dispose();
         _transportMenu?.Dispose();
+        _buildingInfo.Dispose();
         _tabs?.Dispose();
         _font.Dispose();
         _atlas.Dispose();

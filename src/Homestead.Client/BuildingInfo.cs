@@ -19,7 +19,7 @@ namespace Homestead.Client;
 /// upgrades are in Siedler › Krieger, <see cref="SoldiersMenu"/>); a market its trade route and goods (BuildingInfo.Market).
 /// Names and states come from <c>data/ui.json</c>.
 /// </summary>
-public sealed partial class BuildingInfo
+public sealed partial class BuildingInfo : IDisposable
 {
     private readonly PanelLayout _layout;
 
@@ -89,6 +89,25 @@ public sealed partial class BuildingInfo
         LoadMarketIcons(device, gui, ui);
         LoadDockyardIcons(device, gfx, gui, ui);
         LoadWarWorksIcons(device, gfx, ui);
+    }
+
+    /// <summary>Frees the icon textures of all the panel's parts (called once by <see cref="MapGame"/>'s unload).</summary>
+    public void Dispose()
+    {
+        _demolishIcon?.Dispose();
+        foreach (var icon in new[] { _pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon, _workAreaIcon })
+            icon?.Dispose();
+        _dockIcon?.Dispose();
+        foreach (var ships in _shipIcons.Values)
+            foreach (var texture in ships)
+                texture.Dispose();
+        foreach (var icon in new[] { _routeStrip, _seaRouteStrip, _allIcon, _noneIcon })
+            icon?.Dispose();
+        foreach (var arrow in _tradeArrows)
+            arrow.Dispose();
+        foreach (var icons in _warIcons.Values)
+            foreach (var texture in icons)
+                texture.Dispose();
     }
 
     /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>
