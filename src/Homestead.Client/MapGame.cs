@@ -814,7 +814,7 @@ public sealed class MapGame : Game
         _buildingInfo.Issue = IssueReported;
         _buildingInfo.LoadIcons(GraphicsDevice, _gfx);
         _spellMenu.LoadIcons(GraphicsDevice, _gfx);
-        _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf, _font);
+        _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf);
         _transportMenu?.Dispose();
         _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid);
         _buildingInfo.StorehouseGoods = _goodsGrid;
@@ -1518,6 +1518,9 @@ public sealed class MapGame : Game
             "professions" => _professionsMenu!.TooltipAt(panel),
             "soldiers" => _soldiersMenu!.TooltipAt(panel, _world, _local, _buildingInfo),
             "overview" => _settlersOverview!.TooltipAt(panel),
+            "statistics" => _statisticsMenu!.TooltipAt(panel),
+            "stock" => _stockMenu!.TooltipAt(panel),
+            "tools" => _manufactureMenu!.TooltipAt(panel),
             _ => null,
         };
     }
@@ -2198,11 +2201,11 @@ public sealed class MapGame : Game
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "distribution")
             {
-                if (onMenu && _distributionMenu!.Hover(panelCursor) is { } hover)
+                if (onMenu && _distributionMenu!.Hover(panelCursor, _font) is { } hover)
                     _message = hover;
                 bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
                 bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
-                if (_distributionMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
+                if (_distributionMenu!.Update(panelCursor, _font, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
                     _message = done;
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "transport" && onMenu)
