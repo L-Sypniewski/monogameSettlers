@@ -308,8 +308,8 @@ public sealed class EconomyRenderer
     }
 
     /// <summary>
-    /// The finished building as in the game, standing on the bottom of the box and centered, scaled down
-    /// to fit it - so never cut off at the sides and the top.
+    /// The finished building as in the game, standing on the bottom of the box, its body centered and scaled
+    /// down to fit body and shadow - so never cut off at the sides and the top.
     /// </summary>
     public void DrawBuildingImage(SpriteBatch batch, BuildingDefinition definition, Rectangle box, Color playerColor)
     {
@@ -318,8 +318,15 @@ public sealed class EconomyRenderer
         if (bounds.Count == 0)
             return;
         var all = bounds.Aggregate(Rectangle.Union);
-        float scale = Math.Min(1f, Math.Min((box.Width - 4f) / all.Width, (box.Height - 4f) / all.Height));
-        var anchor = new Vector2(box.Center.X - (all.X + all.Width / 2f) * scale, box.Bottom - (all.Y + all.Height) * scale);
+        // What the eye reads as centered is the building, not body and shadow together: a shadow reaching
+        // one side would tilt the body off the middle. The fit still covers the full extent - centered on
+        // the body, its wider side beyond the body sets the scale.
+        var bodies = layers.Select(l => l.Sprites.Bounds(l.Frame)).OfType<Rectangle>().ToList();
+        var body = bodies.Count > 0 ? bodies.Aggregate(Rectangle.Union) : all;
+        float middle = body.X + body.Width / 2f;
+        float overhang = Math.Max(middle - all.X, all.X + all.Width - middle);
+        float scale = Math.Min(1f, Math.Min((box.Width / 2f - 2f) / overhang, (box.Height - 4f) / all.Height));
+        var anchor = new Vector2(box.Center.X - middle * scale, box.Bottom - (all.Y + all.Height) * scale);
         foreach (var (sprites, frame) in layers)
             sprites.Draw(batch, frame, anchor, scale, playerColor);
     }
