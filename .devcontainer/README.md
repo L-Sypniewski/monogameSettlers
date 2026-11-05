@@ -36,6 +36,15 @@ agents/commands/rules in `.opencode/`, skills in `.agents/skills/`, Claude Code 
 Its only dependency is installed by `bash .opencode/scripts/ensure-shipflow-deps.sh` (run by `post-create.sh`).
 `scripts/fast-checks.sh` (build + tests) is the drift gate shipflow runs between edits.
 
+## herdr dispatch
+
+`/ship-next` launches its runs through the herdr-workflow skill, hand-vendored (not in `skills-lock.json`, hence outside its drift check)
+in `.agents/skills/herdr-workflow/` and wired into `.opencode/shipflow`'s dispatch. It carries one fork patch: `.herdr-workflow.json`
+`"launchMode": "host"` (see `hr_launch_mode_host` in its `scripts/lib.sh`) makes herdr launches run the agent on the host, because a linked
+worktree's `.git` pointer references an absolute host path that cannot resolve inside this container, and `GH_TOKEN` forwarding via
+`remoteEnv` depends on the daemon that starts the container. The devcontainer stays the interactive environment; board sync
+(assignee + project status) is configured in `.herdr-workflow.json` at the repo root.
+
 ## Fork vs upstream porting
 
 The fork's `main` is `upstream/main` plus a small set of fork-only tooling commits rebased on top.
