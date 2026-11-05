@@ -358,28 +358,36 @@ public sealed partial class BuildingInfo
         }
 
         // Goods: on a construction site delivered of needed, otherwise what lies in the piles (as far as there is room).
-        if (goods.Count == 0 || y + 8 + 16 + 30 > limit)
+        if (goods.Count == 0 || y + 14 + 16 + 30 > limit)
             return;
-        y += 8;
+        // The vine on the panel's frame dips into the label's topmost line; a few pixels lower it is clear of it.
+        y += 14;
         bool assembling = world.Shipping.Building(building) is not null || world.WarMachines.Current(building) is not null;
         Write(batch, font, Lang.T(building.State == BuildingState.Finished && !assembling ? "building.goods" : "building.material"), new Vector2(Left, y), Label, 12);
         y += 16;
-        // The goods sit in the space below the label: two columns spanning its width (a single good
-        // centers by its measured width below), the block midway between the label and the panel's end.
+        // The goods sit in the space below the label, midway between it and the panel's end: columns only
+        // as wide as their widest content (icon, gap, number), the whole block centered - it would otherwise
+        // hug the panel's left edge, where the frame's vines hang. Texts too wide to center span the width instead.
         int columns = goods.Count == 1 ? 1 : 2;
         int rows = (goods.Count + columns - 1) / columns;
-        int cellWidth = Inner / columns;
+        var cellWidths = goods.Select(g => 29 + (int)Math.Round(font.Measure(g.Text).X)).ToList();
+        var columnWidths = new int[columns];
+        for (int i = 0; i < goods.Count; i++)
+            columnWidths[i % columns] = Math.Max(columnWidths[i % columns], cellWidths[i]);
+        const int ColumnGap = 8;
+        var columnAt = new int[columns];
+        for (int left = 1; left < columns; left++)
+            columnAt[left] = columnAt[left - 1] + columnWidths[left - 1] + ColumnGap;
+        int blockWidth = columnAt[columns - 1] + columnWidths[columns - 1];
+        bool spans = blockWidth > Inner;
         y += Math.Max(0, (limit - y - rows * 32) / 2);
         for (int i = 0; i < goods.Count; i++)
         {
-            var cell = new Rectangle(Left + i % columns * cellWidth, y + i / columns * 32, cellWidth, 30);
+            int column = i % columns;
+            var cell = new Rectangle(spans ? Left + column * Inner / columns
+                : Left + (Inner - blockWidth) / 2 + columnAt[column], y + i / columns * 32, spans ? Inner / columns : cellWidths[i], 30);
             if (cell.Bottom > limit)
                 break;
-            if (goods.Count == 1)
-            {
-                int width = 29 + (int)Math.Round(font.Measure(goods[i].Text).X);
-                cell = new Rectangle(cell.Center.X - width / 2, cell.Y, width, 30);
-            }
             economy.DrawMaterialIcon(batch, goods[i].Material, new Rectangle(cell.X, cell.Y, 26, 28));
             Write(batch, font, goods[i].Text, new Vector2(cell.X + 29, cell.Y + 6), Text);
         }
