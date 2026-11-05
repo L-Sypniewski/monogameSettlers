@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Commands;
@@ -16,7 +15,7 @@ namespace Homestead.Client;
 /// order or need). A click on a bar sets it, dragging moves it (<see cref="ShareBar"/>).
 /// Panel space.
 /// </summary>
-public sealed class ManufactureMenu : IDisposable
+public sealed class ManufactureMenu : IPanelMenu, IDisposable
 {
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Material[] Tools = [Material.Hammer, Material.Blade, Material.Pick, Material.Axe, Material.Saw, Material.Scythe, Material.FishingRod];
@@ -30,13 +29,12 @@ public sealed class ManufactureMenu : IDisposable
     /// <summary>The bar being dragged (its product), while the button is held.</summary>
     private Material? _dragging;
 
-    public ManufactureMenu(GraphicsDevice device, GfxDirectory gfx, GoodsGrid grid, PanelLayout layout)
+    public ManufactureMenu(GraphicsDevice device, GfxDirectory gfx, GoodsGrid grid, PanelLayout layout, UiLayout ui)
     {
         _grid = grid;
         _layout = layout;
         // The spinner of Siedler › Berufe.
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var bitmap = gfx.Open(3).ReadGui(document.RootElement.GetProperty("professionsMenu").GetProperty("spinner").GetInt32());
+        var bitmap = gfx.Open(3).ReadGui(ui.ProfessionsMenu.Spinner);
         _spinner = new Texture2D(device, bitmap.Width, bitmap.Height);
         _spinner.SetData(bitmap.Pixels);
     }
@@ -60,7 +58,7 @@ public sealed class ManufactureMenu : IDisposable
     private Rectangle Spinner(int y) => new(Left + 58, y, 19, 28);
     private Rectangle Bar(int y) => new(Left + 84, y + 5, Width - 84, ShareBar.Height);
 
-    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
+    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor, float seconds)
     {
         PanelUi.Heading(batch, font, Lang.T("manufacture.tools"), Left, Width, ToolsY - 22);
         PanelUi.Heading(batch, font, Lang.T("manufacture.weapons"), Left, Width, WeaponsHeadingY);

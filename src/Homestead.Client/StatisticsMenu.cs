@@ -1,5 +1,6 @@
 using System.Globalization;
 using Homestead.Simulation;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Economy;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -12,7 +13,7 @@ namespace Homestead.Client;
 /// <see cref="ProductionStatistics.PeriodTicks"/>, now at the right), and below it the goods to choose
 /// from (<see cref="GoodsGrid"/>). Panel space.
 /// </summary>
-public sealed class StatisticsMenu
+public sealed class StatisticsMenu : IPanelMenu
 {
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Color Bar = new(230, 20, 10);
@@ -27,6 +28,7 @@ public sealed class StatisticsMenu
     private readonly GoodsGrid _grid;
     private readonly PanelLayout _layout;
     private Material _chosen = Material.Trunk;
+    private bool _wasPressed;
 
     public StatisticsMenu(GoodsGrid grid, PanelLayout layout)
     {
@@ -41,7 +43,7 @@ public sealed class StatisticsMenu
     private Rectangle Chart => new(Left + 2, Top + 4, Width - 4, 106);
     private int GridTop => Chart.Bottom + 22;
 
-    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
+    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor, float seconds)
     {
         var chart = Chart;
         var statistics = world.Statistics;
@@ -97,8 +99,16 @@ public sealed class StatisticsMenu
         }
     }
 
+    /// <summary>Mouse handling (panel space): a click – the button released on the menu – shows a good's chart.</summary>
+    public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue)
+    {
+        string? done = !pressed && _wasPressed && onMenu ? Click(panel, world, player) : null;
+        _wasPressed = pressed;
+        return done;
+    }
+
     /// <summary>A click on a good shows its chart; returns a message, or null if it hit nothing.</summary>
-    public string? Click(Vector2 panel, World world, int player)
+    private string? Click(Vector2 panel, World world, int player)
     {
         if (_grid.GoodAt(panel, GridTop, RowHeight) is not { } good)
             return null;

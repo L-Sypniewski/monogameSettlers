@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Commands;
@@ -14,10 +13,11 @@ namespace Homestead.Client;
 /// upgrade (progress of the mana earned towards the next one, one button per soldier type – its weapon plain
 /// or upgraded, dark while it cannot be upgraded), the switch between automatic and manual recruitment with
 /// the carriers free to become soldiers, and only for manual recruitment per soldier type the weapons in
-/// stock and the soldiers planned (arrows: 5 or 1 more or fewer). Graphics in <c>data/ui.json</c>
+/// stock and the soldiers planned (arrows: 5 or 1 more or fewer). Made for one people (its weapons and
+/// portraits): when the people changes, the game makes it anew. Graphics in <c>data/ui.json</c>
 /// (<c>soldiersMenu</c>). Panel space.
 /// </summary>
-public sealed class SoldiersMenu : IDisposable
+public sealed class SoldiersMenu : IPanelMenu, IDisposable
 {
     private static readonly SoldierType[] Types = [SoldierType.Swordsman, SoldierType.Bowman, SoldierType.Pikeman];
     private static readonly int[] ArrowSteps = [5, 1, -1, -5];
@@ -25,13 +25,23 @@ public sealed class SoldiersMenu : IDisposable
     private static readonly Color Label = new(190, 165, 120);
 
     private readonly PanelLayout _layout;
+    private readonly Portraits _portraits;
+    private readonly SettlerRenderer _settlers;
+    private readonly Civilization _people;
+    private readonly BuildingInfo _names;
     private readonly Dictionary<SoldierType, Texture2D[]> _upgrades = new();
     private readonly Texture2D[] _arrows;
     private readonly Dictionary<SoldierType, Texture2D> _weapons = new();
+    private bool _wasPressed;
 
-    public SoldiersMenu(GraphicsDevice device, GfxDirectory gfx, Civilization people, PanelLayout layout)
+    public SoldiersMenu(GraphicsDevice device, GfxDirectory gfx, Civilization people, Portraits portraits, SettlerRenderer settlers,
+        BuildingInfo names, PanelLayout layout, UiLayout ui)
     {
         _layout = layout;
+        _portraits = portraits;
+        _settlers = settlers;
+        _people = people;
+        _names = names;
         Texture2D Load(GfxFile file, int index)
         {
             var bitmap = file.ReadGui(index);
@@ -40,16 +50,20 @@ public sealed class SoldiersMenu : IDisposable
             return texture;
         }
 
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var menu = document.RootElement.GetProperty("soldiersMenu");
+        var menu = ui.SoldiersMenu;
         var gui = gfx.Open(3);
         foreach (var type in Types)
-            _upgrades[type] = menu.GetProperty("upgrades").GetProperty(Key(type)).EnumerateArray().Select(i => Load(gui, i.GetInt32())).ToArray();
-        _arrows = menu.GetProperty("arrows").EnumerateArray().Select(i => Load(gui, i.GetInt32())).ToArray();
-        var weapons = menu.GetProperty("weapons").GetProperty(people.ToString());
-        var own = gfx.Open(weapons.GetProperty("file").GetInt32());
+            _upgrades[type] = menu.Upgrades[Key(type)].Select(i => Load(gui, i)).ToArray();
+        _arrows = menu.Arrows.Select(i => Load(gui, i)).ToArray();
+        var ownWeapons = menu.Weapons[people.ToString()];
+        var own = gfx.Open(ownWeapons.File);
         foreach (var type in Types)
-            _weapons[type] = Load(own, weapons.GetProperty(Key(type)).GetInt32());
+            _weapons[type] = Load(own, type switch
+            {
+                SoldierType.Swordsman => ownWeapons.Swordsman,
+                SoldierType.Bowman => ownWeapons.Bowman,
+                _ => ownWeapons.Pikeman,
+            });
     }
 
     private static string Key(SoldierType type) => type.ToString().ToUpperInvariant();
@@ -74,8 +88,7 @@ public sealed class SoldiersMenu : IDisposable
         return new Rectangle(x, RecruitY + 20 + row * RowHeight, 20, 30);
     }
 
-    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Portraits portraits, SettlerRenderer settlers,
-        Civilization people, Vector2 cursor)
+    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor, float seconds)
     {
         var military = world.Military;
         var magic = world.Magic;
@@ -93,13 +106,14 @@ public sealed class SoldiersMenu : IDisposable
             var images = _upgrades[type];
             var rect = UpgradeButton(i);
             batch.Draw(images[(upgraded ? 2 : 0) + (possible ? 0 : 1)], rect, Color.White);
+            // The upgrade buttons keep their own, lighter veil.
             if (possible && rect.Contains(cursor))
                 batch.Draw(pixel, rect, Color.White * 0.12f);
         }
 
         // The switch: the carriers free to become soldiers, automatic or manual.
         var switchButton = SwitchButton;
-        portraits.Draw(batch, "BEARER", new Rectangle(Left, SwitchY, 40, 60), settlers, people, PlayerColors.Of(player));
+        _portraits.Draw(batch, "BEARER", new Rectangle(Left, SwitchY, 40, 60), _settlers, _people, PlayerColors.Of(player));
         Write(batch, font, world.Recruitment.Convertible(player).ToString(), new Vector2(Left + 44, SwitchY + 20), Text, 15);
         TextButton.Draw(batch, pixel, font, switchButton, Lang.T(military.IsManualRecruitment(player) ? "soldiersMenu.manual" : "soldiersMenu.automatic"), cursor);
         if (!military.IsManualRecruitment(player))
@@ -133,18 +147,26 @@ public sealed class SoldiersMenu : IDisposable
         world.Magic.UpgradeOrder(player, type) == UpgradeResult.Done && world.Magic.CanAffordUpgrade(player)
         && world.Buildings.Any(b => b.Exists && b.Player == player && b.Definition.Name == world.Magic.Config.Temple && b.State == BuildingState.Finished);
 
+    /// <summary>Mouse handling (panel space): a click – the button released on the menu – upgrades, switches or plans.</summary>
+    public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue)
+    {
+        string? done = !pressed && _wasPressed && onMenu ? Click(panel, world, player, issue) : null;
+        _wasPressed = pressed;
+        return done;
+    }
+
     /// <summary>A click (panel space): upgrades, switches or plans; returns a message, or null if it hit nothing.</summary>
-    public string? Click(Vector2 panel, World world, int player, BuildingInfo names, IssueCommand issue)
+    private string? Click(Vector2 panel, World world, int player, IssueCommand issue)
     {
         var military = world.Military;
         for (int i = 0; i < Types.Length; i++)
             if (UpgradeButton(i).Contains(panel))
             {
                 var type = Types[i];
-                string name = names.SoldierName(type);
+                string name = _names.SoldierName(type);
                 issue(new UpgradeSoldiers(player, type), result => (UpgradeResult)result! switch
                 {
-                    UpgradeResult.Done => $"{name}: new ones become {names.LevelName(world.Magic.SoldierLevel(player, type))}",
+                    UpgradeResult.Done => $"{name}: new ones become {_names.LevelName(world.Magic.SoldierLevel(player, type))}",
                     UpgradeResult.OthersFirst => "all soldier types to level 2 first",
                     UpgradeResult.NoMana => "not enough mana earned yet",
                     UpgradeResult.Highest => $"{name}: highest level already",
@@ -166,7 +188,7 @@ public sealed class SoldiersMenu : IDisposable
                 if (Arrow(row, i).Contains(panel))
                 {
                     var type = Types[row];
-                    issue(new ChangePlanned(player, type, ArrowSteps[i]), _ => $"{names.SoldierName(type)}: {military.Planned(player, type)} planned");
+                    issue(new ChangePlanned(player, type, ArrowSteps[i]), _ => $"{_names.SoldierName(type)}: {military.Planned(player, type)} planned");
                     UiSounds.Step(ArrowSteps[i] > 0);
                     return null;
                 }
@@ -174,19 +196,19 @@ public sealed class SoldiersMenu : IDisposable
     }
 
     /// <summary>What the element under the point does (hover text), or null.</summary>
-    public string? Hover(Vector2 panel, World world, int player, BuildingInfo names)
+    public string? Hover(Vector2 panel, World world, int player)
     {
         var magic = world.Magic;
         for (int i = 0; i < Types.Length; i++)
             if (UpgradeButton(i).Contains(panel))
             {
                 var type = Types[i];
-                string rank = names.LevelName(magic.SoldierLevel(player, type));
+                string rank = _names.LevelName(magic.SoldierLevel(player, type));
                 return magic.UpgradeOrder(player, type) switch
                 {
-                    UpgradeResult.Highest => $"{names.SoldierName(type)} ({rank}): highest level",
-                    UpgradeResult.OthersFirst => $"{names.SoldierName(type)} ({rank}): the others first",
-                    _ => $"{names.SoldierName(type)} ({rank}): upgrade at {magic.UpgradeThreshold(player)} mana earned ({magic.ManaEarned(player)} so far)",
+                    UpgradeResult.Highest => $"{_names.SoldierName(type)} ({rank}): highest level",
+                    UpgradeResult.OthersFirst => $"{_names.SoldierName(type)} ({rank}): the others first",
+                    _ => $"{_names.SoldierName(type)} ({rank}): upgrade at {magic.UpgradeThreshold(player)} mana earned ({magic.ManaEarned(player)} so far)",
                 };
             }
         if (SwitchButton.Contains(panel))
@@ -195,7 +217,7 @@ public sealed class SoldiersMenu : IDisposable
             for (int row = 0; row < Types.Length; row++)
                 for (int i = 0; i < ArrowSteps.Length; i++)
                     if (Arrow(row, i).Contains(panel))
-                        return $"{names.SoldierName(Types[row])}: {ArrowSteps[i]:+0;-0} planned";
+                        return $"{_names.SoldierName(Types[row])}: {ArrowSteps[i]:+0;-0} planned";
         return null;
     }
 

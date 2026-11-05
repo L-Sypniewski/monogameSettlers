@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Commands;
@@ -17,7 +16,7 @@ namespace Homestead.Client;
 /// the chosen one. Reordered icons glide to their new place. Button images in <c>data/ui.json</c>
 /// (<c>transportMenu</c>). Panel space.
 /// </summary>
-public sealed class TransportMenu : IDisposable
+public sealed class TransportMenu : IPanelMenu, IDisposable
 {
     private static readonly Color Selected = new(220, 30, 20);
     internal static readonly Color StoredDot = new(60, 210, 60);
@@ -35,16 +34,16 @@ public sealed class TransportMenu : IDisposable
     private readonly Texture2D[] _buttons;
     private readonly Dictionary<Material, Vector2> _shown = new();
     private Material? _chosen;
+    private bool _wasPressed;
 
-    public TransportMenu(GraphicsDevice device, GfxDirectory gfx, GoodsGrid grid, PanelLayout layout)
+    public TransportMenu(GraphicsDevice device, GfxDirectory gfx, GoodsGrid grid, PanelLayout layout, UiLayout ui)
     {
         _grid = grid;
         _layout = layout;
         var gui = gfx.Open(3);
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        _buttons = document.RootElement.GetProperty("transportMenu").GetProperty("buttons").EnumerateArray().Select(i =>
+        _buttons = ui.TransportMenu.Buttons.Select(i =>
         {
-            var bitmap = gui.ReadGui(i.GetInt32());
+            var bitmap = gui.ReadGui(i);
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
@@ -76,7 +75,7 @@ public sealed class TransportMenu : IDisposable
         .Where(g => _grid.IsMakeable(g.Material))
         .ToList();
 
-    public void Draw(SpriteBatch batch, Texture2D pixel, World world, int player, Vector2 cursor, float seconds)
+    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor, float seconds)
     {
         var goods = Ordered(world, player);
         float glide = 1 - MathF.Exp(-GlideRate * seconds);
@@ -106,8 +105,16 @@ public sealed class TransportMenu : IDisposable
         }
     }
 
+    /// <summary>Mouse handling (panel space): a click – the button released on the menu – chooses a good or applies a button to the chosen one.</summary>
+    public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue)
+    {
+        string? done = !pressed && _wasPressed && onMenu ? Click(panel, world, player, issue) : null;
+        _wasPressed = pressed;
+        return done;
+    }
+
     /// <summary>A click (panel space): chooses a good or applies a button to the chosen one; returns a message, or null.</summary>
-    public string? Click(Vector2 panel, World world, int player, IssueCommand issue)
+    private string? Click(Vector2 panel, World world, int player, IssueCommand issue)
     {
         var goods = Ordered(world, player);
         for (int i = 0; i < goods.Count; i++)

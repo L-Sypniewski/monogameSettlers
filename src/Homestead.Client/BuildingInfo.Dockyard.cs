@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Commands;
@@ -31,7 +30,7 @@ public sealed partial class BuildingInfo
     /// <summary>No dock to set any more (right click, Esc).</summary>
     public void CancelDock() => _dockAiming = null;
 
-    private void LoadDockyardIcons(GraphicsDevice device, GfxDirectory gfx, GfxFile gui)
+    private void LoadDockyardIcons(GraphicsDevice device, GfxDirectory gfx, GfxFile gui, UiLayout ui)
     {
         static Texture2D Load(GraphicsDevice device, GfxFile file, int index)
         {
@@ -41,15 +40,12 @@ public sealed partial class BuildingInfo
             return texture;
         }
 
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var dockyard = document.RootElement.GetProperty("dockyard");
-        _dockIcon = Load(device, gui, dockyard.GetProperty("dock").GetInt32());
-        var steps = dockyard.GetProperty("shipSteps").EnumerateArray().Select(s => s.GetInt32()).ToArray();
-        foreach (var ships in dockyard.GetProperty("ships").EnumerateObject())
+        var dockyard = ui.Dockyard;
+        _dockIcon = Load(device, gui, dockyard.Dock);
+        foreach (var (people, ship) in dockyard.Ships)
         {
-            var file = gfx.Open(ships.Value[0].GetInt32());
-            int first = ships.Value[1].GetInt32();
-            _shipIcons[Enum.Parse<Civilization>(ships.Name)] = steps.Select(s => Load(device, file, first + s)).ToArray();
+            var file = gfx.Open(ship.File);
+            _shipIcons[Enum.Parse<Civilization>(people)] = dockyard.ShipSteps.Select(s => Load(device, file, ship.Index + s)).ToArray();
         }
     }
 

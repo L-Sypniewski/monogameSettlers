@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Commands;
@@ -20,20 +19,15 @@ public sealed partial class BuildingInfo
     /// <summary>Per people: machine, machine pressed, ammunition, ammunition pressed (GUI images of the people's file).</summary>
     private readonly Dictionary<Civilization, Texture2D[]> _warIcons = new();
 
-    private void LoadWarWorksIcons(GraphicsDevice device, GfxDirectory gfx)
+    private void LoadWarWorksIcons(GraphicsDevice device, GfxDirectory gfx, UiLayout ui)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        if (!document.RootElement.TryGetProperty("warMachines", out var machines))
-            return;
-        foreach (var people in machines.EnumerateObject().Where(p => !p.Name.StartsWith('_')))
+        foreach (var (people, look) in ui.WarMachines.Peoples)
         {
-            var icons = people.Value.GetProperty("icons");
-            var file = gfx.Open(icons[0].GetInt32());
-            int first = icons[1].GetInt32();
+            var file = gfx.Open(look.Icons.File);
             // Three sizes each: the middle one.
-            _warIcons[Enum.Parse<Civilization>(people.Name)] = new[] { 1, 4, 7, 10 }.Select(step =>
+            _warIcons[Enum.Parse<Civilization>(people)] = new[] { 1, 4, 7, 10 }.Select(step =>
             {
-                var bitmap = file.ReadGui(first + step);
+                var bitmap = file.ReadGui(look.Icons.Index + step);
                 var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
                 texture.SetData(bitmap.Pixels);
                 return texture;

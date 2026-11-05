@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
@@ -13,20 +12,27 @@ namespace Homestead.Client;
 /// difference on strike), all settlers and the soldiers; below a portrait per kind with how many the
 /// player has. Kinds and icons in <c>data/ui.json</c> (<c>settlersOverview</c>). Panel space.
 /// </summary>
-public sealed class SettlersOverview : IDisposable
+public sealed class SettlersOverview : IPanelMenu, IDisposable
 {
     private static readonly Color Text = new(240, 225, 190);
 
     private readonly PanelLayout _layout;
+    private readonly Portraits _portraits;
+    private readonly SettlerRenderer _settlers;
+    private readonly Civilization _people;
     private readonly Texture2D _room;
     private readonly Texture2D _needing;
     private readonly Texture2D _total;
     private readonly Texture2D _soldiers;
     private readonly string[][] _rows;
 
-    public SettlersOverview(GraphicsDevice device, GfxDirectory gfx, Civilization people, PanelLayout layout)
+    public SettlersOverview(GraphicsDevice device, GfxDirectory gfx, Civilization people, Portraits portraits, SettlerRenderer settlers,
+        PanelLayout layout, UiLayout ui)
     {
         _layout = layout;
+        _portraits = portraits;
+        _settlers = settlers;
+        _people = people;
         Texture2D Load(GfxFile file, int index)
         {
             var bitmap = file.ReadGui(index);
@@ -35,17 +41,14 @@ public sealed class SettlersOverview : IDisposable
             return texture;
         }
 
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var root = document.RootElement;
-        var overview = root.GetProperty("settlersOverview");
-        var icons = overview.GetProperty("icons");
+        var icons = ui.SettlersOverview.Icons;
         var gui = gfx.Open(3);
-        _room = Load(gui, icons.GetProperty("room").GetInt32());
-        _needing = Load(gui, icons.GetProperty("needing").GetInt32());
-        _total = Load(gui, icons.GetProperty("total").GetInt32());
-        var weapons = root.GetProperty("soldiersMenu").GetProperty("weapons").GetProperty(people.ToString());
-        _soldiers = Load(gfx.Open(weapons.GetProperty("file").GetInt32()), weapons.GetProperty("SWORDSMAN").GetInt32());
-        _rows = overview.GetProperty("rows").EnumerateArray().Select(r => r.EnumerateArray().Select(t => t.GetString()!).ToArray()).ToArray();
+        _room = Load(gui, icons.Room);
+        _needing = Load(gui, icons.Needing);
+        _total = Load(gui, icons.Total);
+        var weapons = ui.SoldiersMenu.Weapons[people.ToString()];
+        _soldiers = Load(gfx.Open(weapons.File), weapons.Swordsman);
+        _rows = ui.SettlersOverview.Rows.Select(r => r.ToArray()).ToArray();
     }
 
     private int Left => _layout.Content.X + 4;
@@ -54,7 +57,7 @@ public sealed class SettlersOverview : IDisposable
     private const int HeaderHeight = 54;
     private const int CellHeight = 80;
 
-    public void Draw(SpriteBatch batch, UiFont font, World world, int player, Portraits portraits, SettlerRenderer settlers, Civilization people)
+    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor, float seconds)
     {
         var own = world.Settlers.Where(s => s.Player == player).ToList();
         int column = Width / 4;
@@ -79,7 +82,7 @@ public sealed class SettlersOverview : IDisposable
                 var cell = new Rectangle(Left + col * column, Top + HeaderHeight + row * CellHeight, column, CellHeight);
                 if (cell.Bottom > _layout.Content.Bottom)
                     break;
-                portraits.Draw(batch, PortraitOf(kind), new Rectangle(cell.X, cell.Y, cell.Width, Portraits.Size.Y), settlers, people, PlayerColors.Of(player));
+                _portraits.Draw(batch, PortraitOf(kind), new Rectangle(cell.X, cell.Y, cell.Width, Portraits.Size.Y), _settlers, _people, PlayerColors.Of(player));
                 string count = own.Count(s => Is(s, kind)).ToString();
                 var countSize = font.Measure(count, 14);
                 Write(batch, font, count, new Vector2(cell.Center.X - countSize.X / 2, cell.Y + Portraits.Size.Y + 1), 14);
@@ -95,6 +98,12 @@ public sealed class SettlersOverview : IDisposable
         var size = font.Measure(number, 15);
         Write(batch, font, number, new Vector2(center - size.X / 2, Top + icon.Height + 1), 15);
     }
+
+    /// <summary>A passive overview: nothing to click or hover.</summary>
+    public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue) => null;
+
+    /// <summary>A passive overview: nothing to click or hover.</summary>
+    public string? Hover(Vector2 panel, World world, int player) => null;
 
     /// <summary>The portrait of a kind: soldiers by their first level.</summary>
     private static string PortraitOf(string kind) => kind is "SWORDSMAN" or "BOWMAN" or "PIKEMAN" ? $"{kind}_L1" : kind;

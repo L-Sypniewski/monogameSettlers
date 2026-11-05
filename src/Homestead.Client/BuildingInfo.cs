@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
@@ -55,24 +54,21 @@ public sealed partial class BuildingInfo
 
     private readonly int[] _headImages;
 
-    public BuildingInfo(PanelLayout layout)
+    public BuildingInfo(PanelLayout layout, UiLayout ui)
     {
         _layout = layout;
         Left = _layout.Content.X + 4;
         Top = _layout.Content.Y;
         Bottom = _layout.Content.Bottom;
         Inner = _layout.Content.Width - 8;
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var root = document.RootElement;
-        foreach (var state in root.GetProperty("status").EnumerateArray())
-            _states.Add((state[0].GetString()!, state[1].GetString()!));
-        var info = root.GetProperty("buildingInfo");
-        _demolishImage = info.GetProperty("demolish").GetInt32();
-        _headImages = new[] { "pause", "paused", "priority", "priorityOn" }.Select(n => info.GetProperty(n).GetInt32()).ToArray();
+        foreach (var state in ui.Status)
+            _states.Add((state.Contains, state.State));
+        _demolishImage = ui.BuildingInfo.Demolish;
+        _headImages = [ui.BuildingInfo.Pause, ui.BuildingInfo.Paused, ui.BuildingInfo.Priority, ui.BuildingInfo.PriorityOn];
     }
 
     /// <summary>Loads the tear-down icon (once; the same for every people).</summary>
-    public void LoadIcons(GraphicsDevice device, GfxDirectory gfx)
+    public void LoadIcons(GraphicsDevice device, GfxDirectory gfx, UiLayout ui)
     {
         if (_demolishIcon is not null)
             return;
@@ -88,9 +84,9 @@ public sealed partial class BuildingInfo
             return texture;
         }).ToArray();
         (_pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon) = (head[0], head[1], head[2], head[3]);
-        LoadMarketIcons(device, gui);
-        LoadDockyardIcons(device, gfx, gui);
-        LoadWarWorksIcons(device, gfx);
+        LoadMarketIcons(device, gui, ui);
+        LoadDockyardIcons(device, gfx, gui, ui);
+        LoadWarWorksIcons(device, gfx, ui);
     }
 
     /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>

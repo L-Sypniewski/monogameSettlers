@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Magic;
@@ -33,12 +32,11 @@ public sealed class SpellMenu
     private readonly Dictionary<Civilization, (int File, int Index)> _first = [];
     private readonly Dictionary<Civilization, Texture2D[]> _icons = [];
 
-    public SpellMenu(PanelLayout layout)
+    public SpellMenu(PanelLayout layout, UiLayout ui)
     {
         _layout = layout;
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        foreach (var people in document.RootElement.GetProperty("spellMenu").EnumerateObject())
-            _first[Enum.Parse<Civilization>(people.Name)] = (people.Value[0].GetInt32(), people.Value[1].GetInt32());
+        foreach (var (people, icon) in ui.SpellMenu.ByPeople)
+            _first[Enum.Parse<Civilization>(people)] = (icon.File, icon.Index);
     }
 
     public void LoadIcons(GraphicsDevice device, GfxDirectory gfx, int spells = 8)

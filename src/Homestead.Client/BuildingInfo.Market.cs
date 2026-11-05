@@ -41,7 +41,7 @@ public sealed partial class BuildingInfo
     /// <summary>The good the buttons below the goods change.</summary>
     public Material TradeGood { get; private set; } = Material.Plank;
 
-    private void LoadMarketIcons(GraphicsDevice device, GfxFile gui)
+    private void LoadMarketIcons(GraphicsDevice device, GfxFile gui, UiLayout ui)
     {
         Texture2D Load(int index)
         {
@@ -51,13 +51,12 @@ public sealed partial class BuildingInfo
             return texture;
         }
 
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var market = document.RootElement.GetProperty("market");
-        _routeStrip = Load(market.GetProperty("route").GetInt32());
-        _seaRouteStrip = Load(market.GetProperty("seaRoute").GetInt32());
-        _allIcon = Load(market.GetProperty("all").GetInt32());
-        _noneIcon = Load(market.GetProperty("none").GetInt32());
-        _tradeArrows = document.RootElement.GetProperty("soldiersMenu").GetProperty("arrows").EnumerateArray().Select(i => Load(i.GetInt32())).ToArray();
+        var market = ui.Market;
+        _routeStrip = Load(market.Route);
+        _seaRouteStrip = Load(market.SeaRoute);
+        _allIcon = Load(market.All);
+        _noneIcon = Load(market.None);
+        _tradeArrows = ui.SoldiersMenu.Arrows.Select(Load).ToArray();
     }
 
     // Layout (panel space): below the name the route strip, then the goods with their amounts, the buttons at the bottom.

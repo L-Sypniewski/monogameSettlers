@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation.Buildings;
 using Microsoft.Xna.Framework;
@@ -39,27 +38,22 @@ public sealed class PanelTabs : IDisposable
     private readonly PanelLayout _layout;
     private readonly List<Tab> _tabs = new();
 
-    public PanelTabs(GraphicsDevice device, GfxDirectory gfx, PanelLayout layout)
+    public PanelTabs(GraphicsDevice device, GfxDirectory gfx, PanelLayout layout, UiLayout ui)
     {
         _layout = layout;
         var file = gfx.Open(File);
-        Texture2D Image(JsonElement images, int i)
+        Texture2D Image(int[] images, int i)
         {
-            var bitmap = file.ReadGui(images[i].GetInt32());
+            var bitmap = file.ReadGui(images[i]);
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
         }
 
-        using var document = JsonDocument.Parse(System.IO.File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        foreach (var tab in document.RootElement.GetProperty("panelTabs").EnumerateArray())
+        foreach (var configured in ui.PanelTabs)
         {
-            var images = tab.GetProperty("tab");
-            var menus = tab.TryGetProperty("menus", out var list)
-                ? list.EnumerateArray().Select(m => new Menu(m.GetProperty("id").GetString()!, Lang.T("panel.menus." + m.GetProperty("id").GetString()),
-                    Image(m.GetProperty("tab"), 0), Image(m.GetProperty("tab"), 1))).ToList()
-                : [];
-            _tabs.Add(new Tab(Lang.T("panel.tabs." + tab.GetProperty("id").GetString()), Image(images, 0), Image(images, 1), menus));
+            var menus = configured.Menus.Select(m => new Menu(m.Id, Lang.T("panel.menus." + m.Id), Image(m.Tab, 0), Image(m.Tab, 1))).ToList();
+            _tabs.Add(new Tab(Lang.T("panel.tabs." + configured.Id), Image(configured.Tab, 0), Image(configured.Tab, 1), menus));
         }
     }
 

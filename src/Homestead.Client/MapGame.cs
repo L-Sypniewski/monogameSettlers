@@ -178,7 +178,7 @@ public sealed class MapGame : Game
         if (people == Own.Civilization)
             return _portraits!;
         if (!_peoplePortraits.TryGetValue(people, out var portraits))
-            _peoplePortraits[people] = portraits = new Portraits(GraphicsDevice, _gfx, people);
+            _peoplePortraits[people] = portraits = new Portraits(GraphicsDevice, _gfx, people, _uiLayout);
         return portraits;
     }
 
@@ -201,6 +201,8 @@ public sealed class MapGame : Game
     private readonly PanelLayout _panelLayout = new(new Rectangle(10, 118, 196, 354), new Rectangle(10, 64, 196, 39));
     /// <summary>Everything the screens and menus read from <c>data/ui.json</c> (loaded once, pure data).</summary>
     private readonly UiLayout _uiLayout = UiLayout.Load();
+    /// <summary>The open sub-menu of the side panel by its id in <c>panelTabs.menus</c> (made per people).</summary>
+    private readonly Dictionary<string, IPanelMenu> _panelMenus = new();
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
     private ProfessionsMenu? _professionsMenu;
@@ -423,8 +425,8 @@ public sealed class MapGame : Game
     {
         _systemMenu = new SystemMenu(_panelLayout);
         _selectionPanel = new SelectionPanel(_panelLayout);
-        _spellMenu = new SpellMenu(_panelLayout);
-        _buildingInfo = new BuildingInfo(_panelLayout);
+        _spellMenu = new SpellMenu(_panelLayout, _uiLayout);
+        _buildingInfo = new BuildingInfo(_panelLayout, _uiLayout);
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         Window.TextInput += (_, e) =>
         {
@@ -465,7 +467,7 @@ public sealed class MapGame : Game
         _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
         _sidePanel = new SidePanel(GraphicsDevice, _gfx);
         TextButton.Load(GraphicsDevice, _gfx);
-        _tabs = new PanelTabs(GraphicsDevice, _gfx, _panelLayout);
+        _tabs = new PanelTabs(GraphicsDevice, _gfx, _panelLayout, _uiLayout);
         _eventButtons = new EventButtons(GraphicsDevice, _gfx, remember: _captureDirectory is null);
         // HOMESTEAD_CAPTURE_TAB=goods|settlers[:<sub-menu id>[:manual|<good>]]: a capture run shows that main tab
         // (and sub-menu; manual recruitment, or the good chosen in Waren › Verteilung or Warentransport).
@@ -486,12 +488,12 @@ public sealed class MapGame : Game
         if (_captureDirectory is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_COLORS") is { } captureColors)
             PlayerColors.Assign(captureColors.Split(',').Select(c => int.TryParse(c, out int color) ? color : (int?)null).ToArray(), _random);
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
-        _shipRenderer = new ShipRenderer(_sprites);
+        _shipRenderer = new ShipRenderer(_sprites, _uiLayout);
         _statusIcons = new StatusIcons(_sprites);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
         _economyRenderer = new EconomyRenderer(_sprites);
-        _machineRenderer = new WarMachineRenderer(_sprites);
+        _machineRenderer = new WarMachineRenderer(_sprites, _uiLayout);
         SelectionPanel.UsesAmmo = machine => _world.WarMachines.KindOf(machine) is { Shots: > 0 };
         ControlGroups.PortraitSize = s => SettlerRenderer.TypeOf(s) is { } type ? PortraitsOf(_settlerRenderer.PeopleOf(s)).SizeOf(type) : Portraits.Size;
         ControlGroups.DrawShip = _buildingInfo.DrawShipIcon;
@@ -513,7 +515,7 @@ public sealed class MapGame : Game
             bool campaignCapture = captureStart?.StartsWith("campaign") == true || captureStart?.StartsWith("amazons") == true
                 || captureStart?.StartsWith("missionCd") == true;
             if (captureStart?.StartsWith("loading") == true)
-                _loading = new LoadingScreen(GraphicsDevice, _gfx, captureStart.Split(':') is [_, var campaign] ? campaign : null, _display.Theme);
+                _loading = new LoadingScreen(GraphicsDevice, _gfx, captureStart.Split(':') is [_, var campaign] ? campaign : null, _display.Theme, _uiLayout);
             else if (captureStart is null or "intro" || captureStart.StartsWith("title") || captureStart.StartsWith("settings")
                      || captureStart?.StartsWith("multiplayer") == true || campaignCapture || CaptureServer is not null)
             {
@@ -790,7 +792,7 @@ public sealed class MapGame : Game
             return;
         }
         _loading?.Dispose();
-        _loading = new LoadingScreen(GraphicsDevice, _gfx, campaign, _display.Theme);
+        _loading = new LoadingScreen(GraphicsDevice, _gfx, campaign, _display.Theme, _uiLayout);
         _afterLoading = load;
     }
 
@@ -803,28 +805,40 @@ public sealed class MapGame : Game
         if (!force && _buildMenu is not null && _placeable.FirstOrDefault()?.Civilization == catalog.Civilization)
             return;
         _buildMenu?.Dispose();
-        _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog, _panelLayout);
+        _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog, _panelLayout, _uiLayout);
         _portraits?.Dispose();
-        _portraits = new Portraits(GraphicsDevice, _gfx, catalog.Civilization);
+        _portraits = new Portraits(GraphicsDevice, _gfx, catalog.Civilization, _uiLayout);
         DisposePeoplePortraits();
         _soldiersMenu?.Dispose();
-        _soldiersMenu = new SoldiersMenu(GraphicsDevice, _gfx, catalog.Civilization, _panelLayout);
+        _soldiersMenu = new SoldiersMenu(GraphicsDevice, _gfx, catalog.Civilization, _portraits, _settlerRenderer, _buildingInfo,
+            _panelLayout, _uiLayout);
         _settlersOverview?.Dispose();
-        _settlersOverview = new SettlersOverview(GraphicsDevice, _gfx, catalog.Civilization, _panelLayout);
-        _professionsMenu ??= new ProfessionsMenu(GraphicsDevice, _gfx, _panelLayout);
+        _settlersOverview = new SettlersOverview(GraphicsDevice, _gfx, catalog.Civilization, _portraits, _settlerRenderer,
+            _panelLayout, _uiLayout);
+        _professionsMenu?.Dispose();
+        _professionsMenu = new ProfessionsMenu(GraphicsDevice, _gfx, catalog.Civilization, _portraits, _settlerRenderer,
+            _panelLayout, _uiLayout, find => Find(find.Profession, find.Mode), SelectConverted, CarriersByCenter);
         _goodsGrid?.Dispose();
-        _goodsGrid = new GoodsGrid(GraphicsDevice, _gfx, catalog, Homestead.Simulation.Economy.ProductionConfig.Load(), _panelLayout);
+        _goodsGrid = new GoodsGrid(GraphicsDevice, _gfx, catalog, Homestead.Simulation.Economy.ProductionConfig.Load(), _panelLayout, _uiLayout);
         _statisticsMenu = new StatisticsMenu(_goodsGrid, _panelLayout);
         _stockMenu = new StockMenu(_goodsGrid, _panelLayout);
         _manufactureMenu?.Dispose();
-        _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid, _panelLayout);
+        _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid, _panelLayout, _uiLayout);
         _buildingInfo.Spinner = _manufactureMenu.SpinnerImage;
         _buildingInfo.Issue = IssueReported;
-        _buildingInfo.LoadIcons(GraphicsDevice, _gfx);
+        _buildingInfo.LoadIcons(GraphicsDevice, _gfx, _uiLayout);
         _spellMenu.LoadIcons(GraphicsDevice, _gfx);
-        _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf, _panelLayout);
+        _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf, _panelLayout, _uiLayout);
         _transportMenu?.Dispose();
-        _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid, _panelLayout);
+        _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid, _panelLayout, _uiLayout);
+        _panelMenus["stock"] = _stockMenu;
+        _panelMenus["tools"] = _manufactureMenu;
+        _panelMenus["distribution"] = _distributionMenu;
+        _panelMenus["transport"] = _transportMenu;
+        _panelMenus["overview"] = _settlersOverview;
+        _panelMenus["professions"] = _professionsMenu;
+        _panelMenus["soldiers"] = _soldiersMenu;
+        _panelMenus["statistics"] = _statisticsMenu;
         _buildingInfo.StorehouseGoods = _goodsGrid;
         if (_captureGood is { } chosenGood)
             _transportMenu.Choose(chosenGood);
@@ -2168,62 +2182,15 @@ public sealed class MapGame : Game
         {
             if (onMenu && released && _tabs.MenuAt(panelCursor) is { } menu)
                 _tabs.ShowMenu(menu);
-            else if (_tabs.CurrentMenu == "soldiers" && onMenu)
+            else if (_tabs.CurrentMenu is { } id && _panelMenus.TryGetValue(id, out var panel))
             {
-                if (_soldiersMenu!.Hover(panelCursor, _world, _local, _buildingInfo) is { } hover)
+                if (onMenu && panel.Hover(panelCursor, _world, _local) is { } hover)
                     _message = hover;
-                if (released && _soldiersMenu.Click(panelCursor, _world, _local, _buildingInfo, IssueReported) is { } done)
-                    _message = done;
-            }
-            else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "tools")
-            {
-                if (onMenu && _manufactureMenu!.Hover(panelCursor, _world, _local) is { } hover)
-                    _message = hover;
-                bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
+                // While a selection box is being dragged on the map the menus see no press, as with a click there.
+                bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive && _dragStart is null;
                 bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
-                if (_manufactureMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
+                if (panel.Update(panelCursor, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
                     _message = done;
-            }
-            else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "distribution")
-            {
-                if (onMenu && _distributionMenu!.Hover(panelCursor) is { } hover)
-                    _message = hover;
-                bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
-                bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
-                if (_distributionMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
-                    _message = done;
-            }
-            else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "transport" && onMenu)
-            {
-                if (_transportMenu!.Hover(panelCursor, _world, _local) is { } hover)
-                    _message = hover;
-                if (released && _transportMenu.Click(panelCursor, _world, _local, IssueReported) is { } done)
-                    _message = done;
-            }
-            else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "stock" && onMenu)
-            {
-                if (_stockMenu!.Hover(panelCursor, _world, _local) is { } hover)
-                    _message = hover;
-            }
-            else if (_tabs.CurrentMenu == "statistics" && onMenu)
-            {
-                if (_statisticsMenu!.Hover(panelCursor, _world, _local) is { } hover)
-                    _message = hover;
-                if (released && _statisticsMenu.Click(panelCursor, _world, _local) is { } done)
-                    _message = done;
-            }
-            else if (_tabs.CurrentMenu == "professions" && onMenu)
-            {
-                if (_professionsMenu!.Hover(panelCursor) is { } hover)
-                    _message = hover;
-                if (released)
-                {
-                    string? done = _professionsMenu.Click(panelCursor, _world, _local, IssueReported, out var find, SelectConverted, CarriersByCenter());
-                    if (find is { } f)
-                        Find(f.Profession, f.Mode);
-                    else if (done is not null)
-                        _message = done;
-                }
             }
         }
         else if (!ShowsSelection)
@@ -3584,22 +3551,8 @@ public sealed class MapGame : Game
             string? menu = _tabs.CurrentMenu;
             _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview" or "professions" or "statistics" or "stock" or "tools" or "distribution" or "transport"),
                 title: menu != "tools");
-            if (menu == "soldiers")
-                _soldiersMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
-            else if (menu == "overview")
-                _settlersOverview!.Draw(_spriteBatch, _font, _world, _local, _portraits!, _settlerRenderer, Own.Civilization);
-            else if (menu == "transport")
-                _transportMenu!.Draw(_spriteBatch, _pixel, _world, _local, panelMouse, (float)gameTime.ElapsedGameTime.TotalSeconds);
-            else if (menu == "distribution")
-                _distributionMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, panelMouse);
-            else if (menu == "tools")
-                _manufactureMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, panelMouse);
-            else if (menu == "stock")
-                _stockMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, panelMouse);
-            else if (menu == "statistics")
-                _statisticsMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, panelMouse);
-            else if (menu == "professions")
-                _professionsMenu!.Draw(_spriteBatch, _pixel, _font, _world, _local, _portraits!, _settlerRenderer, Own.Civilization, panelMouse);
+            if (menu is not null && _panelMenus.TryGetValue(menu, out var panel))
+                panel.Draw(_spriteBatch, _pixel, _font, _world, _local, panelMouse, (float)gameTime.ElapsedGameTime.TotalSeconds);
         }
         _tabs.DrawTabs(_spriteBatch);
         _eventButtons.Draw(_spriteBatch, _now);

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation.Buildings;
 using Microsoft.Xna.Framework;
@@ -36,7 +35,7 @@ public sealed class BuildMenu : IDisposable
     private BuildingDefinition? _hovered;
     private double _hoverSince, _lastDrawn = double.NegativeInfinity;
 
-    public BuildMenu(GraphicsDevice device, GfxDirectory gfx, BuildingCatalog catalog, PanelLayout layout)
+    public BuildMenu(GraphicsDevice device, GfxDirectory gfx, BuildingCatalog catalog, PanelLayout layout, UiLayout ui)
     {
         _layout = layout;
         Texture2D ToTexture(GfxBitmap bitmap)
@@ -47,21 +46,20 @@ public sealed class BuildMenu : IDisposable
         }
 
         var tabs = gfx.Open(TabFile);
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        foreach (var category in document.RootElement.GetProperty("buildMenu").EnumerateArray())
+        foreach (var category in ui.BuildMenu)
         {
-            var buildings = category.GetProperty("buildings").EnumerateArray()
-                .Select(b => catalog.Find(b.GetString()!))
+            var buildings = category.Buildings
+                .Select(b => catalog.Find(b))
                 // Not every building has a construction image (the storehouse is only posts): its site shows sign and posts.
                 .Where(b => b is not null && b.ConstructionPiles.Count > 0)
                 .Cast<BuildingDefinition>().ToList();
             Texture2D? tab = null, selected = null;
-            if (category.TryGetProperty("tab", out var images))
+            if (category.Tab is { } images)
             {
-                tab = ToTexture(tabs.ReadGui(images[0].GetInt32()));
-                selected = ToTexture(tabs.ReadGui(images[1].GetInt32()));
+                tab = ToTexture(tabs.ReadGui(images[0]));
+                selected = ToTexture(tabs.ReadGui(images[1]));
             }
-            _categories.Add((category.GetProperty("name").GetString()!, tab, selected, buildings));
+            _categories.Add((category.Name, tab, selected, buildings));
         }
         foreach (var building in _categories.SelectMany(c => c.Buildings).Distinct())
             if (building.GuiImage is { } image)

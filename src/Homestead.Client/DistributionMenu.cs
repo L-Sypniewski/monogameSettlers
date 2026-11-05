@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Simulation;
 using Homestead.Simulation.Commands;
 using Homestead.Simulation.Buildings;
@@ -15,7 +14,7 @@ namespace Homestead.Client;
 /// (<see cref="Logistics.ShareOf"/>, <see cref="ShareBar"/>). Goods in <c>data/ui.json</c>
 /// (<c>distributionMenu</c>). Panel space.
 /// </summary>
-public sealed class DistributionMenu
+public sealed class DistributionMenu : IPanelMenu
 {
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Color Selected = new(220, 30, 20);
@@ -30,15 +29,14 @@ public sealed class DistributionMenu
     /// <summary>The target whose bar is being dragged, while the button is held.</summary>
     private string? _dragging;
 
-    public DistributionMenu(GoodsGrid grid, BuildingCatalog catalog, Func<BuildingDefinition, string> nameOf, PanelLayout layout)
+    public DistributionMenu(GoodsGrid grid, BuildingCatalog catalog, Func<BuildingDefinition, string> nameOf, PanelLayout layout, UiLayout ui)
     {
         _grid = grid;
         _layout = layout;
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
         var buildings = catalog.All.Where(b => b.Name != "stock").ToList();
-        foreach (var entry in document.RootElement.GetProperty("distributionMenu").GetProperty("goods").EnumerateArray())
+        foreach (var entry in ui.DistributionMenu.Goods)
         {
-            var material = Materials.Parse(entry.GetString()!)!.Value;
+            var material = Materials.Parse(entry)!.Value;
             var targets = new List<(string, string)>();
             if (buildings.Any(b => b.ConstructionPiles.Any(p => p.Material == material)))
                 targets.Add((Logistics.Construction, Lang.T("distribution.construction")));
@@ -68,7 +66,7 @@ public sealed class DistributionMenu
     private int EntryY(int i) => Top + i * EntryHeight;
     private Rectangle Bar(int i) => new(EntryX + 46, EntryY(i) + 21, Left + Width - EntryX - 46, ShareBar.Height);
 
-    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
+    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor, float seconds)
     {
         for (int i = 0; i < _goods.Count; i++)
         {
@@ -126,7 +124,7 @@ public sealed class DistributionMenu
     }
 
     /// <summary>What the element under the point does (hover text), or null.</summary>
-    public string? Hover(Vector2 panel)
+    public string? Hover(Vector2 panel, World world, int player)
     {
         for (int i = 0; i < _goods.Count; i++)
             if (Icon(i).Contains(panel))
