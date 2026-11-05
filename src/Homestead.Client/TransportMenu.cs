@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Commands;
@@ -17,7 +16,7 @@ namespace Homestead.Client;
 /// the chosen one. Reordered icons glide to their new place. Button images in <c>data/ui.json</c>
 /// (<c>transportMenu</c>). Panel space.
 /// </summary>
-public sealed class TransportMenu : IDisposable
+public sealed class TransportMenu : IPanelMenu, IDisposable
 {
     private static readonly Color Selected = new(220, 30, 20);
     internal static readonly Color StoredDot = new(60, 210, 60);
@@ -31,18 +30,20 @@ public sealed class TransportMenu : IDisposable
     private const float GlideRate = 12f;
 
     private readonly GoodsGrid _grid;
+    private readonly PanelLayout _layout;
     private readonly Texture2D[] _buttons;
     private readonly Dictionary<Material, Vector2> _shown = new();
     private Material? _chosen;
+    private bool _wasPressed;
 
-    public TransportMenu(GraphicsDevice device, GfxDirectory gfx, GoodsGrid grid)
+    public TransportMenu(GraphicsDevice device, GfxDirectory gfx, GoodsGrid grid, PanelLayout layout, UiLayout ui)
     {
         _grid = grid;
+        _layout = layout;
         var gui = gfx.Open(3);
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        _buttons = document.RootElement.GetProperty("transportMenu").GetProperty("buttons").EnumerateArray().Select(i =>
+        _buttons = ui.TransportMenu.Buttons.Select(i =>
         {
-            var bitmap = gui.ReadGui(i.GetInt32());
+            var bitmap = gui.ReadGui(i);
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
@@ -53,17 +54,17 @@ public sealed class TransportMenu : IDisposable
     public void Choose(Material material) => _chosen = material;
 
     // Layout (panel space), top down in the content area.
-    private static int Left => BuildMenu.Content.X + 4;
-    private static int Width => BuildMenu.Content.Width - 8;
-    private static int Top => BuildMenu.Content.Y + 30; // below the title
+    private int Left => _layout.Content.X + 4;
+    private int Width => _layout.Content.Width - 8;
+    private int Top => _layout.Content.Y + 30; // below the title
 
-    private static Vector2 Place(int index) =>
+    private Vector2 Place(int index) =>
         new(Left + (Width - Columns * ColumnStep) / 2 + index % Columns * ColumnStep, Top + index / Columns * RowStep + index % Columns * Stair);
 
     /// <summary>The buttons: store, do not store at the left; top, up, down, bottom at the right.</summary>
-    private static Rectangle Button(int i)
+    private Rectangle Button(int i)
     {
-        int y = BuildMenu.Content.Bottom - 36;
+        int y = _layout.Content.Bottom - 36;
         return i < 2 ? new Rectangle(Left + i * 32, y, 30, 30) : new Rectangle(Left + Width - (6 - i) * 32 + 2, y, 30, 30);
     }
 
@@ -74,7 +75,7 @@ public sealed class TransportMenu : IDisposable
         .Where(g => _grid.IsMakeable(g.Material))
         .ToList();
 
-    public void Draw(SpriteBatch batch, Texture2D pixel, World world, int player, Vector2 cursor, float seconds)
+    public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor, float seconds)
     {
         var goods = Ordered(world, player);
         float glide = 1 - MathF.Exp(-GlideRate * seconds);
@@ -89,9 +90,9 @@ public sealed class TransportMenu : IDisposable
             var rect = new Rectangle((int)MathF.Round(at.X), (int)MathF.Round(at.Y), GoodsGrid.IconSize, GoodsGrid.IconSize);
             batch.Draw(good.Icon, rect, Color.White);
             if (good.Material == _chosen)
-                Frame(batch, pixel, rect, Selected, 2);
+                PanelUi.Frame(batch, pixel, rect, Selected, 2);
             else if (rect.Contains(cursor))
-                batch.Draw(pixel, rect, Color.White * 0.15f);
+                PanelUi.HoverOverlay(batch, pixel, rect);
             Dot(batch, pixel, new Point(rect.X + 3, rect.Y - 3), world.Logistics.IsStored(player, good.Material) ? StoredDot : NotStoredDot);
         }
 
@@ -100,12 +101,22 @@ public sealed class TransportMenu : IDisposable
             var rect = Button(i);
             batch.Draw(_buttons[i], rect, _chosen is null ? Color.White * 0.4f : Color.White);
             if (_chosen is not null && rect.Contains(cursor))
-                batch.Draw(pixel, rect, Color.White * 0.15f);
+                PanelUi.HoverOverlay(batch, pixel, rect);
         }
     }
 
+    /// <summary>Mouse handling (panel space): a click – the button released on the menu – chooses a good or applies a button to the chosen one.</summary>
+    public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue)
+    {
+        string? done = !pressed && _wasPressed && onMenu ? Click(panel, world, player, issue) : null;
+        _wasPressed = pressed;
+        return done;
+    }
+
+    public void ResetInput() => _wasPressed = false;
+
     /// <summary>A click (panel space): chooses a good or applies a button to the chosen one; returns a message, or null.</summary>
-    public string? Click(Vector2 panel, World world, int player, IssueCommand issue)
+    private string? Click(Vector2 panel, World world, int player, IssueCommand issue)
     {
         var goods = Ordered(world, player);
         for (int i = 0; i < goods.Count; i++)
@@ -191,14 +202,6 @@ public sealed class TransportMenu : IDisposable
         batch.Draw(pixel, new Rectangle(at.X, at.Y + 1, 7, 5), Color.Black * 0.7f);
         batch.Draw(pixel, new Rectangle(at.X + 2, at.Y + 1, 3, 5), color);
         batch.Draw(pixel, new Rectangle(at.X + 1, at.Y + 2, 5, 3), color);
-    }
-
-    private static void Frame(SpriteBatch batch, Texture2D pixel, Rectangle rect, Color color, int width)
-    {
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, width), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - width, rect.Width, width), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, width, rect.Height), color);
-        batch.Draw(pixel, new Rectangle(rect.Right - width, rect.Y, width, rect.Height), color);
     }
 
     public void Dispose()

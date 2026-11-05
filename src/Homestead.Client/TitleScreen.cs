@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Persistence;
@@ -107,26 +106,18 @@ public sealed class TitleScreen : IDisposable
     private MouseState _previousMouse = SdlMouse.GetState();
 
     /// <param name="theme">The look (<see cref="DisplaySettings.Theme"/>); normal is gold.</param>
-    public TitleScreen(GraphicsDevice device, GfxDirectory gfx, Theme theme)
+    public TitleScreen(GraphicsDevice device, GfxDirectory gfx, Theme theme, UiLayout ui)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var screen = document.RootElement.GetProperty("titleScreen");
-        var look = screen.GetProperty("themes").GetProperty(theme switch
+        var screen = ui.TitleScreen;
+        var look = screen.Themes[theme switch
         {
             Theme.Classic => "classic",
             Theme.Amazons => "amazons",
             _ => "gold",
-        });
-        Color Rgb(string name)
-        {
-            var rgb = look.GetProperty(name);
-            return new Color(rgb[0].GetInt32(), rgb[1].GetInt32(), rgb[2].GetInt32());
-        }
-        (Fill, PressedFill, Dark, Light, Shadow) = (Rgb("fill"), Rgb("pressed"), Rgb("dark"), Rgb("light"), Rgb("shadow"));
-        if (look.TryGetProperty("versionRight", out var versionRight))
-            _versionRight = versionRight.GetSingle();
-        var file = gfx.Open(look.GetProperty("file").GetInt32());
-        Texture2D Image(string name) => Gui(look.GetProperty(name).GetInt32());
+        }];
+        (Fill, PressedFill, Dark, Light, Shadow) = (look.Fill, look.Pressed, look.Dark, look.Light, look.Shadow);
+        _versionRight = look.VersionRight ?? _versionRight;
+        var file = gfx.Open(look.File);
         Texture2D Gui(int index)
         {
             var bitmap = file.ReadGui(index);
@@ -135,16 +126,14 @@ public sealed class TitleScreen : IDisposable
             return texture;
         }
         // A language without a picture of its own (Polish) shows the English one.
-        var backgrounds = look.GetProperty("background");
         foreach (var language in Enum.GetValues<Language>())
-            _backgrounds[language] = Gui((backgrounds.TryGetProperty(Lang.Code(language), out var index) ? index : backgrounds.GetProperty("en")).GetInt32());
-        _plain = Image("plain");
-        var popup = screen.GetProperty("popup");
-        var popupBitmap = gfx.Open(popup[0].GetInt32()).ReadGui(popup[1].GetInt32());
+            _backgrounds[language] = Gui(look.Background.TryGetValue(Lang.Code(language), out var index) ? index : look.Background["en"]);
+        _plain = Gui(look.Plain);
+        var popup = screen.Popup;
+        var popupBitmap = gfx.Open(popup.File).ReadGui(popup.Index);
         _popupImage = new Texture2D(device, popupBitmap.Width, popupBitmap.Height);
         _popupImage.SetData(popupBitmap.Pixels);
-        var strip = look.GetProperty("plainStrip");
-        _plainStrip = new Rectangle(strip[0].GetInt32(), strip[1].GetInt32(), strip[2].GetInt32(), strip[3].GetInt32());
+        _plainStrip = look.PlainStrip;
     }
 
     // Layout in the 800 × 600 space of the picture, measured on the original menu.

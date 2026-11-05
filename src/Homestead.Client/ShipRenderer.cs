@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Client.Terrain;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
@@ -23,16 +22,13 @@ public sealed class ShipRenderer
     /// <summary>How much of the hull shows when the first unit is not in yet.</summary>
     private const float FirstHull = 0.12f;
 
-    public ShipRenderer(SpriteLibrary library)
+    public ShipRenderer(SpriteLibrary library, UiLayout ui)
     {
         _library = library;
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var ships = document.RootElement.GetProperty("ships");
-        _file = ships.GetProperty("file").GetInt32();
-        foreach (var people in ships.GetProperty("peoples").EnumerateObject())
-        foreach (var kind in people.Value.EnumerateObject())
-            _sequences[(Enum.Parse<Civilization>(people.Name), Enum.Parse<ShipKind>(kind.Name, ignoreCase: true))] =
-                (kind.Value.GetProperty("ship").GetInt32(), kind.Value.GetProperty("sail").GetInt32());
+        _file = ui.Ships.File;
+        foreach (var (people, kinds) in ui.Ships.Peoples)
+        foreach (var (kind, look) in kinds)
+            _sequences[(Enum.Parse<Civilization>(people), Enum.Parse<ShipKind>(kind, ignoreCase: true))] = (look.Ship, look.Sail);
     }
 
     /// <summary>Where a ship is drawn: between its field and the next while it moves.</summary>

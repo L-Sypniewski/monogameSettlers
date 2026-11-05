@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Magic;
@@ -21,13 +20,11 @@ public sealed class StatusIcons
     private readonly (SpellKind Kind, SettlerSprites Sprites)[] _icons;
     private readonly List<(SettlerSprites Sprites, Rectangle Bounds)> _shown = new();
 
-    public StatusIcons(SpriteLibrary sprites)
+    public StatusIcons(SpriteLibrary sprites, UiLayout ui)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var icons = document.RootElement.GetProperty("statusIcons");
-        int file = icons.GetProperty("file").GetInt32();
-        _icons = icons.EnumerateObject().Where(p => Enum.TryParse<SpellKind>(p.Name, out _))
-            .Select(p => (Enum.Parse<SpellKind>(p.Name), sprites.Sequence(file, p.Value.GetInt32()))).ToArray();
+        var icons = ui.StatusIcons;
+        _icons = icons.Sequences.Where(p => Enum.TryParse<SpellKind>(p.Key, out _))
+            .Select(p => (Enum.Parse<SpellKind>(p.Key), sprites.Sequence(icons.File, p.Value))).ToArray();
     }
 
     /// <summary>The symbols of the spells working on the settler at the tick, centered above <paramref name="anchor"/>.</summary>

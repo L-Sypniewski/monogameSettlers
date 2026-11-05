@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
@@ -22,12 +21,13 @@ namespace Homestead.Client;
 /// </summary>
 public sealed partial class BuildingInfo
 {
+    private readonly PanelLayout _layout;
+
     // The content area of the blue panel (like the build menu), no background of its own.
-    private static readonly int Left = BuildMenu.Content.X + 4; // clear of the vines on the panel's frame
-    private static readonly int Top = BuildMenu.Content.Y;
-    private static readonly int Bottom = BuildMenu.Content.Bottom;
-    private static readonly int Inner = BuildMenu.Content.Width - 8;
-    private static readonly Color HoverColor = Color.White * 0.15f;
+    private readonly int Left; // clear of the vines on the panel's frame
+    private readonly int Top;
+    private readonly int Bottom;
+    private readonly int Inner;
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Color Label = new(190, 165, 120);
     private static readonly Color Selected = new(220, 30, 20);
@@ -54,19 +54,21 @@ public sealed partial class BuildingInfo
 
     private readonly int[] _headImages;
 
-    public BuildingInfo()
+    public BuildingInfo(PanelLayout layout, UiLayout ui)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var root = document.RootElement;
-        foreach (var state in root.GetProperty("status").EnumerateArray())
-            _states.Add((state[0].GetString()!, state[1].GetString()!));
-        var info = root.GetProperty("buildingInfo");
-        _demolishImage = info.GetProperty("demolish").GetInt32();
-        _headImages = new[] { "pause", "paused", "priority", "priorityOn" }.Select(n => info.GetProperty(n).GetInt32()).ToArray();
+        _layout = layout;
+        Left = _layout.Content.X + 4;
+        Top = _layout.Content.Y;
+        Bottom = _layout.Content.Bottom;
+        Inner = _layout.Content.Width - 8;
+        foreach (var state in ui.Status)
+            _states.Add((state.Contains, state.State));
+        _demolishImage = ui.BuildingInfo.Demolish;
+        _headImages = [ui.BuildingInfo.Pause, ui.BuildingInfo.Paused, ui.BuildingInfo.Priority, ui.BuildingInfo.PriorityOn];
     }
 
     /// <summary>Loads the tear-down icon (once; the same for every people).</summary>
-    public void LoadIcons(GraphicsDevice device, GfxDirectory gfx)
+    public void LoadIcons(GraphicsDevice device, GfxDirectory gfx, UiLayout ui)
     {
         if (_demolishIcon is not null)
             return;
@@ -82,9 +84,9 @@ public sealed partial class BuildingInfo
             return texture;
         }).ToArray();
         (_pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon) = (head[0], head[1], head[2], head[3]);
-        LoadMarketIcons(device, gui);
-        LoadDockyardIcons(device, gfx, gui);
-        LoadWarWorksIcons(device, gfx);
+        LoadMarketIcons(device, gui, ui);
+        LoadDockyardIcons(device, gfx, gui, ui);
+        LoadWarWorksIcons(device, gfx, ui);
     }
 
     /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>
@@ -122,18 +124,15 @@ public sealed partial class BuildingInfo
     private const int GarrisonRow = 38;
 
     /// <summary>The garrison rows of a military building, one per soldier type, at the bottom.</summary>
-    private static Rectangle GarrisonRowRect(int height, int index) =>
+    private Rectangle GarrisonRowRect(int height, int index) =>
         new(Left, Bottom - 4 - (Enum.GetValues<SoldierType>().Length - index) * (GarrisonRow + 2), Inner, GarrisonRow);
 
     /// <summary>The up/down spinner of a garrison row (as in Waren › Herstellung): upper half one more, lower half one fewer.</summary>
-    private static Rectangle GarrisonSpinner(int height, int index)
+    private Rectangle GarrisonSpinner(int height, int index)
     {
         var row = GarrisonRowRect(height, index);
         return new Rectangle(row.Right - 19 - 2, row.Y + (row.Height - 28) / 2, 19, 28);
     }
-
-    private static Rectangle SpinnerHalf(Rectangle spinner, int delta) =>
-        new(spinner.X, delta > 0 ? spinner.Y : spinner.Center.Y, spinner.Width, spinner.Height / 2);
 
     /// <summary>The spinner image (that of Waren › Herstellung; set once loaded).</summary>
     public Texture2D? Spinner { get; set; }
@@ -149,7 +148,7 @@ public sealed partial class BuildingInfo
         var types = Enum.GetValues<SoldierType>();
         for (int i = 0; i < types.Length; i++)
             foreach (int delta in new[] { -1, 1 })
-                if (SpinnerHalf(GarrisonSpinner(height, i), delta).Contains(screen))
+                if (PanelUi.SpinnerHalf(GarrisonSpinner(height, i), delta).Contains(screen))
                     return (types[i], delta);
         return null;
     }
@@ -180,12 +179,12 @@ public sealed partial class BuildingInfo
                 batch.Draw(Spinner, spinner, Color.White);
             foreach (int delta in new[] { -1, 1 })
             {
-                var half = SpinnerHalf(spinner, delta);
+                var half = PanelUi.SpinnerHalf(spinner, delta);
                 // Greyed out where the building would be left empty or overfull.
                 if (!military.CanChangeWanted(building, type, delta))
                     batch.Draw(pixel, half, Color.Black * 0.55f);
                 else if (half.Contains(cursor))
-                    batch.Draw(pixel, half, HoverColor);
+                    PanelUi.HoverOverlay(batch, pixel, half);
             }
         }
     }
@@ -199,17 +198,17 @@ public sealed partial class BuildingInfo
     private const int DemolishSize = 30;
 
     /// <summary>The tear-down icon at the top right, next to the name (as in the original).</summary>
-    private static Rectangle DemolishButton(int height) => new(Left + Inner - DemolishSize, Top, DemolishSize, DemolishSize);
+    private Rectangle DemolishButton(int height) => new(Left + Inner - DemolishSize, Top, DemolishSize, DemolishSize);
 
     /// <summary>Whether the screen point is on the tear-down icon of an own building (for its hover text).</summary>
     public bool DemolishAt(Vector2 screen, int height, Building building, int ownPlayer) =>
         building.Player == ownPlayer && _confirming != building && DemolishButton(height).Contains(screen);
 
     /// <summary>The icon stopping or restarting work, at the top left (as in the original).</summary>
-    private static Rectangle PauseButton(int height) => new(Left, Top, DemolishSize, DemolishSize);
+    private Rectangle PauseButton(int height) => new(Left, Top, DemolishSize, DemolishSize);
 
     /// <summary>The highest priority of a construction site, beside it.</summary>
-    private static Rectangle PriorityButton(int height) => new(Left + DemolishSize + 4, Top, DemolishSize, DemolishSize);
+    private Rectangle PriorityButton(int height) => new(Left + DemolishSize + 4, Top, DemolishSize, DemolishSize);
 
     private static bool OffersPause(World world, Building building) =>
         world.CanPause(building) && !OffersGarrison(building);
@@ -225,9 +224,9 @@ public sealed partial class BuildingInfo
         building.Player == ownPlayer && _confirming != building && OffersPriority(building) && PriorityButton(height).Contains(screen);
 
     // Plain "Ja"/"Nein" at the bottom corners, as in "Spiel beenden" (SystemMenu).
-    private static Rectangle YesButton(int height) => new(Left, Bottom - 28, 70, 24);
+    private Rectangle YesButton(int height) => new(Left, Bottom - 28, 70, 24);
 
-    private static Rectangle NoButton(int height) => new(Left + Inner - 70, Bottom - 28, 70, 24);
+    private Rectangle NoButton(int height) => new(Left + Inner - 70, Bottom - 28, 70, 24);
 
     /// <summary>
     /// A left click on the panel. True if it confirmed tearing down <paramref name="building"/>: first the
@@ -378,16 +377,11 @@ public sealed partial class BuildingInfo
         var only = world.Logistics.SpecializationOf(building);
         foreach (var good in grid.Goods)
         {
-            var rect = GoodsGrid.IconRect(good, top, StorehouseRow);
+            var rect = grid.IconRect(good, top, StorehouseRow);
             if (good.Material == only)
-            {
-                batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 2), Selected);
-                batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 2, rect.Width, 2), Selected);
-                batch.Draw(pixel, new Rectangle(rect.X, rect.Y, 2, rect.Height), Selected);
-                batch.Draw(pixel, new Rectangle(rect.Right - 2, rect.Y, 2, rect.Height), Selected);
-            }
+                PanelUi.Frame(batch, pixel, rect, Selected, 2);
             else if (rect.Contains(cursor))
-                batch.Draw(pixel, rect, Color.White * 0.15f);
+                PanelUi.HoverOverlay(batch, pixel, rect);
             if (only is null)
                 TransportMenu.Dot(batch, pixel, new Point(rect.X + 3, rect.Y - 3),
                     world.Logistics.IsStored(building.Player, good.Material) ? TransportMenu.StoredDot : TransportMenu.NotStoredDot);
@@ -424,18 +418,18 @@ public sealed partial class BuildingInfo
     }
 
     /// <summary>Below the icons at the top: where the name goes when there are some at the left.</summary>
-    private static int HeadBottom => Top + DemolishSize + 4;
+    private int HeadBottom => Top + DemolishSize + 4;
 
     private static void Icon(SpriteBatch batch, Texture2D pixel, Texture2D? icon, Rectangle rect, Vector2 cursor)
     {
         if (icon is not null)
             batch.Draw(icon, rect, Color.White);
         if (rect.Contains(cursor))
-            batch.Draw(pixel, rect, HoverColor);
+            PanelUi.HoverOverlay(batch, pixel, rect);
     }
 
     /// <summary>What the icon at the top under the mouse does, over the icons (as in the original).</summary>
-    private static void DrawHint(SpriteBatch batch, UiFont font, World world, Building building, Vector2 cursor)
+    private void DrawHint(SpriteBatch batch, UiFont font, World world, Building building, Vector2 cursor)
     {
         string? hint = DemolishButton(0).Contains(cursor) ? Lang.T("building.demolish")
             : OffersPause(world, building) && PauseButton(0).Contains(cursor) ? Lang.T(building.IsPaused ? "building.resume" : "building.pause")
@@ -452,7 +446,7 @@ public sealed partial class BuildingInfo
         if (_demolishIcon is not null)
             batch.Draw(_demolishIcon, icon, Color.White);
         if (icon.Contains(cursor))
-            batch.Draw(pixel, icon, HoverColor);
+            PanelUi.HoverOverlay(batch, pixel, icon);
     }
 
     private const int QuestionSize = 18;
@@ -462,7 +456,7 @@ public sealed partial class BuildingInfo
     /// Asking whether to tear the building down, as in the original: everything but the building's image gives way,
     /// the question at the bottom and "Ja"/"Nein" below it.
     /// </summary>
-    private static void DrawQuestion(SpriteBatch batch, int height, UiFont font, Vector2 cursor)
+    private void DrawQuestion(SpriteBatch batch, int height, UiFont font, Vector2 cursor)
     {
         var lines = font.Wrap(Lang.T("building.demolishQuestion"), Inner, QuestionSize).ToList();
         int top = YesButton(height).Y - 10 - lines.Count * QuestionLine;

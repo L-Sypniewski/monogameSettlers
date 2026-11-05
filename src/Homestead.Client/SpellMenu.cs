@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Magic;
@@ -27,15 +26,17 @@ public sealed class SpellMenu
     /// <summary>Each charge's stripe is this many times as wide as the one before.</summary>
     private const double StripeGrowth = 1.35;
 
+    private readonly PanelLayout _layout;
+
     /// <summary>Large icon of each people's top spell (GUI image of its file; each further spell three lower).</summary>
     private readonly Dictionary<Civilization, (int File, int Index)> _first = [];
     private readonly Dictionary<Civilization, Texture2D[]> _icons = [];
 
-    public SpellMenu()
+    public SpellMenu(PanelLayout layout, UiLayout ui)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        foreach (var people in document.RootElement.GetProperty("spellMenu").EnumerateObject())
-            _first[Enum.Parse<Civilization>(people.Name)] = (people.Value[0].GetInt32(), people.Value[1].GetInt32());
+        _layout = layout;
+        foreach (var (people, icon) in ui.SpellMenu.ByPeople)
+            _first[Enum.Parse<Civilization>(people)] = (icon.File, icon.Index);
     }
 
     public void LoadIcons(GraphicsDevice device, GfxDirectory gfx, int spells = 8)
@@ -55,7 +56,7 @@ public sealed class SpellMenu
         }
     }
 
-    private static Rectangle Row(int i) => new(BuildMenu.Content.X, BuildMenu.Content.Y + HeaderHeight + i * RowHeight, BuildMenu.Content.Width, RowHeight);
+    private Rectangle Row(int i) => new(_layout.Content.X, _layout.Content.Y + HeaderHeight + i * RowHeight, _layout.Content.Width, RowHeight);
 
     /// <summary>The spell under the cursor (panel space).</summary>
     public int? SpellAt(Vector2 screen, int spells)
@@ -69,7 +70,7 @@ public sealed class SpellMenu
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, Civilization people, IReadOnlyList<MenuSpell> spells, int mana,
         Spell? aiming, Vector2 cursor)
     {
-        var content = BuildMenu.Content;
+        var content = _layout.Content;
         var icons = _icons.GetValueOrDefault(people);
         MenuSpell? hovered = null;
         for (int i = 0; i < spells.Count; i++)
@@ -84,7 +85,7 @@ public sealed class SpellMenu
             var bar = new Rectangle(icon.Right + 6, row.Y + 9, row.Right - icon.Right - 8, RowHeight - 18);
             DrawBar(batch, pixel, bar, spell.Cost > 0 ? mana / (double)spell.Cost : 0);
             if (aiming is not null && aiming == spell.Spell)
-                Frame(batch, pixel, icon, Color.Gold);
+                PanelUi.Frame(batch, pixel, icon, Color.Gold, 2);
         }
 
         string title = aiming is not null ? Lang.T(aiming.Kind switch
@@ -130,14 +131,6 @@ public sealed class SpellMenu
                     batch.Draw(pixel, new Rectangle(left, inner.Y, right - left, inner.Height), k % 2 == 0 ? Light : Dark);
             }
         }
-        Frame(batch, pixel, bar, Color.White, 1);
-    }
-
-    private static void Frame(SpriteBatch batch, Texture2D pixel, Rectangle rect, Color color, int thickness = 2)
-    {
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, thickness), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - thickness, rect.Width, thickness), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, thickness, rect.Height), color);
-        batch.Draw(pixel, new Rectangle(rect.Right - thickness, rect.Y, thickness, rect.Height), color);
+        PanelUi.Frame(batch, pixel, bar, Color.White, 1);
     }
 }

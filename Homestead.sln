@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Homestead.Arena", "tools\Ho
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Homestead.Server", "src\Homestead.Server\Homestead.Server.csproj", "{94D66D77-26B0-4152-B0F1-78B64871CAA7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Homestead.Client.Tests", "tests\Homestead.Client.Tests\Homestead.Client.Tests.csproj", "{D72686B5-253F-4F66-B004-68C929A97F5B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -131,6 +133,18 @@ Global
 		{94D66D77-26B0-4152-B0F1-78B64871CAA7}.Release|x64.Build.0 = Release|Any CPU
 		{94D66D77-26B0-4152-B0F1-78B64871CAA7}.Release|x86.ActiveCfg = Release|Any CPU
 		{94D66D77-26B0-4152-B0F1-78B64871CAA7}.Release|x86.Build.0 = Release|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Debug|x64.Build.0 = Debug|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Debug|x86.Build.0 = Debug|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Release|x64.ActiveCfg = Release|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Release|x64.Build.0 = Release|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Release|x86.ActiveCfg = Release|Any CPU
+		{D72686B5-253F-4F66-B004-68C929A97F5B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -144,5 +158,6 @@ Global
 		{92B750B5-4913-46E7-9D73-EF87D3BAA986} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{52F78E12-2F3A-4F1D-90DB-17663C1C48C5} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{94D66D77-26B0-4152-B0F1-78B64871CAA7} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{D72686B5-253F-4F66-B004-68C929A97F5B} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

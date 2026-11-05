@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation.Buildings;
 using Microsoft.Xna.Framework;
@@ -23,14 +22,10 @@ public sealed class BuildMenu : IDisposable
     /// <summary>Building icons come in three sizes one after another; the large one is two after the small one.</summary>
     private const int LargeIcon = 2;
 
-    // Areas of the large panel (216 × 544), measured on the image.
-    /// <summary>The dark bar for the sub-menus below the main tabs (panel space).</summary>
-    public static readonly Rectangle TabBar = new(10, 64, 196, 39);
-    /// <summary>The content area of the blue panel, below the bars (panel space); the other menus there use it too.</summary>
-    public static readonly Rectangle Content = new(10, 118, 196, 354);
     private const int Columns = 3;
     private const int CellHeight = 70;
 
+    private readonly PanelLayout _layout;
     private readonly List<(string Name, Texture2D? Tab, Texture2D? Selected, List<BuildingDefinition> Buildings)> _categories = new();
     private readonly Dictionary<string, Texture2D> _icons = new();
     private int _category;
@@ -40,8 +35,9 @@ public sealed class BuildMenu : IDisposable
     private BuildingDefinition? _hovered;
     private double _hoverSince, _lastDrawn = double.NegativeInfinity;
 
-    public BuildMenu(GraphicsDevice device, GfxDirectory gfx, BuildingCatalog catalog)
+    public BuildMenu(GraphicsDevice device, GfxDirectory gfx, BuildingCatalog catalog, PanelLayout layout, UiLayout ui)
     {
+        _layout = layout;
         Texture2D ToTexture(GfxBitmap bitmap)
         {
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
@@ -50,21 +46,20 @@ public sealed class BuildMenu : IDisposable
         }
 
         var tabs = gfx.Open(TabFile);
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        foreach (var category in document.RootElement.GetProperty("buildMenu").EnumerateArray())
+        foreach (var category in ui.BuildMenu)
         {
-            var buildings = category.GetProperty("buildings").EnumerateArray()
-                .Select(b => catalog.Find(b.GetString()!))
+            var buildings = category.Buildings
+                .Select(b => catalog.Find(b))
                 // Not every building has a construction image (the storehouse is only posts): its site shows sign and posts.
                 .Where(b => b is not null && b.ConstructionPiles.Count > 0)
                 .Cast<BuildingDefinition>().ToList();
             Texture2D? tab = null, selected = null;
-            if (category.TryGetProperty("tab", out var images))
+            if (category.Tab is { } images)
             {
-                tab = ToTexture(tabs.ReadGui(images[0].GetInt32()));
-                selected = ToTexture(tabs.ReadGui(images[1].GetInt32()));
+                tab = ToTexture(tabs.ReadGui(images[0]));
+                selected = ToTexture(tabs.ReadGui(images[1]));
             }
-            _categories.Add((category.GetProperty("name").GetString()!, tab, selected, buildings));
+            _categories.Add((category.Name, tab, selected, buildings));
         }
         foreach (var building in _categories.SelectMany(c => c.Buildings).Distinct())
             if (building.GuiImage is { } image)
@@ -103,15 +98,16 @@ public sealed class BuildMenu : IDisposable
     /// <summary>Category button <paramref name="i"/>: the bar split evenly, the button centered in its part.</summary>
     private Rectangle TabRect(int i)
     {
-        int part = TabBar.Width / _categories.Count;
-        var size = _categories[i].Tab is { } tab ? new Point(tab.Width, tab.Height) : new Point(part - 4, TabBar.Height - 2);
-        return new Rectangle(TabBar.X + i * part + (part - size.X) / 2, TabBar.Y + (TabBar.Height - size.Y) / 2, size.X, size.Y);
+        var bar = _layout.TabBar;
+        int part = bar.Width / _categories.Count;
+        var size = _categories[i].Tab is { } tab ? new Point(tab.Width, tab.Height) : new Point(part - 4, bar.Height - 2);
+        return new Rectangle(bar.X + i * part + (part - size.X) / 2, bar.Y + (bar.Height - size.Y) / 2, size.X, size.Y);
     }
 
-    private static Rectangle CellRect(int i)
+    private Rectangle CellRect(int i)
     {
-        int width = Content.Width / Columns;
-        return new Rectangle(Content.X + i % Columns * width, Content.Y + i / Columns * CellHeight, width, CellHeight);
+        int width = _layout.Content.Width / Columns;
+        return new Rectangle(_layout.Content.X + i % Columns * width, _layout.Content.Y + i / Columns * CellHeight, width, CellHeight);
     }
 
     /// <summary>Width at the right of each cell for the counts next to the icon.</summary>
@@ -159,7 +155,7 @@ public sealed class BuildMenu : IDisposable
             }
             DrawIcon(batch, buildings[i], icon);
             if (selected)
-                DrawFrame(batch, pixel, rect, Color.Gold);
+                PanelUi.Frame(batch, pixel, rect, Color.Gold, 2);
         }
     }
 
@@ -195,14 +191,6 @@ public sealed class BuildMenu : IDisposable
         var size = font.Measure(text, 13);
         font.Draw(batch, text, new Vector2(topRight.X - size.X + 1, topRight.Y + 1), Color.Black, 13);
         font.Draw(batch, text, new Vector2(topRight.X - size.X, topRight.Y), color, 13);
-    }
-
-    private static void DrawFrame(SpriteBatch batch, Texture2D pixel, Rectangle rect, Color color)
-    {
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 2), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 2, rect.Width, 2), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, 2, rect.Height), color);
-        batch.Draw(pixel, new Rectangle(rect.Right - 2, rect.Y, 2, rect.Height), color);
     }
 
     /// <summary>The icon scaled down to fit the box, centered.</summary>
