@@ -3,7 +3,7 @@
 // the argv/cwd spawn contract through spawnText. Offline: a fake `gh` shim
 // on PATH intercepts the spawn; gh auth is neutered so a bypassed shim can
 // never create a real PR.
-import { afterEach, beforeAll, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import {
   chmodSync,
   mkdirSync,
@@ -47,12 +47,13 @@ const ORIGINAL_ENV = {
 
 let fixture: Fixture | undefined;
 
+const real = Bun.spawn;
+
 beforeAll(() => {
   // bun 1.3.14: env-inheriting Bun.spawn children receive the startup
   // environ, not the live process.env, so the PATH/FAKE_GH_* mutations
   // below are injected explicitly at the spawn seam; the spawned processes
   // themselves are fully real.
-  const real = Bun.spawn;
   Bun.spawn = ((argv: string[], opts: any = {}) =>
     real(argv, {
       ...opts,
@@ -60,49 +61,62 @@ beforeAll(() => {
     })) as typeof Bun.spawn;
 });
 
+afterAll(() => {
+  Bun.spawn = real;
+});
+
 function setup(mode: string): Fixture {
   const wt = mkdtempSync(join(tmpdir(), "shipflow-create-pr-"));
-  mkdirSync(join(wt, ".plans"), { recursive: true });
-  writeFileSync(
-    join(wt, ".plans", `${SLUG}.loop.json`),
-    JSON.stringify({
-      replan_count: 0,
-      last_verify: { result: "pass", command: "fixture" },
-    }),
-    "utf8",
-  );
-  const ghConfig = join(wt, "gh-config");
-  mkdirSync(ghConfig);
-  const shimDir = join(wt, "shim");
-  mkdirSync(shimDir);
-  const argvFile = join(wt, "argv.rec");
-  const cwdFile = join(wt, "cwd.rec");
-  // ASCII record-separator delimits argv entries because --body spans lines.
-  writeFileSync(
-    join(shimDir, "gh"),
-    [
-      "#!/usr/bin/env bash",
-      'printf \'%s\\036\' "$0" > "$FAKE_GH_RECORD_ARGV"',
-      'for a in "$@"; do printf \'%s\\036\' "$a"; done >> "$FAKE_GH_RECORD_ARGV"',
-      'pwd -P > "$FAKE_GH_RECORD_CWD"',
-      'case "${FAKE_GH_MODE:-}" in',
-      '  fail) echo "gh: token is empty" >&2; exit 1 ;;',
-      "  empty) exit 0 ;;",
-      `  ok) echo "${PR_URL}" ;;`,
-      "esac",
-      "exit 0",
-    ].join("\n") + "\n",
-    "utf8",
-  );
-  chmodSync(join(shimDir, "gh"), 0o755);
-  process.env.PATH = `${shimDir}:${ORIGINAL_ENV.PATH ?? ""}`;
-  process.env.FAKE_GH_MODE = mode;
-  process.env.FAKE_GH_RECORD_ARGV = argvFile;
-  process.env.FAKE_GH_RECORD_CWD = cwdFile;
-  process.env.GH_TOKEN = "";
-  process.env.GITHUB_TOKEN = "";
-  process.env.GH_CONFIG_DIR = ghConfig;
-  return { wt, argvFile, cwdFile };
+  try {
+    mkdirSync(join(wt, ".plans"), { recursive: true });
+    writeFileSync(
+      join(wt, ".plans", `${SLUG}.loop.json`),
+      JSON.stringify({
+        replan_count: 0,
+        last_verify: { result: "pass", command: "fixture" },
+      }),
+      "utf8",
+    );
+    const ghConfig = join(wt, "gh-config");
+    mkdirSync(ghConfig);
+    const shimDir = join(wt, "shim");
+    mkdirSync(shimDir);
+    const argvFile = join(wt, "argv.rec");
+    const cwdFile = join(wt, "cwd.rec");
+    // ASCII record-separator delimits argv entries because --body spans lines.
+    writeFileSync(
+      join(shimDir, "gh"),
+      [
+        "#!/usr/bin/env bash",
+        'printf \'%s\\036\' "$0" > "$FAKE_GH_RECORD_ARGV"',
+        'for a in "$@"; do printf \'%s\\036\' "$a"; done >> "$FAKE_GH_RECORD_ARGV"',
+        'pwd -P > "$FAKE_GH_RECORD_CWD"',
+        'case "${FAKE_GH_MODE:-}" in',
+        '  fail) echo "gh: token is empty" >&2; exit 1 ;;',
+        "  empty) exit 0 ;;",
+        `  ok) echo "${PR_URL}" ;;`,
+        "  # exec, not fork: a forked sleep holds the stdout pipe open past the kill",
+        "  sleep) exec sleep 5 ;;",
+        "esac",
+        "exit 0",
+      ].join("\n") + "\n",
+      "utf8",
+    );
+    chmodSync(join(shimDir, "gh"), 0o755);
+    process.env.PATH = `${shimDir}:${ORIGINAL_ENV.PATH ?? ""}`;
+    process.env.FAKE_GH_MODE = mode;
+    process.env.FAKE_GH_RECORD_ARGV = argvFile;
+    process.env.FAKE_GH_RECORD_CWD = cwdFile;
+    process.env.GH_TOKEN = "";
+    process.env.GITHUB_TOKEN = "";
+    process.env.GH_CONFIG_DIR = ghConfig;
+    return { wt, argvFile, cwdFile };
+  } catch (e) {
+    // a setup that throws mid-way never assigns `fixture`, so afterEach
+    // would leak the tmp worktree
+    rmSync(wt, { recursive: true, force: true });
+    throw e;
+  }
 }
 
 afterEach(() => {
@@ -119,11 +133,11 @@ afterEach(() => {
   delete process.env.FAKE_GH_RECORD_CWD;
 });
 
-async function run(mode: string): Promise<ToolResult> {
+async function run(mode: string, signal?: AbortSignal): Promise<ToolResult> {
   fixture = setup(mode);
   return (await create_pr.execute(ARGS, {
     worktree: fixture.wt,
-    signal: new AbortController().signal,
+    signal: signal ?? new AbortController().signal,
     progress: async () => {},
   })) as ToolResult;
 }
@@ -175,4 +189,13 @@ test("spawn contract: argv flags verbatim, cwd = worktree", async () => {
   expect(readFileSync(fixture!.cwdFile, "utf8").trim()).toBe(
     realpathSync(fixture!.wt),
   );
+});
+
+test("abort mid-flight: shipped:false, uncertain-state wording", async () => {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), 10);
+  const r = await run("sleep", controller.signal);
+  expect(r.metadata?.shipped).toBe(false);
+  expect(String(r.output)).toContain("state unknown");
+  expect(String(r.output)).toContain("verify before retrying");
 });

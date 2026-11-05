@@ -80,9 +80,14 @@ export const create_pr = defineTool({
         context.signal,
       );
       if (res.exitCode !== 0) {
+        // a killed spawn may still have landed the POST server-side -
+        // never overclaim "no PR created" for it
+        const tail = res.killed
+          ? "; PR state unknown, verify before retrying"
+          : "; no PR created";
         return {
           title: "ship_create_pr - gh error",
-          output: `gh pr create failed (exit ${res.exitCode})${why(res.stderr)}; no PR created`,
+          output: `gh pr create failed (exit ${res.exitCode})${why(res.stderr)}${tail}`,
           metadata: {
             shipped: false,
             error: res.stderr.trim() || `exit ${res.exitCode}`,
@@ -243,13 +248,25 @@ export async function spawnText(
   worktree: string,
   signal: AbortSignal | undefined,
   timeoutMs: number = spawnTimeoutMs(),
-): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const label = argv.join(" ");
+): Promise<{
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  killed: boolean;
+}> {
+  // Correlation only: argv can carry multi-KB payloads (PR bodies) that
+  // must never reach the host log or a stderr envelope.
+  const head = argv
+    .slice(0, 3)
+    .map((a) => (a.length <= 60 ? a : `${a.slice(0, 60)}…`))
+    .join(" ");
+  const label = argv.length > 3 ? `${head} …` : head;
   if (signal?.aborted) {
     return {
       exitCode: 134,
       stdout: "",
       stderr: `session aborted before spawn: ${label}`,
+      killed: true,
     };
   }
   const startedAt = Date.now();
@@ -258,25 +275,42 @@ export async function spawnText(
     stdout: "pipe",
     stderr: "pipe",
   });
-  const onAbort = () => proc.kill();
+  let exitedEarly = false;
+  void proc.exited.then(() => {
+    exitedEarly = true;
+  });
+  let killed = false;
+  const onAbort = () => {
+    // proc.kill() returns no delivery information in bun 1.3.14; whether
+    // the proc was still alive when the abort fired is the discriminator.
+    killed = !exitedEarly;
+    proc.kill();
+  };
   signal?.addEventListener("abort", onAbort, { once: true });
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
     proc.kill();
   }, timeoutMs);
-  let result: { exitCode: number; stdout: string; stderr: string };
+  let result: {
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+    killed: boolean;
+  };
   try {
     const stdout = await new Response(proc.stdout).text();
     const stderr = await new Response(proc.stderr).text();
-    const exitCode = await proc.exited;
+    // signal-killed procs resolve exited as null, not a number
+    const exitCode = (await proc.exited) ?? 1;
     result = timedOut
       ? {
           exitCode: 124,
           stdout,
           stderr: `timed out after ${timeoutMs}ms: ${label}\n${stderr}`.trimEnd(),
+          killed: true,
         }
-      : { exitCode, stdout, stderr };
+      : { exitCode, stdout, stderr, killed };
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
