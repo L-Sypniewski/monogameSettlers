@@ -108,8 +108,8 @@ Closes #31
 
 ## Phase 5 - Pre-game screens on `UiLayout`
 
-- [ ] **5.1** Migrate the remaining parse sites to the injected `_uiLayout`: `TitleScreen.cs:112`, `StartScreen.cs:175`, `SettingsScreen.cs:142`, `CampaignScreen.cs:46`, `ListScreen.cs:47` (+ `MissionSelectScreen.cs:37` which wraps it), `MultiplayerScreen.cs:83`, `BriefingScreen.cs:63`, `StatisticsScreen.cs:53`, `TextButton.cs:29`, `StatusIcons.cs:26`. All are constructed inside `MapGame` (`MapGame.cs:508-1426`) — add the `UiLayout` argument at each `new` site (mechanical; each screen reads only its own record).
-- [ ] **5.2** Final grep gate: no file under `src/Homestead.Client` except `UiLayout.cs` mentions `"ui.json"`; `ReadPaths`-based meta-test still green.
+- [x] **5.1** Migrate the remaining parse sites to the injected `_uiLayout`: `TitleScreen.cs:112`, `StartScreen.cs:175`, `SettingsScreen.cs:142`, `CampaignScreen.cs:46`, `ListScreen.cs:47` (+ `MissionSelectScreen.cs:37` which wraps it), `MultiplayerScreen.cs:83`, `BriefingScreen.cs:63`, `StatisticsScreen.cs:53`, `TextButton.cs:29`, `StatusIcons.cs:26`. All are constructed inside `MapGame` (`MapGame.cs:508-1426`) — add the `UiLayout` argument at each `new` site (mechanical; each screen reads only its own record).
+- [x] **5.2** Final grep gate: no file under `src/Homestead.Client` except `UiLayout.cs` mentions `"ui.json"`; `ReadPaths`-based meta-test still green.
       **Verify**: build + `dotnet test tests/Homestead.Client.Tests/Homestead.Client.Tests.csproj -c Release --no-build --nologo`
       **Commit**: `client: pre-game screens on UiLayout, ui.json parsed once in LoadContent`
 
