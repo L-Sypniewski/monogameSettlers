@@ -656,6 +656,7 @@
     "fog": "Fog of war on/off"
   },
   "building": {
+    "workArea": "Move work area",
     "ammoLoads": "Ammunition: {0}",
     "trade": "Trade – land",
     "seaTrade": "Trade – sea",

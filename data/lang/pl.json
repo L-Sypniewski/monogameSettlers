@@ -656,6 +656,7 @@
     "fog": "Mgła wojny wł./wył."
   },
   "building": {
+    "workArea": "Przesuń obszar roboczy",
     "ammoLoads": "Amunicja: {0}",
     "trade": "Handel-Ląd",
     "seaTrade": "Handel-Statek",
