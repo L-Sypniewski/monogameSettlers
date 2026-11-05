@@ -1,0 +1,11 @@
+[Unit]
+Description=herdr API socket bridge for agents inside devcontainers (rootless-docker uid shift)
+
+[Service]
+ExecStartPre=/bin/sh -c 'mkdir -p %h/.herdr/bridge && rm -f %h/.herdr/bridge/herdr.sock'
+ExecStart=/usr/bin/socat UNIX-LISTEN:%h/.herdr/bridge/herdr.sock,mode=0666,fork UNIX-CONNECT:%h/.config/herdr/herdr.sock
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
