@@ -50,7 +50,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,36 +70,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # The determinism job's macOS leg, staggered behind the macOS packaging legs (package-macos
-  # runs one leg at a time, max-parallel 1): since the Nov 2026 macos-14 retirement the GA
-  # pools macos-15 and macos-26 are congested (github/community#211885) - even single
-  # sequential acquisitions get reaped ("not acquired by Runner of type hosted"). xcode-27
-  # like package-macos: a standard-priced beta-preview macOS image label whose pool is nearly
-  # unused; the image content is irrelevant here (dotnet + bash), only the pool matters.
-  determinism-macos:
-    needs: package-macos
-    runs-on: xcode-27
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 9.0.x
-      - name: Checksums
-        shell: bash
-        env:
-          HOMESTEAD_CHECKSUM_FILE: ${{ github.workspace }}/checksums-macos-15.txt
-        run: dotnet test tests/Homestead.Simulation.Tests -c Release --filter "FullyQualifiedName~DeterminismTests"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: checksums-macos-15
-          path: checksums-macos-15.txt
-          if-no-files-found: error
-          retention-days: 7
-
   determinism-compare:
-    needs: [determinism, determinism-macos]
+    needs: determinism
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -131,79 +103,11 @@ jobs:
           - rid: win-x64
             os: ubuntu-latest
             archive: zip
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 9.0.x
-      - name: Version
-        id: version
-        run: echo "version=$(dotnet msbuild src/Homestead.Client/Homestead.Client.csproj -restore -t:MinVer -getProperty:MinVerVersion -p:Configuration=Release)" >> "$GITHUB_OUTPUT"
-      - name: Publish
-        run: >
-          dotnet publish src/Homestead.Client/Homestead.Client.csproj -c Release -r ${{ matrix.rid }} --self-contained
-          -o "publish/monoSettlers-${{ steps.version.outputs.version }}-${{ matrix.rid }}"
-      - name: Package
-        id: package
-        working-directory: publish
-        run: |
-          version="${{ steps.version.outputs.version }}"
-          name="monoSettlers-$version-${{ matrix.rid }}"
-          case "${{ matrix.rid }}" in
-          osx-*)
-            # monoSettlers.app with the published folder as Contents/MacOS (the program finds data/ next to itself).
-            app="monoSettlers.app"
-            mkdir -p "$app/Contents/Resources"
-            mv "$name" "$app/Contents/MacOS"
-            # macOS wants plain numbers: without a pre-release suffix.
-            sed "s/VERSION/${version%%-*}/g" ../packaging/macos/Info.plist > "$app/Contents/Info.plist"
-            mkdir icon.iconset
-            sips -s format png ../src/Homestead.Client/Icon.bmp --out icon.iconset/icon_256x256.png
-            iconutil -c icns icon.iconset -o "$app/Contents/Resources/monoSettlers.icns"
-            codesign --force --deep --sign - "$app" || echo "::warning::ad-hoc signing failed"
-            mkdir "$name"
-            mv "$app" "$name/"
-            cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
-            # ditto keeps the bundle's attributes and signature, unlike zip.
-            ditto -c -k --keepParent "$name" "$name.zip"
-            ;;
-          win-*)
-            cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
-            zip -qr "$name.zip" "$name"
-            ;;
-          *)
-            cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
-            tar -czf "$name.tar.gz" "$name"
-            ;;
-          esac
-          echo "file=publish/$name.${{ matrix.archive }}" >> "$GITHUB_OUTPUT"
-          echo "name=$name" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.package.outputs.name }}
-          path: ${{ steps.package.outputs.file }}
-          if-no-files-found: error
-          retention-days: 30
-
-  # package's macOS legs, split out and serialized (max-parallel 1: at most ONE macOS runner
-  # at a time). Since the Nov 2 2026 macos-14 retirement the GA pools macos-15 and macos-26
-  # are congested (github/community#211885) - parallel legs each took a separate lottery
-  # ticket for runner acquisition, and even single sequential acquisitions get reaped. Hence
-  # xcode-27: a standard-priced beta-preview macOS image label whose pool is nearly unused.
-  # The image content is irrelevant to this job (dotnet + ditto/zip + bash), only the pool
-  # matters; beta images have no SLA, acceptable for CI.
-  package-macos:
-    needs: test
-    runs-on: xcode-27  # standard-priced beta-preview label with a nearly unused pool - GA pools congested, github/community#211885 (full rationale in the job comment above)
-    strategy:
-      max-parallel: 1
-      matrix:
-        include:
           - rid: osx-arm64
+            os: macos-latest
             archive: zip
           - rid: osx-x64
+            os: macos-latest
             archive: zip
     steps:
       - uses: actions/checkout@v4
@@ -263,7 +167,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [package, package-macos]
+    needs: package
     runs-on: ubuntu-latest
     permissions:
       contents: write
