@@ -221,10 +221,10 @@ public sealed class UiLayout
     }
 
     /// <summary>The building panel's icon indices (GUI images of file 03).</summary>
-    public sealed record BuildingInfoIcons(int Demolish, int Pause, int Paused, int Priority, int PriorityOn, int WorkArea)
+    public sealed record BuildingInfoIcons(int Demolish, int Pause, int Paused, int Priority, int PriorityOn)
     {
         internal static BuildingInfoIcons From(Section s) =>
-            new(s.Get("demolish").Int(), s.Get("pause").Int(), s.Get("paused").Int(), s.Get("priority").Int(), s.Get("priorityOn").Int(), s.Get("workArea").Int());
+            new(s.Get("demolish").Int(), s.Get("pause").Int(), s.Get("paused").Int(), s.Get("priority").Int(), s.Get("priorityOn").Int());
     }
 
     /// <summary>A market's panel: the route button strip, harbor strip, and the all/none icons.</summary>

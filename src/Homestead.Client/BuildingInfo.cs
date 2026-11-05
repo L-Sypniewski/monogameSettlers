@@ -49,7 +49,8 @@ public sealed partial class BuildingInfo
 
     private int _demolishImage;
 
-    /// <summary>Stop work (house), go on (hand), the highest priority and the same given, the work area (<c>buildingInfo</c> in <c>ui.json</c>).</summary>
+    /// <summary>Stop work (house), go on (hand), the highest priority and the same given (<c>buildingInfo</c> in <c>ui.json</c>);
+    /// the work area's own rings come from <see cref="CreateWorkAreaIcon"/>.</summary>
     private Texture2D? _pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon, _workAreaIcon;
 
     private readonly int[] _headImages;
@@ -64,7 +65,7 @@ public sealed partial class BuildingInfo
         foreach (var state in ui.Status)
             _states.Add((state.Contains, state.State));
         _demolishImage = ui.BuildingInfo.Demolish;
-        _headImages = [ui.BuildingInfo.Pause, ui.BuildingInfo.Paused, ui.BuildingInfo.Priority, ui.BuildingInfo.PriorityOn, ui.BuildingInfo.WorkArea];
+        _headImages = [ui.BuildingInfo.Pause, ui.BuildingInfo.Paused, ui.BuildingInfo.Priority, ui.BuildingInfo.PriorityOn];
     }
 
     /// <summary>Loads the tear-down icon (once; the same for every people).</summary>
@@ -83,7 +84,8 @@ public sealed partial class BuildingInfo
             texture.SetData(image.Pixels);
             return texture;
         }).ToArray();
-        (_pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon, _workAreaIcon) = (head[0], head[1], head[2], head[3], head[4]);
+        (_pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon) = (head[0], head[1], head[2], head[3]);
+        _workAreaIcon = CreateWorkAreaIcon(device);
         LoadMarketIcons(device, gui, ui);
         LoadDockyardIcons(device, gfx, gui, ui);
         LoadWarWorksIcons(device, gfx, ui);
@@ -207,11 +209,11 @@ public sealed partial class BuildingInfo
     /// <summary>The icon stopping or restarting work, at the top left (as in the original).</summary>
     private Rectangle PauseButton(int height) => new(Left, Top, DemolishSize, DemolishSize);
 
-    /// <summary>The highest priority of a construction site, beside it; finished buildings with a work area show their button in the same slot.</summary>
+    /// <summary>The highest priority of a construction site, beside the pause icon.</summary>
     private Rectangle PriorityButton(int height) => new(Left + DemolishSize + 4, Top, DemolishSize, DemolishSize);
 
-    /// <summary>The work-area button of a finished own building with a work area, in the priority slot.</summary>
-    private Rectangle WorkAreaButton(int height) => new(Left + DemolishSize + 4, Top, DemolishSize, DemolishSize);
+    /// <summary>The work-area button of a finished own building with a work area, centered in the panel's width (as in the original).</summary>
+    private Rectangle WorkAreaButton(int height) => new(Left + (Inner - DemolishSize) / 2, Top, DemolishSize, DemolishSize);
 
     private static bool OffersPause(World world, Building building) =>
         world.CanPause(building) && !OffersGarrison(building);
