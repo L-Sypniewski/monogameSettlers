@@ -115,14 +115,14 @@ Closes #31
 
 ## Phase 6 - Rider: static `CampaignConfig` cache
 
-- [ ] **6.1** `CampaignConfig.Load` (`CampaignConfig.cs:37-50`): memoize in `private static readonly Dictionary<string, CampaignConfig> Cache` keyed by the resolved data directory (thread-safe: lock or `ConcurrentDictionary` — `Lang.SaveName` runs on the draw thread, tests may run parallel); parsing body moves to a private `LoadFrom`. Public signature unchanged.
-- [ ] **6.2** `CampaignConfigTests.cs` in `Homestead.Client.Tests`: `Load()` returns the same instance on repeat calls (per directory); a custom `dataDirectory` gets its own cache entry; the existing `Lang.SaveName` output shape unaffected (call it once with a `SaveInfo` whose `Mission` parses, once with one that doesn't).
+- [x] **6.1** `CampaignConfig.Load` (`CampaignConfig.cs:37-50`): memoize in `private static readonly Dictionary<string, CampaignConfig> Cache` keyed by the resolved data directory (thread-safe: lock or `ConcurrentDictionary` — `Lang.SaveName` runs on the draw thread, tests may run parallel); parsing body moves to a private `LoadFrom`. Public signature unchanged.
+- [x] **6.2** `CampaignConfigTests.cs` in `Homestead.Client.Tests`: `Load()` returns the same instance on repeat calls (per directory); a custom `dataDirectory` gets its own cache entry; the existing `Lang.SaveName` output shape unaffected (call it once with a `SaveInfo` whose `Mission` parses, once with one that doesn't).
       **Verify**: build + `dotnet test tests/Homestead.Client.Tests/Homestead.Client.Tests.csproj -c Release --no-build --nologo --filter "FullyQualifiedName~CampaignConfigTests"`
       **Commit**: `client: cache CampaignConfig.Load (F-MIN-1), no campaign.json read per save row`
 
 ## Phase 7 - Full gate
 
-- [ ] **7.1** Run `scripts/fast-checks.sh` (skills-lock check + `dotnet build Homestead.sln -c Release` + full `dotnet test` across both test projects). Zero regressions; the meta-test, helper tests, and cache tests are part of the suite.
+- [x] **7.1** Run `scripts/fast-checks.sh` (skills-lock check + `dotnet build Homestead.sln -c Release` + full `dotnet test` across both test projects). Zero regressions; the meta-test, helper tests, and cache tests are part of the suite.
       **Verify**: `scripts/fast-checks.sh` exits 0 — this is AC "fast-checks passes"; no separate commit (any fix-ups fold into the phase that introduced them)
 
 ## Key Risks & Mitigations
