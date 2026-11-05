@@ -157,6 +157,9 @@ public sealed class ProfessionsMenu : IDisposable
             {
                 var (share, _, name) = Shares[row];
                 bool up = panel.Y < Spinner(row).Center.Y;
+                // The half Draw greys out neither commands nor sounds, like the garrison's blocked halves.
+                if (up && world.Recruitment.BudgetOf(player, share) <= world.Recruitment.ShareOf(player, share))
+                    return $"{name}: the shares already sum to 100 %";
                 issue(new SetRecruitmentShare(player, share, world.Recruitment.ShareOf(player, share) + (up ? Step : -Step)),
                     _ => $"{name}: {world.Recruitment.ShareOf(player, share) * 100:0} %");
                 UiSounds.Step(up);
