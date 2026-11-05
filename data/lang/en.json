@@ -596,7 +596,7 @@
     "findScreen": "Select all {0} on the screen",
     "findOne": "Fly to the next of the {0}",
     "convert": "{0} carriers become {1}",
-    "toCarriers": "{0} pioneers become carriers"
+    "toCarriers": "{0} Pioneer(s) to Carriers"
   },
   "selection": {
     "steal": "Steal goods",
@@ -626,7 +626,7 @@
     "digger": "Digger",
     "bricklayer": "Bricklayer",
     "worker": "Worker",
-    "mage": "Mage",
+    "mage": "Priest",
     "geologist": "Geologist",
     "thief": "Thief",
     "pioneer": "Pioneer",
@@ -634,7 +634,7 @@
   },
   "transport": {
     "store": "Store",
-    "doNotStore": "Do not store",
+    "doNotStore": "Don't Store",
     "top": "To the very front",
     "up": "One place up",
     "down": "One place down",
@@ -656,8 +656,8 @@
     "fog": "Fog of war on/off"
   },
   "building": {
-    "workArea": "Move work area",
-    "workAreaArmed": "Click where the work area goes, right-click cancels",
+    "workArea": "Set new working area",
+    "workAreaArmed": "Choose a new working area.",
     "workAreaUndone": "Work area choice undone",
     "workAreaMoved": "Work area moved to {0},{1}",
     "workAreaMovedCapped": "Work area moved to {0},{1} (at most {2} fields away)",

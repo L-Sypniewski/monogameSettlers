@@ -596,7 +596,7 @@
     "findScreen": "Alle {0} im Bild auswählen",
     "findOne": "Zum nächsten der {0} fliegen",
     "convert": "{0} Träger werden {1}",
-    "toCarriers": "{0} Pioniere werden Träger"
+    "toCarriers": "{0} Pionier(e) zu Trägern"
   },
   "selection": {
     "steal": "Waren stehlen",
@@ -626,7 +626,7 @@
     "digger": "Planierer",
     "bricklayer": "Bauarbeiter",
     "worker": "Arbeiter",
-    "mage": "Magier",
+    "mage": "Priester",
     "geologist": "Geologe",
     "thief": "Dieb",
     "pioneer": "Pionier",
@@ -656,8 +656,8 @@
     "fog": "Fog of War an/aus"
   },
   "building": {
-    "workArea": "Arbeitsbereich versetzen",
-    "workAreaArmed": "Auf den Zielort des Arbeitsbereichs klicken, Rechtsklick bricht ab",
+    "workArea": "Neues Arbeitsgebiet",
+    "workAreaArmed": "Wählen Sie das neue Arbeitsgebiet.",
     "workAreaUndone": "Auswahl des Arbeitsbereichs aufgehoben",
     "workAreaMoved": "Arbeitsbereich nach {0},{1} versetzt",
     "workAreaMovedCapped": "Arbeitsbereich nach {0},{1} versetzt (max. {2} Felder)",

@@ -596,7 +596,7 @@
     "findScreen": "Zaznacz wszystkich {0} na ekranie",
     "findOne": "Przejdź do następnego z {0}",
     "convert": "Zamień {0} tragarzy na {1}",
-    "toCarriers": "Zamień {0} pionierów na tragarzy"
+    "toCarriers": "{0} Pionier(ów) na tragarzy"
   },
   "selection": {
     "steal": "Kradnij materiały",
@@ -626,15 +626,15 @@
     "digger": "Kopacz",
     "bricklayer": "Murarz",
     "worker": "Robotnik",
-    "mage": "Mag",
+    "mage": "Kapłan",
     "geologist": "Geolog",
     "thief": "Złodziej",
     "pioneer": "Pionier",
     "donkey": "Osiół"
   },
   "transport": {
-    "store": "Magazynuj",
-    "doNotStore": "Nie magazynuj",
+    "store": "Do magazynu",
+    "doNotStore": "Nie przechowuj",
     "top": "Na sam przód",
     "up": "O pozycję w górę",
     "down": "O pozycję w dół",
@@ -656,8 +656,8 @@
     "fog": "Mgła wojny wł./wył."
   },
   "building": {
-    "workArea": "Przesuń obszar roboczy",
-    "workAreaArmed": "Kliknij miejsce, gdzie przesunąć obszar roboczy, prawy przycisk anuluje",
+    "workArea": "Ustal nowy rejon prac:",
+    "workAreaArmed": "Wybierz nowy rejon do pracy",
     "workAreaUndone": "Cofnięto wybór obszaru roboczego",
     "workAreaMoved": "Przesunięto obszar roboczy na {0},{1}",
     "workAreaMovedCapped": "Przesunięto obszar roboczy na {0},{1} (najwyżej {2} pól)",
