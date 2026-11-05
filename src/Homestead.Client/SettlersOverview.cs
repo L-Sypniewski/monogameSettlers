@@ -17,14 +17,16 @@ public sealed class SettlersOverview : IDisposable
 {
     private static readonly Color Text = new(240, 225, 190);
 
+    private readonly PanelLayout _layout;
     private readonly Texture2D _room;
     private readonly Texture2D _needing;
     private readonly Texture2D _total;
     private readonly Texture2D _soldiers;
     private readonly string[][] _rows;
 
-    public SettlersOverview(GraphicsDevice device, GfxDirectory gfx, Civilization people)
+    public SettlersOverview(GraphicsDevice device, GfxDirectory gfx, Civilization people, PanelLayout layout)
     {
+        _layout = layout;
         Texture2D Load(GfxFile file, int index)
         {
             var bitmap = file.ReadGui(index);
@@ -46,9 +48,9 @@ public sealed class SettlersOverview : IDisposable
         _rows = overview.GetProperty("rows").EnumerateArray().Select(r => r.EnumerateArray().Select(t => t.GetString()!).ToArray()).ToArray();
     }
 
-    private static int Left => BuildMenu.Content.X + 4;
-    private static int Width => BuildMenu.Content.Width - 8;
-    private static int Top => BuildMenu.Content.Y + 24; // below the title
+    private int Left => _layout.Content.X + 4;
+    private int Width => _layout.Content.Width - 8;
+    private int Top => _layout.Content.Y + 24; // below the title
     private const int HeaderHeight = 54;
     private const int CellHeight = 80;
 
@@ -75,7 +77,7 @@ public sealed class SettlersOverview : IDisposable
             {
                 string kind = _rows[row][col];
                 var cell = new Rectangle(Left + col * column, Top + HeaderHeight + row * CellHeight, column, CellHeight);
-                if (cell.Bottom > BuildMenu.Content.Bottom)
+                if (cell.Bottom > _layout.Content.Bottom)
                     break;
                 portraits.Draw(batch, PortraitOf(kind), new Rectangle(cell.X, cell.Y, cell.Width, Portraits.Size.Y), settlers, people, PlayerColors.Of(player));
                 string count = own.Count(s => Is(s, kind)).ToString();
@@ -85,7 +87,7 @@ public sealed class SettlersOverview : IDisposable
     }
 
     /// <summary>An icon centered in header column <paramref name="col"/> with its number below.</summary>
-    private static void Icon(SpriteBatch batch, UiFont font, Texture2D icon, string number, int col)
+    private void Icon(SpriteBatch batch, UiFont font, Texture2D icon, string number, int col)
     {
         int column = Width / 4;
         float center = Left + col * column + column / 2f;

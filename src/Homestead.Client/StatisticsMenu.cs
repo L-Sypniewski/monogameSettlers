@@ -25,19 +25,21 @@ public sealed class StatisticsMenu
     private static readonly double[] Scales = [1, 2, 3, 5, 10, 15, 20, 30, 50, 100, 200, 500, 1000];
 
     private readonly GoodsGrid _grid;
+    private readonly PanelLayout _layout;
     private Material _chosen = Material.Trunk;
 
-    public StatisticsMenu(GoodsGrid grid)
+    public StatisticsMenu(GoodsGrid grid, PanelLayout layout)
     {
         _grid = grid;
+        _layout = layout;
     }
 
     // Layout (panel space), top down in the content area.
-    private static int Left => BuildMenu.Content.X + 4;
-    private static int Width => BuildMenu.Content.Width - 8;
-    private static int Top => BuildMenu.Content.Y + 24; // below the title
-    private static Rectangle Chart => new(Left + 2, Top + 4, Width - 4, 106);
-    private static int GridTop => Chart.Bottom + 22;
+    private int Left => _layout.Content.X + 4;
+    private int Width => _layout.Content.Width - 8;
+    private int Top => _layout.Content.Y + 24; // below the title
+    private Rectangle Chart => new(Left + 2, Top + 4, Width - 4, 106);
+    private int GridTop => Chart.Bottom + 22;
 
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
     {
@@ -87,11 +89,11 @@ public sealed class StatisticsMenu
         _grid.Draw(batch, GridTop, RowHeight);
         foreach (var good in _grid.Goods)
         {
-            var rect = GoodsGrid.IconRect(good, GridTop, RowHeight);
+            var rect = _grid.IconRect(good, GridTop, RowHeight);
             if (good.Material == _chosen)
-                Frame(batch, pixel, rect, Selected, 2);
+                PanelUi.Frame(batch, pixel, rect, Selected, 2);
             else if (rect.Contains(cursor))
-                batch.Draw(pixel, rect, Color.White * 0.15f);
+                PanelUi.HoverOverlay(batch, pixel, rect);
         }
     }
 
@@ -116,14 +118,6 @@ public sealed class StatisticsMenu
         int now = world.Statistics.CurrentPeriod;
         int lastHour = Enumerable.Range(now - periodsPerHour + 1, periodsPerHour).Sum(p => world.Statistics.Produced(player, good.Material, p));
         return $"{good.Name}: {lastHour} in the last hour, {world.Statistics.Total(player, good.Material)} in all";
-    }
-
-    private static void Frame(SpriteBatch batch, Texture2D pixel, Rectangle rect, Color color, int width)
-    {
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, width), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - width, rect.Width, width), color);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, width, rect.Height), color);
-        batch.Draw(pixel, new Rectangle(rect.Right - width, rect.Y, width, rect.Height), color);
     }
 
     private static void Write(SpriteBatch batch, UiFont font, string text, Vector2 position, int size) =>

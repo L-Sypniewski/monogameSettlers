@@ -41,12 +41,12 @@ public sealed partial class BuildingInfo
         }
     }
 
-    private static int WarWorksTop => HeadBottom + 19 + 4; // below the name, itself below the icons
-    private static Rectangle MachineButton => new(Left, WarWorksTop, 48, 48);
-    private static Rectangle AmmoButton => new(Left, WarWorksTop + 54, 48, 48);
+    private int WarWorksTop => HeadBottom + 19 + 4; // below the name, itself below the icons
+    private Rectangle MachineButton => new(Left, WarWorksTop, 48, 48);
+    private Rectangle AmmoButton => new(Left, WarWorksTop + 54, 48, 48);
 
     /// <summary>Where the building's image goes next to the buttons (right of their counts).</summary>
-    private static int WarWorksImageLeft => MachineButton.Right + 30;
+    private int WarWorksImageLeft => MachineButton.Right + 30;
 
     private static bool OffersWarWorks(World world, Building building) =>
         building.State == BuildingState.Finished && world.WarMachines.IsWorks(building);
@@ -64,7 +64,7 @@ public sealed partial class BuildingInfo
         {
             batch.Draw(icons[current == work ? icon + 1 : icon], button, Color.White);
             if (button.Contains(cursor))
-                batch.Draw(pixel, button, HoverColor);
+                PanelUi.HoverOverlay(batch, pixel, button);
             if (machines.Ordered(building, work) is > 0 and var ordered)
                 Write(batch, font, $"×{ordered}", new Vector2(button.Right + 3, button.Y + 15), Text);
         }
@@ -77,7 +77,7 @@ public sealed partial class BuildingInfo
     }
 
     /// <summary>Below the buttons (and the loads): where the state starts.</summary>
-    private static int WarWorksBottom(World world, Building building) => (UsesAmmo(world, building) ? AmmoButton.Bottom + 21 : MachineButton.Bottom) + 4;
+    private int WarWorksBottom(World world, Building building) => (UsesAmmo(world, building) ? AmmoButton.Bottom + 21 : MachineButton.Bottom) + 4;
 
     /// <summary>A click on a war machine works' panel (panel space). Returns a message, or null if it hit nothing.</summary>
     public string? WarWorksClick(Vector2 panel, World world, Building building, int ownPlayer, bool takeBack)

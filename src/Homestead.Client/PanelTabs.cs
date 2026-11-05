@@ -36,10 +36,12 @@ public sealed class PanelTabs : IDisposable
     /// <summary>Where the main tab buttons cover the panel's own (measured on the panel image), 55 × 55 each.</summary>
     private static readonly Point[] TabPositions = [new(10, 9), new(80, 9), new(150, 9)];
 
+    private readonly PanelLayout _layout;
     private readonly List<Tab> _tabs = new();
 
-    public PanelTabs(GraphicsDevice device, GfxDirectory gfx)
+    public PanelTabs(GraphicsDevice device, GfxDirectory gfx, PanelLayout layout)
     {
+        _layout = layout;
         var file = gfx.Open(File);
         Texture2D Image(JsonElement images, int i)
         {
@@ -119,9 +121,9 @@ public sealed class PanelTabs : IDisposable
     }
 
     /// <summary>Sub-menu button <paramref name="i"/>: the bar split evenly, the button centered in its part.</summary>
-    private static Rectangle MenuRect(List<Menu> menus, int i)
+    private Rectangle MenuRect(List<Menu> menus, int i)
     {
-        var bar = BuildMenu.TabBar;
+        var bar = _layout.TabBar;
         int part = bar.Width / menus.Count;
         var image = menus[i].Normal;
         return new Rectangle(bar.X + i * part + (part - image.Width) / 2, bar.Y + (bar.Height - image.Height) / 2, image.Width, image.Height);
@@ -145,7 +147,7 @@ public sealed class PanelTabs : IDisposable
         int chosen = _menu[(int)Current];
         for (int i = 0; i < tab.Menus.Count; i++)
             batch.Draw(i == chosen ? tab.Menus[i].Pressed : tab.Menus[i].Normal, MenuRect(tab.Menus, i), Color.White);
-        var content = BuildMenu.Content;
+        var content = _layout.Content;
         int y = content.Y;
         if (!title)
             return;

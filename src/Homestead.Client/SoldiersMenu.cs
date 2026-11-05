@@ -24,12 +24,14 @@ public sealed class SoldiersMenu : IDisposable
     private static readonly Color Text = new(240, 225, 190);
     private static readonly Color Label = new(190, 165, 120);
 
+    private readonly PanelLayout _layout;
     private readonly Dictionary<SoldierType, Texture2D[]> _upgrades = new();
     private readonly Texture2D[] _arrows;
     private readonly Dictionary<SoldierType, Texture2D> _weapons = new();
 
-    public SoldiersMenu(GraphicsDevice device, GfxDirectory gfx, Civilization people)
+    public SoldiersMenu(GraphicsDevice device, GfxDirectory gfx, Civilization people, PanelLayout layout)
     {
+        _layout = layout;
         Texture2D Load(GfxFile file, int index)
         {
             var bitmap = file.ReadGui(index);
@@ -53,20 +55,20 @@ public sealed class SoldiersMenu : IDisposable
     private static string Key(SoldierType type) => type.ToString().ToUpperInvariant();
 
     // Layout (panel space), top down in the content area.
-    private static int Left => BuildMenu.Content.X + 4;
-    private static int Width => BuildMenu.Content.Width - 8;
-    private static int Top => BuildMenu.Content.Y + 22; // below the title
-    private static int OffensiveY => Top;
-    private static int DivineY => Top + 20;
-    private static Rectangle UpgradeButton(int i) => new(Left + i * (Width / 3) + (Width / 3 - 60) / 2, Top + 42, 60, 40);
-    private static int SwitchY => Top + 92;
-    private static Rectangle SwitchButton => new(Left + 70, SwitchY + 16, Width - 70, 28);
-    private static int RecruitY => SwitchY + 70;
+    private int Left => _layout.Content.X + 4;
+    private int Width => _layout.Content.Width - 8;
+    private int Top => _layout.Content.Y + 22; // below the title
+    private int OffensiveY => Top;
+    private int DivineY => Top + 20;
+    private Rectangle UpgradeButton(int i) => new(Left + i * (Width / 3) + (Width / 3 - 60) / 2, Top + 42, 60, 40);
+    private int SwitchY => Top + 92;
+    private Rectangle SwitchButton => new(Left + 70, SwitchY + 16, Width - 70, 28);
+    private int RecruitY => SwitchY + 70;
     private const int RowHeight = 34;
-    private static Rectangle WeaponIcon(int row) => new(Left, RecruitY + 20 + row * RowHeight, 30, 30);
+    private Rectangle WeaponIcon(int row) => new(Left, RecruitY + 20 + row * RowHeight, 30, 30);
 
     /// <summary>The arrows of a row: double up, up, down, double down; the numbers between them.</summary>
-    private static Rectangle Arrow(int row, int i)
+    private Rectangle Arrow(int row, int i)
     {
         int x = Left + 64 + i * 22 + (i >= 2 ? 32 : 0);
         return new Rectangle(x, RecruitY + 20 + row * RowHeight, 20, 30);
@@ -118,7 +120,7 @@ public sealed class SoldiersMenu : IDisposable
                 var arrow = Arrow(row, i);
                 batch.Draw(_arrows[i], arrow, Color.White);
                 if (arrow.Contains(cursor))
-                    batch.Draw(pixel, arrow, Color.White * 0.15f);
+                    PanelUi.HoverOverlay(batch, pixel, arrow);
             }
             string planned = military.Planned(player, type).ToString();
             var plannedSize = font.Measure(planned);

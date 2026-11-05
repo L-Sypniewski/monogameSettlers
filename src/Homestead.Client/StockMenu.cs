@@ -15,22 +15,24 @@ public sealed class StockMenu
     private const int RowHeight = 46;
 
     private readonly GoodsGrid _grid;
+    private readonly PanelLayout _layout;
 
-    public StockMenu(GoodsGrid grid)
+    public StockMenu(GoodsGrid grid, PanelLayout layout)
     {
         _grid = grid;
+        _layout = layout;
     }
 
-    private static int GridTop => BuildMenu.Content.Y + 32; // below the title
+    private int GridTop => _layout.Content.Y + 32; // below the title
 
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
     {
         _grid.Draw(batch, GridTop, RowHeight);
         foreach (var good in _grid.Goods)
         {
-            var rect = GoodsGrid.IconRect(good, GridTop, RowHeight);
+            var rect = _grid.IconRect(good, GridTop, RowHeight);
             if (rect.Contains(cursor))
-                batch.Draw(pixel, rect, Color.White * 0.15f);
+                PanelUi.HoverOverlay(batch, pixel, rect);
             int count = world.InStock(player, good.Material);
             if (count == 0 && !_grid.IsMakeable(good.Material))
                 continue;

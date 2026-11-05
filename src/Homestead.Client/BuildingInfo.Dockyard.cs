@@ -54,15 +54,15 @@ public sealed partial class BuildingInfo
     }
 
     // Layout (panel space): below the name (itself below the icons) the ships at the left, the hammer at the right, the image beside the ships.
-    private static int DockyardTop => HeadBottom + 19 + 4;
-    private static Rectangle FerryButton => new(Left, DockyardTop, 60, 40);
-    private static Rectangle TradeShipButton => new(Left, DockyardTop + 44, 60, 40);
-    private static Rectangle DockButton => new(Left + Inner - 30, DockyardTop + 5, 30, 30);
+    private int DockyardTop => HeadBottom + 19 + 4;
+    private Rectangle FerryButton => new(Left, DockyardTop, 60, 40);
+    private Rectangle TradeShipButton => new(Left, DockyardTop + 44, 60, 40);
+    private Rectangle DockButton => new(Left + Inner - 30, DockyardTop + 5, 30, 30);
 
     /// <summary>Where the building's image goes next to the ships.</summary>
-    private static int DockyardImageLeft => FerryButton.Right + 4;
+    private int DockyardImageLeft => FerryButton.Right + 4;
 
-    private static int DockyardImageTop => DockButton.Bottom + 4;
+    private int DockyardImageTop => DockButton.Bottom + 4;
 
     private bool OffersDockyard(World world, Building building) =>
         _dockIcon is not null && building.State == BuildingState.Finished && world.Shipping.IsDockyard(building);
@@ -80,15 +80,15 @@ public sealed partial class BuildingInfo
             batch.Draw(ships[onStocks == ShipKind.Ferry ? 1 : 0], FerryButton, Color.White);
             batch.Draw(ships[onStocks == ShipKind.TradeShip ? 3 : 2], TradeShipButton, Color.White);
             if (open && FerryButton.Contains(cursor))
-                batch.Draw(pixel, FerryButton, HoverColor);
+                PanelUi.HoverOverlay(batch, pixel, FerryButton);
             if (open && TradeShipButton.Contains(cursor))
-                batch.Draw(pixel, TradeShipButton, HoverColor);
+                PanelUi.HoverOverlay(batch, pixel, TradeShipButton);
         }
         batch.Draw(_dockIcon!, DockButton, Color.White);
         if (AimsDock(building))
-            Frame(batch, pixel, DockButton, Color.White);
+            PanelUi.Frame(batch, pixel, DockButton, Color.White, 2);
         else if (DockButton.Contains(cursor))
-            batch.Draw(pixel, DockButton, HoverColor);
+            PanelUi.HoverOverlay(batch, pixel, DockButton);
     }
 
     /// <summary>A click on a shipyard's panel (panel space). Returns a message, or null if it hit nothing.</summary>
@@ -181,10 +181,10 @@ public sealed partial class BuildingInfo
     }
 
     /// <summary>„Schiff entladen“ at the bottom, as the tear-down question's buttons.</summary>
-    private static Rectangle UnloadButton => new(Left, Bottom - 28, Inner, 28);
+    private Rectangle UnloadButton => new(Left, Bottom - 28, Inner, 28);
 
     private static bool OffersUnload(IReadOnlyList<Ship> ships) => ships.Any(s => s.Passengers.Count > 0);
 
     /// <summary>Whether the panel point is on „Schiff entladen“ of the selected ships.</summary>
-    public static bool UnloadAt(Vector2 panel, IReadOnlyList<Ship> ships) => OffersUnload(ships) && UnloadButton.Contains(panel);
+    public bool UnloadAt(Vector2 panel, IReadOnlyList<Ship> ships) => OffersUnload(ships) && UnloadButton.Contains(panel);
 }

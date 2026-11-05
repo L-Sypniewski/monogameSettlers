@@ -197,6 +197,10 @@ public sealed class MapGame : Game
 
     /// <summary>HOMESTEAD_CAPTURE_EVENT=1: a capture run jumps to every new event, to show the arrows.</summary>
     private readonly bool _captureEvent = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVENT") == "1";
+    /// <summary>The areas of the blue side panel (panel space), the menus' shared coordinate frame.</summary>
+    private readonly PanelLayout _panelLayout = new(new Rectangle(10, 118, 196, 354), new Rectangle(10, 64, 196, 39));
+    /// <summary>Everything the screens and menus read from <c>data/ui.json</c> (loaded once, pure data).</summary>
+    private readonly UiLayout _uiLayout = UiLayout.Load();
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
     private ProfessionsMenu? _professionsMenu;
@@ -208,19 +212,19 @@ public sealed class MapGame : Game
     private TransportMenu? _transportMenu;
     private bool _captureManualRecruitment;
     private readonly int? _loadSlot;
-    private readonly SystemMenu _systemMenu = new();
+    private SystemMenu _systemMenu = null!;
     private Homestead.Simulation.Economy.Material? _captureGood;
     private SidePanel _sidePanel = null!;
     private Minimap? _minimap;
-    private readonly SelectionPanel _selectionPanel = new();
-    private readonly SpellMenu _spellMenu = new();
+    private SelectionPanel _selectionPanel = null!;
+    private SpellMenu _spellMenu = null!;
 
     /// <summary>A spell button was clicked: the next click on the map casts <see cref="_aimSpell"/>.</summary>
     private bool _aiming;
     private Spell? _aimSpell;
     private ControlGroups _controlGroups = new(0);
     private readonly CheatMenu _cheats = new();
-    private readonly BuildingInfo _buildingInfo = new();
+    private BuildingInfo _buildingInfo = null!;
     private UiFont _font = null!;
     private int _placeIndex;
     private bool _placing;
@@ -417,6 +421,10 @@ public sealed class MapGame : Game
 
     protected override void LoadContent()
     {
+        _systemMenu = new SystemMenu(_panelLayout);
+        _selectionPanel = new SelectionPanel(_panelLayout);
+        _spellMenu = new SpellMenu(_panelLayout);
+        _buildingInfo = new BuildingInfo(_panelLayout);
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         Window.TextInput += (_, e) =>
         {
@@ -457,7 +465,7 @@ public sealed class MapGame : Game
         _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
         _sidePanel = new SidePanel(GraphicsDevice, _gfx);
         TextButton.Load(GraphicsDevice, _gfx);
-        _tabs = new PanelTabs(GraphicsDevice, _gfx);
+        _tabs = new PanelTabs(GraphicsDevice, _gfx, _panelLayout);
         _eventButtons = new EventButtons(GraphicsDevice, _gfx, remember: _captureDirectory is null);
         // HOMESTEAD_CAPTURE_TAB=goods|settlers[:<sub-menu id>[:manual|<good>]]: a capture run shows that main tab
         // (and sub-menu; manual recruitment, or the good chosen in Waren › Verteilung or Warentransport).
@@ -795,28 +803,28 @@ public sealed class MapGame : Game
         if (!force && _buildMenu is not null && _placeable.FirstOrDefault()?.Civilization == catalog.Civilization)
             return;
         _buildMenu?.Dispose();
-        _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog);
+        _buildMenu = new BuildMenu(GraphicsDevice, _gfx, catalog, _panelLayout);
         _portraits?.Dispose();
         _portraits = new Portraits(GraphicsDevice, _gfx, catalog.Civilization);
         DisposePeoplePortraits();
         _soldiersMenu?.Dispose();
-        _soldiersMenu = new SoldiersMenu(GraphicsDevice, _gfx, catalog.Civilization);
+        _soldiersMenu = new SoldiersMenu(GraphicsDevice, _gfx, catalog.Civilization, _panelLayout);
         _settlersOverview?.Dispose();
-        _settlersOverview = new SettlersOverview(GraphicsDevice, _gfx, catalog.Civilization);
-        _professionsMenu ??= new ProfessionsMenu(GraphicsDevice, _gfx);
+        _settlersOverview = new SettlersOverview(GraphicsDevice, _gfx, catalog.Civilization, _panelLayout);
+        _professionsMenu ??= new ProfessionsMenu(GraphicsDevice, _gfx, _panelLayout);
         _goodsGrid?.Dispose();
-        _goodsGrid = new GoodsGrid(GraphicsDevice, _gfx, catalog, Homestead.Simulation.Economy.ProductionConfig.Load());
-        _statisticsMenu = new StatisticsMenu(_goodsGrid);
-        _stockMenu = new StockMenu(_goodsGrid);
+        _goodsGrid = new GoodsGrid(GraphicsDevice, _gfx, catalog, Homestead.Simulation.Economy.ProductionConfig.Load(), _panelLayout);
+        _statisticsMenu = new StatisticsMenu(_goodsGrid, _panelLayout);
+        _stockMenu = new StockMenu(_goodsGrid, _panelLayout);
         _manufactureMenu?.Dispose();
-        _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid);
+        _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid, _panelLayout);
         _buildingInfo.Spinner = _manufactureMenu.SpinnerImage;
         _buildingInfo.Issue = IssueReported;
         _buildingInfo.LoadIcons(GraphicsDevice, _gfx);
         _spellMenu.LoadIcons(GraphicsDevice, _gfx);
-        _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf);
+        _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf, _panelLayout);
         _transportMenu?.Dispose();
-        _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid);
+        _transportMenu = new TransportMenu(GraphicsDevice, _gfx, _goodsGrid, _panelLayout);
         _buildingInfo.StorehouseGoods = _goodsGrid;
         if (_captureGood is { } chosenGood)
             _transportMenu.Choose(chosenGood);
@@ -1976,7 +1984,7 @@ public sealed class MapGame : Game
             _selectedBuilding = null;
             _placing = _aiming = false;
         }
-        else if (onMenu && ShowsSelection && _ships.Count > 0 && BuildingInfo.UnloadAt(panelCursor, _ships))
+        else if (onMenu && ShowsSelection && _ships.Count > 0 && _buildingInfo.UnloadAt(panelCursor, _ships))
         {
             _message = "unload: everybody on board goes ashore (the ship must lie near land)";
             if (released)
@@ -2011,7 +2019,7 @@ public sealed class MapGame : Game
                 }
             }
         }
-        else if (onMenu && ShowsSelection && SelectionPanel.ActionAt(_group, panelCursor) is { } action)
+        else if (onMenu && ShowsSelection && _selectionPanel.ActionAt(_group, panelCursor) is { } action)
         {
             if (action == SelectionAction.Steal)
             {
@@ -2757,7 +2765,7 @@ public sealed class MapGame : Game
     {
         if (_shownEvent is not { } e)
             return;
-        var content = BuildMenu.Content;
+        var content = _panelLayout.Content;
         int y = content.Y;
         SelectionPanel.Shadowed(_spriteBatch, _font, _eventButtons.NameOf(e.Category), new Vector2(content.X + 4, y), 16, new Color(240, 225, 190));
         y += 28;
@@ -3559,7 +3567,7 @@ public sealed class MapGame : Game
                     _aiming ? _aimSpell : null, panelMouse);
             else
                 _selectionPanel.Draw(_spriteBatch, _font, _settlerRenderer, PortraitsOf, Own.Civilization, _local, _group,
-                    _world.Military.CombatStrength(_local), BuildMenu.Content.Y, panelMouse);
+                    _world.Military.CombatStrength(_local), _panelLayout.Content.Y, panelMouse);
         }
         else if (_tabs.Current == PanelTab.System)
             _systemMenu.Draw(_spriteBatch, _font, panelMouse);

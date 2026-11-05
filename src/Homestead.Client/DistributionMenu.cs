@@ -23,15 +23,17 @@ public sealed class DistributionMenu
     private const int EntryHeight = 46;
 
     private readonly GoodsGrid _grid;
+    private readonly PanelLayout _layout;
     private readonly List<(GoodsGrid.Good Good, List<(string Target, string Name)> Targets)> _goods = new();
     private int _chosen;
 
     /// <summary>The target whose bar is being dragged, while the button is held.</summary>
     private string? _dragging;
 
-    public DistributionMenu(GoodsGrid grid, BuildingCatalog catalog, Func<BuildingDefinition, string> nameOf)
+    public DistributionMenu(GoodsGrid grid, BuildingCatalog catalog, Func<BuildingDefinition, string> nameOf, PanelLayout layout)
     {
         _grid = grid;
+        _layout = layout;
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
         var buildings = catalog.All.Where(b => b.Name != "stock").ToList();
         foreach (var entry in document.RootElement.GetProperty("distributionMenu").GetProperty("goods").EnumerateArray())
@@ -56,15 +58,15 @@ public sealed class DistributionMenu
     }
 
     // Layout (panel space), top down in the content area.
-    private static int Left => BuildMenu.Content.X + 4;
-    private static int Width => BuildMenu.Content.Width - 8;
-    private static int Top => BuildMenu.Content.Y + 26; // below the title
+    private int Left => _layout.Content.X + 4;
+    private int Width => _layout.Content.Width - 8;
+    private int Top => _layout.Content.Y + 26; // below the title
 
-    private static Rectangle Icon(int i) => new(Left, Top + i * IconStep, GoodsGrid.IconSize, GoodsGrid.IconSize);
+    private Rectangle Icon(int i) => new(Left, Top + i * IconStep, GoodsGrid.IconSize, GoodsGrid.IconSize);
 
-    private static int EntryX => Left + 42;
-    private static int EntryY(int i) => Top + i * EntryHeight;
-    private static Rectangle Bar(int i) => new(EntryX + 46, EntryY(i) + 21, Left + Width - EntryX - 46, ShareBar.Height);
+    private int EntryX => Left + 42;
+    private int EntryY(int i) => Top + i * EntryHeight;
+    private Rectangle Bar(int i) => new(EntryX + 46, EntryY(i) + 21, Left + Width - EntryX - 46, ShareBar.Height);
 
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
     {
@@ -73,9 +75,9 @@ public sealed class DistributionMenu
             var icon = Icon(i);
             batch.Draw(_goods[i].Good.Icon, icon, Color.White);
             if (i == _chosen)
-                Frame(batch, pixel, icon);
+                PanelUi.Frame(batch, pixel, icon, Selected, 2);
             else if (icon.Contains(cursor))
-                batch.Draw(pixel, icon, Color.White * 0.15f);
+                PanelUi.HoverOverlay(batch, pixel, icon);
         }
         if (_goods.Count == 0)
             return;
@@ -137,13 +139,5 @@ public sealed class DistributionMenu
                     return $"{good.Name} for {targets[i].Name} (click or drag; empty: only when no one else wants it)";
         }
         return null;
-    }
-
-    private static void Frame(SpriteBatch batch, Texture2D pixel, Rectangle rect)
-    {
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 2), Selected);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 2, rect.Width, 2), Selected);
-        batch.Draw(pixel, new Rectangle(rect.X, rect.Y, 2, rect.Height), Selected);
-        batch.Draw(pixel, new Rectangle(rect.Right - 2, rect.Y, 2, rect.Height), Selected);
     }
 }

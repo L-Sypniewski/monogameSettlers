@@ -19,11 +19,13 @@ public sealed class GoodsGrid : IDisposable
     public const int IconSize = 30;
     private const int CellWidth = 31;
 
+    private readonly PanelLayout _layout;
     private readonly List<Good> _goods = new();
     private readonly HashSet<Material> _makeable;
 
-    public GoodsGrid(GraphicsDevice device, GfxDirectory gfx, BuildingCatalog catalog, ProductionConfig production)
+    public GoodsGrid(GraphicsDevice device, GfxDirectory gfx, BuildingCatalog catalog, ProductionConfig production, PanelLayout layout)
     {
+        _layout = layout;
         var files = new Dictionary<int, GfxFile>();
         Texture2D Load(int file, int index)
         {
@@ -92,9 +94,9 @@ public sealed class GoodsGrid : IDisposable
     }
 
     /// <summary>Where a good's icon lies: the grid centered in the content area from <paramref name="top"/> on, rows <paramref name="rowHeight"/> apart.</summary>
-    public static Rectangle IconRect(Good good, int top, int rowHeight)
+    public Rectangle IconRect(Good good, int top, int rowHeight)
     {
-        var content = BuildMenu.Content;
+        var content = _layout.Content;
         int x = content.X + (content.Width - Columns * CellWidth) / 2 + good.Column * CellWidth;
         return new Rectangle(x, top + good.Row * rowHeight, IconSize, IconSize);
     }

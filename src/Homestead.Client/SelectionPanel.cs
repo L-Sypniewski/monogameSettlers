@@ -13,6 +13,10 @@ namespace Homestead.Client;
 /// </summary>
 public sealed class SelectionPanel
 {
+    private readonly PanelLayout _layout;
+
+    public SelectionPanel(PanelLayout layout) => _layout = layout;
+
     private const int Columns = 3;
     private const int CellHeight = 80;
 
@@ -39,8 +43,8 @@ public sealed class SelectionPanel
         return actions;
     }
 
-    private static Rectangle ActionRect(int i) =>
-        new(BuildMenu.Content.X + 2, BuildMenu.Content.Bottom - 44 - i * ActionHeight, BuildMenu.Content.Width - 4, 20);
+    private Rectangle ActionRect(int i) =>
+        new(_layout.Content.X + 2, _layout.Content.Bottom - 44 - i * ActionHeight, _layout.Content.Width - 4, 20);
 
     private static string TextOf(SelectionAction action) => Lang.T(action switch
     {
@@ -51,7 +55,7 @@ public sealed class SelectionPanel
     });
 
     /// <summary>The order text under the point (panel space), or null.</summary>
-    public static SelectionAction? ActionAt(IEnumerable<Settler> selection, Vector2 panel)
+    public SelectionAction? ActionAt(IEnumerable<Settler> selection, Vector2 panel)
     {
         var actions = Actions(selection);
         for (int i = 0; i < actions.Count; i++)
@@ -69,7 +73,7 @@ public sealed class SelectionPanel
         IReadOnlyCollection<Settler> selection, float combatStrength, int top, Vector2 cursor)
     {
         var actions = Actions(selection);
-        var content = BuildMenu.Content;
+        var content = _layout.Content;
         // One portrait per kind and people.
         var kinds = selection.Where(s => !s.IsDead).GroupBy(s => (Type: SettlerRenderer.TypeOf(s), People: settlers.PeopleOf(s)))
             .Where(g => g.Key.Type is not null)

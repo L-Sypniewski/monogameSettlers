@@ -53,12 +53,14 @@ public sealed class ProfessionsMenu : IDisposable
         new("BEARER", Profession.Pioneer, "pioneers", Available: true, ToCarriers: true),
     ];
 
+    private readonly PanelLayout _layout;
     private readonly Texture2D _spinner;
     private readonly Texture2D[] _find;
     private readonly Texture2D[] _convert;
 
-    public ProfessionsMenu(GraphicsDevice device, GfxDirectory gfx)
+    public ProfessionsMenu(GraphicsDevice device, GfxDirectory gfx, PanelLayout layout)
     {
+        _layout = layout;
         var gui = gfx.Open(3);
         Texture2D Load(int index)
         {
@@ -76,21 +78,21 @@ public sealed class ProfessionsMenu : IDisposable
     }
 
     // Layout (panel space), top down in the content area.
-    private static int Left => BuildMenu.Content.X + 4;
-    private static int Width => BuildMenu.Content.Width - 8;
-    private static int Top => BuildMenu.Content.Y + 24; // below the title
+    private int Left => _layout.Content.X + 4;
+    private int Width => _layout.Content.Width - 8;
+    private int Top => _layout.Content.Y + 24; // below the title
     private const int ShareHeight = 34;
-    private static Rectangle Spinner(int row) => new(Left, Top + row * ShareHeight, 20, 30);
-    private static int HeadingY => Top + Shares.Length * ShareHeight + 6;
+    private Rectangle Spinner(int row) => new(Left, Top + row * ShareHeight, 20, 30);
+    private int HeadingY => Top + Shares.Length * ShareHeight + 6;
     private const int CellHeight = 68;
 
-    private static Point Cell(int i) => new(Left + i % 2 * (Width / 2), HeadingY + 26 + i / 2 * CellHeight);
+    private Point Cell(int i) => new(Left + i % 2 * (Width / 2), HeadingY + 26 + i / 2 * CellHeight);
 
-    private static Rectangle FindButton(int entry, int i) => new(Cell(entry).X, Cell(entry).Y + i * 20, 20, 20);
+    private Rectangle FindButton(int entry, int i) => new(Cell(entry).X, Cell(entry).Y + i * 20, 20, 20);
 
-    private static Rectangle Portrait(int entry) => new(Cell(entry).X + 21, Cell(entry).Y, 40, 60);
+    private Rectangle Portrait(int entry) => new(Cell(entry).X + 21, Cell(entry).Y, 40, 60);
 
-    private static Rectangle ConvertButton(int entry, int i) => new(Cell(entry).X + 62, Cell(entry).Y + i * 30, 30, 30);
+    private Rectangle ConvertButton(int entry, int i) => new(Cell(entry).X + 62, Cell(entry).Y + i * 30, 30, 30);
 
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Portraits portraits, SettlerRenderer settlers,
         Civilization people, Vector2 cursor)
@@ -102,14 +104,12 @@ public sealed class ProfessionsMenu : IDisposable
             var spinner = Spinner(row);
             batch.Draw(_spinner, spinner, Color.White);
             if (spinner.Contains(cursor))
-                batch.Draw(pixel, SpinnerHalf(spinner, cursor.Y < spinner.Center.Y), Color.White * 0.15f);
+                PanelUi.HoverOverlay(batch, pixel, PanelUi.SpinnerHalf(spinner, cursor.Y < spinner.Center.Y));
             int percent = (int)Math.Round(world.Recruitment.ShareOf(player, share) * 100);
             Write(batch, font, $"{sign} {percent} % {name}", new Vector2(spinner.Right + 8, spinner.Y + 6), Text, 15);
         }
 
-        string special = Lang.T("professions.special");
-        var heading = font.Measure(special, 15);
-        Write(batch, font, special, new Vector2(Left + (Width - heading.X) / 2, HeadingY), Text, 15);
+        PanelUi.Heading(batch, font, Lang.T("professions.special"), Left, Width, HeadingY, 15);
         for (int e = 0; e < Entries.Length; e++)
         {
             var entry = Entries[e];
@@ -119,7 +119,7 @@ public sealed class ProfessionsMenu : IDisposable
                 var rect = FindButton(e, i);
                 batch.Draw(_find[i], rect, shade);
                 if (entry.Available && rect.Contains(cursor))
-                    batch.Draw(pixel, rect, Color.White * 0.15f);
+                    PanelUi.HoverOverlay(batch, pixel, rect);
             }
             var portrait = Portrait(e);
             portraits.Draw(batch, entry.Portrait, portrait, settlers, people, PlayerColors.Of(player));
@@ -130,13 +130,10 @@ public sealed class ProfessionsMenu : IDisposable
                 var rect = ConvertButton(e, i);
                 batch.Draw(_convert[i], rect, shade);
                 if (entry.Available && rect.Contains(cursor))
-                    batch.Draw(pixel, rect, Color.White * 0.15f);
+                    PanelUi.HoverOverlay(batch, pixel, rect);
             }
         }
     }
-
-    private static Rectangle SpinnerHalf(Rectangle spinner, bool upper) =>
-        new(spinner.X, upper ? spinner.Y : spinner.Center.Y, spinner.Width, spinner.Height / 2);
 
     /// <summary>
     /// A click (panel space): changes a share or converts carriers (by commands; their messages follow once applied); a find
