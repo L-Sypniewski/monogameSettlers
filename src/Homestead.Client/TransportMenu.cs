@@ -165,6 +165,20 @@ public sealed class TransportMenu : IDisposable
         issue(new MoveInTransportOrder(player, good, order.IndexOf(other) - order.IndexOf(good)), _ => PlaceMessage(world, player, good));
     }
 
+    /// <summary>The tooltip of the good icon or button under the panel point, or null.</summary>
+    public string? TooltipAt(Vector2 panel, World world, int player)
+    {
+        var goods = Ordered(world, player);
+        for (int i = 0; i < goods.Count; i++)
+            if (IconAt(goods[i]).Contains(panel))
+                return $"{goods[i].Name}: {Lang.T("transport.place", i + 1)}";
+        string[] keys = ["transport.store", "transport.doNotStore", "transport.top", "transport.up", "transport.down", "transport.bottom"];
+        for (int i = 0; i < _buttons.Length && i < keys.Length; i++)
+            if (Button(i).Contains(panel))
+                return Lang.T(keys[i]);
+        return null;
+    }
+
     /// <summary>What the element under the point does (hover text), or null.</summary>
     public string? Hover(Vector2 panel, World world, int player)
     {

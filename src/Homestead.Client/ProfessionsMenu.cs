@@ -196,6 +196,26 @@ public sealed class ProfessionsMenu : IDisposable
         return null;
     }
 
+    /// <summary>The tooltip of the spinner or button under the panel point, or null.</summary>
+    public string? TooltipAt(Vector2 panel)
+    {
+        for (int row = 0; row < Shares.Length; row++)
+            if (Spinner(row).Contains(panel))
+                return Lang.T("professions.share", Lang.T("professions." + Shares[row].Key));
+        for (int e = 0; e < Entries.Length; e++)
+        {
+            var entry = Entries[e];
+            string name = Lang.T("professions." + entry.Name);
+            for (int i = 0; i < _find.Length; i++)
+                if (FindButton(e, i).Contains(panel))
+                    return Lang.T(i switch { 0 => "professions.findWorld", 1 => "professions.findScreen", _ => "professions.findOne" }, name);
+            for (int i = 0; i < _convert.Length; i++)
+                if (ConvertButton(e, i).Contains(panel))
+                    return entry.ToCarriers ? Lang.T("professions.toCarriers", Amounts[i]) : Lang.T("professions.convert", Amounts[i], name);
+        }
+        return null;
+    }
+
     /// <summary>What the element under the point does (hover text), or null.</summary>
     public string? Hover(Vector2 panel)
     {

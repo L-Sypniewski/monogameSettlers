@@ -94,6 +94,29 @@ public sealed class SettlersOverview : IDisposable
         Write(batch, font, number, new Vector2(center - size.X / 2, Top + icon.Height + 1), 15);
     }
 
+    /// <summary>The tooltip of the kind's portrait cell under the panel point, or null.</summary>
+    public string? TooltipAt(Vector2 panel)
+    {
+        int column = Width / 4;
+        for (int row = 0; row < _rows.Length; row++)
+            for (int col = 0; col < _rows[row].Length; col++)
+            {
+                var cell = new Rectangle(Left + col * column, Top + HeaderHeight + row * CellHeight, column, CellHeight);
+                if (cell.Bottom > BuildMenu.Content.Bottom)
+                    break;
+                if (cell.Contains(panel))
+                    return NameOf(_rows[row][col]);
+            }
+        return null;
+    }
+
+    /// <summary>The kind's localized name (the soldiers' types reuse the soldiers menu's names).</summary>
+    private static string NameOf(string kind) => kind switch
+    {
+        "SWORDSMAN" or "BOWMAN" or "PIKEMAN" => Lang.Find("soldiers.types." + kind[0] + kind[1..].ToLowerInvariant()) ?? kind,
+        _ => Lang.T("settlers." + kind.ToLowerInvariant()),
+    };
+
     /// <summary>The portrait of a kind: soldiers by their first level.</summary>
     private static string PortraitOf(string kind) => kind is "SWORDSMAN" or "BOWMAN" or "PIKEMAN" ? $"{kind}_L1" : kind;
 

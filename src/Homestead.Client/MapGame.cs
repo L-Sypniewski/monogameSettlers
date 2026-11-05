@@ -1460,6 +1460,8 @@ public sealed class MapGame : Game
     private ILookup<int, (GridPoint Point, int Ring, Color? Tint)>? _marks;
     private (Building?, bool, GridPoint?, string) _marksKey;
 
+    private readonly UiTooltip.Hover _menuHover = new();
+
     /// <summary>The selected market's route, to notice when it changes.</summary>
     private string RouteKey() =>
         _selectedBuilding is { Exists: true } market && _world.Trade.IsTradingPost(market)
@@ -1503,6 +1505,21 @@ public sealed class MapGame : Game
                         .Any(d => !PathFinder.InCircle(center, p.Neighbor((Direction)d), r)))
                     yield return (p, ring, null);
         }
+    }
+
+    /// <summary>The tooltip of the icon-only control under the panel point (its text is the hover timing's key), or null.</summary>
+    private string? MenuTooltip(Vector2 panel)
+    {
+        if (ShowsBuildingInfo || ShowsSelection || _tabs.Current is not (PanelTab.Goods or PanelTab.Settlers))
+            return null;
+        return _tabs.CurrentMenu switch
+        {
+            "transport" => _transportMenu!.TooltipAt(panel, _world, _local),
+            "professions" => _professionsMenu!.TooltipAt(panel),
+            "soldiers" => _soldiersMenu!.TooltipAt(panel, _world, _local, _buildingInfo),
+            "overview" => _settlersOverview!.TooltipAt(panel),
+            _ => null,
+        };
     }
 
     /// <summary>Colors of a market's route legs: to the first stop, after it, after the second, after the third.</summary>
@@ -3603,6 +3620,10 @@ public sealed class MapGame : Game
         _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, SdlMouse.GetState().Position.ToVector2());
         _buildMenu?.DrawTooltip(_spriteBatch, _pixel, _font, SdlMouse.GetState().Position.ToVector2(), viewport.Bounds,
             SidePanel.Scale(viewport.Height), _now);
+        string? tooltip = MenuTooltip(panelMouse);
+        if (_menuHover.Update(tooltip, _now))
+            UiTooltip.Draw(_spriteBatch, _pixel, _font, tooltip!, SdlMouse.GetState().Position.ToVector2(), viewport.Bounds,
+                SidePanel.Scale(viewport.Height));
         DrawOutcome(viewport);
         float infoLeft = SidePanel.Width * SidePanel.Scale(viewport.Height) + 12;
         _info.Draw(_spriteBatch, _pixel, _font, infoLeft, viewport.Height - 10, viewport.Width - infoLeft - 12,
