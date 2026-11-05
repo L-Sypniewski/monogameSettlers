@@ -15,6 +15,8 @@ public sealed class Recruitment
 {
     public const int StallTicks = 400;
 
+    private static readonly Share[] AllShares = Enum.GetValues<Share>();
+
     private readonly World _world;
     private readonly ProductionConfig _config;
     private readonly List<Recruit> _active = new();
@@ -38,8 +40,14 @@ public sealed class Recruitment
     };
 
     /// <summary>The most the share may take with the other two as they are (the three together stay within 100 %).</summary>
-    public double BudgetOf(int player, Share share) =>
-        Math.Max(0, Math.Round(1 - Enum.GetValues<Share>().Where(s => s != share).Sum(s => ShareOf(player, s)), 2));
+    public double BudgetOf(int player, Share share)
+    {
+        double others = 0;
+        foreach (var other in AllShares)
+            if (other != share)
+                others += ShareOf(player, other);
+        return Math.Max(0, Math.Round(1 - others, 2));
+    }
 
     /// <summary>Sets a share (clamped to 0–1, rounded to whole percent) so the three together stay within 100 %.</summary>
     public void SetShare(int player, Share share, double value) =>

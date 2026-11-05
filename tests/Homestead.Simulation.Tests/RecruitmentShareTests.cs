@@ -38,10 +38,11 @@ public class RecruitmentShareTests
     {
         var world = World();
         var random = new Random(7);
+        var shares = Enum.GetValues<Share>();
         for (int i = 0; i < 500; i++)
         {
-            world.Recruitment.SetShare(0, (Share)random.Next(3), random.NextDouble());
-            double sum = Enum.GetValues<Share>().Sum(s => world.Recruitment.ShareOf(0, s));
+            world.Recruitment.SetShare(0, (Share)random.Next(shares.Length), random.NextDouble());
+            double sum = shares.Sum(s => world.Recruitment.ShareOf(0, s));
             Assert.True(sum <= 1.0 + 1e-9, $"sum {sum:0.####} after set {i}");
         }
     }

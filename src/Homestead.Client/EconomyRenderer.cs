@@ -314,7 +314,7 @@ public sealed class EconomyRenderer
     public void DrawBuildingImage(SpriteBatch batch, BuildingDefinition definition, Rectangle box, Color playerColor)
     {
         var layers = definition.FinalImages.Select(i => (Sprites: Sprites(i.File, i.Sequence), Frame: i.Image)).ToList();
-        var bounds = layers.Select(l => l.Sprites.Bounds(l.Frame)).OfType<Rectangle>().ToList();
+        var bounds = layers.Select(l => Extent(l.Sprites, l.Frame)).OfType<Rectangle>().ToList();
         if (bounds.Count == 0)
             return;
         var all = bounds.Aggregate(Rectangle.Union);
@@ -322,6 +322,14 @@ public sealed class EconomyRenderer
         var anchor = new Vector2(box.Center.X - (all.X + all.Width / 2f) * scale, box.Bottom - (all.Y + all.Height) * scale);
         foreach (var (sprites, frame) in layers)
             sprites.Draw(batch, frame, anchor, scale, playerColor);
+    }
+
+    /// <summary>Body and shadow of a frame together relative to the anchor - the shadow may reach past the body.</summary>
+    private static Rectangle? Extent(SettlerSprites sprites, int frame)
+    {
+        var body = sprites.Bounds(frame);
+        var shadow = sprites.ShadowBounds(frame);
+        return body is null ? shadow : shadow is null ? body : Rectangle.Union(body.Value, shadow.Value);
     }
 
     /// <summary>A small pile of one unit of a good fitted into a box (info panel).</summary>
