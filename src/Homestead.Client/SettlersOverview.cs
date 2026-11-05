@@ -126,28 +126,29 @@ public sealed class SettlersOverview : IPanelMenu, IDisposable
     /// <summary>The kind's localized name (the soldiers' types reuse the soldiers menu's names).</summary>
     private static string NameOf(string kind) => kind switch
     {
-        "SWORDSMAN" or "BOWMAN" or "PIKEMAN" => Lang.Find("soldiers.types." + kind[0] + kind[1..].ToLowerInvariant()) ?? kind,
+        SettlerKinds.Swordsman or SettlerKinds.Bowman or SettlerKinds.Pikeman => Lang.Find("soldiers.types." + kind[0] + kind[1..].ToLowerInvariant()) ?? kind,
         _ => Lang.T("settlers." + kind.ToLowerInvariant()),
     };
 
     /// <summary>The portrait of a kind: soldiers by their first level.</summary>
-    private static string PortraitOf(string kind) => kind is "SWORDSMAN" or "BOWMAN" or "PIKEMAN" ? $"{kind}_L1" : kind;
+    private static string PortraitOf(string kind) =>
+        kind is SettlerKinds.Swordsman or SettlerKinds.Bowman or SettlerKinds.Pikeman ? $"{kind}_L1" : kind;
 
     /// <summary>Whether the settler counts as the kind (thieves are the scouts).</summary>
     private static bool Is(Settler settler, string kind) => kind switch
     {
-        "BEARER" => settler.Profession == Profession.Carrier,
-        "DIGGER" => settler.Profession == Profession.Digger,
-        "BRICKLAYER" => settler.Profession == Profession.Builder,
-        "WORKER" => settler.Profession == Profession.Worker,
-        "SWORDSMAN" => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Swordsman },
-        "BOWMAN" => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Bowman },
-        "PIKEMAN" => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Pikeman },
-        "MAGE" => settler.Profession == Profession.Priest,
-        "GEOLOGIST" => settler.Profession == Profession.Geologist,
-        "THIEF" => settler.Profession == Profession.Scout,
-        "PIONEER" => settler.Profession == Profession.Pioneer,
-        "DONKEY" => settler.Profession == Profession.Donkey,
+        SettlerKinds.Bearer => settler.Profession == Profession.Carrier,
+        SettlerKinds.Digger => settler.Profession == Profession.Digger,
+        SettlerKinds.Bricklayer => settler.Profession == Profession.Builder,
+        SettlerKinds.Worker => settler.Profession == Profession.Worker,
+        SettlerKinds.Swordsman => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Swordsman },
+        SettlerKinds.Bowman => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Bowman },
+        SettlerKinds.Pikeman => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Pikeman },
+        SettlerKinds.Mage => settler.Profession == Profession.Priest,
+        SettlerKinds.Geologist => settler.Profession == Profession.Geologist,
+        SettlerKinds.Thief => settler.Profession == Profession.Scout,
+        SettlerKinds.Pioneer => settler.Profession == Profession.Pioneer,
+        SettlerKinds.Donkey => settler.Profession == Profession.Donkey,
         _ => false,
     };
 
@@ -161,4 +162,25 @@ public sealed class SettlersOverview : IPanelMenu, IDisposable
         _total.Dispose();
         _soldiers.Dispose();
     }
+
+}
+
+/// <summary>
+/// The overview's settler kinds: the row names in <c>data/ui.json</c> (<c>settlersOverview.rows</c>) and the
+/// portraits' keys in the original's GUI data, so the spellings must stay as they are.
+/// </summary>
+internal static class SettlerKinds
+{
+    public const string Bearer = "BEARER";
+    public const string Digger = "DIGGER";
+    public const string Bricklayer = "BRICKLAYER";
+    public const string Worker = "WORKER";
+    public const string Swordsman = "SWORDSMAN";
+    public const string Bowman = "BOWMAN";
+    public const string Pikeman = "PIKEMAN";
+    public const string Mage = "MAGE";
+    public const string Geologist = "GEOLOGIST";
+    public const string Thief = "THIEF";
+    public const string Pioneer = "PIONEER";
+    public const string Donkey = "DONKEY";
 }
