@@ -1,6 +1,7 @@
 # Client UI: typed UiLayout loader for ui.json + name the panel-menu protocol (IPanelMenu, shared helpers)
 
 > Source: plan-orchestrator 2026-11-05. Approach: sequential phases (test bed → UiLayout + meta-test → shared helpers/PanelLayout → IPanelMenu + menu migration → screens migration → rider → full gate); per-menu tasks inside phases are mechanical and partly parallelizable across disjoint files. Tier: full.
+> Amended 2026-11-05 after code review (Phases 1–7 complete at HEAD `736da74`, fast-checks green): Phase 8 folds back review iteration 1 (`docs/reviews/2026-11-05-issue-31-uilayout-loader-panel-menu.md`, 0 Must · 1 Should · 3 Could · observations).
 
 ## Goals
 
@@ -125,6 +126,20 @@ Closes #31
 - [x] **7.1** Run `scripts/fast-checks.sh` (skills-lock check + `dotnet build Homestead.sln -c Release` + full `dotnet test` across both test projects). Zero regressions; the meta-test, helper tests, and cache tests are part of the suite.
       **Verify**: `scripts/fast-checks.sh` exits 0 — this is AC "fast-checks passes"; no separate commit (any fix-ups fold into the phase that introduced them)
 
+## Phase 8 - Review iteration 1 fixes
+
+> Fold-back of code review `docs/reviews/2026-11-05-issue-31-uilayout-loader-panel-menu.md` (0 Must · 1 Should · 3 Could · 8 observations; verdict APPROVE). **Fix-apply discipline**: minimal fixes only — no refactors beyond a finding's stated fix, no new findings, no drive-by changes. No new tests in this phase: the touched paths (`MapGame` dispatch, GPU-bound menu ctors, screen ctors) are not headless-testable within this suite's scope (pure helpers only, §Decisions); the existing suites are the gate.
+
+- [x] **8.1** **F-ADAPT-1 case (a) (Should — blocking, drives this loop iteration): phantom click after menu switch.** The per-menu `_wasPressed` release-tracking adapters (introduced in 4.2/4.3/4.5; canonical form `ProfessionsMenu.cs:159-164`, verbatim in `SoldiersMenu.cs` ~`:150`, `TransportMenu.cs` ~`:110`, `StatisticsMenu.cs` ~`:98`) keep per-menu memory where the old chain used `MapGame`'s stateless per-frame `released` (`MapGame.cs:1949`). A release consumed by `ShowMenu` (tab click, `MapGame.cs:2183-2184`) skips the displaced menu's `Update`, so its `_wasPressed` stays `true` indefinitely; the next `Update` after switching back evaluates `!pressed && _wasPressed(true) && onMenu(true)` → phantom `Click`. Benign today only because every adapter menu hit-tests inside the content area (y ≥ 118) while the tab row is y 64–103 — an undocumented layout accident. **Fix case (a) structurally; do NOT change click semantics** (§Non-goals: click semantics bit-identical): add `void ResetInput();` to `IPanelMenu` (`IPanelMenu.cs:15-30`; XML doc: clears transient input state so a menu switched away mid-press cannot fire on return — a dedicated member documents intent; a synthetic `Update(default, false, false, false, …)` call is rejected as a fake-input call into live menu logic); implement in all 8 menus — the 4 adapters set `_wasPressed = false`, the other 4 (Manufacture/Distribution/Stock/SettlersOverview) are empty one-liners; call it at the `ShowMenu` site (`MapGame.cs:2183-2184`) for the currently-open menu before `_tabs.ShowMenu(menu)` — reset unconditionally, including when the clicked tab is the already-open menu (press-on-content → release-on-own-tab must not arm a phantom either). **Contract**: no adapter can fire `Click` on the first `Update` frame after being switched back to (the y≥118 vs 64–103 layout accident ceases to be the only guard); same-menu press→release, drag-off-menu (Update stays pre-ungated), and hover gating are unchanged. Basis: review F-ADAPT-1 + caller disposition (fix (a) structurally, document (b)).
+- [x] **8.2** **F-ADAPT-1 case (b) (documentation only): release while window inactive.** The filtered `pressed` (`MapGame.cs:2190`, `… && IsActive`) means a release during an inactive hold no longer fires, where the old raw-transition `released` could. **Document as intended**: one comment at the `pressed` computation (`MapGame.cs:2190`) stating that a release while the window is inactive deliberately does not fire. Comment only — no code change. Basis: review F-ADAPT-1 case 2 + caller disposition (intended).
+- [x] **8.3** **F-LOAD-2 (Could): `PortraitsData.Common` typed non-nullable but assigned `null!`.** `UiLayout.cs:312-317`: type the property `CommonPortraits?` and drop the `!` at `:316` (`s.Has("common") ? CommonPortraits.From(s.Get("common")) : null`). Sole consumer `Portraits.cs:33` already null-guards (`ui.Portraits.Common is { } common` — grep-verified), so no other change. Basis: review F-LOAD-2.
+- [x] **8.4** **F-LOAD-3 (Could): `CampaignScreenData.Background` lost the int-or-`[file,gui]` dual form.** `UiLayout.cs:181-192`: the old `CampaignScreen.Image` accepted the dual form for both `background` and `marble`; `UiLayout` preserved it only for `marble` (`:186-188`). Change `CampaignScreenData.Background` from `int` to `GuiRef` and mirror the `marble` parse: `background.Kind == JsonValueKind.Array ? background.Gui() : new GuiRef(s.Get("file").Int(), background.Int())`. Update the sole consumer `CampaignScreen.cs:53` from `Image(new UiLayout.GuiRef(look.File, look.Background))` to `Image(look.Background)` (mirroring `:54` `_marble = Image(look.Marble)`); `look.File` has no other reader (grep-verified) — drop `File` from the record signature and keep resolving `file` from the section inside `From` (part of the fix's blast radius, not a refactor). `MissionScreenData.Background` (`UiLayout.cs:205-208`) is NOT in scope (the old dual form existed only in `CampaignScreen.Image`). **Contract**: current `data/ui.json` (all 3 campaigns use an int background) loads identically — meta-test stays green; a future off-file `[file,gui]` background loads instead of throwing `InvalidOperationException` at load. Basis: review F-LOAD-3.
+- [x] **8.5** **F-SCR-5 (Could): dead `ui = null!` default in `StartScreen` ctor.** `StartScreen.cs:151-152`: drop the `= null!` default from the `UiLayout ui` parameter; all 4 callers pass it named (`MapGame.cs:529-530, 580, 668-669, 1448`), so no caller changes. A future caller omitting `ui` must be a compile error, not an NRE at first use. Basis: review F-SCR-5.
+- [x] **8.6** **F-DISP-8 item 3 (observation — cheap rider): placeholder id list duplicates the `_panelMenus` key set.** `MapGame.cs:3552`: the `placeholder:` id list duplicates the `_panelMenus` keys; add a one-line comment cross-referencing `_panelMenus` (a future 9th sub-menu must update both, plus `data/ui.json`). Do NOT derive the set — keep it minimal. Comment only. Basis: review F-DISP-8 item 3 + caller disposition.
+      **Verify**: `dotnet build Homestead.sln -c Release --nologo -v q` + `DOTNET_ROLL_FORWARD=Major dotnet test tests/Homestead.Client.Tests/Homestead.Client.Tests.csproj -c Release --no-build --nologo` (host needs the env var) + `DOTNET_ROLL_FORWARD=Major dotnet test Homestead.sln -c Release --no-build --nologo --filter "FullyQualifiedName~LanguageTests"`
+      **Commit**: `client: review fixes - adapter reset on menu switch, nullable Common, background dual-form, StartScreen ctor`
+      **Sweep note**: the follow-up diff-scoped test sweep after this phase is a PARTIAL one (files changed since checkpoint `736da746e6266ffdc6f238ceeb28dfa5f880bb46`) and, because src files change here, escalates to the `scripts/fast-checks.sh` full gate — that sweep is owned by the caller's ship-pipeline delegation, not by this plan's Verify line.
+
 ## Key Risks & Mitigations
 
 - `BuildMenu.Content` static removal touches 15 files incl. `static readonly` initializers in `BuildingInfo.cs:26-29` → convert to ctor-assigned fields in 3.3; compile errors surface every site (statics can't be half-migrated).
@@ -146,11 +161,12 @@ Closes #31
 | Rider: `CampaignConfig.Load()` cached; `Lang.SaveName` no re-read | 6.1, 6.2 |
 | Pure hit-test/layout helpers tested in `Homestead.Client.Tests` | 1.3, 3.2 (+2.3) |
 | `scripts/fast-checks.sh` passes | 7.1 |
+| (review loop, not an issue AC) review iteration 1 findings folded back — behavior-preservation hardening per §Non-goals | 8.1–8.6 |
 
 ## Ship pipeline
 
 - [x] plan (plan-orchestrator, plan-only)
-- [ ] implement + phase Verify + diff-scoped test sweep (single delegation)
+- [x] implement + phase Verify + diff-scoped test sweep (single delegation)
 - [ ] review (@code-review, Path A on `origin/main...HEAD`)
 - [ ] loop (≤3, review findings)
 - [ ] resolve non-blocking items (fix-apply pass, if any)
