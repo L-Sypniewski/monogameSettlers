@@ -241,6 +241,19 @@
     "unload": "Unload ship",
     "cargo": "Cargo: {0}"
   },
+  "dockyard": {
+    "dockAim": "Click into the water: the dock goes to the best place near it (right click: cancel)",
+    "setDockFirst": "Set a dock first (the hammer)",
+    "onStocks": "{0} on the stocks: {1}% built",
+    "ordered": "{0} ordered: carriers bring its material",
+    "dockStays": "The dock stays while a ship is built",
+    "dockElsewhere": "Dock at {0},{1}: set it elsewhere",
+    "setDock": "Set the dock (then click into the water)",
+    "buildFerry": "Build ferry",
+    "buildShip": "Build trade ship",
+    "noDockPlace": "No place for a dock there (open water on own land near the building)",
+    "dockPlaced": "Dock at {0},{1}"
+  },
   "buildingStatus": {
     "active": "Active",
     "pausing": "Pausing",
@@ -598,7 +611,10 @@
     "findScreen": "Select all {0} on the screen",
     "findOne": "Fly to the next of the {0}",
     "convert": "{0} carriers become {1}",
-    "toCarriers": "{0} Pioneer(s) to Carriers"
+    "toCarriers": "{0} pioneer(s) to carriers",
+    "shareMax": "{0} at most (up/down: 5 % more/less)",
+    "carriersMin": "Carriers kept at least (up/down: 5 % more/less)",
+    "notYet": " (not there yet)"
   },
   "selection": {
     "steal": "Steal goods",
@@ -636,7 +652,7 @@
   },
   "transport": {
     "store": "Store",
-    "doNotStore": "Don't Store",
+    "doNotStore": "Don't store",
     "top": "To the very front",
     "up": "One place up",
     "down": "One place down",
