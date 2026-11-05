@@ -50,7 +50,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # pinned: macos-latest (= macOS 26 arm64) pool is starved since the Nov 2 2026 macos-14 retirement (github/community#211885); macos-15 is a separate standard pool
+        os: [ubuntu-latest, windows-latest, macos-15]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -104,10 +105,10 @@ jobs:
             os: ubuntu-latest
             archive: zip
           - rid: osx-arm64
-            os: macos-latest
+            os: macos-15  # pinned: macos-latest (= macOS 26 arm64) pool is starved since the Nov 2 2026 macos-14 retirement (github/community#211885); macos-15 is a separate standard pool
             archive: zip
           - rid: osx-x64
-            os: macos-latest
+            os: macos-15  # pinned: macos-latest (= macOS 26 arm64) pool is starved since the Nov 2 2026 macos-14 retirement (github/community#211885); macos-15 is a separate standard pool
             archive: zip
     steps:
       - uses: actions/checkout@v4
