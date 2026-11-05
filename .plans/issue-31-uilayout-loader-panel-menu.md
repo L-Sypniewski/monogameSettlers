@@ -2,6 +2,7 @@
 
 > Source: plan-orchestrator 2026-11-05. Approach: sequential phases (test bed → UiLayout + meta-test → shared helpers/PanelLayout → IPanelMenu + menu migration → screens migration → rider → full gate); per-menu tasks inside phases are mechanical and partly parallelizable across disjoint files. Tier: full.
 > Amended 2026-11-05 after code review (Phases 1–7 complete at HEAD `736da74`, fast-checks green): Phase 8 folds back review iteration 1 (`docs/reviews/2026-11-05-issue-31-uilayout-loader-panel-menu.md`, 0 Must · 1 Should · 3 Could · observations).
+> Amended 2026-11-05 after re-review iteration 1 (Phases 1–8 complete at HEAD `2a24131`, sweep green; all four iteration-0 findings verified fixed): Phase 9 folds back F-ADAPT-2 (`docs/reviews/2026-11-05-issue-31-uilayout-loader-panel-menu-iter1.md`, 0 Must · 1 Should (new) · 4 resolved · 3 observations).
 
 ## Goals
 
@@ -140,6 +141,15 @@ Closes #31
       **Commit**: `client: review fixes - adapter reset on menu switch, nullable Common, background dual-form, StartScreen ctor`
       **Sweep note**: the follow-up diff-scoped test sweep after this phase is a PARTIAL one (files changed since checkpoint `736da746e6266ffdc6f238ceeb28dfa5f880bb46`) and, because src files change here, escalates to the `scripts/fast-checks.sh` full gate — that sweep is owned by the caller's ship-pipeline delegation, not by this plan's Verify line.
 
+## Phase 9 - Review iteration 2 fixes
+
+> Fold-back of re-review `docs/reviews/2026-11-05-issue-31-uilayout-loader-panel-menu-iter1.md` (0 Must · 1 Should (new) · 4 resolved (F-ADAPT-1, F-LOAD-2, F-LOAD-3, F-SCR-5 — all verified fixed) · 3 observations; verdict APPROVE). **Fix-apply discipline**: minimal fixes only — no refactors beyond a finding's stated fix, no new findings, no drive-by changes. No new tests in this phase: the touched path (`MapGame` input dispatch) is not headless-testable within this suite's scope (pure helpers only, §Decisions); the existing suites are the gate.
+
+- [x] **9.1** **F-ADAPT-2 (Should — blocking, drives this loop iteration): phantom click via the five unguarded menu-displacement paths.** The `ResetInput()` call from 8.1 guards only 1 of 6 menu-displacement paths — the sub-tab `ShowMenu` site (`MapGame.cs:2183-2190`, reset at `:2187-2188`). Five unguarded paths consume a release frame in the same if/else-if chain (or the map-release handler) BEFORE the menu-`Update` tail (`:2191-2202`), so the displaced menu's `Update` never runs and its adapter's `_wasPressed` stays armed — the adapter tail `_wasPressed = pressed` is unconditional, so the flag arms even with the cursor off-content (`ProfessionsMenu.cs:161-162`, verbatim in `SoldiersMenu.cs:153-154`, `TransportMenu.cs:111-112`, `StatisticsMenu.cs:105-106`). On the menu's first resumed `Update`, `!pressed && _wasPressed(stale) && onMenu` fires a phantom `Click(panelCursor)` — benign today only via the undocumented tab-band/content-area disjointness (main tabs y 9–64, sub-tabs 64–103, vs content y ≥ 118, `MapGame.cs:201`). Unguarded paths: System button `_tabs.Current = PanelTab.System` (`:1983`, branch `:1981-1989`), main-tab release `_tabs.Current = _tabs.TabAt(...)` (`:1995`, branch `:1993-2000`), map-click→None (`:2595`, `:2611`, `:2618`), event→Event (`:2724`, in `LookAt`). **Chosen fix — guard the choke point (the re-review's suggested fix, recast minimal; ~4 lines in `MapGame`)**: in the `:2191` menu-resume branch, call `panel.ResetInput()` on the menu being resumed when it was NOT being updated on the previous input pass — track the menu id that branch last updated (nullable field, cleared each input pass, set inside the branch; per the re-review's sketch) and reset before `Update` when the resumed id differs. One site covers all six displacement paths (and any future one) instead of patching five more sites. ⚠️ Key the absence check on "did not receive an `Update` last pass", NOT on "`_tabs.CurrentMenu` changed": the same-main-tab release (`:1995`) leaves `CurrentMenu` unchanged (per-tab sub-menu memory, `PanelTabs.cs:63-66`) while still skipping the menu's `Update` — a current-menu-id comparison would miss exactly that path and violate the contract. The per-site `ResetInput()` from 8.1 at the sub-tab path STAYS (harmless; now redundant-but-consistent — it resets the menu being left, the choke point resets the menu being entered); it MAY be simplified to rely on the choke point alone IF the implementer finds the double-reset confusing, but deleting it is NOT required. **Contract**: no phantom `Click` may fire via ANY displacement path (the band-disjointness accident ceases to be the only guard, upholding the `ResetInput` doc contract, `IPanelMenu.cs:28-30`); all other click semantics unchanged (§Non-goals bit-identical); no new `IPanelMenu` members beyond the existing `ResetInput()`; no adapter-body changes (the unconditional `_wasPressed = pressed` tail stays). Basis: re-review F-ADAPT-2 + suggested fix (`docs/reviews/2026-11-05-issue-31-uilayout-loader-panel-menu-iter1.md`, all line refs re-verified at HEAD `2a24131`).
+      **Verify**: `dotnet build Homestead.sln -c Release --nologo -v q` + `DOTNET_ROLL_FORWARD=Major dotnet test tests/Homestead.Client.Tests/Homestead.Client.Tests.csproj -c Release --no-build --nologo` (host needs the env var) + `DOTNET_ROLL_FORWARD=Major dotnet test Homestead.sln -c Release --no-build --nologo --filter "FullyQualifiedName~LanguageTests"`
+      **Commit**: `client: reset panel-menu input at the resume choke point (F-ADAPT-2)`
+      **Sweep note**: the follow-up diff-scoped test sweep after this phase is a PARTIAL one (files changed since checkpoint `2a241318df07cd3ba08a897aaca73f7df27c0294`) and, because src files change here, escalates to the `scripts/fast-checks.sh` full gate — that sweep is owned by the caller's ship-pipeline delegation, not by this plan's Verify line.
+
 ## Key Risks & Mitigations
 
 - `BuildMenu.Content` static removal touches 15 files incl. `static readonly` initializers in `BuildingInfo.cs:26-29` → convert to ctor-assigned fields in 3.3; compile errors surface every site (statics can't be half-migrated).
@@ -162,6 +172,7 @@ Closes #31
 | Pure hit-test/layout helpers tested in `Homestead.Client.Tests` | 1.3, 3.2 (+2.3) |
 | `scripts/fast-checks.sh` passes | 7.1 |
 | (review loop, not an issue AC) review iteration 1 findings folded back — behavior-preservation hardening per §Non-goals | 8.1–8.6 |
+| (review loop, not an issue AC) review iteration 2 F-ADAPT-2 folded back — `ResetInput` contract enforced at the resume choke point across all displacement paths | 9.1 |
 
 ## Ship pipeline
 
@@ -176,3 +187,5 @@ Closes #31
 ## Loop log
 
 _Shaped by `ship`; iterations appended below._
+
+- iteration 1: replan (1 Should F-ADAPT-1, 3 Could + 1 obs folded → Phase 8) → implement+partial sweep pass → re-review: F-ADAPT-1 fixed ✓, 3 Could fixed ✓, new Should F-ADAPT-2 (reset guards 1 of 6 displacement paths)
