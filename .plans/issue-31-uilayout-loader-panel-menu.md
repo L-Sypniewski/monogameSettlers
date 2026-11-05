@@ -179,13 +179,16 @@ Closes #31
 - [x] plan (plan-orchestrator, plan-only)
 - [x] implement + phase Verify + diff-scoped test sweep (single delegation)
 - [ ] review (@code-review, Path A on `origin/main...HEAD`)
-- [ ] loop (≤3, review findings)
-- [ ] resolve non-blocking items (fix-apply pass, if any)
-- [ ] PR-readiness gate
-- [ ] ship (PR + follow-ups + session log)
+- [x] loop (≤3, review findings) — 2 iterations (Phase 8: F-ADAPT-1 + 3 Could; Phase 9: F-ADAPT-2 choke-point); iter-2 re-review clean
+- [x] resolve non-blocking items (none raised at exit — 0 Could findings, 2 no-fix observations)
+- [x] PR-readiness gate (exit full sweep ≡ this repo's CI legs: skills-lock + Release build + full dotnet test; no OpenAPI/agents-sync/security-probe equivalents apply)
+- [x] ship (PR #54 + follow-ups: none + session log)
 
 ## Loop log
 
 _Shaped by `ship`; iterations appended below._
 
 - iteration 1: replan (1 Should F-ADAPT-1, 3 Could + 1 obs folded → Phase 8) → implement+partial sweep pass → re-review: F-ADAPT-1 fixed ✓, 3 Could fixed ✓, new Should F-ADAPT-2 (reset guards 1 of 6 displacement paths)
+- iteration 2: replan (1 Should F-ADAPT-2 → Phase 9 choke-point guard) → implement+partial sweep pass → re-review clean (0/0/0 + 2 no-fix obs)
+- exit: full sweep from base pass (fast-checks 16+505) — no fix-apply pass (empty non-blocking backlog)
+- ship: draft PR #54 https://github.com/L-Sypniewski/monogameSettlers/pull/54 — no follow-up issues (no Won't/hatch candidates), no wiki update (pure engineering)
