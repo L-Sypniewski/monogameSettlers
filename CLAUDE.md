@@ -70,7 +70,8 @@ Lokal: `~/Games/gog/the-settlers-iii-ultimate-collection/drive_c/GOG Games/Settl
 - Version aus Git-Tags `vX.Y.Z` (MinVer in `Directory.Build.props`; ohne Tag `0.1.0-alpha.0.<n>`), Titelbildschirm unten rechts.
   Regeln: `docs/VERSIONING.md` (unter 1.0: PATCH Fixes/Balancing/Übersetzungen, MINOR Features oder Spielstand-/Settings-Bruch).
 - `.github/workflows/build.yml`: Push auf main/PR → Build + Tests, Pakete linux-x64 (`tar.gz`), win-x64 (`zip`) und osx-arm64/osx-x64
-  (auf `macos-latest`: `monoSettlers.app`, Programmordner als `Contents/MacOS`, `packaging/macos/Info.plist`, nur ad-hoc signiert,
+  (im separaten Job `package-macos`, sequenziell – immer nur ein macOS-Runner –, auf gepinntem `macos-15` statt überlastetem `macos-latest`;
+  danach `determinism-macos`): `monoSettlers.app`, Programmordner als `Contents/MacOS`, `packaging/macos/Info.plist`, nur ad-hoc signiert,
   `zip` per `ditto`; ungetestet), self-contained, als Artefakte; Tag `v*` → zusätzlich GitHub-Release (`gh release create`, Suffix → Vorabversion).
 
 ## Bauen/Starten
