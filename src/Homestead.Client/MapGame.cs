@@ -1521,6 +1521,7 @@ public sealed class MapGame : Game
             "statistics" => _statisticsMenu!.TooltipAt(panel),
             "stock" => _stockMenu!.TooltipAt(panel),
             "tools" => _manufactureMenu!.TooltipAt(panel),
+            "distribution" => _distributionMenu!.TooltipAt(panel),
             _ => null,
         };
     }
