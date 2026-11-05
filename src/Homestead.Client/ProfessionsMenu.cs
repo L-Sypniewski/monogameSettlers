@@ -163,6 +163,8 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
         return done;
     }
 
+    public void ResetInput() => _wasPressed = false;
+
     /// <summary>
     /// A click (panel space): changes a share or converts carriers (by commands; their messages follow once applied); a find
     /// button tells <c>_find</c> what to select, the ids of converted carriers go to <c>_chosen</c> once applied (also those

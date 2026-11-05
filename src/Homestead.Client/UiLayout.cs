@@ -178,13 +178,15 @@ public sealed class UiLayout
             s.Props().Where(p => p.Name != "file").ToDictionary(p => p.Name, p => p.Value.Ints()));
     }
 
-    public sealed record CampaignScreenData(int File, int Background, GuiRef Marble, Rectangle Heading, int HeadingSize,
+    public sealed record CampaignScreenData(GuiRef Background, GuiRef Marble, Rectangle Heading, int HeadingSize,
         IReadOnlyDictionary<string, CampaignSideLayout> Sides)
     {
         internal static CampaignScreenData From(Section s)
         {
+            var background = s.Get("background");
             var marble = s.Get("marble");
-            return new(s.Get("file").Int(), s.Get("background").Int(),
+            return new(
+                background.Kind == JsonValueKind.Array ? background.Gui() : new GuiRef(s.Get("file").Int(), background.Int()),
                 marble.Kind == JsonValueKind.Array ? marble.Gui() : new GuiRef(s.Get("file").Int(), marble.Int()),
                 s.Get("heading").Rect(), s.Has("headingSize") ? s.Get("headingSize").Int() : 15,
                 s.Get("sides").Map(CampaignSideLayout.From));
@@ -309,11 +311,11 @@ public sealed class UiLayout
             new(s.Get("good").Str(), s.Get("icon").Kind == JsonValueKind.Array ? s.Get("icon").Gui() : null);
     }
 
-    public sealed record PortraitsData(IReadOnlyDictionary<string, PeoplePortraits> Peoples, CommonPortraits Common)
+    public sealed record PortraitsData(IReadOnlyDictionary<string, PeoplePortraits> Peoples, CommonPortraits? Common)
     {
         internal static PortraitsData From(Section s) =>
             new(s.Props().Where(p => p.Name != "common").ToDictionary(p => p.Name, p => PeoplePortraits.From(p.Value)),
-                s.Has("common") ? CommonPortraits.From(s.Get("common")) : null!);
+                s.Has("common") ? CommonPortraits.From(s.Get("common")) : null);
     }
 
     /// <summary>A people's portraits: its file, the kinds' indices (by uppercase key) and the first soldier's.</summary>

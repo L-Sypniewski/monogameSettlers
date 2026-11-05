@@ -123,6 +123,8 @@ public sealed class DistributionMenu : IPanelMenu
         return $"{good.Name} for {targets[index].Name}: share {share * 100:0} %";
     }
 
+    public void ResetInput() { }
+
     /// <summary>What the element under the point does (hover text), or null.</summary>
     public string? Hover(Vector2 panel, World world, int player)
     {

@@ -527,7 +527,7 @@ public sealed class MapGame : Game
                     _multiplayerScreen!.ShowSampleLobby();
                 if (captureStart == "multiplayer:create")
                     _multiplayerCreate = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples,
-                        _display.PreferredColor, local: 0, multiplayer: true, ui: _uiLayout);
+                        ui: _uiLayout, preferredColor: _display.PreferredColor, local: 0, multiplayer: true);
                 // HOMESTEAD_CAPTURE_SERVER=<ws://…/ws>: a multiplayer game against a computer player through that server.
                 if (CaptureServer is { } server)
                 {
@@ -577,7 +577,7 @@ public sealed class MapGame : Game
             }
             else
             {
-                _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, _display.PreferredColor, _chosenLocal, ui: _uiLayout);
+                _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, ui: _uiLayout, preferredColor: _display.PreferredColor, local: _chosenLocal);
                 if (int.TryParse(captureStart?.Split(':')[0], out int category))
                     _startScreen.ShowCategory(category);
                 if (captureStart?.EndsWith(":color") == true)
@@ -666,7 +666,7 @@ public sealed class MapGame : Game
                 break;
             case MultiplayerAction.Create:
                 _multiplayerCreate = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples,
-                    _display.PreferredColor, local: 0, multiplayer: true, ui: _uiLayout);
+                    ui: _uiLayout, preferredColor: _display.PreferredColor, local: 0, multiplayer: true);
                 break;
             case MultiplayerAction.Started:
                 var started = screen.Started!;
@@ -1445,7 +1445,7 @@ public sealed class MapGame : Game
         {
             _title.Dispose();
             _title = null;
-            _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, _display.PreferredColor, _chosenLocal, ui: _uiLayout);
+            _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, ui: _uiLayout, preferredColor: _display.PreferredColor, local: _chosenLocal);
         }
     }
 
@@ -2181,12 +2181,20 @@ public sealed class MapGame : Game
         else if (!ShowsSelection && _tabs.Current != PanelTab.Build)
         {
             if (onMenu && released && _tabs.MenuAt(panelCursor) is { } menu)
+            {
+                // The tab consumes this release; forget the open menu's press-state (also when it stays open)
+                // so it cannot fire a phantom click when it sees input again.
+                if (_tabs.CurrentMenu is { } current && _panelMenus.TryGetValue(current, out var open))
+                    open.ResetInput();
                 _tabs.ShowMenu(menu);
+            }
             else if (_tabs.CurrentMenu is { } id && _panelMenus.TryGetValue(id, out var panel))
             {
                 if (onMenu && panel.Hover(panelCursor, _world, _local) is { } hover)
                     _message = hover;
                 // While a selection box is being dragged on the map the menus see no press, as with a click there.
+                // A button released while the window is inactive deliberately fires nothing: without seeing the
+                // hold, the menus' release-tracking never arms.
                 bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive && _dragStart is null;
                 bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
                 if (panel.Update(panelCursor, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
@@ -3549,6 +3557,7 @@ public sealed class MapGame : Game
         else
         {
             string? menu = _tabs.CurrentMenu;
+            // This id list mirrors the _panelMenus keys (and data/ui.json): a new sub-menu is added in all of them.
             _tabs.DrawContent(_spriteBatch, _font, placeholder: menu is not ("soldiers" or "overview" or "professions" or "statistics" or "stock" or "tools" or "distribution" or "transport"),
                 title: menu != "tools");
             if (menu is not null && _panelMenus.TryGetValue(menu, out var panel))

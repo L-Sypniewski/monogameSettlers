@@ -25,6 +25,10 @@ public interface IPanelMenu
     /// <param name="onMenu">The cursor is on the side panel.</param>
     string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue);
 
+    /// <summary>Clears transient input state (a press tracked before the menu stopped being current): a menu
+    /// switched away mid-press cannot fire on the first frame it is switched back to.</summary>
+    void ResetInput();
+
     /// <summary>What the element under the point does (hover text), or null.</summary>
     string? Hover(Vector2 panel, World world, int player);
 }

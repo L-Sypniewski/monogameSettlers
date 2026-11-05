@@ -155,6 +155,8 @@ public sealed class SoldiersMenu : IPanelMenu, IDisposable
         return done;
     }
 
+    public void ResetInput() => _wasPressed = false;
+
     /// <summary>A click (panel space): upgrades, switches or plans; returns a message, or null if it hit nothing.</summary>
     private string? Click(Vector2 panel, World world, int player, IssueCommand issue)
     {

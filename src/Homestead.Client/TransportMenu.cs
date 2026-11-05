@@ -113,6 +113,8 @@ public sealed class TransportMenu : IPanelMenu, IDisposable
         return done;
     }
 
+    public void ResetInput() => _wasPressed = false;
+
     /// <summary>A click (panel space): chooses a good or applies a button to the chosen one; returns a message, or null.</summary>
     private string? Click(Vector2 panel, World world, int player, IssueCommand issue)
     {

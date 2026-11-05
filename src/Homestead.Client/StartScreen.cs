@@ -149,7 +149,7 @@ public sealed class StartScreen : IDisposable
     /// <param name="local">The player played here (from 0).</param>
     /// <param name="multiplayer">Opening a multiplayer game: the players can be humans (seats) or computer players.</param>
     public StartScreen(GraphicsDevice device, GfxDirectory gfx, IReadOnlyList<string> mapFiles, string mapDirectory, int selected,
-        IReadOnlyList<Civilization>? peoples, int preferredColor = 0, int local = 0, bool multiplayer = false, UiLayout ui = null!)
+        IReadOnlyList<Civilization>? peoples, UiLayout ui, int preferredColor = 0, int local = 0, bool multiplayer = false)
     {
         _device = device;
         _local = local;

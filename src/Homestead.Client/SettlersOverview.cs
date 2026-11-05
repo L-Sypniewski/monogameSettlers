@@ -102,6 +102,8 @@ public sealed class SettlersOverview : IPanelMenu, IDisposable
     /// <summary>A passive overview: nothing to click or hover.</summary>
     public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue) => null;
 
+    public void ResetInput() { }
+
     /// <summary>A passive overview: nothing to click or hover.</summary>
     public string? Hover(Vector2 panel, World world, int player) => null;
 

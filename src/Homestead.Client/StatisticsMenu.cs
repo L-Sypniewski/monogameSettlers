@@ -107,6 +107,8 @@ public sealed class StatisticsMenu : IPanelMenu
         return done;
     }
 
+    public void ResetInput() => _wasPressed = false;
+
     /// <summary>A click on a good shows its chart; returns a message, or null if it hit nothing.</summary>
     private string? Click(Vector2 panel, World world, int player)
     {

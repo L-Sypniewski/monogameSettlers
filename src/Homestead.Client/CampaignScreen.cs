@@ -50,7 +50,7 @@ public sealed class CampaignScreen : IDisposable
             return texture;
         }
         Texture2D Image(UiLayout.GuiRef image) => Texture(gfx.Open(image.File).ReadGui(image.Index));
-        _background = Image(new UiLayout.GuiRef(look.File, look.Background));
+        _background = Image(look.Background);
         _marble = Image(look.Marble);
         _heading = look.Heading;
         _headingSize = look.HeadingSize;

@@ -111,6 +111,8 @@ public sealed class ManufactureMenu : IPanelMenu, IDisposable
         return $"{NameOf(dragged)}: {share * 100:0} %";
     }
 
+    public void ResetInput() { }
+
     /// <summary>What the element under the point does (hover text), or null.</summary>
     public string? Hover(Vector2 panel, World world, int player)
     {

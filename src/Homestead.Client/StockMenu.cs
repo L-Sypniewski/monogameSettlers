@@ -46,6 +46,8 @@ public sealed class StockMenu : IPanelMenu
     /// <summary>No clicks here: the stock only shows.</summary>
     public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue) => null;
 
+    public void ResetInput() { }
+
     /// <summary>The good under the point and how many are in stock (hover text), or null.</summary>
     public string? Hover(Vector2 panel, World world, int player) =>
         _grid.GoodAt(panel, GridTop, RowHeight) is { } good ? $"{good.Name}: {world.InStock(player, good.Material)} in stock" : null;
