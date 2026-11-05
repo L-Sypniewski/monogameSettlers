@@ -24,7 +24,7 @@ public sealed class MissionSelectScreen : IDisposable
     /// <param name="side">The side's name for the heading.</param>
     /// <param name="intro">Whether the side has an intro video, <paramref name="outro"/> an outro.</param>
     public MissionSelectScreen(GraphicsDevice device, GfxDirectory gfx, string side, IReadOnlyList<string> names, int accomplished,
-        bool intro = true, bool outro = true)
+        UiLayout ui, bool intro = true, bool outro = true)
     {
         var rows = new List<(int?, Video?)>();
         if (intro)
@@ -37,7 +37,7 @@ public sealed class MissionSelectScreen : IDisposable
         _list = new ListScreen(device, gfx, $"{side} · {Lang.T("campaign.chooseMission")}", _rows.Select(r => r.Mission is { } m
                 ? new ListRow($"{m + 1}.  {names[m]}", Lang.T(m < accomplished ? "campaign.missionDone" : "campaign.missionNew"), Lit: m >= accomplished)
                 : new ListRow(Lang.T(r.Video == Video.Intro ? "campaign.introVideo" : "campaign.outroVideo"), Lang.T("campaign.video")))
-            .ToArray(), shown: _rows.Length - 1);
+            .ToArray(), ui, shown: _rows.Length - 1);
     }
 
     /// <summary>The mission (from 0) clicked in the last <see cref="Update"/>, if any.</summary>

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets;
 using Homestead.Assets.Gfx;
 using Homestead.Assets.Maps;
@@ -57,27 +56,25 @@ public sealed class BriefingScreen : IDisposable
 
     /// <param name="language">Language of the text table (<see cref="Lang.TextIndex"/>).</param>
     public BriefingScreen(GraphicsDevice device, GfxDirectory gfx, GameInstallation installation, CampaignMission mission, Language language,
-        float volume)
+        float volume, UiLayout ui)
     {
         _device = device;
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var look = document.RootElement.GetProperty("startScreen");
-        var file = gfx.Open(look.GetProperty("file").GetInt32());
-        Texture2D Image(string name)
+        var look = ui.StartScreen;
+        var file = gfx.Open(look.File);
+        Texture2D Image(int index)
         {
-            var bitmap = file.ReadGui(look.GetProperty(name).GetInt32());
+            var bitmap = file.ReadGui(index);
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
         }
-        _background = Image("background");
-        _marble = Image("marble");
-        _sheet = Image("sheet");
-        _scrollTop = Image("scrollTop");
-        _scrollTrack = Image("scrollTrack");
-        _scrollBottom = Image("scrollBottom");
-        var handle = look.GetProperty("handle");
-        _handle = new Rectangle(handle[0].GetInt32(), handle[1].GetInt32(), handle[2].GetInt32(), handle[3].GetInt32());
+        _background = Image(look.Background);
+        _marble = Image(look.Marble);
+        _sheet = Image(look.Sheet);
+        _scrollTop = Image(look.ScrollTop);
+        _scrollTrack = Image(look.ScrollTrack);
+        _scrollBottom = Image(look.ScrollBottom);
+        _handle = look.Handle;
 
         _map = OriginalMap.Open(installation.FindPath(mission.Map) ?? throw new FileNotFoundException("Mission map missing", mission.Map));
         _preview = new Texture2D(device, _map.Area.Size, _map.Area.Size);

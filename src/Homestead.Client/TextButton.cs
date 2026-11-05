@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation.Buildings;
 using Microsoft.Xna.Framework;
@@ -22,21 +21,18 @@ public static class TextButton
     private static Rectangle _normal, _pressed;
     private static int _border;
 
-    public static void Load(GraphicsDevice device, GfxDirectory gfx)
+    public static void Load(GraphicsDevice device, GfxDirectory gfx, UiLayout ui)
     {
         if (_sheet is not null)
             return;
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var config = document.RootElement.GetProperty("textButton");
-        var bitmap = gfx.Open(config.GetProperty("file").GetInt32()).ReadGui(config.GetProperty("gui").GetInt32());
+        var config = ui.TextButton;
+        var bitmap = gfx.Open(config.File).ReadGui(config.Gui);
         _sheet = new Texture2D(device, bitmap.Width, bitmap.Height);
         _sheet.SetData(bitmap.Pixels);
-        _normal = Rect(config.GetProperty("normal"));
-        _pressed = Rect(config.GetProperty("pressed"));
-        _border = config.GetProperty("border").GetInt32();
+        _normal = config.Normal;
+        _pressed = config.Pressed;
+        _border = config.Border;
     }
-
-    private static Rectangle Rect(JsonElement e) => new(e[0].GetInt32(), e[1].GetInt32(), e[2].GetInt32(), e[3].GetInt32());
 
     public static void Dispose()
     {

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation.Buildings;
 using Microsoft.Xna.Framework;
@@ -39,34 +38,25 @@ public sealed class CampaignScreen : IDisposable
     private MouseState _previousMouse = SdlMouse.GetState();
 
     /// <param name="campaign">The campaign (<c>settlers</c>, <c>missionCd</c>, <c>amazons</c>).</param>
-    public CampaignScreen(GraphicsDevice device, GfxDirectory gfx, string campaign)
+    public CampaignScreen(GraphicsDevice device, GfxDirectory gfx, string campaign, UiLayout ui)
     {
         Campaign = campaign;
         _config = CampaignConfig.Load().Campaigns[campaign];
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var look = document.RootElement.GetProperty("campaignScreens").GetProperty(campaign);
-        int file = look.GetProperty("file").GetInt32();
+        var look = ui.CampaignScreens[campaign];
         Texture2D Texture(GfxBitmap bitmap)
         {
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
         }
-        // An image of the screen's file, or [file, image] of another.
-        Texture2D Image(JsonElement e) => e.ValueKind == JsonValueKind.Array
-            ? Texture(gfx.Open(e[0].GetInt32()).ReadGui(e[1].GetInt32()))
-            : Texture(gfx.Open(file).ReadGui(e.GetInt32()));
-        static Rectangle Box(JsonElement e) => new(e[0].GetInt32(), e[1].GetInt32(), e[2].GetInt32(), e[3].GetInt32());
-        _background = Image(look.GetProperty("background"));
-        _marble = Image(look.GetProperty("marble"));
-        _heading = Box(look.GetProperty("heading"));
-        _headingSize = look.TryGetProperty("headingSize", out var headingSize) ? headingSize.GetInt32() : 15;
-        // The brighter picture: [file, sequence, frame] of a settler sequence, placed on the picture's rectangle.
-        _sides = look.GetProperty("sides").EnumerateObject()
-            .Select(s => (s.Name, Box(s.Value.GetProperty("picture")), Box(s.Value.GetProperty("name")),
-                s.Value.TryGetProperty("lit", out var lit) ? Texture(gfx.Open(lit[0].GetInt32()).ReadSettler(lit[1].GetInt32(), lit[2].GetInt32())) : null,
-                s.Value.TryGetProperty("label", out var label) ? label.GetString() : null))
-            .ToArray();
+        Texture2D Image(UiLayout.GuiRef image) => Texture(gfx.Open(image.File).ReadGui(image.Index));
+        _background = Image(new UiLayout.GuiRef(look.File, look.Background));
+        _marble = Image(look.Marble);
+        _heading = look.Heading;
+        _headingSize = look.HeadingSize;
+        // The brighter picture: a frame of a settler sequence, placed on the picture's rectangle.
+        _sides = look.Sides.Select(s => (s.Key, s.Value.Picture, s.Value.Name,
+            s.Value.Lit is { } lit ? Texture(gfx.Open(lit.File).ReadSettler(lit.Sequence, lit.Frame)) : null, s.Value.Label)).ToArray();
     }
 
     /// <summary>The campaign whose sides are shown.</summary>

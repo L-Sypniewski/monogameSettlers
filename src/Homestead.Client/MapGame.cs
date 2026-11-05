@@ -466,7 +466,7 @@ public sealed class MapGame : Game
         };
         _fogEffect = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true, LightingEnabled = false };
         _sidePanel = new SidePanel(GraphicsDevice, _gfx);
-        TextButton.Load(GraphicsDevice, _gfx);
+        TextButton.Load(GraphicsDevice, _gfx, _uiLayout);
         _tabs = new PanelTabs(GraphicsDevice, _gfx, _panelLayout, _uiLayout);
         _eventButtons = new EventButtons(GraphicsDevice, _gfx, remember: _captureDirectory is null);
         // HOMESTEAD_CAPTURE_TAB=goods|settlers[:<sub-menu id>[:manual|<good>]]: a capture run shows that main tab
@@ -489,7 +489,7 @@ public sealed class MapGame : Game
             PlayerColors.Assign(captureColors.Split(',').Select(c => int.TryParse(c, out int color) ? color : (int?)null).ToArray(), _random);
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
         _shipRenderer = new ShipRenderer(_sprites, _uiLayout);
-        _statusIcons = new StatusIcons(_sprites);
+        _statusIcons = new StatusIcons(_sprites, _uiLayout);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
             player => player < _playerCatalogs.Count ? _playerCatalogs[player].Civilization : Civilization.Roman);
         _economyRenderer = new EconomyRenderer(_sprites);
@@ -519,19 +519,19 @@ public sealed class MapGame : Game
             else if (captureStart is null or "intro" || captureStart.StartsWith("title") || captureStart.StartsWith("settings")
                      || captureStart?.StartsWith("multiplayer") == true || campaignCapture || CaptureServer is not null)
             {
-                _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
+                _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme, _uiLayout);
                 // =multiplayer: connecting; =multiplayer:create: the start screen opening a game.
                 if (captureStart?.StartsWith("multiplayer") == true)
-                    _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx);
+                    _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx, _uiLayout);
                 if (captureStart == "multiplayer:lobby")
                     _multiplayerScreen!.ShowSampleLobby();
                 if (captureStart == "multiplayer:create")
                     _multiplayerCreate = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples,
-                        _display.PreferredColor, local: 0, multiplayer: true);
+                        _display.PreferredColor, local: 0, multiplayer: true, ui: _uiLayout);
                 // HOMESTEAD_CAPTURE_SERVER=<ws://…/ws>: a multiplayer game against a computer player through that server.
                 if (CaptureServer is { } server)
                 {
-                    _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx);
+                    _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx, _uiLayout);
                     _multiplayerScreen.Automate(server, SoloSetup(_randomMap is { } random ? MapChoice.Generated(random.Settings, random.Seed)
                         : MapChoice.Generated(new RandomMapSettings(), 1), 2, local: 0) with { Seed = 1 });
                 }
@@ -543,7 +543,7 @@ public sealed class MapGame : Game
                     var parts = captureStart!.Split(':');
                     _campaign = parts[0] is "amazons" or "missionCd" ? parts[0] : "settlers";
                     // HOMESTEAD_CAPTURE_HOVER=<side>: that side as if under the mouse.
-                    _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign) { Hovered = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_HOVER") };
+                    _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign, _uiLayout) { Hovered = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_HOVER") };
                     if (parts.Length > 1)
                     {
                         _campaignSide = CampaignConfig.Load().Campaigns[_campaign].Keys.First(k => k.Equals(parts[1], StringComparison.OrdinalIgnoreCase));
@@ -566,7 +566,7 @@ public sealed class MapGame : Game
                 }
                 if (captureStart?.StartsWith("settings") == true)
                 {
-                    _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
+                    _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx, _uiLayout);
                     if (captureStart.StartsWith("settings:"))
                         _settingsScreen.Show(captureStart["settings:".Length..]);
                 }
@@ -577,7 +577,7 @@ public sealed class MapGame : Game
             }
             else
             {
-                _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, _display.PreferredColor, _chosenLocal);
+                _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, _display.PreferredColor, _chosenLocal, ui: _uiLayout);
                 if (int.TryParse(captureStart?.Split(':')[0], out int category))
                     _startScreen.ShowCategory(category);
                 if (captureStart?.EndsWith(":color") == true)
@@ -601,7 +601,7 @@ public sealed class MapGame : Game
         {
             _startScreen.Dispose();
             _startScreen = null;
-            _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
+            _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme, _uiLayout);
             return;
         }
         if (Keyboard.GetState().IsKeyDown(Keys.F11) && !_previousKeys.IsKeyDown(Keys.F11))
@@ -666,7 +666,7 @@ public sealed class MapGame : Game
                 break;
             case MultiplayerAction.Create:
                 _multiplayerCreate = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples,
-                    _display.PreferredColor, local: 0, multiplayer: true);
+                    _display.PreferredColor, local: 0, multiplayer: true, ui: _uiLayout);
                 break;
             case MultiplayerAction.Started:
                 var started = screen.Started!;
@@ -1073,7 +1073,7 @@ public sealed class MapGame : Game
             _ => _map.Name,
         };
         _statistics = new StatisticsScreen(GraphicsDevice, _gfx, _world, name, _goodsGrid, canResume && outcome != MissionOutcome.Lost,
-            outcome == MissionOutcome.Open || _mission is null ? null : Lang.T("campaign.next"));
+            _uiLayout, outcome == MissionOutcome.Open || _mission is null ? null : Lang.T("campaign.next"));
     }
 
     /// <summary>The outcome of the campaign mission or the free game for the local player.</summary>
@@ -1113,7 +1113,7 @@ public sealed class MapGame : Game
         EndNetworkGame();
         _tabs.Current = PanelTab.Build;
         _ownAi = null;
-        _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
+        _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme, _uiLayout);
     }
 
     /// <summary>
@@ -1165,7 +1165,7 @@ public sealed class MapGame : Game
             ? new ListRow($"{slot + 1}.  {Lang.SaveName(info)}",
                 $"{info.SavedAt.ToString(Lang.T("formats.savedAt"), Lang.Culture)} · {Lang.T("peoples." + info.People)}")
             : new ListRow($"{slot + 1}.  ------------", "", Enabled: false)).ToArray();
-        _loadList = new ListScreen(GraphicsDevice, _gfx, Lang.T("title.buttons.load"), rows);
+        _loadList = new ListScreen(GraphicsDevice, _gfx, Lang.T("title.buttons.load"), rows, _uiLayout);
     }
 
     /// <summary>Loads a saved game from the title screen (behind the loading screen); one that does not load is told there.</summary>
@@ -1203,7 +1203,7 @@ public sealed class MapGame : Game
         var texts = _gfx.Open(7).ReadTexts(Lang.TextIndex(Lang.Current), Lang.CodePage(Lang.Current));
         var names = Side.Missions.Select(m => m.Text < texts.Count ? MissionSelectScreen.NameOf(texts[m.Text]) : $"{m.Text}").ToArray();
         _missionSelect = new MissionSelectScreen(GraphicsDevice, _gfx, Lang.T(Side.Name), names,
-            CampaignProgress.Load().Accomplished(_campaign, _campaignSide), Side.Intro is not null, Side.Outro is not null);
+            CampaignProgress.Load().Accomplished(_campaign, _campaignSide), _uiLayout, Side.Intro is not null, Side.Outro is not null);
     }
 
     /// <summary>
@@ -1257,7 +1257,7 @@ public sealed class MapGame : Game
             return;
         _campaign = mission.Campaign;
         _campaignSide = mission.Side;
-        _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign);
+        _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign, _uiLayout);
         OpenMissionSelect();
         int next = outcome == MissionOutcome.Won ? mission.Index + 1 : mission.Index;
         if (next < Side.Missions.Count)
@@ -1274,7 +1274,7 @@ public sealed class MapGame : Game
         try
         {
             _briefing = new BriefingScreen(GraphicsDevice, _gfx, _installation, Side.Missions[mission],
-                Lang.Current, _display.EffectsVolume / 100f);
+                Lang.Current, _display.EffectsVolume / 100f, _uiLayout);
         }
         catch (Exception e) when (e is IOException or InvalidDataException)
         {
@@ -1410,7 +1410,7 @@ public sealed class MapGame : Game
                     if (newTheme)
                     {
                         _title!.Dispose();
-                        _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
+                        _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme, _uiLayout);
                     }
                 }
                 _settingsScreen.Dispose();
@@ -1433,19 +1433,19 @@ public sealed class MapGame : Game
         else if (action == TitleAction.Load)
             OpenLoadList();
         else if (action == TitleAction.Settings)
-            _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx);
+            _settingsScreen = new SettingsScreen(GraphicsDevice, _gfx, _uiLayout);
         else if (action is TitleAction.Campaign or TitleAction.MissionCd or TitleAction.AmazonCampaign)
         {
             _campaign = action switch { TitleAction.Campaign => "settlers", TitleAction.MissionCd => "missionCd", _ => "amazons" };
-            _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign);
+            _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign, _uiLayout);
         }
         else if (action == TitleAction.Multiplayer)
-            _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx);
+            _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx, _uiLayout);
         else if (action == TitleAction.SinglePlayer)
         {
             _title.Dispose();
             _title = null;
-            _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, _display.PreferredColor, _chosenLocal);
+            _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, _display.PreferredColor, _chosenLocal, ui: _uiLayout);
         }
     }
 

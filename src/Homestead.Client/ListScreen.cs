@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation.Buildings;
 using Microsoft.Xna.Framework;
@@ -42,30 +41,27 @@ public sealed class ListScreen : IDisposable
     private MouseState _previousMouse = SdlMouse.GetState();
 
     /// <param name="shown">A row to show at first (scrolled so it is the lowest one on the page if need be).</param>
-    public ListScreen(GraphicsDevice device, GfxDirectory gfx, string heading, IReadOnlyList<ListRow> rows, int shown = 0)
+    public ListScreen(GraphicsDevice device, GfxDirectory gfx, string heading, IReadOnlyList<ListRow> rows, UiLayout ui, int shown = 0)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var look = document.RootElement.GetProperty("missionScreen");
+        var look = ui.MissionScreen;
         // The scroll bar's pieces are the start screen's.
-        var scrollLook = document.RootElement.GetProperty("startScreen");
-        Texture2D Image(string name, JsonElement? from = null)
+        var scrollLook = ui.StartScreen;
+        Texture2D Image(int file, int index)
         {
-            var source = from ?? look;
-            var bitmap = gfx.Open(source.GetProperty("file").GetInt32()).ReadGui(source.GetProperty(name).GetInt32());
+            var bitmap = gfx.Open(file).ReadGui(index);
             var texture = new Texture2D(device, bitmap.Width, bitmap.Height);
             texture.SetData(bitmap.Pixels);
             return texture;
         }
-        static Rectangle Box(JsonElement e) => new(e[0].GetInt32(), e[1].GetInt32(), e[2].GetInt32(), e[3].GetInt32());
-        _background = Image("background");
-        _marble = Image("marble");
-        _sheet = Image("sheet", scrollLook);
-        _scrollTop = Image("scrollTop", scrollLook);
-        _scrollTrack = Image("scrollTrack", scrollLook);
-        _scrollBottom = Image("scrollBottom", scrollLook);
-        _handle = Box(scrollLook.GetProperty("handle"));
-        _headingBox = Box(look.GetProperty("heading"));
-        _list = Box(look.GetProperty("list"));
+        _background = Image(look.File, look.Background);
+        _marble = Image(look.File, look.Marble);
+        _sheet = Image(scrollLook.File, scrollLook.Sheet);
+        _scrollTop = Image(scrollLook.File, scrollLook.ScrollTop);
+        _scrollTrack = Image(scrollLook.File, scrollLook.ScrollTrack);
+        _scrollBottom = Image(scrollLook.File, scrollLook.ScrollBottom);
+        _handle = scrollLook.Handle;
+        _headingBox = look.Heading;
+        _list = look.List;
         _heading = heading;
         _rows = rows;
         _scroll = Math.Clamp(shown - VisibleRows + 1, 0, MaxScroll);

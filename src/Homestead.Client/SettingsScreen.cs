@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
@@ -137,10 +136,9 @@ public sealed class SettingsScreen : IDisposable
     private KeyboardState _previousKeys = Keyboard.GetState();
     private MouseState _previousMouse = SdlMouse.GetState();
 
-    public SettingsScreen(GraphicsDevice device, GfxDirectory gfx)
+    public SettingsScreen(GraphicsDevice device, GfxDirectory gfx, UiLayout ui)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, "ui.json")));
-        var look = document.RootElement.GetProperty("settingsScreen");
+        var look = ui.SettingsScreen;
         Texture2D Image(int file, int index)
         {
             var bitmap = gfx.Open(file).ReadGui(index);
@@ -148,15 +146,13 @@ public sealed class SettingsScreen : IDisposable
             texture.SetData(bitmap.Pixels);
             return texture;
         }
-        int file = look.GetProperty("file").GetInt32();
-        _background = Image(file, look.GetProperty("background").GetInt32());
-        _marble = Image(file, look.GetProperty("marble").GetInt32());
-        var tabs = look.GetProperty("tabs");
-        int tabFile = tabs.GetProperty("file").GetInt32();
+        _background = Image(look.File, look.Background);
+        _marble = Image(look.File, look.Marble);
+        int tabFile = look.Tabs.File;
         _icons = Tabs.Select(tab =>
         {
-            var icon = tabs.GetProperty(tab.Id);
-            return (Image(tabFile, icon[0].GetInt32()), Image(tabFile, icon[1].GetInt32()));
+            var icon = look.Tabs.Icons[tab.Id];
+            return (Image(tabFile, icon[0]), Image(tabFile, icon[1]));
         }).ToArray();
         var production = ProductionConfig.Load();
         var magic = MagicConfig.Load();
@@ -232,7 +228,7 @@ public sealed class SettingsScreen : IDisposable
             Saved = _state.Display;
             return true;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
             _error = Lang.T("settings.notSaved", e.Message);
             return false;
