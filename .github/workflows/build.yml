@@ -50,8 +50,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # pinned: macos-latest (= macOS 26 arm64) pool is starved since the Nov 2 2026 macos-14 retirement (github/community#211885); macos-15 is a separate standard pool
-        os: [ubuntu-latest, windows-latest, macos-15]
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,8 +70,36 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # The determinism job's macOS leg, staggered behind package on purpose: since the Nov 2 2026
+  # macos-14 retirement the macOS standard pools are congested at t=0 (github/community#211885)
+  # and a direct queue entry gets reaped ("not acquired by Runner of type hosted"), while
+  # package's macOS legs acquire runners reliably - so this enters the queue only after they
+  # released exactly the runners it needs. macos-15 like package: macos-latest (= macOS 26
+  # arm64) pool is starved, macos-15 is a separate standard pool.
+  determinism-macos:
+    needs: package
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Checksums
+        shell: bash
+        env:
+          HOMESTEAD_CHECKSUM_FILE: ${{ github.workspace }}/checksums-macos-15.txt
+        run: dotnet test tests/Homestead.Simulation.Tests -c Release --filter "FullyQualifiedName~DeterminismTests"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checksums-macos-15
+          path: checksums-macos-15.txt
+          if-no-files-found: error
+          retention-days: 7
+
   determinism-compare:
-    needs: determinism
+    needs: [determinism, determinism-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
