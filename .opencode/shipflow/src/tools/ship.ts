@@ -58,9 +58,10 @@ export const create_pr = defineTool({
       };
     }
     try {
-      // argv form keeps Bun.$'s no-shell-substitution guarantee and adds
-      // session-abort propagation the tagged template cannot express.
-      const proc = Bun.spawn(
+      // argv form: the PR body is arbitrary markdown and must never pass
+      // through a shell; spawnText adds abort, timeout and exit-code
+      // handling.
+      const res = await spawnText(
         [
           "gh",
           "pr",
@@ -75,21 +76,30 @@ export const create_pr = defineTool({
           "--base",
           args.base,
         ],
-        {
-          cwd: context.worktree,
-          stdout: "pipe",
-          stderr: "pipe",
-        },
+        context.worktree,
+        context.signal,
       );
-      const onAbort = () => proc.kill();
-      context.signal?.addEventListener("abort", onAbort, { once: true });
-      let out: string;
-      try {
-        out = await new Response(proc.stdout).text();
-      } finally {
-        context.signal?.removeEventListener("abort", onAbort);
+      if (res.exitCode !== 0) {
+        return {
+          title: "ship_create_pr - gh error",
+          output: `gh pr create failed (exit ${res.exitCode})${why(res.stderr)}; no PR created`,
+          metadata: {
+            shipped: false,
+            error: res.stderr.trim() || `exit ${res.exitCode}`,
+          },
+        };
       }
-      const url = out.trim().split("\n").pop()!.trim();
+      const url = res.stdout.trim().split("\n").pop()!.trim();
+      if (url === "" || !/^https?:\/\//.test(url)) {
+        return {
+          title: "ship_create_pr - gh error",
+          output: `gh pr create exited 0 but no PR URL in output: ${why(res.stdout)} - the PR MAY exist, verify before retrying`,
+          metadata: {
+            shipped: false,
+            error: "no PR URL in gh output",
+          },
+        };
+      }
       const pr = /\/pull\/(\d+)/.exec(url);
       return {
         title: "ship_create_pr",
