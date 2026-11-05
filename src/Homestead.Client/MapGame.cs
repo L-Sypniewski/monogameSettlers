@@ -203,6 +203,9 @@ public sealed class MapGame : Game
     private readonly UiLayout _uiLayout = UiLayout.Load();
     /// <summary>The open sub-menu of the side panel by its id in <c>panelTabs.menus</c> (made per people).</summary>
     private readonly Dictionary<string, IPanelMenu> _panelMenus = new();
+    /// <summary>The sub-menu whose <see cref="IPanelMenu.Update"/> ran this input pass (null while none does):
+    /// the next pass resets a menu that was absent, whatever switched it away mid-press.</summary>
+    private string? _menuUpdated;
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
     private ProfessionsMenu? _professionsMenu;
@@ -1868,6 +1871,8 @@ public sealed class MapGame : Game
         var mouse = SdlMouse.GetState();
         bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
         var cursorScreen = mouse.Position.ToVector2();
+        string? menuUpdatedLastPass = _menuUpdated;
+        _menuUpdated = null;
 
         // A lost game leaves no command: the camera, the minimap, the events and the computer menu (save, quit) still work;
         // Esc leaves (→ statistics).
@@ -2190,6 +2195,11 @@ public sealed class MapGame : Game
             }
             else if (_tabs.CurrentMenu is { } id && _panelMenus.TryGetValue(id, out var panel))
             {
+                // A menu that saw no Update last pass was switched away mid-press (whatever consumed that
+                // release); its remembered press is stale and must not fire now that it resumes.
+                if (menuUpdatedLastPass != id)
+                    panel.ResetInput();
+                _menuUpdated = id;
                 if (onMenu && panel.Hover(panelCursor, _world, _local) is { } hover)
                     _message = hover;
                 // While a selection box is being dragged on the map the menus see no press, as with a click there.
