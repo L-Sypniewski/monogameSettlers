@@ -256,25 +256,26 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
         for (int row = 0; row < Shares.Length; row++)
             if (Spinner(row).Contains(panel))
                 return Shares[row].Share == Share.Carriers
-                    ? "carriers kept at least (up/down: 5 % more/less)"
-                    : $"{Shares[row].Key} at most (up/down: 5 % more/less)";
+                    ? Lang.T("professions.carriersMin")
+                    : Lang.T("professions.shareMax", Lang.T("professions." + Shares[row].Key));
         for (int e = 0; e < Entries.Length; e++)
         {
             var entry = Entries[e];
-            string suffix = entry.Available ? "" : " (not there yet)";
+            string suffix = entry.Available ? "" : Lang.T("professions.notYet");
+            string name = Lang.T("professions." + entry.Name);
             for (int i = 0; i < _findButtons.Length; i++)
                 if (FindButton(e, i).Contains(panel))
                     return (FindMode)i switch
                     {
-                        FindMode.World => $"select all {entry.Name}",
-                        FindMode.Screen => $"select all {entry.Name} on the screen",
-                        _ => $"select the next of the {entry.Name}",
+                        FindMode.World => Lang.T("professions.findWorld", name),
+                        FindMode.Screen => Lang.T("professions.findScreen", name),
+                        _ => Lang.T("professions.findOne", name),
                     } + suffix;
             for (int i = 0; i < Amounts.Length; i++)
                 if (ConvertButton(e, i).Contains(panel))
-                    return (entry.ToCarriers ? $"{Amounts[i]} pioneers become carriers" : $"{Amounts[i]} carriers become {entry.Name}") + suffix;
+                    return (entry.ToCarriers ? Lang.T("professions.toCarriers", Amounts[i]) : Lang.T("professions.convert", Amounts[i], name)) + suffix;
             if (Portrait(e).Contains(panel))
-                return entry.Name + suffix;
+                return name + suffix;
         }
         return null;
     }
