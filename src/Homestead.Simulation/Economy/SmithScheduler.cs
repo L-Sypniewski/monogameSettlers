@@ -26,11 +26,18 @@ public sealed partial class Production
     /// <summary>
     /// The player's share for a smith's product (0–1, the bar in Waren › Herstellung): without orders or
     /// need, the smith makes its products in proportion to these; 0 = only on order or need. Defaults
-    /// from <see cref="SmithRecipe.Shares"/>.
+    /// from <see cref="SmithRecipe.Shares"/>. Without a player override, the default shown here is the
+    /// first smith's in data order; the scheduler itself resolves each smith's own default
+    /// (<see cref="ChooseProduct"/> through the smith-aware overload below).
     /// </summary>
     public double ShareOf(int player, Material product) =>
         _shares.TryGetValue((player, product), out double share) ? share
         : _config.Smiths.Values.FirstOrDefault(s => s.Products.Contains(product))?.ShareOf(product) ?? 0;
+
+    /// <summary>The share that applies for this smith: the player's override, otherwise the smith's own default
+    /// (<see cref="SmithRecipe.Shares"/>), not that of whichever smith the configuration lists first.</summary>
+    private double ShareOf(SmithRecipe smith, int player, Material product) =>
+        _shares.TryGetValue((player, product), out double share) ? share : smith.ShareOf(product);
 
     /// <summary>Sets a product's share (clamped to 0–1).</summary>
     public void SetShare(int player, Material product, double share) => _shares[(player, product)] = Math.Clamp(share, 0, 1);
@@ -68,15 +75,15 @@ public sealed partial class Production
 
         int Around(Material m) => piles.Where(p => p.Material == m).Sum(p => p.Count) + _world.Settlers.Count(s => s.Player == player && s.Carrying == m);
         var candidates = smith.Products
-            .Where(m => ShareOf(player, m) > 0 && (smith.KeepInStock <= 0 || Around(m) < smith.KeepInStock))
+            .Where(m => ShareOf(smith, player, m) > 0 && (smith.KeepInStock <= 0 || Around(m) < smith.KeepInStock))
             .ToList();
         if (candidates.Count == 0)
             return null;
         // Each candidate earns its share; the one with the most credit is made and pays the sum back.
         foreach (var m in candidates)
-            _credits[(player, m)] = _credits.GetValueOrDefault((player, m)) + ShareOf(player, m);
+            _credits[(player, m)] = _credits.GetValueOrDefault((player, m)) + ShareOf(smith, player, m);
         var chosen = candidates.MaxBy(m => _credits[(player, m)]);
-        _credits[(player, chosen)] -= candidates.Sum(m => ShareOf(player, m));
+        _credits[(player, chosen)] -= candidates.Sum(m => ShareOf(smith, player, m));
         return chosen;
     }
 }
