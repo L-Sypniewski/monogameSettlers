@@ -70,14 +70,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # The determinism job's macOS leg, staggered behind package on purpose: since the Nov 2 2026
-  # macos-14 retirement the macOS standard pools are congested at t=0 (github/community#211885)
-  # and a direct queue entry gets reaped ("not acquired by Runner of type hosted"), while
-  # package's macOS legs acquire runners reliably - so this enters the queue only after they
-  # released exactly the runners it needs. macos-15 like package: macos-latest (= macOS 26
-  # arm64) pool is starved, macos-15 is a separate standard pool.
+  # The determinism job's macOS leg, staggered behind the macOS packaging legs on purpose:
+  # since the Nov 2 2026 macos-14 retirement the macOS standard pools are congested at t=0
+  # (github/community#211885) and a direct queue entry gets reaped ("not acquired by Runner
+  # of type hosted"), while packaging legs acquire runners reliably - so this enters the
+  # queue only as the second leg releases its runner (package-macos runs one leg at a time,
+  # max-parallel 1). macos-15 like package-macos: macos-latest (= macOS 26 arm64) pool is
+  # starved, macos-15 is a separate standard pool.
   determinism-macos:
-    needs: package
+    needs: package-macos
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -131,11 +132,77 @@ jobs:
           - rid: win-x64
             os: ubuntu-latest
             archive: zip
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Version
+        id: version
+        run: echo "version=$(dotnet msbuild src/Homestead.Client/Homestead.Client.csproj -restore -t:MinVer -getProperty:MinVerVersion -p:Configuration=Release)" >> "$GITHUB_OUTPUT"
+      - name: Publish
+        run: >
+          dotnet publish src/Homestead.Client/Homestead.Client.csproj -c Release -r ${{ matrix.rid }} --self-contained
+          -o "publish/monoSettlers-${{ steps.version.outputs.version }}-${{ matrix.rid }}"
+      - name: Package
+        id: package
+        working-directory: publish
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          name="monoSettlers-$version-${{ matrix.rid }}"
+          case "${{ matrix.rid }}" in
+          osx-*)
+            # monoSettlers.app with the published folder as Contents/MacOS (the program finds data/ next to itself).
+            app="monoSettlers.app"
+            mkdir -p "$app/Contents/Resources"
+            mv "$name" "$app/Contents/MacOS"
+            # macOS wants plain numbers: without a pre-release suffix.
+            sed "s/VERSION/${version%%-*}/g" ../packaging/macos/Info.plist > "$app/Contents/Info.plist"
+            mkdir icon.iconset
+            sips -s format png ../src/Homestead.Client/Icon.bmp --out icon.iconset/icon_256x256.png
+            iconutil -c icns icon.iconset -o "$app/Contents/Resources/monoSettlers.icns"
+            codesign --force --deep --sign - "$app" || echo "::warning::ad-hoc signing failed"
+            mkdir "$name"
+            mv "$app" "$name/"
+            cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
+            # ditto keeps the bundle's attributes and signature, unlike zip.
+            ditto -c -k --keepParent "$name" "$name.zip"
+            ;;
+          win-*)
+            cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
+            zip -qr "$name.zip" "$name"
+            ;;
+          *)
+            cp ../LICENSE.md ../THIRD_PARTY_NOTICES.md ../README.md "$name/"
+            tar -czf "$name.tar.gz" "$name"
+            ;;
+          esac
+          echo "file=publish/$name.${{ matrix.archive }}" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: ${{ steps.package.outputs.file }}
+          if-no-files-found: error
+          retention-days: 30
+
+  # package's macOS legs, split out and serialized: since the Nov 2 2026 macos-14 retirement
+  # the macOS standard pools are congested (github/community#211885), and parallel legs each
+  # took a separate lottery ticket for runner acquisition. max-parallel 1 keeps at most ONE
+  # macOS runner at a time - the second leg queues as the first finishes, on the runner the
+  # first just released.
+  package-macos:
+    needs: test
+    runs-on: macos-15  # pinned: macos-latest (= macOS 26 arm64) pool is starved since the Nov 2 2026 macos-14 retirement (github/community#211885); macos-15 is a separate standard pool
+    strategy:
+      max-parallel: 1
+      matrix:
+        include:
           - rid: osx-arm64
-            os: macos-15  # pinned: macos-latest (= macOS 26 arm64) pool is starved since the Nov 2 2026 macos-14 retirement (github/community#211885); macos-15 is a separate standard pool
             archive: zip
           - rid: osx-x64
-            os: macos-15  # pinned: macos-latest (= macOS 26 arm64) pool is starved since the Nov 2 2026 macos-14 retirement (github/community#211885); macos-15 is a separate standard pool
             archive: zip
     steps:
       - uses: actions/checkout@v4
@@ -195,7 +262,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: package
+    needs: [package, package-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
