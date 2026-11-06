@@ -6,10 +6,16 @@ Spieltexte nie im Code: `data/lang/de.json`, `en.json` und `pl.json` (verschacht
 im Client; Namen aus Daten nach ID (`buildings.<name>`, `goods.<GOOD>`, `peoples.<People>`, `soldiers.types.*`, `spells.<Kind>`, `events.texts.<id>`,
 `ai.characters/traits.*`, `panel.tabs/menus.*`, `buildingStatus.*`). Fehlt Englisch → Deutsch → Schlüssel (Konsole „Missing text“). `LanguageTests`:
 gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Daten-ID. Entwickler-Hinweise (`_message`, Fenstertitel, Konsole) englisch, unübersetzt.
+Auch Meldungen, die Klick-/Hover-Handler zurückgeben, sind Spieltexte → `Lang.T`. Daten-gekoppelte Vokabulare (Siedler-Arten, Menü-IDs)
+als benannte Konstanten statt verstreuter Literale (vgl. `SettlerKinds`).
 
 ## Verbindliche Regeln
+- Fork (Upstream `meue/monogameSettlers`, Remote `upstream`): Agents pushen nur auf `origin` (`L-Sypniewski/monogameSettlers`). Upstream-Beiträge
+  NUR über `/port-upstream <Branch>` (replayed die upstream-fähigen Commits auf `upstream/main`, pusht `port/<Branch>` auf origin, druckt Compare-URL;
+  den Upstream-PR öffnet der Mensch). Nie direkt auf `upstream` pushen, keine `gh`-Befehle gegen `meue/*`.
 - Keine Original-Assets (GFX, SND, Karten, Musik, exportierte PNGs) in Repo oder Build. Prüf-Exporte nur in temporäre Verzeichnisse.
   Einzige Ausnahme: README-Screenshots in `docs/screenshots/` (in `.gitignore` freigegeben).
+  Original-UI-Texte (de/en/pl) sind aus den Sprachtabellen in GFX 07–09 lesbar (`Homestead.Assets`, `GfxFile.ReadTexts`) – Referenz beim Schreiben/Prüfen von Übersetzungen.
 - Original-EXE/-DLLs (auch `GFX/Siedler3_18…dat`, eine DLL) nie dekompilieren, disassemblieren, analysieren. Nur Datenformate.
 - Kein Kopierschutz/DRM umgehen.
 - JSettlers-Code (MIT) darf übernommen werden → `THIRD_PARTY_NOTICES.md` pflegen.
@@ -36,6 +42,7 @@ Vor Arbeit an einem System die passende Datei lesen und dort nachführen (wie bi
 - [docs/architektur/ki.md](docs/architektur/ki.md) – `Ai/`: `AiPlayer`, Wachstum, Militär, Feldzüge, Taktik, Magie, Charaktere/-züge (`data/ai.json`).
 - [docs/architektur/client.md](docs/architektur/client.md) – `src/Homestead.Client`: Titel, Kampagne, Einstellungen, Startscreen, Seitenpanel und
   Menüs, Gebäude-Panel, Statistik, Auswahl/Befehle, Tasten, Optionen, Ton, Darstellung.
+  UI-Änderungen mit headless Vorher/Nachher-Screenshots verifizieren (`--capture`, Details: capture.md).
 - [docs/architektur/capture.md](docs/architektur/capture.md) – `--capture` und alle `HOMESTEAD_CAPTURE_…`-Variablen.
 - [docs/architektur/werkzeuge.md](docs/architektur/werkzeuge.md) – Arena (KI gegen KI), Turnier, AssetTool.
 - [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) – Lockstep-Mehrspieler: Entscheidungen, Stand (Determinismus, Befehlsschicht), offene Schritte, Regeln für neuen Code.
@@ -57,6 +64,8 @@ Eigene Anbau-Codes: Getreide 200–207 (207 reif), Wein 208–210, Reis 211–21
 - Gelände-Atlas: Texturkoordinaten einen halben Texel innerhalb der Zelle, sonst Linien aus Nachbarzellen.
 - Sprites nur über `SpriteLibrary` (gemeinsame Atlas-Seiten, `SpriteAtlas`); keine eigene `Texture2D` je Bild (Draw-Calls).
 - Lauf-Sequenzen: 72 Frames = 6 Richtungen à 12 (SW, W, NW, NE, O, SO); Frame 0 stehen, 1–11 Zyklus je Rasterschritt.
+- Eigene generierte UI-Icons in `data/ui-icons/`; regenerieren mit `tools/gen-ui-icons.py` (committetes Skript, keine PNG-Handbearbeitung).
+- Client-Cache-Texturen einmal beim Laden erzeugen und in `MapGame.UnloadContent` disposen (`BuildingInfo : IDisposable` ist das Muster).
 
 ## Installation des Originals
 `HOMESTEAD_GAME_DIR` oder `gameDirectory` in `~/.config/homestead/settings.json`; der erste gültige gilt (`GameInstallation.TryLocate`).
@@ -72,7 +81,15 @@ Lokal: `~/Games/gog/the-settlers-iii-ultimate-collection/drive_c/GOG Games/Settl
 - `.github/workflows/build.yml`: Push auf main/PR → Build + Tests, Pakete linux-x64 (`tar.gz`), win-x64 (`zip`) und osx-arm64/osx-x64
   (auf `macos-latest`: `monoSettlers.app`, Programmordner als `Contents/MacOS`, `packaging/macos/Info.plist`, nur ad-hoc signiert,
   `zip` per `ditto`; ungetestet), self-contained, als Artefakte; Tag `v*` → zusätzlich GitHub-Release (`gh release create`, Suffix → Vorabversion).
+- macOS-App-Bundles immer mit `scripts/build-macos-app.sh` (self-contained publish + ad-hoc `codesign` + strikte Prüfung + Quarantine-Strip + headless
+  Smoke). Nie von Hand packen, nie unsignierte oder CI-Artefakt-Bundles ausliefern: arm64 verweigert unsignierte Binaries, Gatekeeper setzt Downloads unter
+  Quarantäne (Empfänger einmal strippen: `xattr -dr com.apple.quarantine monoSettlers.app`).
+- Shipflow-Pipeline (`ship`-Agent, `/ship-next`, `/fast-checks`, …) vendored in `.opencode/`, konfiguriert über `opencode.jsonc` + `.shipflow.json`;
+  Setup: [.devcontainer/README.md](.devcontainer/README.md).
+- Agent-Skills (kuratiertes .NET/C#-Set) in `.agents/skills/` (`.claude/skills/`-Symlinks für Claude Code), gepinnt via `skills-lock.json`; Update mit
+  `npx -y skills update`, Drift prüft CI (`bun run scripts/check-skills-lock.ts`).
 
 ## Bauen/Starten
 - `dotnet build Homestead.sln`
 - Programme mit `dotnet <pfad>.dll` bzw. `dotnet run --project …` – der native Apphost findet .NET in der Flatpak-Umgebung von VS Code nicht.
+- Schnellprüfung: `scripts/fast-checks.sh` (`dotnet build -c Release`, dann `dotnet test`).
