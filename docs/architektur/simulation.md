@@ -71,6 +71,13 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
   - `MapResources` (`Production`-Teil `MapResources.cs`): Setzlinge und Feldfrüchte wachsen stufenweise, Stümpfe verrotten, erschöpfte Rohstofffelder
     regenerieren (`Grow`, `Regenerate`); Erschöpfung je Art über `UsesUp` (`_depletionDue`), je Feld über `TakeResource` (`_resourceTaken`/`_regenerating`),
     Steine schrumpfen über `UsesUp`/`_stoneCuts`; Zauber greifen über `Hasten`/`GrowsSlowerThan`/`BurnTree` ein.
+  - `SmithScheduler` (`Production`-Teil `SmithScheduler.cs`): was ein Schmied als Nächstes schmiedet (`ChooseProduct`: Bestelltes, dann fehlende
+    Werkzeuge, sonst gewichteter Reihum nach Anteilen unter `keepInStock`), samt den Bestellungen, Anteilsbalken und Reihum-Krediten des Spielers.
+    Ohne Spieler-Anteil gilt der Anteil des rufenden Schmieds selbst (`SmithRecipe.Shares`), nicht der des ersten Schmieds in den Daten;
+    der Spieler-Anteil (`SetShare`) überstimmt beide.
+  - `Gathering` (`Production`-Teil `Gathering.cs`): der Sammler-Arbeitsgang draußen (`StartGathering`/`FinishGathering`/`FindTarget`: Ziel finden,
+    hingehen, arbeiten, das Ergebnis heimbringen) und die Ackerbuchhaltung: `_farmland`, das mit seiner Farm geht (`RemoveFarmland` bei Abriss oder
+    Verlust), neben den Stöcken je Imkerei (`_fields`, siehe oben).
   - `Healing`: Lazarett-Heiler ruft den schwächsten (wenigste LP, Gleichstand: nächster) verwundeten untätigen eigenen Soldaten im Umkreis
     `hospital.callRadius` (40) auf den Heilplatz vor der Tür (`HealSpotOf`; Haltende nicht); wer still neben Tür, Heilerplatz oder Heilplatz steht,
     wird ohne Ruf geheilt (der schwächste zuerst),

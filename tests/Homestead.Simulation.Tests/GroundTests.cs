@@ -123,6 +123,36 @@ public class GroundTests
     }
 
     [Fact]
+    public void Tearing_one_farm_down_leaves_another_farms_farmland_alone()
+    {
+        var map = new GameMap(70);
+        var world = new World(map, TestConfig.NoTools);
+        var farmA = world.PlaceBuilding(Romans["farm"], 0, new GridPoint(30, 20))!;
+        world.PlaceBuilding(Romans["farm"], 0, new GridPoint(30, 47));
+        world.PlaceBuilding(Romans["stock"], 0, new GridPoint(55, 25));
+        for (int i = 0; i < 4; i++)
+            world.Spawn(new GridPoint(45 + i, 40), Profession.Carrier);
+
+        for (int t = 0; t < 40_000 && world.Production.FieldsSown < 2; t++)
+            world.Step();
+        Assert.True(world.Production.FieldsSown >= 2, $"{world.Production.FieldsSown} fields sown");
+
+        // The two work areas are disjoint, so every farmland point belongs to exactly one farm.
+        var centerA = farmA.Position + farmA.Definition.WorkCenter!.Value;
+        var ofA = Enumerable.Range(0, map.PointCount).Select(map.Point)
+            .Where(p => map.CoverAt(p) == GroundCover.Farmland && PathFinder.InCircle(centerA, p, farmA.Definition.WorkRadius!.Value)).ToList();
+        var ofB = Enumerable.Range(0, map.PointCount).Select(map.Point)
+            .Where(p => map.CoverAt(p) == GroundCover.Farmland && !PathFinder.InCircle(centerA, p, farmA.Definition.WorkRadius!.Value)).ToList();
+        Assert.True(ofA.Count > 0 && ofB.Count > 0, $"{ofA.Count} + {ofB.Count} farmland points");
+
+        world.RemoveBuilding(farmA);
+
+        Assert.All(ofA, p => Assert.Equal(GroundCover.None, map.CoverAt(p)));
+        Assert.All(ofB, p => Assert.Equal(GroundCover.Farmland, map.CoverAt(p)));
+        Assert.Contains(Enumerable.Range(0, map.PointCount).Select(map.Point), p => map.ObjectAt(p) == MapObjectKind.Field && map.CoverAt(p) == GroundCover.Farmland);
+    }
+
+    [Fact]
     public void The_path_search_takes_a_trail_when_it_is_quicker()
     {
         var map = new GameMap(40);

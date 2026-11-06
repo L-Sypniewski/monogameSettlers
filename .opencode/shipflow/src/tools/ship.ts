@@ -58,9 +58,10 @@ export const create_pr = defineTool({
       };
     }
     try {
-      // argv form keeps Bun.$'s no-shell-substitution guarantee and adds
-      // session-abort propagation the tagged template cannot express.
-      const proc = Bun.spawn(
+      // argv form: the PR body is arbitrary markdown and must never pass
+      // through a shell; spawnText adds abort, timeout and exit-code
+      // handling.
+      const res = await spawnText(
         [
           "gh",
           "pr",
@@ -75,21 +76,35 @@ export const create_pr = defineTool({
           "--base",
           args.base,
         ],
-        {
-          cwd: context.worktree,
-          stdout: "pipe",
-          stderr: "pipe",
-        },
+        context.worktree,
+        context.signal,
       );
-      const onAbort = () => proc.kill();
-      context.signal?.addEventListener("abort", onAbort, { once: true });
-      let out: string;
-      try {
-        out = await new Response(proc.stdout).text();
-      } finally {
-        context.signal?.removeEventListener("abort", onAbort);
+      if (res.exitCode !== 0) {
+        // a killed spawn may still have landed the POST server-side -
+        // never overclaim "no PR created" for it
+        const tail = res.killed
+          ? "; PR state unknown, verify before retrying"
+          : "; no PR created";
+        return {
+          title: "ship_create_pr - gh error",
+          output: `gh pr create failed (exit ${res.exitCode})${why(res.stderr)}${tail}`,
+          metadata: {
+            shipped: false,
+            error: res.stderr.trim() || `exit ${res.exitCode}`,
+          },
+        };
       }
-      const url = out.trim().split("\n").pop()!.trim();
+      const url = res.stdout.trim().split("\n").pop()!.trim();
+      if (url === "" || !/^https?:\/\//.test(url)) {
+        return {
+          title: "ship_create_pr - gh error",
+          output: `gh pr create exited 0 but no PR URL in output: ${why(res.stdout)} - the PR MAY exist, verify before retrying`,
+          metadata: {
+            shipped: false,
+            error: "no PR URL in gh output",
+          },
+        };
+      }
       const pr = /\/pull\/(\d+)/.exec(url);
       return {
         title: "ship_create_pr",
@@ -233,13 +248,25 @@ export async function spawnText(
   worktree: string,
   signal: AbortSignal | undefined,
   timeoutMs: number = spawnTimeoutMs(),
-): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const label = argv.join(" ");
+): Promise<{
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  killed: boolean;
+}> {
+  // Correlation only: argv can carry multi-KB payloads (PR bodies) that
+  // must never reach the host log or a stderr envelope.
+  const head = argv
+    .slice(0, 3)
+    .map((a) => (a.length <= 60 ? a : `${a.slice(0, 60)}…`))
+    .join(" ");
+  const label = argv.length > 3 ? `${head} …` : head;
   if (signal?.aborted) {
     return {
       exitCode: 134,
       stdout: "",
       stderr: `session aborted before spawn: ${label}`,
+      killed: true,
     };
   }
   const startedAt = Date.now();
@@ -248,25 +275,42 @@ export async function spawnText(
     stdout: "pipe",
     stderr: "pipe",
   });
-  const onAbort = () => proc.kill();
+  let exitedEarly = false;
+  void proc.exited.then(() => {
+    exitedEarly = true;
+  });
+  let killed = false;
+  const onAbort = () => {
+    // proc.kill() returns no delivery information in bun 1.3.14; whether
+    // the proc was still alive when the abort fired is the discriminator.
+    killed = !exitedEarly;
+    proc.kill();
+  };
   signal?.addEventListener("abort", onAbort, { once: true });
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
     proc.kill();
   }, timeoutMs);
-  let result: { exitCode: number; stdout: string; stderr: string };
+  let result: {
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+    killed: boolean;
+  };
   try {
     const stdout = await new Response(proc.stdout).text();
     const stderr = await new Response(proc.stderr).text();
-    const exitCode = await proc.exited;
+    // signal-killed procs resolve exited as null, not a number
+    const exitCode = (await proc.exited) ?? 1;
     result = timedOut
       ? {
           exitCode: 124,
           stdout,
           stderr: `timed out after ${timeoutMs}ms: ${label}\n${stderr}`.trimEnd(),
+          killed: true,
         }
-      : { exitCode, stdout, stderr };
+      : { exitCode, stdout, stderr, killed };
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
