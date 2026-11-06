@@ -1485,6 +1485,8 @@ public sealed class MapGame : Game
     private ILookup<int, (GridPoint Point, int Ring, Color? Tint)>? _marks;
     private (Building?, bool, GridPoint?, string) _marksKey;
 
+    private readonly UiTooltip.Hover _menuHover = new();
+
     /// <summary>The selected market's route, to notice when it changes.</summary>
     private string RouteKey() =>
         _selectedBuilding is { Exists: true } market && _world.Trade.IsTradingPost(market)
@@ -1528,6 +1530,27 @@ public sealed class MapGame : Game
                         .Any(d => !PathFinder.InCircle(center, p.Neighbor((Direction)d), r)))
                     yield return (p, ring, null);
         }
+    }
+
+    /// <summary>The tooltip of the icon-only control under the panel point (its text is the hover timing's key), or null.</summary>
+    private string? MenuTooltip(Vector2 panel)
+    {
+        // The sub-menus' icon controls are reachable only while a sub-menu is the panel's content.
+        bool showsSubMenu = !ShowsBuildingInfo && !ShowsSelection && _tabs.Current is (PanelTab.Goods or PanelTab.Settlers);
+        if (!showsSubMenu)
+            return null;
+        return _tabs.CurrentMenu switch
+        {
+            PanelMenuIds.Transport => _transportMenu!.TooltipAt(panel, _world, _local),
+            PanelMenuIds.Professions => _professionsMenu!.TooltipAt(panel),
+            PanelMenuIds.Soldiers => _soldiersMenu!.TooltipAt(panel, _world, _local, _buildingInfo),
+            PanelMenuIds.Overview => _settlersOverview!.TooltipAt(panel),
+            PanelMenuIds.Statistics => _statisticsMenu!.TooltipAt(panel),
+            PanelMenuIds.Stock => _stockMenu!.TooltipAt(panel),
+            PanelMenuIds.Tools => _manufactureMenu!.TooltipAt(panel),
+            PanelMenuIds.Distribution => _distributionMenu!.TooltipAt(panel),
+            _ => null,
+        };
     }
 
     /// <summary>Colors of a market's route legs: to the first stop, after it, after the second, after the third.</summary>
@@ -2128,6 +2151,9 @@ public sealed class MapGame : Game
                 UiSounds.Toggle();
                 _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)}: {(priority ? "highest priority" : "normal priority")}";
             }
+            // A finished building with a work area: its button arms moving the area (like the shipyard's hammer).
+            if (onMenu && released && _buildingInfo.WorkAreaClick(panelCursor, _world, _selectedBuilding!, _local) is { } workArea)
+                _message = workArea;
             // A market's route and goods.
             if (onMenu && _buildingInfo.MarketHover(panelCursor, _world, _selectedBuilding!, _local) is { } marketHover)
                 _message = marketHover;
@@ -2231,7 +2257,10 @@ public sealed class MapGame : Game
             // The selection is exactly a group: what Shift adds to it joins the group too.
             var before = (Settlers: _group.ToList(), Ships: _ships.ToList());
             int? joinedGroup = ShiftDown(Keyboard.GetState()) ? _controlGroups.Matching(_group, _ships) : null;
-            if (!_placing && !_buildingInfo.AimsRoute(_selectedBuilding) && !_buildingInfo.AimsDock(_selectedBuilding) && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
+            // The building panel's aiming modes (market route, dock, work area) take the map's next click themselves.
+            bool panelAims = _buildingInfo.AimsRoute(_selectedBuilding) || _buildingInfo.AimsDock(_selectedBuilding)
+                || _buildingInfo.AimsWorkCenter(_selectedBuilding);
+            if (!_placing && !panelAims && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
                 SelectInBox(dragStart, cursorScreen);
             else
                 Click(cursorScreen);
@@ -2392,6 +2421,8 @@ public sealed class MapGame : Game
                 _buildingInfo.CancelRoute();
             else if (_buildingInfo.AimsDock(_selectedBuilding))
                 _buildingInfo.CancelDock();
+            else if (_buildingInfo.AimsWorkCenter(_selectedBuilding))
+                _buildingInfo.CancelWorkCenter();
             else if (_buildingInfo.Asking is not null)
                 _buildingInfo.Cancel();
             else if (_placing)
@@ -2531,6 +2562,13 @@ public sealed class MapGame : Game
         if (_buildingInfo.AimsDock(_selectedBuilding) && _selectedBuilding is { Exists: true } dockyard)
         {
             _buildingInfo.DockCommand(_world, dockyard, ScreenToGrid(screen));
+            return;
+        }
+
+        // A building's work-area button chosen: the click moves the work area there.
+        if (_buildingInfo.AimsWorkCenter(_selectedBuilding) && _selectedBuilding is { Exists: true } works)
+        {
+            _buildingInfo.WorkCenterCommand(_world, works, ScreenToGrid(screen));
             return;
         }
 
@@ -3041,6 +3079,13 @@ public sealed class MapGame : Game
             _message = "";
             return;
         }
+        // Moving a work area with the panel's button: cancelled (a plain right click still moves it below).
+        if (_buildingInfo.AimsWorkCenter(_selectedBuilding))
+        {
+            _buildingInfo.CancelWorkCenter();
+            _message = "";
+            return;
+        }
         // Ships: over the water to the open water nearest the click.
         if (_ships.Count > 0)
         {
@@ -3056,15 +3101,7 @@ public sealed class MapGame : Game
         // A selected own building with a work area: move the work area there (at most 20 steps away, a gathering point anywhere).
         if (_selectedBuilding is { Exists: true, HasWorkArea: true } worksite && worksite.Player == _local)
         {
-            Issue(new SetWorkCenter(_local, worksite.Id, clicked), result =>
-            {
-                if (result is not GridPoint center)
-                    return;
-                UiSounds.WorkArea();
-                _message = worksite.HasGatheringPoint ? $"gathering point moved to {center.X},{center.Y}"
-                    : center == clicked ? $"work area moved to {center.X},{center.Y}"
-                    : $"work area moved to {center.X},{center.Y} (at most {World.MaxWorkCenterDistance} fields away)";
-            });
+            _buildingInfo.WorkCenterCommand(_world, worksite, clicked);
             return;
         }
         var priests = _group.Where(s => s.Profession == Profession.Priest && !_world.Magic.IsBusy(s)).ToList();
@@ -3583,6 +3620,10 @@ public sealed class MapGame : Game
         _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, SdlMouse.GetState().Position.ToVector2());
         _buildMenu?.DrawTooltip(_spriteBatch, _pixel, _font, SdlMouse.GetState().Position.ToVector2(), viewport.Bounds,
             SidePanel.Scale(viewport.Height), _now);
+        string? tooltip = MenuTooltip(panelMouse);
+        if (_menuHover.Update(tooltip, _now))
+            UiTooltip.Draw(_spriteBatch, _pixel, _font, tooltip!, SdlMouse.GetState().Position.ToVector2(), viewport.Bounds,
+                SidePanel.Scale(viewport.Height));
         DrawOutcome(viewport);
         float infoLeft = SidePanel.Width * SidePanel.Scale(viewport.Height) + 12;
         _info.Draw(_spriteBatch, _pixel, _font, infoLeft, viewport.Height - 10, viewport.Width - infoLeft - 12,
@@ -4682,6 +4723,7 @@ public sealed class MapGame : Game
         _goodsGrid?.Dispose();
         _manufactureMenu?.Dispose();
         _transportMenu?.Dispose();
+        _buildingInfo.Dispose();
         _tabs?.Dispose();
         _font.Dispose();
         _atlas.Dispose();

@@ -105,7 +105,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
   - Computer-Button unten links (`SystemMenu`, `PanelTab.System`): „Spiel speichern“ (8 Slots mit Karte, Datum, Volk; leere gestrichelt;
     Klick speichert, auch überschreibend), „Spiel beenden“ mit Rückfrage (Ja unten links → Statistik, Nein unten rechts).
   - Hauptreiter Bauen/Waren/Siedler (`PanelTabs`: Original-Buttons Datei 03, aktiver gedrückt; Klick hebt Auswahl auf; Untermenüs `panelTabs` in `ui.json`, gelesen über das einmal in `MapGame.LoadContent` geladene `UiLayout`, das alle Menüs/Screens im Konstruktor bekommen; die 8 Untermenüs implementieren `IPanelMenu` (einheitliches Draw/Update/Hover, verteilt über `MapGame`), gemeinsame Helfer `PanelUi`, Layout über `PanelLayout`).
-    - Bauen: Baumenü (Kategorien aus `data/ui.json`, Original-Buttons; Klick aufs Icon → Platzieren; eigenes Volk; Zahl fertiger (weiß) und im Bau (orange); Tooltip mit dem Namen nach 1 s Verweilen auf einem Icon, weg beim Verlassen – `BuildMenu.DrawTooltip`, im Bildschirmraum, darf über die Karte ragen).
+    - Bauen: Baumenü (Kategorien aus `data/ui.json`, Original-Buttons; Klick aufs Icon → Platzieren; eigenes Volk; Zahl fertiger (weiß) und im Bau (orange); Tooltip mit dem Namen nach 1 s Verweilen auf einem Icon, weg beim Verlassen – `BuildMenu.DrawTooltip`, im Bildschirmraum, darf über die Karte ragen). Dieselbe Box neben dem Cursor (`UiTooltip`, ebenfalls nach 1 s) nennt auch die reinen Icon-Steuerungen der Untermenüs (Lagerbestand, Herstellung, Warentransport, Verteilung, Siedlerstatistik, Berufe, Krieger, Produktion).
     - Waren › Lagerbestand (`StockMenu`, `World.InStock`: Lager-, Ausgabe-, lose Stapel; nicht Eingang/Baustellen).
     - Waren › Herstellung (`ManufactureMenu`): je Produkt Bestellung mit Auf/Ab (`Production.Ordered`/`ChangeOrdered`, zuerst gemacht) und
       Anteilsbalken (`ShareBar`: Klick setzt, Ziehen, 5-%-Schritte, nahe Enden 0/100 %).
@@ -114,7 +114,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
       Ware: einlagern/nicht, ganz hoch, hoch, runter, ganz runter (Bilder `transportMenu`); Icons gleiten.
     - Siedler › Siedlerstatistik (`SettlersOverview`): Wohnraum, Bedarf, alle Siedler, Soldaten, je Art Porträt + Anzahl (Esel 0; ohne Porträt Figur im Rahmen).
     - Siedler › Berufe (`ProfessionsMenu`): Anteile ±5 % (Träger mindestens, Planierer/Bauarbeiter höchstens; `Recruitment.ShareOf`/`SetShare`,
-      Vorgaben `keptCarriers`/`maxDiggers`/`maxBuilders` 30/25/25 %); Spezialberufe Geologen, Pioniere, Späher, Pioniere→Träger (Träger-Porträt)
+      Vorgaben `keptCarriers`/`maxDiggers`/`maxBuilders` 30/25/25 %, Summe ≤ 100 %, die gesperrte Erhöhungs-Hälfte grau); Spezialberufe Geologen, Pioniere, Späher, Pioniere→Träger (Träger-Porträt)
       mit Such-Buttons (alle auf Karte, alle im Bild, nächster reihum mit Kameraflug) und 5/1 umwandeln
       (`Geology.ConvertCarriers` mit `among`: nur Träger im Bild, der Bildmitte nächste zuerst – keiner im Bild: Hinweis; `Geology.PioneersToCarriers`); Umgewandelte sind sofort gewählt (das Menü bleibt offen, `_menuOverSelection`), noch Liefernde kommen nach der Umwandlung dazu.
     - Siedler › Krieger (`SoldiersMenu`): Kampfkraft, göttliche Aufwertung (Mana-Fortschritt, je Typ Waffen-Button, verziert ab Stufe 2),
@@ -123,17 +123,19 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
     - Siedler › Produktion (`StatisticsMenu`): Diagramm letzte 60 min einer Ware (Einheiten/min, 2-min-Mittel, Skala passt sich an);
       Warenauswahl `GoodsGrid` (mit Lagerbestand geteilt: Icons `goodsGrid` in `ui.json`, Indizes aus JSettlers' EMaterialType, nicht herstellbar dunkel);
       gezählt in `World.Statistics` (`ProductionStatistics`, 30-s-Abschnitte).
-  - Gebäude-Klick ersetzt das Baumenü (ohne eigenen Hintergrund): Name, Bild (unskaliert, unten zentriert, beschnitten –
+  - Gebäude-Klick ersetzt das Baumenü (ohne eigenen Hintergrund): Name, Bild (unten zentriert, auf die Box verkleinert – nie beschnitten –
     `EconomyRenderer.DrawBuildingImage`; bei Enge erst Waren weg, dann Bild niedriger), bei eigenen Status, oben rechts Abriss-Icon wie im Original (Datei 03 GUI 199, `buildingInfo` in `ui.json`) mit Rückfrage wie im Original (nur das Gebäudebild bleibt an seinem Platz, Frage unten, Ja/Nein als helle Texte; jede andere Aktion – Klick daneben beim Loslassen, andere Auswahl, Esc – bricht ab);
     oben links wie im Original „Arbeit einstellen“ (Haus, GUI 395)/„Arbeit fortsetzen“ (Hand, 194) für Produktion und Baustellen (`World.SetPaused`:
     Arbeit fertig, dann drinnen; Baustelle: keine Lieferungen/Arbeiter, Anwesende nach ihrem Takt frei), bei Baustellen daneben „Höchste Priorität“
-    (Zahnräder 197, gedrückt mit „!“ 380; `World.SetPriority`), Name dann unter den Icons, Hinweistext über ihnen unter der Maus; Militär: Besatzung je Typ (da/Soll, +/−);
+    (Zahnräder 197, gedrückt mit „!“ 380; `World.SetPriority`), bei fertigen eigenen Gebäuden mit Arbeitsbereich in der waagerechten Mitte der Knopf dafür
+    (eigenes Icon: konzentrische Ringe in Spektralfarben, generierte Grafik `data/ui-icons/work-area.png` (regenerierbar per `tools/gen-ui-icons.py`), kein Atlas-Bild; Klick rahmt ihn, der nächste Linksklick versetzt den Arbeitsbereich wie der Rechtsklick, dieser/Esc bricht ab; `BuildingInfo.WorkArea`),
+    Name dann unter den Icons, Hinweistext über ihnen unter der Maus; Militär: Besatzung je Typ (da/Soll, +/−);
     Lagerhaus: alle Waren (`GoodsGrid`; Punkt = allgemeine Regel, Klick spezialisiert – roter Rahmen –, nochmal hebt auf);
     Markt (`BuildingInfo.Market`, „Handel – Land“, ohne Bild; Hafen „Handel – Meer“: Leiste GUI 377 `seaRoute`, Schiff vor ×1 setzt den Steg wie
     der Hammer der Werft, Routenpunkte aufs Wasser, Route ab dem Liegeplatz): Leiste ×1 ×2 ×3 Paket (Datei 03 GUI 374, `market` in `ui.json`; nicht gesetzt
     dunkel): Knopf wählen (weiß gerahmt; Stopps erst mit Ziel; gewählter Stopp nochmal = löschen), dann Linksklick auf die Karte setzt
     ihn (Fahne als Vorschau am Mauszeiger, nur wo Esel hinkommen; Rechtsklick/Esc bricht ab), Route wie der Sammelpunkt der Kaserne; Waren mit Menge darunter, ∞ (386)/0 (389)/Pfeile ±5/±1 für die gewählte Ware; Waren/Baumaterial,
-    Minen-Erfolgschance; Arbeitsbereich (Rechtsklick versetzt, `World.SetWorkCenter`, max. `MaxWorkCenterDistance` = 20, sonst nächstes erlaubtes
+    Minen-Erfolgschance (Waren-Block unter dem Label in der freien Fläche zentriert, eine Ware waagerecht); Arbeitsbereich (Rechtsklick versetzt, `World.SetWorkCenter`, max. `MaxWorkCenterDistance` = 20, sonst nächstes erlaubtes
     Feld; Sammler nehmen das Ziel nächst der Mitte; Kaserne: Sammelpunkt überall, `Building.HasGatheringPoint`, Pfad mit Fahne).
     Werft (`BuildingInfo.Dockyard`, `dockyard` in `ui.json`): links Fähre und Handelsschiff (letzte 12 GUI-Bilder der Volksdatei; mit Steg
     klickbar → Auftrag, der Knopf bleibt eingedrückt (dunkles Bild), beide gesperrt bis zum Stapellauf; unten Baumaterial geliefert/nötig),
