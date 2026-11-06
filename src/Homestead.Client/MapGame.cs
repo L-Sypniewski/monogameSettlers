@@ -1535,18 +1535,20 @@ public sealed class MapGame : Game
     /// <summary>The tooltip of the icon-only control under the panel point (its text is the hover timing's key), or null.</summary>
     private string? MenuTooltip(Vector2 panel)
     {
-        if (ShowsBuildingInfo || ShowsSelection || _tabs.Current is not (PanelTab.Goods or PanelTab.Settlers))
+        // The sub-menus' icon controls are reachable only while a sub-menu is the panel's content.
+        bool showsSubMenu = !ShowsBuildingInfo && !ShowsSelection && _tabs.Current is (PanelTab.Goods or PanelTab.Settlers);
+        if (!showsSubMenu)
             return null;
         return _tabs.CurrentMenu switch
         {
-            "transport" => _transportMenu!.TooltipAt(panel, _world, _local),
-            "professions" => _professionsMenu!.TooltipAt(panel),
-            "soldiers" => _soldiersMenu!.TooltipAt(panel, _world, _local, _buildingInfo),
-            "overview" => _settlersOverview!.TooltipAt(panel),
-            "statistics" => _statisticsMenu!.TooltipAt(panel),
-            "stock" => _stockMenu!.TooltipAt(panel),
-            "tools" => _manufactureMenu!.TooltipAt(panel),
-            "distribution" => _distributionMenu!.TooltipAt(panel),
+            PanelMenuIds.Transport => _transportMenu!.TooltipAt(panel, _world, _local),
+            PanelMenuIds.Professions => _professionsMenu!.TooltipAt(panel),
+            PanelMenuIds.Soldiers => _soldiersMenu!.TooltipAt(panel, _world, _local, _buildingInfo),
+            PanelMenuIds.Overview => _settlersOverview!.TooltipAt(panel),
+            PanelMenuIds.Statistics => _statisticsMenu!.TooltipAt(panel),
+            PanelMenuIds.Stock => _stockMenu!.TooltipAt(panel),
+            PanelMenuIds.Tools => _manufactureMenu!.TooltipAt(panel),
+            PanelMenuIds.Distribution => _distributionMenu!.TooltipAt(panel),
             _ => null,
         };
     }
@@ -2255,8 +2257,10 @@ public sealed class MapGame : Game
             // The selection is exactly a group: what Shift adds to it joins the group too.
             var before = (Settlers: _group.ToList(), Ships: _ships.ToList());
             int? joinedGroup = ShiftDown(Keyboard.GetState()) ? _controlGroups.Matching(_group, _ships) : null;
-            if (!_placing && !_buildingInfo.AimsRoute(_selectedBuilding) && !_buildingInfo.AimsDock(_selectedBuilding)
-                && !_buildingInfo.AimsWorkCenter(_selectedBuilding) && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
+            // The building panel's aiming modes (market route, dock, work area) take the map's next click themselves.
+            bool panelAims = _buildingInfo.AimsRoute(_selectedBuilding) || _buildingInfo.AimsDock(_selectedBuilding)
+                || _buildingInfo.AimsWorkCenter(_selectedBuilding);
+            if (!_placing && !panelAims && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
                 SelectInBox(dragStart, cursorScreen);
             else
                 Click(cursorScreen);

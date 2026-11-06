@@ -48,6 +48,7 @@ public static class UiTooltip
         const int PaddingX = 8, PaddingY = 5;
         // The box opens to the lower right of the cursor; past the area's edge it flips to the other side.
         const int GapRight = 14, GapBelow = 18, GapAbove = 8;
+        const float BoxOpacity = 0.92f, FrameOpacity = 0.7f;
         int size = Math.Max(MinTextSize, (int)MathF.Round(TextSize * scale));
         var measured = font.Measure(text, size);
         int width = (int)measured.X + 2 * PaddingX, height = (int)measured.Y + 2 * PaddingY;
@@ -57,8 +58,8 @@ public static class UiTooltip
         if (y + height > area.Bottom)
             y = (int)cursor.Y - GapAbove - height;
         var box = new Rectangle(x, y, width, height);
-        batch.Draw(pixel, box, new Color(10, 10, 14) * 0.92f);
-        Charts.Frame(batch, pixel, box, new Color(200, 170, 70) * 0.7f);
+        batch.Draw(pixel, box, new Color(10, 10, 14) * BoxOpacity);
+        Charts.Frame(batch, pixel, box, new Color(200, 170, 70) * FrameOpacity);
         Charts.Write(batch, font, text, new Vector2(x + PaddingX, y + PaddingY), Charts.Text, size);
     }
 }

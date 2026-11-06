@@ -159,7 +159,7 @@ public sealed class BuildMenu : IDisposable
     {
         if (_hovered is not { } hovered || !_hover.Due(now))
             return;
-        UiTooltip.Draw(batch, pixel, font, Lang.Find("buildings." + hovered.Name) ?? hovered.Name, cursor, area, scale);
+        UiTooltip.Draw(batch, pixel, font, Lang.Find(LangKeys.Buildings + hovered.Name) ?? hovered.Name, cursor, area, scale);
     }
 
     /// <summary>A count right-aligned at <paramref name="topRight"/>; nothing for zero.</summary>

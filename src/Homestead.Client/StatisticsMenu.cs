@@ -79,7 +79,7 @@ public sealed class StatisticsMenu : IPanelMenu
             batch.Draw(pixel, new Rectangle(x0, plot.Bottom - height, Math.Max(1, x1 - x0), height), Bar);
         }
         const int Dash = 3, DashGap = 3;
-        const float GridlineAlpha = 0.65f;
+        const float GridlineAlpha = 0.65f, AxisAlpha = 0.9f;
         for (int line = 1; line <= 5; line++)
         {
             int y = plot.Bottom - line * plot.Height / 5;
@@ -89,12 +89,12 @@ public sealed class StatisticsMenu : IPanelMenu
             var size = font.Measure(value, 13);
             Write(batch, font, value, new Vector2(chart.Right - size.X, y - size.Y / 2 - 1), 13);
         }
-        batch.Draw(pixel, new Rectangle(chart.X, chart.Bottom, chart.Width, 1), Color.White * 0.9f);
-        batch.Draw(pixel, new Rectangle(plot.Right - 1, chart.Y - 4, 1, chart.Height + 8), Color.White * 0.9f);
+        batch.Draw(pixel, new Rectangle(chart.X, chart.Bottom, chart.Width, 1), Color.White * AxisAlpha);
+        batch.Draw(pixel, new Rectangle(plot.Right - 1, chart.Y - 4, 1, chart.Height + 8), Color.White * AxisAlpha);
         for (int minutes = Minutes; minutes > 0; minutes -= 15)
         {
             int x = plot.Right - minutes * plot.Width / Minutes;
-            batch.Draw(pixel, new Rectangle(x, chart.Bottom, 1, 4), Color.White * 0.9f);
+            batch.Draw(pixel, new Rectangle(x, chart.Bottom, 1, 4), Color.White * AxisAlpha);
             string label = minutes.ToString(CultureInfo.InvariantCulture);
             var size = font.Measure(label, 13);
             Write(batch, font, label, new Vector2(Math.Max(Left, x - size.X / 2), chart.Bottom + 4), 13);

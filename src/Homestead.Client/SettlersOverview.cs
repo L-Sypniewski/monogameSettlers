@@ -57,6 +57,16 @@ public sealed class SettlersOverview : IPanelMenu, IDisposable
     private const int HeaderHeight = 54;
     private const int CellHeight = 80;
 
+    /// <summary>Columns of the portrait grid; the header's icons above sit on the same grid.</summary>
+    private const int Columns = 4;
+
+    /// <summary>One kind portrait's cell of the grid (panel space).</summary>
+    private Rectangle Cell(int row, int col)
+    {
+        int column = Width / Columns;
+        return new Rectangle(Left + col * column, Top + HeaderHeight + row * CellHeight, column, CellHeight);
+    }
+
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor, float seconds)
     {
         var own = world.Settlers.Where(s => s.Player == player).ToList();
@@ -110,11 +120,10 @@ public sealed class SettlersOverview : IPanelMenu, IDisposable
     /// <summary>The tooltip of the kind's portrait cell under the panel point, or null.</summary>
     public string? TooltipAt(Vector2 panel)
     {
-        int column = Width / 4;
         for (int row = 0; row < _rows.Length; row++)
             for (int col = 0; col < _rows[row].Length; col++)
             {
-                var cell = new Rectangle(Left + col * column, Top + HeaderHeight + row * CellHeight, column, CellHeight);
+                var cell = Cell(row, col);
                 if (cell.Bottom > _layout.Content.Bottom)
                     break;
                 if (cell.Contains(panel))
@@ -123,16 +132,17 @@ public sealed class SettlersOverview : IPanelMenu, IDisposable
         return null;
     }
 
+    /// <summary>Whether the kind is one of the soldiers.</summary>
+    private static bool IsSoldier(string kind) =>
+        kind is SettlerKinds.Swordsman or SettlerKinds.Bowman or SettlerKinds.Pikeman;
+
     /// <summary>The kind's localized name (the soldiers' types reuse the soldiers menu's names).</summary>
-    private static string NameOf(string kind) => kind switch
-    {
-        SettlerKinds.Swordsman or SettlerKinds.Bowman or SettlerKinds.Pikeman => SettlerKinds.TypeName(kind),
-        _ => Lang.T("settlers." + kind.ToLowerInvariant()),
-    };
+    private static string NameOf(string kind) => IsSoldier(kind)
+        ? SettlerKinds.TypeName(kind)
+        : Lang.T(LangKeys.Settlers + kind.ToLowerInvariant());
 
     /// <summary>The portrait of a kind: soldiers by their first level.</summary>
-    private static string PortraitOf(string kind) =>
-        kind is SettlerKinds.Swordsman or SettlerKinds.Bowman or SettlerKinds.Pikeman ? $"{kind}_L1" : kind;
+    private static string PortraitOf(string kind) => IsSoldier(kind) ? $"{kind}_L1" : kind;
 
     /// <summary>Whether the settler counts as the kind (thieves are the scouts).</summary>
     private static bool Is(Settler settler, string kind) => kind switch
@@ -185,5 +195,5 @@ internal static class SettlerKinds
     public const string Donkey = "DONKEY";
 
     /// <summary>The soldier type's localized name; the one place the <c>soldiers.types.*</c> keys are derived from a kind.</summary>
-    public static string TypeName(string kind) => Lang.Find("soldiers.types." + kind[0] + kind[1..].ToLowerInvariant()) ?? kind;
+    public static string TypeName(string kind) => Lang.Find(LangKeys.SoldierTypes + kind[0] + kind[1..].ToLowerInvariant()) ?? kind;
 }

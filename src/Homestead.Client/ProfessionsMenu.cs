@@ -127,10 +127,12 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
             batch.Draw(_spinner, spinner, Color.White);
             // A raise the other two shares leave no room for is greyed out (like the garrison's blocked halves).
             bool raiseBlocked = RaiseBlocked(world, player, share);
+            bool upperHalf = cursor.Y < spinner.Center.Y;
+            bool upperHalfBlocked = raiseBlocked && upperHalf;
             if (raiseBlocked)
                 batch.Draw(pixel, PanelUi.SpinnerHalf(spinner, upper: true), Color.Black * BlockedAlpha);
-            if (spinner.Contains(cursor) && !(raiseBlocked && cursor.Y < spinner.Center.Y))
-                PanelUi.HoverOverlay(batch, pixel, PanelUi.SpinnerHalf(spinner, cursor.Y < spinner.Center.Y));
+            if (spinner.Contains(cursor) && !upperHalfBlocked)
+                PanelUi.HoverOverlay(batch, pixel, PanelUi.SpinnerHalf(spinner, upperHalf));
             int percent = (int)Math.Round(world.Recruitment.ShareOf(player, share) * 100);
             Write(batch, font, $"{sign} {percent} % {name}", new Vector2(spinner.Right + 8, spinner.Y + 6), Text, 15);
         }
@@ -184,13 +186,13 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
         for (int row = 0; row < Shares.Length; row++)
             if (Spinner(row).Contains(panel))
             {
-                var (share, _, name) = Shares[row];
+                var (share, key, name) = Shares[row];
                 bool up = panel.Y < Spinner(row).Center.Y;
                 // The half Draw greys out neither commands nor sounds, like the garrison's blocked halves.
                 if (up && RaiseBlocked(world, player, share))
-                    return Lang.T("professions.shareFull", Lang.T("professions." + Shares[row].Key));
+                    return Lang.T("professions.shareFull", Lang.T(LangKeys.Professions + key));
                 if (!up && world.Recruitment.ShareOf(player, share) <= 0)
-                    return Lang.T("professions.shareZero", Lang.T("professions." + Shares[row].Key));
+                    return Lang.T("professions.shareZero", Lang.T(LangKeys.Professions + key));
                 issue(new SetRecruitmentShare(player, share, world.Recruitment.ShareOf(player, share) + (up ? Step : -Step)),
                     _ => $"{name}: {world.Recruitment.ShareOf(player, share) * 100:0} %");
                 UiSounds.Step(up);
@@ -240,14 +242,19 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
     {
         for (int row = 0; row < Shares.Length; row++)
             if (Spinner(row).Contains(panel))
-                return Lang.T("professions.share", Lang.T("professions." + Shares[row].Key));
+                return Lang.T("professions.share", Lang.T(LangKeys.Professions + Shares[row].Key));
         for (int e = 0; e < Entries.Length; e++)
         {
             var entry = Entries[e];
-            string name = Lang.T("professions." + entry.Name);
+            string name = Lang.T(LangKeys.Professions + entry.Name);
             for (int i = 0; i < _findButtons.Length; i++)
                 if (FindButton(e, i).Contains(panel))
-                    return Lang.T(i switch { 0 => "professions.findWorld", 1 => "professions.findScreen", _ => "professions.findOne" }, name);
+                    return Lang.T((FindMode)i switch
+                    {
+                        FindMode.World => "professions.findWorld",
+                        FindMode.Screen => "professions.findScreen",
+                        _ => "professions.findOne",
+                    }, name);
             for (int i = 0; i < _convert.Length; i++)
                 if (ConvertButton(e, i).Contains(panel))
                     return entry.ToCarriers ? Lang.T("professions.toCarriers", Amounts[i]) : Lang.T("professions.convert", Amounts[i], name);
@@ -262,12 +269,12 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
             if (Spinner(row).Contains(panel))
                 return Shares[row].Share == Share.Carriers
                     ? Lang.T("professions.carriersMin")
-                    : Lang.T("professions.shareMax", Lang.T("professions." + Shares[row].Key));
+                    : Lang.T("professions.shareMax", Lang.T(LangKeys.Professions + Shares[row].Key));
         for (int e = 0; e < Entries.Length; e++)
         {
             var entry = Entries[e];
             string suffix = entry.Available ? "" : Lang.T("professions.notYet");
-            string name = Lang.T("professions." + entry.Name);
+            string name = Lang.T(LangKeys.Professions + entry.Name);
             for (int i = 0; i < _findButtons.Length; i++)
                 if (FindButton(e, i).Contains(panel))
                     return (FindMode)i switch
