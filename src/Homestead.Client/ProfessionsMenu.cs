@@ -186,7 +186,7 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
         for (int row = 0; row < Shares.Length; row++)
             if (Spinner(row).Contains(panel))
             {
-                var (share, key, name) = Shares[row];
+                var (share, _, key) = Shares[row];
                 bool up = panel.Y < Spinner(row).Center.Y;
                 // The half Draw greys out neither commands nor sounds, like the garrison's blocked halves.
                 if (up && RaiseBlocked(world, player, share))
@@ -194,7 +194,7 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
                 if (!up && world.Recruitment.ShareOf(player, share) <= 0)
                     return Lang.T("professions.shareZero", Lang.T(LangKeys.Professions + key));
                 issue(new SetRecruitmentShare(player, share, world.Recruitment.ShareOf(player, share) + (up ? Step : -Step)),
-                    _ => $"{name}: {world.Recruitment.ShareOf(player, share) * 100:0} %");
+                    _ => $"{key}: {world.Recruitment.ShareOf(player, share) * 100:0} %");
                 UiSounds.Step(up);
                 return null;
             }
