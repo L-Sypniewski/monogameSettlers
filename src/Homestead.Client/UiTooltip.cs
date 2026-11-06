@@ -13,6 +13,9 @@ public static class UiTooltip
     /// <summary>Seconds the cursor rests on a control before its tooltip appears.</summary>
     public const double Delay = 1;
 
+    /// <summary>Longest the tooltip's place may stay undrawn before its timer starts anew (its control stopped being drawn).</summary>
+    public const double Pause = 0.2;
+
     /// <summary>
     /// The hover timing of one tooltip place: the timer starts anew on another key (the tooltip's text) or
     /// after the owner stopped drawing in between (its menu was hidden).
@@ -25,7 +28,7 @@ public static class UiTooltip
         /// <summary>Feeds the hovered tooltip's key once per frame; tells whether its tooltip is due.</summary>
         public bool Update(string? key, double now)
         {
-            if (key != _key || now - _lastDrawn > 0.2)
+            if (key != _key || now - _lastDrawn > Pause)
             {
                 _key = key;
                 _since = now;
@@ -35,23 +38,27 @@ public static class UiTooltip
         }
 
         /// <summary>Whether the tooltip of the key last fed is due (after <see cref="Update"/> hid it: never).</summary>
-        public bool Due(double now) => _key is not null && now - _lastDrawn <= 0.2 && now - _since >= Delay;
+        public bool Due(double now) => _key is not null && now - _lastDrawn <= Pause && now - _since >= Delay;
     }
 
     /// <summary>Draws the text next to the cursor, kept inside <paramref name="area"/> (screen space).</summary>
     public static void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, string text, Vector2 cursor, Rectangle area, float scale)
     {
-        int size = Math.Max(12, (int)MathF.Round(14 * scale));
+        const int TextSize = 14, MinTextSize = 12;
+        const int PaddingX = 8, PaddingY = 5;
+        // The box opens to the lower right of the cursor; past the area's edge it flips to the other side.
+        const int GapRight = 14, GapBelow = 18, GapAbove = 8;
+        int size = Math.Max(MinTextSize, (int)MathF.Round(TextSize * scale));
         var measured = font.Measure(text, size);
-        int width = (int)measured.X + 16, height = (int)measured.Y + 10;
-        int x = (int)cursor.X + 14, y = (int)cursor.Y + 18;
+        int width = (int)measured.X + 2 * PaddingX, height = (int)measured.Y + 2 * PaddingY;
+        int x = (int)cursor.X + GapRight, y = (int)cursor.Y + GapBelow;
         if (x + width > area.Right)
-            x = (int)cursor.X - 14 - width;
+            x = (int)cursor.X - GapRight - width;
         if (y + height > area.Bottom)
-            y = (int)cursor.Y - 8 - height;
+            y = (int)cursor.Y - GapAbove - height;
         var box = new Rectangle(x, y, width, height);
         batch.Draw(pixel, box, new Color(10, 10, 14) * 0.92f);
         Charts.Frame(batch, pixel, box, new Color(200, 170, 70) * 0.7f);
-        Charts.Write(batch, font, text, new Vector2(x + 8, y + 5), Charts.Text, size);
+        Charts.Write(batch, font, text, new Vector2(x + PaddingX, y + PaddingY), Charts.Text, size);
     }
 }

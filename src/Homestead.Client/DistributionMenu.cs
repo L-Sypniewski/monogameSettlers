@@ -79,15 +79,22 @@ public sealed class DistributionMenu : IPanelMenu
         return _captionLines.Lines;
     }
 
+    /// <summary>A row with a one-line caption; every caption line beyond the first makes every row this much taller.</summary>
+    private const int RowBaseHeight = 46;
+    private const int CaptionLineHeight = 17;
+
+    /// <summary>How far the percent text and its bar sit below the caption's last line.</summary>
+    private const int PercentOffset = 20;
+
     /// <summary>Every row is as tall as the chosen good's tallest caption: one line's height per extra line
     /// of the tallest. The rows are uniform; a row's content starts at its top.</summary>
-    private int EntryHeight(UiFont font) => _goods.Count == 0 ? 46 : 46 + 17 * (CaptionLines(font).Max() - 1);
+    private int EntryHeight(UiFont font) => _goods.Count == 0 ? RowBaseHeight : RowBaseHeight + CaptionLineHeight * (CaptionLines(font).Max() - 1);
 
     private int EntryY(int i, UiFont font) => Top + i * EntryHeight(font);
 
     private bool RowFits(int i, UiFont font) => EntryY(i, font) + EntryHeight(font) <= _layout.Content.Bottom;
 
-    private int PercentY(int i, UiFont font) => EntryY(i, font) + (CaptionLines(font)[i] - 1) * 17 + 20;
+    private int PercentY(int i, UiFont font) => EntryY(i, font) + (CaptionLines(font)[i] - 1) * CaptionLineHeight + PercentOffset;
 
     private Rectangle Bar(int i, UiFont font) => new(EntryX + 46, PercentY(i, font) + 1, Left + Width - EntryX - 46, ShareBar.Height);
 
@@ -117,7 +124,7 @@ public sealed class DistributionMenu : IPanelMenu
             foreach (string line in font.Wrap(name, Left + Width - EntryX, 15))
             {
                 SelectionPanel.Shadowed(batch, font, line, new Vector2(EntryX, y), 15, Text);
-                y += 17;
+                y += CaptionLineHeight;
             }
             string percent = $"{(total > 0 ? share / total * 100 : 0):0}%";
             SelectionPanel.Shadowed(batch, font, percent, new Vector2(EntryX, PercentY(i, font)), 15, Text);

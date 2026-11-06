@@ -40,7 +40,10 @@ public sealed class StatisticsMenu : IPanelMenu
     private int Left => _layout.Content.X + 4;
     private int Width => _layout.Content.Width - 8;
     private int Top => _layout.Content.Y + 24; // below the title
-    private Rectangle Chart => new(Left + 2, Top + 18, Width - 4, 92); // below the good's name
+    /// <summary>The chart begins below the chosen good's name, which takes this row.</summary>
+    private const int SeriesLabelRow = 18;
+    private const int ChartHeight = 92;
+    private Rectangle Chart => new(Left + 2, Top + SeriesLabelRow, Width - 4, ChartHeight); // below the good's name
     /// <summary>Width kept free at the chart's right for the gridline values.</summary>
     private const int ValueStrip = 34;
     private int GridTop => Chart.Bottom + 22;
@@ -75,11 +78,13 @@ public sealed class StatisticsMenu : IPanelMenu
             int height = (int)Math.Round(Math.Min(1, perMinute[i] / scale) * plot.Height);
             batch.Draw(pixel, new Rectangle(x0, plot.Bottom - height, Math.Max(1, x1 - x0), height), Bar);
         }
+        const int Dash = 3, DashGap = 3;
+        const float GridlineAlpha = 0.65f;
         for (int line = 1; line <= 5; line++)
         {
             int y = plot.Bottom - line * plot.Height / 5;
-            for (int x = plot.X; x < plot.Right; x += 6)
-                batch.Draw(pixel, new Rectangle(x, y, Math.Min(3, plot.Right - x), 1), Color.White * 0.65f);
+            for (int x = plot.X; x < plot.Right; x += Dash + DashGap)
+                batch.Draw(pixel, new Rectangle(x, y, Math.Min(Dash, plot.Right - x), 1), Color.White * GridlineAlpha);
             string value = (scale * line / 5).ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
             var size = font.Measure(value, 13);
             Write(batch, font, value, new Vector2(chart.Right - size.X, y - size.Y / 2 - 1), 13);

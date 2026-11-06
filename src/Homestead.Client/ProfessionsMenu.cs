@@ -112,8 +112,13 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
 
     private Rectangle ConvertButton(int entry, int i) => new(Cell(entry).X + 62, Cell(entry).Y + i * 30, 30, 30);
 
+    /// <summary>A raise the other two shares leave no room for (the spinner's upper half is greyed out and refuses the click).</summary>
+    private static bool RaiseBlocked(World world, int player, Share share) =>
+        world.Recruitment.BudgetOf(player, share) <= world.Recruitment.ShareOf(player, share);
+
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor, float seconds)
     {
+        const float BlockedAlpha = 0.55f;
         for (int row = 0; row < Shares.Length; row++)
         {
             var (share, sign, key) = Shares[row];
@@ -121,9 +126,9 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
             var spinner = Spinner(row);
             batch.Draw(_spinner, spinner, Color.White);
             // A raise the other two shares leave no room for is greyed out (like the garrison's blocked halves).
-            bool raiseBlocked = world.Recruitment.BudgetOf(player, share) <= world.Recruitment.ShareOf(player, share);
+            bool raiseBlocked = RaiseBlocked(world, player, share);
             if (raiseBlocked)
-                batch.Draw(pixel, PanelUi.SpinnerHalf(spinner, upper: true), Color.Black * 0.55f);
+                batch.Draw(pixel, PanelUi.SpinnerHalf(spinner, upper: true), Color.Black * BlockedAlpha);
             if (spinner.Contains(cursor) && !(raiseBlocked && cursor.Y < spinner.Center.Y))
                 PanelUi.HoverOverlay(batch, pixel, PanelUi.SpinnerHalf(spinner, cursor.Y < spinner.Center.Y));
             int percent = (int)Math.Round(world.Recruitment.ShareOf(player, share) * 100);
@@ -182,7 +187,7 @@ public sealed class ProfessionsMenu : IPanelMenu, IDisposable
                 var (share, _, name) = Shares[row];
                 bool up = panel.Y < Spinner(row).Center.Y;
                 // The half Draw greys out neither commands nor sounds, like the garrison's blocked halves.
-                if (up && world.Recruitment.BudgetOf(player, share) <= world.Recruitment.ShareOf(player, share))
+                if (up && RaiseBlocked(world, player, share))
                     return Lang.T("professions.shareFull", Lang.T("professions." + Shares[row].Key));
                 if (!up && world.Recruitment.ShareOf(player, share) <= 0)
                     return Lang.T("professions.shareZero", Lang.T("professions." + Shares[row].Key));

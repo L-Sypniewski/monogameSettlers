@@ -325,7 +325,9 @@ public sealed class EconomyRenderer
         var body = bodies.Count > 0 ? bodies.Aggregate(Rectangle.Union) : all;
         float middle = body.X + body.Width / 2f;
         float overhang = Math.Max(middle - all.X, all.X + all.Width - middle);
-        float scale = Math.Min(1f, Math.Min((box.Width / 2f - 2f) / overhang, (box.Height - 4f) / all.Height));
+        // The contain-fit leaves this much of the box free, so body and shadow never touch its edges.
+        const float FitMargin = 2f;
+        float scale = Math.Min(1f, Math.Min((box.Width / 2f - FitMargin) / overhang, (box.Height - 2 * FitMargin) / all.Height));
         var anchor = new Vector2(box.Center.X - middle * scale, box.Bottom - (all.Y + all.Height) * scale);
         foreach (var (sprites, frame) in layers)
             sprites.Draw(batch, frame, anchor, scale, playerColor);
