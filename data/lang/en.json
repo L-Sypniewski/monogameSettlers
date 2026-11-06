@@ -249,8 +249,8 @@
     "dockStays": "The dock stays while a ship is built",
     "dockElsewhere": "Dock at {0},{1}: set it elsewhere",
     "setDock": "Set the dock (then click into the water)",
-    "buildFerry": "Build ferry",
-    "buildShip": "Build trade ship",
+    "buildFerry": "Order ferry",
+    "buildShip": "Order trade ship",
     "noDockPlace": "No place for a dock there (open water on own land near the building)",
     "dockPlaced": "Dock at {0},{1}"
   },
@@ -611,7 +611,7 @@
     "findScreen": "Select all {0} on the screen",
     "findOne": "Fly to the next of the {0}",
     "convert": "{0} carriers become {1}",
-    "toCarriers": "{0} pioneer(s) to carriers",
+    "toCarriers": "{0} pioneers become carriers",
     "shareMax": "{0} at most (up/down: 5 % more/less)",
     "carriersMin": "Carriers kept at least (up/down: 5 % more/less)",
     "notYet": " (not there yet)"
@@ -652,7 +652,7 @@
   },
   "transport": {
     "store": "Store",
-    "doNotStore": "Don't store",
+    "doNotStore": "Do not store",
     "top": "To the very front",
     "up": "One place up",
     "down": "One place down",
@@ -674,11 +674,11 @@
     "fog": "Fog of war on/off"
   },
   "building": {
-    "workArea": "Set new working area",
-    "workAreaArmed": "Choose a new working area.",
-    "workAreaUndone": "Working area choice undone",
-    "workAreaMoved": "Working area moved to {0},{1}",
-    "workAreaMovedCapped": "Working area moved to {0},{1} (at most {2} fields away)",
+    "workArea": "Move work area",
+    "workAreaArmed": "Click where the work area goes, right-click cancels",
+    "workAreaUndone": "Work area choice undone",
+    "workAreaMoved": "Work area moved to {0},{1}",
+    "workAreaMovedCapped": "Work area moved to {0},{1} (at most {2} fields away)",
     "gatheringPointMoved": "Gathering point moved to {0},{1}",
     "ammoLoads": "Ammunition: {0}",
     "trade": "Trade – land",

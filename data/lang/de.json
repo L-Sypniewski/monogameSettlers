@@ -249,8 +249,8 @@
     "dockStays": "Die Anlegestelle bleibt, solange ein Schiff gebaut wird",
     "dockElsewhere": "Anlegestelle bei {0},{1}: woanders festlegen",
     "setDock": "Anlegestelle festlegen (dann ins Wasser klicken)",
-    "buildFerry": "Fähre bauen",
-    "buildShip": "Handelsschiff bauen",
+    "buildFerry": "Fähre in Auftrag geben",
+    "buildShip": "Handelsschiff in Auftrag geben",
     "noDockPlace": "Dort ist kein Platz für eine Anlegestelle (offenes Wasser auf eigenem Land nahe der Werft)",
     "dockPlaced": "Anlegestelle bei {0},{1}"
   },
@@ -611,7 +611,7 @@
     "findScreen": "Alle {0} im Bild auswählen",
     "findOne": "Zum nächsten der {0} fliegen",
     "convert": "{0} Träger werden {1}",
-    "toCarriers": "{0} Pionier(e) zu Trägern",
+    "toCarriers": "{0} Pioniere werden Träger",
     "shareMax": "{0} höchstens (rauf/runter: 5 % mehr/weniger)",
     "carriersMin": "Träger mindestens (rauf/runter: 5 % mehr/weniger)",
     "notYet": " (noch nicht vorhanden)"
@@ -674,11 +674,11 @@
     "fog": "Fog of War an/aus"
   },
   "building": {
-    "workArea": "Neues Arbeitsgebiet",
-    "workAreaArmed": "Wählen Sie das neue Arbeitsgebiet.",
-    "workAreaUndone": "Auswahl des Arbeitsgebiets aufgehoben",
-    "workAreaMoved": "Arbeitsgebiet nach {0},{1} versetzt",
-    "workAreaMovedCapped": "Arbeitsgebiet nach {0},{1} versetzt (max. {2} Felder)",
+    "workArea": "Arbeitsbereich versetzen",
+    "workAreaArmed": "Auf den Zielort des Arbeitsbereichs klicken, Rechtsklick bricht ab",
+    "workAreaUndone": "Auswahl des Arbeitsbereichs aufgehoben",
+    "workAreaMoved": "Arbeitsbereich nach {0},{1} versetzt",
+    "workAreaMovedCapped": "Arbeitsbereich nach {0},{1} versetzt (max. {2} Felder)",
     "gatheringPointMoved": "Sammelpunkt nach {0},{1} versetzt",
     "ammoLoads": "Munition: {0}",
     "trade": "Handel – Land",
