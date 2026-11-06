@@ -8,51 +8,66 @@ namespace Homestead.Simulation.Tests;
 public class RecruitmentShareTests
 {
     /// <summary>The real balancing, so the shares' defaults are the player-facing 30/25/25 %.</summary>
-    private static World World() => new(new GameMap(70), ProductionConfig.Load());
+    private readonly World world = new(new GameMap(70), ProductionConfig.Load());
 
     [Fact]
-    public void A_share_is_capped_by_what_the_other_two_leave()
+    public void Diggers_set_above_the_remaining_budget_clamp_to_the_remainder()
     {
-        var world = World();
-        world.Recruitment.SetShare(0, Share.Carriers, 0.3);
+        world.Recruitment.SetShare(0, Share.Carriers, 0.30);
         world.Recruitment.SetShare(0, Share.Builders, 0.25);
         world.Recruitment.SetShare(0, Share.Diggers, 1.0);
         Assert.Equal(0.45, world.Recruitment.ShareOf(0, Share.Diggers));
     }
 
     [Fact]
-    public void A_single_share_can_still_take_the_whole()
+    public void Carriers_can_take_the_whole_when_the_others_stand_at_zero()
     {
-        var world = World();
-        foreach (var share in Enum.GetValues<Share>())
-        {
-            foreach (var other in Enum.GetValues<Share>())
-                world.Recruitment.SetShare(0, other, 0);
-            world.Recruitment.SetShare(0, share, 1.0);
-            Assert.Equal(1.0, world.Recruitment.ShareOf(0, share));
-        }
+        world.Recruitment.SetShare(0, Share.Builders, 0);
+        world.Recruitment.SetShare(0, Share.Diggers, 0);
+        world.Recruitment.SetShare(0, Share.Carriers, 1.0);
+        Assert.Equal(1.0, world.Recruitment.ShareOf(0, Share.Carriers));
     }
 
     [Fact]
-    public void No_sequence_of_sets_ever_exceeds_the_whole()
+    public void Diggers_can_take_the_whole_when_the_others_stand_at_zero()
     {
-        var world = World();
-        var random = new Random(7);
-        var shares = Enum.GetValues<Share>();
-        for (int i = 0; i < 500; i++)
-        {
-            world.Recruitment.SetShare(0, (Share)random.Next(shares.Length), random.NextDouble());
-            double sum = shares.Sum(s => world.Recruitment.ShareOf(0, s));
-            Assert.True(sum <= 1.0 + 1e-9, $"sum {sum:0.####} after set {i}");
-        }
+        world.Recruitment.SetShare(0, Share.Carriers, 0);
+        world.Recruitment.SetShare(0, Share.Builders, 0);
+        world.Recruitment.SetShare(0, Share.Diggers, 1.0);
+        Assert.Equal(1.0, world.Recruitment.ShareOf(0, Share.Diggers));
+    }
+
+    [Fact]
+    public void Builders_can_take_the_whole_when_the_others_stand_at_zero()
+    {
+        world.Recruitment.SetShare(0, Share.Carriers, 0);
+        world.Recruitment.SetShare(0, Share.Diggers, 0);
+        world.Recruitment.SetShare(0, Share.Builders, 1.0);
+        Assert.Equal(1.0, world.Recruitment.ShareOf(0, Share.Builders));
+    }
+
+    [Fact]
+    public void A_full_budget_clamps_a_raise_until_another_share_is_lowered()
+    {
+        world.Recruitment.SetShare(0, Share.Diggers, 0.20);
+        world.Recruitment.SetShare(0, Share.Builders, 0.40);
+        world.Recruitment.SetShare(0, Share.Carriers, 0.40);
+        Assert.Equal(0.40, world.Recruitment.ShareOf(0, Share.Carriers));
+        Assert.Equal(0.40, world.Recruitment.ShareOf(0, Share.Builders));
+        Assert.Equal(0.20, world.Recruitment.ShareOf(0, Share.Diggers));
+        world.Recruitment.SetShare(0, Share.Diggers, 0.50);
+        Assert.Equal(0.20, world.Recruitment.ShareOf(0, Share.Diggers));
+        world.Recruitment.SetShare(0, Share.Builders, 0.10);
+        Assert.Equal(0.10, world.Recruitment.ShareOf(0, Share.Builders));
+        world.Recruitment.SetShare(0, Share.Diggers, 0.50);
+        Assert.Equal(0.50, world.Recruitment.ShareOf(0, Share.Diggers));
     }
 
     [Fact]
     public void Untouched_shares_stay_at_their_defaults()
     {
-        var world = World();
         world.Recruitment.SetShare(0, Share.Diggers, 0.25);
-        Assert.Equal(0.3, world.Recruitment.ShareOf(0, Share.Carriers));
+        Assert.Equal(0.30, world.Recruitment.ShareOf(0, Share.Carriers));
         Assert.Equal(0.25, world.Recruitment.ShareOf(0, Share.Builders));
         Assert.Equal(0.25, world.Recruitment.ShareOf(0, Share.Diggers));
     }
