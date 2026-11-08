@@ -188,6 +188,7 @@ public class MovementTests(ITestOutputHelper output)
         var map = new GameMap(60);
         var world = new World(map, TestConfig.NoTools, events: EventConfig.Load());
         var settler = world.Spawn(new GridPoint(30, 30), Profession.Carrier)!;
+        Assert.True(world.WalkTo(settler, new GridPoint(35, 35))); // holds an order when the walls go up
         for (int y = 0; y < 60; y++)
             for (int x = 0; x < 60; x++)
                 if (!(x == 30 && y == 30))
@@ -195,6 +196,43 @@ public class MovementTests(ITestOutputHelper output)
         world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 30), force: true);
         Assert.Contains(world.Events.Since(0, 0), e => e.Definition.Id == "settlerWalledIn");
         Assert.Equal(new GridPoint(30, 30), settler.Position); // defined end state: stays
+        Assert.Equal(SettlerState.Idle, settler.State); // and drops its stale order
+        Assert.Null(settler.Destination);
+        Assert.Empty(settler.RemainingPath);
+    }
+
+    [Fact]
+    public void Walled_in_settler_is_freed_up_to_the_map_size()
+    {
+        // Ring of water r <= 24 on a size-30 map: nearest free field is at distance 25, reachable
+        // only when the widest rung clamps to the map size instead of being skipped.
+        var map = new GameMap(30);
+        var world = new World(map, TestConfig.NoTools, events: EventConfig.Load());
+        var settler = world.Spawn(new GridPoint(15, 15), Profession.Carrier)!;
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 30; x++)
+                if (PathFinder.Distance(new GridPoint(15, 15), new GridPoint(x, y)) is > 0 and <= 24)
+                    map.SetTerrain(new GridPoint(x, y), TerrainType.Water);
+        world.PlaceBuilding(Romans["tower"], 0, new GridPoint(15, 15), force: true);
+        Assert.Equal(25, PathFinder.Distance(new GridPoint(15, 15), settler.Position));
+        Assert.True(map.IsWalkable(settler.Position));
+        Assert.DoesNotContain(world.Events.Since(0, 0), e => e.Definition.Id == "settlerWalledIn");
+    }
+
+    [Fact]
+    public void Walled_in_settler_is_freed_by_radius_48()
+    {
+        // Ring of water r <= 32: nearest free field is at distance 33, found only by the unclamped 48 rung.
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools);
+        var settler = world.Spawn(new GridPoint(30, 30), Profession.Carrier)!;
+        for (int y = 0; y < 60; y++)
+            for (int x = 0; x < 60; x++)
+                if (PathFinder.Distance(new GridPoint(30, 30), new GridPoint(x, y)) is > 0 and <= 32)
+                    map.SetTerrain(new GridPoint(x, y), TerrainType.Water);
+        world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 30), force: true);
+        Assert.Equal(33, PathFinder.Distance(new GridPoint(30, 30), settler.Position));
+        Assert.True(map.IsWalkable(settler.Position));
     }
 
     private static int RunUntil(World world, Func<bool> done, int limit)
