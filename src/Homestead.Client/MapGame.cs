@@ -42,8 +42,6 @@ public sealed class MapGame : Game
     private readonly string? _captureDirectory;
     private readonly Random _random = new(1);
 
-    /// <summary>Draws the character of the own player's AI (key I).</summary>
-    private readonly Random _ownAiDraw = new();
     /// <summary>Peoples from the command line for the players the map leaves open (player i: entry i modulo the count).</summary>
     private readonly IReadOnlyList<Civilization>? _presetPeoples;
     /// <summary>
@@ -149,8 +147,9 @@ public sealed class MapGame : Game
 
     private AiPlayer NewAi(int player)
     {
+        // The character draw is reproducible per world seed, so the same game draws the same character.
         var ai = new AiPlayer(_world, _playerCatalogs[player], player,
-            character: CharacterOf(player), random: _ownAiDraw);
+            character: CharacterOf(player), random: GameSetup.RandomFor(_world.Seed, GameSetup.Draw.OwnAiCharacter));
         // What the character's traits do is shown as it happens, to watch them at work.
         ai.Noted += OnAiNote;
         return ai;
