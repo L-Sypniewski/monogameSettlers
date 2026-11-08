@@ -309,7 +309,8 @@
       "buildingCaptured": "Zdobyłeś budynek: {building}.",
       "mineExhausted": "{building}: złoże wyeksploatowane.",
       "noResources": "{building} nie znajduje już niczego.",
-      "donkeyRobbed": "Osiołek został zaatakowany: jego materiały leżą na ziemi!"
+      "donkeyRobbed": "Osiołek został zaatakowany: jego materiały leżą na ziemi!",
+      "settlerWalledIn": "Jeden z twoich ludzi zamuroowano (nie znaleziono wolnego pola)."
     },
     "categories": {
       "info": "Różne",

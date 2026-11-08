@@ -619,7 +619,8 @@ public sealed partial class World
 
     /// <summary>
     /// Settlers standing on points that just became blocked (a building placed or levelled over them)
-    /// are put on the nearest free field; otherwise they would be walled in for good.
+    /// are put on the nearest free field, searched up to radius 48; if none is found, the settler stays
+    /// where it is and a <c>settlerWalledIn</c> event says so.
     /// </summary>
     internal void MoveOffBlocked(IReadOnlyCollection<GridPoint> points)
     {
@@ -631,16 +632,28 @@ public sealed partial class World
                 continue;
             Release(settler, settler.Position);
             Release(settler, settler.StepTarget);
-            if (NearestFree(settler.Position, radius: 12) is not { } free)
+            int cap = map.Size;
+            GridPoint? free = null;
+            foreach (int radius in new[] { 12, 24, 48 })
+            {
+                if (radius > cap)
+                    break; // no field can be that far away
+                if ((free = NearestFree(settler.Position, radius)) is not null)
+                    break;
+            }
+            if (free is not { } target)
+            {
+                Events.Raise("settlerWalledIn", settler.Player, settler.Position, settler: settler);
                 continue;
+            }
             var destination = settler.Destination;
             settler.State = SettlerState.Idle;
             settler.StepProgress = 0;
             settler.Path.Clear();
             settler.Destination = null;
-            settler.Position = free;
-            Claim(settler, free);
-            if (destination is { } d && d != free)
+            settler.Position = target;
+            Claim(settler, target);
+            if (destination is { } d && d != target)
                 WalkTo(settler, d);
         }
     }

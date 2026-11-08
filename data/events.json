@@ -73,6 +73,12 @@
       "cooldownSeconds": 60,
       "afterSeconds": 15,
       "enabled": true
+    },
+    "settlerWalledIn": {
+      "_comment": "A settler the watchdog could not free: no free field found in reach (it stays where it is).",
+      "category": "info",
+      "cooldownSeconds": 60,
+      "enabled": true
     }
   },
   "_datesComment": "Messages on certain days (month-day, real date; text: events.dates.<date> in data/lang), at most once a year per entry, while a game runs (remembered in ~/.config/homestead/events-shown.json).",

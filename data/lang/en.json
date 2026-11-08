@@ -309,7 +309,8 @@
       "buildingCaptured": "You captured {building}.",
       "mineExhausted": "{building} is exhausted.",
       "noResources": "{building} finds nothing more.",
-      "donkeyRobbed": "A donkey was robbed: its goods lie on the ground!"
+      "donkeyRobbed": "A donkey was robbed: its goods lie on the ground!",
+      "settlerWalledIn": "One of your people is walled in (no free field found)."
     },
     "categories": {
       "info": "Info",

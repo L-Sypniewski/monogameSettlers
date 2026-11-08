@@ -22,7 +22,7 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
   `LegNodes` (4) Zellen voraus; `Settler.PathIsLeg` → am Etappenende plant `World` die nächste. Nahe am Ziel exakt.
   Unerreichbares Befehlsziel (Meer, andere Insel): nächster erreichbarer Punkt (`PathFinder.NearestReachable`, Ring für Ring;
   `World.CommandTarget` für Soldaten, Geologen/Späher/Pioniere, Priester).
-- `World`/`Settler`: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf (Kommentar in `World`).
+- `World`/`Settler`: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf (Kommentar in `World`): Wegfreiung bei Blockierung (`MoveOffBlocked`) sucht schrittweise bis Radius 48 (12/24/48, auf Kartengröße begrenzt); bleibt ohne Erfolg, Ereignis `settlerWalledIn`.
   `Settler.StepProgress` in `World.StepUnits`; Tempo je Zielfeld: Gebirge ×0,8, Trampelpfad ×1,2 (`walking` in `production.json`);
   dazu Soldaten je Typ `speed` in `military.json` (Schwertkämpfer ×1,1, Pikeniere ×1,05, Bogenschützen ×1); `armor` (Pikeniere 0,5):
   so viel weniger Schaden je Treffer, abgerundet, mindestens 1 (`SoldierStats.Taken`; KI rechnet mit `Toughness`).

@@ -1,3 +1,6 @@
+using Homestead.Simulation.Buildings;
+using Homestead.Simulation.Economy;
+using Homestead.Simulation.Events;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Pathfinding;
 using Xunit.Abstractions;
@@ -6,6 +9,8 @@ namespace Homestead.Simulation.Tests;
 
 public class MovementTests(ITestOutputHelper output)
 {
+    private static readonly BuildingCatalog Romans = BuildingCatalog.Load(Civilization.Roman);
+
     [Fact]
     public void Settler_walks_its_path_at_step_speed()
     {
@@ -156,6 +161,40 @@ public class MovementTests(ITestOutputHelper output)
                          $"{world.Detours} detours, {world.PassThroughs} pass-throughs, longest stall {longestStall} ticks");
         Assert.True(longestStall <= World.PassThroughAfterTicks + 2, $"A settler stood still for {longestStall} ticks.");
         Assert.True(arrivals > settlers.Count * 5);
+    }
+
+    [Fact]
+    public void Walled_in_settler_is_moved_to_a_free_field_far_away()
+    {
+        // Ring of water r ≤ 19 around the settler: nearest free field is at distance 20.
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools);
+        var settler = world.Spawn(new GridPoint(30, 30), Profession.Carrier)!;
+        for (int dy = -19; dy <= 19; dy++)
+            for (int dx = -19; dx <= 19; dx++)
+            {
+                var p = new GridPoint(30 + dx, 30 + dy);
+                if (PathFinder.Distance(new GridPoint(30, 30), p) is > 0 and <= 19)
+                    map.SetTerrain(p, TerrainType.Water);
+            }
+        world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 30), force: true);
+        Assert.Equal(20, PathFinder.Distance(new GridPoint(30, 30), settler.Position)); // freed (radius 12 alone would hang it)
+        Assert.True(map.IsWalkable(settler.Position));
+    }
+
+    [Fact]
+    public void A_settler_that_cannot_be_freed_is_reported()
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools, events: EventConfig.Load());
+        var settler = world.Spawn(new GridPoint(30, 30), Profession.Carrier)!;
+        for (int y = 0; y < 60; y++)
+            for (int x = 0; x < 60; x++)
+                if (!(x == 30 && y == 30))
+                    map.SetTerrain(new GridPoint(x, y), TerrainType.Water); // full enclosure
+        world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 30), force: true);
+        Assert.Contains(world.Events.Since(0, 0), e => e.Definition.Id == "settlerWalledIn");
+        Assert.Equal(new GridPoint(30, 30), settler.Position); // defined end state: stays
     }
 
     private static int RunUntil(World world, Func<bool> done, int limit)
