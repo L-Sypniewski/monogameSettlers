@@ -619,7 +619,7 @@ public sealed partial class World
 
     /// <summary>
     /// Settlers standing on points that just became blocked (a building placed or levelled over them)
-    /// are put on the nearest free field, searched up to radius 48 (the last rung clamped to the map size); if none is found, the settler stays
+    /// are put on the nearest free field, searched up to radius 48 (each rung clamped to the map size); if none is found, the settler stays
     /// where it is and a <c>settlerWalledIn</c> event says so.
     /// </summary>
     internal void MoveOffBlocked(IReadOnlyCollection<GridPoint> points)
