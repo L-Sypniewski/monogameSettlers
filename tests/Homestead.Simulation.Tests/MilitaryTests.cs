@@ -906,7 +906,7 @@ public class MilitaryTests(ITestOutputHelper output)
     public void Combat_strength_starts_at_a_share_per_player_away_from_own_land_and_rises_with_gold()
     {
         var map = new GameMap(60);
-        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2, Peoples = [Civilization.Roman, Civilization.Egyptian] };
+        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2, TerritoryRules = true, Peoples = [Civilization.Roman, Civilization.Egyptian] };
         for (int y = 0; y < 30; y++)
             for (int x = 0; x < 60; x++)
                 map.SetOwner(new GridPoint(x, y), y < 15 ? 0 : 1);
@@ -936,6 +936,34 @@ public class MilitaryTests(ITestOutputHelper output)
         }
         world.Step();
         Assert.Equal(1.171f, world.Military.CombatStrength(0), 4); // 808 bars: 100 % + 342 / 20
+    }
+
+    [Fact]
+    public void Combat_strength_ignores_foreign_gold_piles_on_own_land()
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools)
+            { PlayerCount = 2, TerritoryRules = true, Peoples = [Civilization.Roman, Civilization.Roman] };
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), y < 15 ? 0 : 1);
+        // Gold delivered into the FOREIGN player's storehouse on its own land (LogisticsTests pattern).
+        var foreign = world.PlaceBuilding(Romans["stock"], 1, new GridPoint(20, 20), force: true)!;
+        world.AddLooseGoods(new GridPoint(28, 28), Material.Gold, 8);
+        world.Spawn(new GridPoint(24, 24), Profession.Carrier, player: 1);
+        Run(world, 5000, stopWhen: () => foreign.Piles.Any(p => p.Material == Material.Gold && p.Count == 8));
+        Assert.Equal(8, foreign.Piles.Where(p => p.Material == Material.Gold).Sum(p => p.Count));
+
+        // Territory flips: the foreign storehouse now stands on player 0's land.
+        for (int y = 15; y < 30; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), 0);
+        world.Step();
+        Assert.Equal(0.5f, world.Military.CombatStrength(0)); // foreign gold does not count
+
+        world.AddLooseGoods(new GridPoint(20, 5), Material.Gold, 8); // own loose gold on own land
+        world.Step();
+        Assert.Equal(0.5308f, world.Military.CombatStrength(0), 4); // own pile rises per band math
     }
 
     [Fact]

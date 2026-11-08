@@ -166,7 +166,7 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
     Punkte, ein weiterer ersetzt den letzten (`Fighter.Waypoints`, `Dismiss` macht den nächsten zum Laufbefehl); ohne Befehl (oder haltend/patrouillierend) wie `Move`.
     Patrouille (`Patrol`, Alt+Rechtsklick): zum Punkt und zurück zum Standort, hin und her bis zum nächsten Befehl (`Fighter.PatrolBack`); kämpft
     unterwegs wie beim Laufbefehl, eigenständige Angriffe enden mit der Patrouille weiter (`EndAttack` behält `MoveTo`).
-  - Kampfkraft (`CombatStrength`): eigenes Land 100 %, sonst Startwert je Spielerzahl (`startPercent`, im Original gemessen: 1 → 54 % (wie dort, obwohl sinnlos), 2 → 50 %, 4 → 37 %, 8 → 25 %, 16 → 14 %); plus Gold im eigenen Land (nach Landbesitz; Ägypter: Gold
+  - Kampfkraft (`CombatStrength`): eigenes Land 100 %, sonst Startwert je Spielerzahl (`startPercent`, im Original gemessen: 1 → 54 % (wie dort, obwohl sinnlos), 2 → 50 %, 4 → 37 %, 8 → 25 %, 16 → 14 %); plus Gold nach `BelongsTo` (Gebäudestapel nach Besitzer, lose Stapel auf eigenem Land; Ägypter: Gold
     halb, Edelsteine doppelt), jeder weitere Prozentpunkt kostet nach erreichter Kampfkraft (Bänder `stepPercent` ab 0 %, `unitsPerPercent`, im Original gemessen: bis 50 % 1,2 Barren, ab 90 % 20; niedriger Start steigt schneller), ohne Obergrenze (200 % = doppelter Schaden außerhalb; zwingt Reiche zum Angriff). KI kennt alle Werte und bewertet den Kampfort.
   - Werte: `data/military.json`; Gebietsradien aus Originalkarten gemessen.
   - `WarMachines` (`warMachines` in `military.json`): je Volk eine Maschine (Katapult, Balliste, Kanone, Gong) aus seiner Werkstatt:
