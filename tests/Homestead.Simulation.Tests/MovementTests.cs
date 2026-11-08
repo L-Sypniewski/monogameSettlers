@@ -233,6 +233,7 @@ public class MovementTests(ITestOutputHelper output)
         world.PlaceBuilding(Romans["tower"], 0, new GridPoint(30, 30), force: true);
         Assert.Equal(33, PathFinder.Distance(new GridPoint(30, 30), settler.Position));
         Assert.True(map.IsWalkable(settler.Position));
+        Assert.DoesNotContain(world.Events.Since(0, 0), e => e.Definition.Id == "settlerWalledIn");
     }
 
     private static int RunUntil(World world, Func<bool> done, int limit)
