@@ -92,7 +92,8 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
     Untätige (Träger, Soldaten, Planierer, Bauarbeiter, Geologen, Späher, Pioniere, Arbeitslose) gehen aus dem Weg
     (nach `IdleTicks`; Soldaten sofort, jeden Tick, mit einem Feld Abstand).
   - `Geology`: Geologen laufen wie Soldaten (verteilt auf freie Felder); auf Gebirge suchen sie im Umkreis `geologists.searchRadius`
-    (nächstes freies Feld, Gleichstand zufällig), setzen Schilder mit Rohstoff und Menge.
+    (nächstes freies Feld, Gleichstand zufällig), setzen Schilder mit Rohstoff und Menge. Umgewandelt werden nur Träger, die ihr
+    Feld verlassen können (eingemauerte bleiben Träger).
   - Späher (`Profession.Scout`, Grafik `THIEF`): umgewandelt/geschickt wie Geologen (`Geology.Convert(…, Profession.Scout)`), suchen nie.
     Für andere Spieler ein eigener Träger (`Settler.IsRevealedTo`), nicht angegriffen, bis ein feindlicher Soldat draußen auf
     `scouts.revealRadius` (10) herankommt (`Military.RevealScouts`, jeden Tick); erkannt bleibt er, solange der Spieler ihn sieht

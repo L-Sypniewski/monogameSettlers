@@ -1,6 +1,7 @@
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Homestead.Simulation.Map;
+using Homestead.Simulation.Pathfinding;
 
 namespace Homestead.Simulation.Tests;
 
@@ -121,6 +122,28 @@ public class ToolTests
         Assert.Equal(5, world.Settlers.Count(s => s.Profession == Profession.Geologist));
         Assert.Equal(4, chosen.Count); // those converted, for the selection
         Assert.All(chosen, s => Assert.Equal(Profession.Geologist, s.Profession));
+    }
+
+    [Fact]
+    public void A_walled_in_carrier_is_not_converted_but_a_reachable_one_is()
+    {
+        // Water ring around one carrier: the nearest field it could enter is 20 away.
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools);
+        var walled = world.Spawn(new GridPoint(30, 30), Profession.Carrier)!;
+        var reachable = world.Spawn(new GridPoint(5, 5), Profession.Carrier)!;
+        for (int dy = -19; dy <= 19; dy++)
+            for (int dx = -19; dx <= 19; dx++)
+            {
+                var p = new GridPoint(30 + dx, 30 + dy);
+                if (PathFinder.Distance(new GridPoint(30, 30), p) is > 0 and <= 19)
+                    map.SetTerrain(p, TerrainType.Water);
+            }
+
+        Assert.Equal((0, 0), world.Geology.Convert([walled]));
+        Assert.Equal(Profession.Carrier, walled.Profession);
+        Assert.Equal((1, 0), world.Geology.Convert([reachable]));
+        Assert.Equal(Profession.Geologist, reachable.Profession);
     }
 
     [Fact]
