@@ -967,6 +967,43 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Combat_strength_counts_gold_in_own_buildings()
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools)
+            { PlayerCount = 2, TerritoryRules = true, Peoples = [Civilization.Roman, Civilization.Roman] };
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), y < 15 ? 0 : 1);
+        // Gold delivered into the player's OWN storehouse (LogisticsTests pattern; a storehouse, since
+        // producers only ever hold request piles, not finished bars).
+        var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(20, 6), force: true)!;
+        world.AddLooseGoods(new GridPoint(28, 14), Material.Gold, 8);
+        world.Spawn(new GridPoint(24, 10), Profession.Carrier);
+        Run(world, 5000, stopWhen: () => stock.Piles.Any(p => p.Material == Material.Gold && p.Count == 8));
+        Assert.Equal(8, stock.Piles.Where(p => p.Material == Material.Gold).Sum(p => p.Count));
+
+        world.Step();
+        Assert.Equal(0.5308f, world.Military.CombatStrength(0), 4); // 8 bars in the building: 2.6 bars per point from 50 %
+    }
+
+    [Fact]
+    public void Gold_ore_does_not_raise_the_combat_strength()
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools)
+            { PlayerCount = 2, TerritoryRules = true, Peoples = [Civilization.Roman, Civilization.Roman] };
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), y < 15 ? 0 : 1);
+
+        // Like in the original, ore counts for nothing – only smelted bars do.
+        world.AddLooseGoods(new GridPoint(20, 5), Material.GoldOre, 8);
+        world.Step();
+        Assert.Equal(0.5f, world.Military.CombatStrength(0));
+    }
+
+    [Fact]
     public void Each_further_percent_of_combat_strength_costs_more()
     {
         var strength = new CombatStrengthConfig(10, [1, 2, 4], new Dictionary<Material, float>(), new Dictionary<Civilization, IReadOnlyDictionary<Material, float>>());
