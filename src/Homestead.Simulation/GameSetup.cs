@@ -87,9 +87,12 @@ public sealed record GameSetup
     public GameFingerprint? Fingerprint { get; init; }
 
     /// <summary>What is drawn from the seed: each draw has its own random numbers, so one does not shift another.</summary>
-    public enum Draw { Peoples, Positions, Colors, Characters }
+    public enum Draw { Peoples, Positions, Colors, Characters, OwnAiCharacter }
 
-    public Random RandomFor(Draw draw) => new(unchecked(Seed * 31 + (int)draw));
+    public Random RandomFor(Draw draw) => RandomFor(Seed, draw);
+
+    /// <summary>The draw's random numbers for any seed (the client's own AI draws from the world's).</summary>
+    public static Random RandomFor(int seed, Draw draw) => new(unchecked(seed * 31 + (int)draw));
 
     /// <summary>
     /// Builds the world on <paramref name="map"/> (opened from <see cref="Map"/>, or a campaign's): peoples, start positions,

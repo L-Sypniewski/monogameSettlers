@@ -309,7 +309,8 @@
       "buildingCaptured": "Du hast {building} erobert.",
       "mineExhausted": "{building} ist erschöpft.",
       "noResources": "{building} findet nichts mehr.",
-      "donkeyRobbed": "Esel überfallen: Die Ware liegt am Boden!"
+      "donkeyRobbed": "Esel überfallen: Die Ware liegt am Boden!",
+      "settlerWalledIn": "Einer deiner Leute ist eingemauert (kein freies Feld gefunden)."
     },
     "categories": {
       "info": "Info",

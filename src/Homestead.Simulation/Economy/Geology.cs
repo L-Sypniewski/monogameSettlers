@@ -47,15 +47,17 @@ public sealed class Geology
 
     /// <summary>
     /// Turns the carriers among <paramref name="settlers"/> into geologists (or scouts, pioneers), one after another
-    /// while the carrier reserve allows: free ones at once, busy ones after their delivery. Returns how many
-    /// converted now and how many will follow; both are added to <paramref name="chosen"/>.
+    /// while the carrier reserve allows: free ones at once, busy ones after their delivery. Walled-in ones stay
+    /// carriers, like recruits that cannot reach their workplace. Returns how many converted now and how many will
+    /// follow; both are added to <paramref name="chosen"/>.
     /// </summary>
     public (int Now, int Later) Convert(IEnumerable<Settler> settlers, Profession profession = Profession.Geologist, ICollection<Settler>? chosen = null)
     {
         int now = 0, later = 0;
-        foreach (var settler in settlers.Where(s => s.IsCarrier && !s.IsDead).ToList())
+        foreach (var settler in settlers.Where(s => s.IsCarrier && !s.IsDead && CanLeave(s)).ToList())
         {
-            // Busy carriers keep their place in the reserve count: they convert only if it still allows then.
+            // Busy carriers keep their place in the reserve count: they convert only if it still allows
+            // then and they can still leave their field.
             if (!_world.Recruitment.MayConvert(settler.Player, reserved: _conversions.Keys.Count(p => p.Player == settler.Player)))
                 break;
             if (settler.IsAvailableCarrier)
@@ -97,6 +99,15 @@ public sealed class Geology
         settler.Profession = profession;
         settler.Trade = null;
         settler.Health = HealthOf(_world.Military.Config, profession);
+    }
+
+    /// <summary>A carrier that cannot leave its field (walled in by terrain) stays a carrier: as a specialist it could not go anywhere either.</summary>
+    private bool CanLeave(Settler settler)
+    {
+        for (int d = 0; d < DirectionExtensions.Count; d++)
+            if (_world.PathFinder!.AreConnected(settler.Position, settler.Position.Neighbor((Direction)d)))
+                return true;
+        return false;
     }
 
     /// <summary>Health of the professions soldiers can fight without them striking back.</summary>
@@ -212,9 +223,11 @@ public sealed class Geology
             }
             else if (!settler.HasTask && settler.Carrying is null)
             {
+                // Pending goes even without a conversion: a walled-in carrier stays a carrier (a new try once
+                // freed) — holding the flag would block task-taking forever.
                 _conversions.Remove(settler);
                 settler.ConversionPending = false;
-                if (_world.Recruitment.MayConvert(settler.Player))
+                if (_world.Recruitment.MayConvert(settler.Player) && CanLeave(settler))
                     Make(settler, profession);
             }
         }

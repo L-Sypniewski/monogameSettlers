@@ -1112,7 +1112,8 @@ public sealed partial class Military
     /// <summary>
     /// Combat strength of the player away from own land (neutral or enemy land): a start by the number of players
     /// (<see cref="CombatStrengthConfig.StartPercent"/>),
-    /// raised by the goods (gold; Egyptians: gems count double) lying on the player's own land, each
+    /// raised by the goods (gold; Egyptians: gems count double) of the piles the player may use
+    /// (<see cref="World.BelongsTo"/>: its buildings' piles, loose goods on its own land), each
     /// further percent dearer (<see cref="CombatStrengthConfig.Raise"/>), without limit (2 = twice the
     /// damage away from home, which pushes a rich player to attack), plus the flat
     /// <see cref="Hardcore.CombatStrengthBonus"/> of hardcore players. Recomputed at most once per tick.
@@ -1122,9 +1123,8 @@ public sealed partial class Military
         if (_strengths.TryGetValue(player, out var cached) && cached.Tick == _world.Tick)
             return cached.Strength;
         var goods = _config.CombatStrength.GoodsOf(_world.PeopleOf(player));
-        var map = _world.Map!;
         float units = _world.Piles
-            .Where(p => p.Count > 0 && p.Material is { } m && goods.ContainsKey(m) && map.OwnerAt(p.Position) == player)
+            .Where(p => p.Count > 0 && p.Material is { } m && goods.ContainsKey(m) && _world.BelongsTo(p, player))
             .Sum(p => p.Count * goods[p.Material!.Value]);
         float strength = _config.CombatStrength.Raise(_config.CombatStrength.Start(_world.PlayerCount), units);
         strength += HardcoreBonus(player);

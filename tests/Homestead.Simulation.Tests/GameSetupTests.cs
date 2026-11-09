@@ -1,3 +1,4 @@
+using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Homestead.Simulation.Magic;
@@ -27,6 +28,19 @@ public class GameSetupTests
     {
         for (int t = 0; t < seconds * World.TicksPerSecond; t++)
             world.Step();
+    }
+
+    [Fact]
+    public void Own_AI_character_draw_is_reproducible_from_the_seed()
+    {
+        var config = AiConfig.Load(civilization: Civilization.Roman);
+        Assert.Equal(
+            AiCharacter.Draw(config, GameSetup.RandomFor(42, GameSetup.Draw.OwnAiCharacter)).Id,
+            AiCharacter.Draw(config, GameSetup.RandomFor(42, GameSetup.Draw.OwnAiCharacter)).Id);
+        // The setup-side draws keep their values: their seeded sequences stay as they were.
+        Assert.Equal([0, 1, 2, 3], Enum.GetValues<GameSetup.Draw>().Take(4).Select(d => (int)d));
+        Assert.Equal(Setup(42).RandomFor(GameSetup.Draw.Peoples).Next(),
+            GameSetup.RandomFor(42, GameSetup.Draw.Peoples).Next());
     }
 
     [Fact]

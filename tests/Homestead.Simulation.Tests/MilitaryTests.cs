@@ -906,7 +906,7 @@ public class MilitaryTests(ITestOutputHelper output)
     public void Combat_strength_starts_at_a_share_per_player_away_from_own_land_and_rises_with_gold()
     {
         var map = new GameMap(60);
-        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2, Peoples = [Civilization.Roman, Civilization.Egyptian] };
+        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2, TerritoryRules = true, Peoples = [Civilization.Roman, Civilization.Egyptian] };
         for (int y = 0; y < 30; y++)
             for (int x = 0; x < 60; x++)
                 map.SetOwner(new GridPoint(x, y), y < 15 ? 0 : 1);
@@ -936,6 +936,92 @@ public class MilitaryTests(ITestOutputHelper output)
         }
         world.Step();
         Assert.Equal(1.171f, world.Military.CombatStrength(0), 4); // 808 bars: 100 % + 342 / 20
+    }
+
+    [Fact]
+    public void Combat_strength_ignores_foreign_gold_piles_on_own_land()
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools)
+            { PlayerCount = 2, TerritoryRules = true, Peoples = [Civilization.Roman, Civilization.Roman] };
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), y < 15 ? 0 : 1);
+        // Gold delivered into the FOREIGN player's storehouse on its own land (LogisticsTests pattern).
+        var foreign = world.PlaceBuilding(Romans["stock"], 1, new GridPoint(20, 20), force: true)!;
+        world.AddLooseGoods(new GridPoint(28, 28), Material.Gold, 8);
+        world.Spawn(new GridPoint(24, 24), Profession.Carrier, player: 1);
+        Run(world, 5000, stopWhen: () => foreign.Piles.Any(p => p.Material == Material.Gold && p.Count == 8));
+        Assert.Equal(8, foreign.Piles.Where(p => p.Material == Material.Gold).Sum(p => p.Count));
+
+        // Territory flips: the foreign storehouse now stands on player 0's land.
+        for (int y = 15; y < 30; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), 0);
+        world.Step();
+        Assert.Equal(0.5f, world.Military.CombatStrength(0)); // foreign gold does not count
+
+        world.AddLooseGoods(new GridPoint(20, 5), Material.Gold, 8); // own loose gold on own land
+        world.Step();
+        Assert.Equal(0.5308f, world.Military.CombatStrength(0), 4); // own pile rises per band math
+    }
+
+    [Fact]
+    public void Combat_strength_counts_gold_in_own_buildings()
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools)
+            { PlayerCount = 2, TerritoryRules = true, Peoples = [Civilization.Roman, Civilization.Roman] };
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), y < 15 ? 0 : 1);
+        // Gold delivered into the player's OWN storehouse (LogisticsTests pattern; a storehouse, since
+        // producers only ever hold request piles, not finished bars).
+        var stock = world.PlaceBuilding(Romans["stock"], 0, new GridPoint(20, 6), force: true)!;
+        world.AddLooseGoods(new GridPoint(28, 14), Material.Gold, 8);
+        world.Spawn(new GridPoint(24, 10), Profession.Carrier);
+        Run(world, 5000, stopWhen: () => stock.Piles.Any(p => p.Material == Material.Gold && p.Count == 8));
+        Assert.Equal(8, stock.Piles.Where(p => p.Material == Material.Gold).Sum(p => p.Count));
+
+        world.Step();
+        Assert.Equal(0.5308f, world.Military.CombatStrength(0), 4); // 8 bars in the building: 2.6 bars per point from 50 %
+    }
+
+    [Fact]
+    public void Gold_ore_does_not_raise_the_combat_strength()
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools)
+            { PlayerCount = 2, TerritoryRules = true, Peoples = [Civilization.Roman, Civilization.Roman] };
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), y < 15 ? 0 : 1);
+
+        // Like in the original, ore counts for nothing – only smelted bars do.
+        world.AddLooseGoods(new GridPoint(20, 5), Material.GoldOre, 8);
+        world.Step();
+        Assert.Equal(0.5f, world.Military.CombatStrength(0));
+    }
+
+    [Theory]
+    [InlineData(Civilization.Roman)]
+    [InlineData(Civilization.Asian)]
+    [InlineData(Civilization.Amazon)]
+    public void Gems_do_not_raise_the_combat_strength_of_any_people_but_the_Egyptians(Civilization people)
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2, TerritoryRules = true, Peoples = [people, people] };
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), y < 15 ? 0 : 1);
+
+        Assert.Equal(0.5f, world.Military.CombatStrength(0));
+        // Like in the original, gems motivate only Egyptian soldiers: only the Egyptian override in
+        // data/military.json (civilizations.Egyptian) counts them, every other people falls back to
+        // Goods (gold only) via MilitaryConfig.GoodsOf.
+        world.AddLooseGoods(new GridPoint(20, 5), Material.Gems, 8);
+        world.Step();
+        Assert.Equal(0.5f, world.Military.CombatStrength(0));
     }
 
     [Fact]

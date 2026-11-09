@@ -3,7 +3,8 @@
 Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](ki.md).
 
 **Determinismus** (Lockstep-Mehrspieler: jeder Rechner simuliert gleich): Zufall nur `new Random(… + World.Seed)`, keine Uhr, keine Threads,
-kein `GetHashCode` in der Logik; Winkelfunktionen nur über `DeterministicMath` (Sin/Cos/Atan2 aus Grundrechenarten – `Math.Sin` & Co. kommen aus
+kein `GetHashCode` in der Logik; auch das Client-Spiel zieht den eigenen KI-Charakter aus `World.Seed` (`GameSetup.RandomFor`, `Draw.OwnAiCharacter`)
+– gleicher Seed + gleiche Daten + gleicher Build = gleiche Partie, einschließlich der clientseitigen Ziehung; Winkelfunktionen nur über `DeterministicMath` (Sin/Cos/Atan2 aus Grundrechenarten – `Math.Sin` & Co. kommen aus
 der C-Bibliothek der Plattform), Grundrechenarten und `Math.Sqrt` sind nach IEEE überall gleich. `WorldChecksum.Of` (FNV-1a auf 64-Bit-Wörtern, je Teil `Parts`, über Tick, Siedler,
 Gebäude, Stapel, Karte, Mana) für Desync-Erkennung; `DeterminismTests` (KI-Spiel auf `random:4:mirror:11`, 25 min, Prüfsumme je Minute) läuft im Build
 auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
@@ -21,7 +22,7 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
   `LegNodes` (4) Zellen voraus; `Settler.PathIsLeg` → am Etappenende plant `World` die nächste. Nahe am Ziel exakt.
   Unerreichbares Befehlsziel (Meer, andere Insel): nächster erreichbarer Punkt (`PathFinder.NearestReachable`, Ring für Ring;
   `World.CommandTarget` für Soldaten, Geologen/Späher/Pioniere, Priester).
-- `World`/`Settler`: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf (Kommentar in `World`).
+- `World`/`Settler`: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf (Kommentar in `World`): Wegfreiung bei Blockierung (`MoveOffBlocked`) sucht schrittweise bis Radius 48 (12/24/48, Stufen auf die Kartengröße begrenzt); bleibt ohne Erfolg, Ereignis `settlerWalledIn`.
   `Settler.StepProgress` in `World.StepUnits`; Tempo je Zielfeld: Gebirge ×0,8, Trampelpfad ×1,2 (`walking` in `production.json`);
   dazu Soldaten je Typ `speed` in `military.json` (Schwertkämpfer ×1,1, Pikeniere ×1,05, Bogenschützen ×1); `armor` (Pikeniere 0,5):
   so viel weniger Schaden je Treffer, abgerundet, mindestens 1 (`SoldierStats.Taken`; KI rechnet mit `Toughness`).
@@ -91,7 +92,8 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
     Untätige (Träger, Soldaten, Planierer, Bauarbeiter, Geologen, Späher, Pioniere, Arbeitslose) gehen aus dem Weg
     (nach `IdleTicks`; Soldaten sofort, jeden Tick, mit einem Feld Abstand).
   - `Geology`: Geologen laufen wie Soldaten (verteilt auf freie Felder); auf Gebirge suchen sie im Umkreis `geologists.searchRadius`
-    (nächstes freies Feld, Gleichstand zufällig), setzen Schilder mit Rohstoff und Menge.
+    (nächstes freies Feld, Gleichstand zufällig), setzen Schilder mit Rohstoff und Menge. Umgewandelt werden nur Träger, die ihr
+    Feld verlassen können (eingemauerte bleiben Träger).
   - Späher (`Profession.Scout`, Grafik `THIEF`): umgewandelt/geschickt wie Geologen (`Geology.Convert(…, Profession.Scout)`), suchen nie.
     Für andere Spieler ein eigener Träger (`Settler.IsRevealedTo`), nicht angegriffen, bis ein feindlicher Soldat draußen auf
     `scouts.revealRadius` (10) herankommt (`Military.RevealScouts`, jeden Tick); erkannt bleibt er, solange der Spieler ihn sieht
@@ -166,7 +168,7 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
     Punkte, ein weiterer ersetzt den letzten (`Fighter.Waypoints`, `Dismiss` macht den nächsten zum Laufbefehl); ohne Befehl (oder haltend/patrouillierend) wie `Move`.
     Patrouille (`Patrol`, Alt+Rechtsklick): zum Punkt und zurück zum Standort, hin und her bis zum nächsten Befehl (`Fighter.PatrolBack`); kämpft
     unterwegs wie beim Laufbefehl, eigenständige Angriffe enden mit der Patrouille weiter (`EndAttack` behält `MoveTo`).
-  - Kampfkraft (`CombatStrength`): eigenes Land 100 %, sonst Startwert je Spielerzahl (`startPercent`, im Original gemessen: 1 → 54 % (wie dort, obwohl sinnlos), 2 → 50 %, 4 → 37 %, 8 → 25 %, 16 → 14 %); plus Gold im eigenen Land (nach Landbesitz; Ägypter: Gold
+  - Kampfkraft (`CombatStrength`): eigenes Land 100 %, sonst Startwert je Spielerzahl (`startPercent`, im Original gemessen: 1 → 54 % (wie dort, obwohl sinnlos), 2 → 50 %, 4 → 37 %, 8 → 25 %, 16 → 14 %); plus Gold nach `BelongsTo` (Gebäudestapel nach Besitzer, lose Stapel auf eigenem Land; Ägypter: Gold
     halb, Edelsteine doppelt), jeder weitere Prozentpunkt kostet nach erreichter Kampfkraft (Bänder `stepPercent` ab 0 %, `unitsPerPercent`, im Original gemessen: bis 50 % 1,2 Barren, ab 90 % 20; niedriger Start steigt schneller), ohne Obergrenze (200 % = doppelter Schaden außerhalb; zwingt Reiche zum Angriff). KI kennt alle Werte und bewertet den Kampfort.
   - Werte: `data/military.json`; Gebietsradien aus Originalkarten gemessen.
   - `WarMachines` (`warMachines` in `military.json`): je Volk eine Maschine (Katapult, Balliste, Kanone, Gong) aus seiner Werkstatt:

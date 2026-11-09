@@ -1,6 +1,7 @@
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Homestead.Simulation.Map;
+using Homestead.Simulation.Pathfinding;
 
 namespace Homestead.Simulation.Tests;
 
@@ -121,6 +122,63 @@ public class ToolTests
         Assert.Equal(5, world.Settlers.Count(s => s.Profession == Profession.Geologist));
         Assert.Equal(4, chosen.Count); // those converted, for the selection
         Assert.All(chosen, s => Assert.Equal(Profession.Geologist, s.Profession));
+    }
+
+    [Fact]
+    public void A_walled_in_carrier_is_not_converted_but_a_reachable_one_is()
+    {
+        // Water disk around one carrier: the nearest field it could enter is 20 away.
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools);
+        var walled = world.Spawn(new GridPoint(30, 30), Profession.Carrier)!;
+        var reachable = world.Spawn(new GridPoint(5, 5), Profession.Carrier)!;
+        for (int dy = -19; dy <= 19; dy++)
+            for (int dx = -19; dx <= 19; dx++)
+            {
+                var p = new GridPoint(30 + dx, 30 + dy);
+                if (PathFinder.Distance(new GridPoint(30, 30), p) is > 0 and <= 19)
+                    map.SetTerrain(p, TerrainType.Water);
+            }
+
+        Assert.Equal((0, 0), world.Geology.Convert([walled]));
+        Assert.Equal(Profession.Carrier, walled.Profession);
+        Assert.Equal((1, 0), world.Geology.Convert([reachable]));
+        Assert.Equal(Profession.Geologist, reachable.Profession);
+    }
+
+    [Fact]
+    public void A_deferred_conversion_of_a_walled_in_carrier_stays_a_carrier()
+    {
+        // Two one-carrier economies: each hauls a plank to its construction site (the only busy route).
+        var map = new GameMap(70);
+        var world = new World(map, TestConfig.NoTools);
+        world.PlaceConstructionSite(Romans["sawmill"], 0, new GridPoint(40, 40));
+        world.AddLooseGoods(new GridPoint(48, 48), Material.Plank, 1);
+        world.PlaceConstructionSite(Romans["sawmill"], 0, new GridPoint(10, 10));
+        world.AddLooseGoods(new GridPoint(18, 18), Material.Plank, 1);
+        var walled = world.Spawn(new GridPoint(47, 47), Profession.Carrier)!;
+        var control = world.Spawn(new GridPoint(17, 17), Profession.Carrier)!;
+
+        Run(world, 500, stopWhen: () => world.Logistics.JobOf(walled) is not null && world.Logistics.JobOf(control) is not null);
+        Assert.NotNull(world.Logistics.JobOf(walled)); // busy: Convert defers instead of converting now
+        Assert.NotNull(world.Logistics.JobOf(control));
+
+        Assert.Equal((0, 1), world.Geology.Convert([walled])); // promised while still mobile
+        Assert.Equal((0, 1), world.Geology.Convert([control]));
+
+        // Water disk around the busy one's current position: its site and source pile drown with it,
+        // so the delivery aborts (unreachable or stalled) and the carrier ends up free but walled in.
+        for (int dy = -19; dy <= 19; dy++)
+            for (int dx = -19; dx <= 19; dx++)
+            {
+                var p = new GridPoint(walled.Position.X + dx, walled.Position.Y + dy);
+                if (PathFinder.Distance(walled.Position, p) is > 0 and <= 19 && map.Contains(p))
+                    map.SetTerrain(p, TerrainType.Water);
+            }
+
+        Run(world, 10_000);
+        Assert.Equal(Profession.Carrier, walled.Profession); // cannot leave its field at conversion time
+        Assert.Equal(Profession.Geologist, control.Profession); // the reachable deferred one still converts
     }
 
     [Fact]
