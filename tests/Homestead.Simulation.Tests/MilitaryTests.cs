@@ -1003,6 +1003,27 @@ public class MilitaryTests(ITestOutputHelper output)
         Assert.Equal(0.5f, world.Military.CombatStrength(0));
     }
 
+    [Theory]
+    [InlineData(Civilization.Roman)]
+    [InlineData(Civilization.Asian)]
+    [InlineData(Civilization.Amazon)]
+    public void Gems_do_not_raise_the_combat_strength_of_any_people_but_the_Egyptians(Civilization people)
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools) { PlayerCount = 2, TerritoryRules = true, Peoples = [people, people] };
+        for (int y = 0; y < 30; y++)
+            for (int x = 0; x < 60; x++)
+                map.SetOwner(new GridPoint(x, y), y < 15 ? 0 : 1);
+
+        Assert.Equal(0.5f, world.Military.CombatStrength(0));
+        // Like in the original, gems motivate only Egyptian soldiers: only the Egyptian override in
+        // data/military.json (civilizations.Egyptian) counts them, every other people falls back to
+        // Goods (gold only) via MilitaryConfig.GoodsOf.
+        world.AddLooseGoods(new GridPoint(20, 5), Material.Gems, 8);
+        world.Step();
+        Assert.Equal(0.5f, world.Military.CombatStrength(0));
+    }
+
     [Fact]
     public void Each_further_percent_of_combat_strength_costs_more()
     {
