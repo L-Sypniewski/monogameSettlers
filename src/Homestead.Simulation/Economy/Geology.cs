@@ -56,7 +56,8 @@ public sealed class Geology
         int now = 0, later = 0;
         foreach (var settler in settlers.Where(s => s.IsCarrier && !s.IsDead && CanLeave(s)).ToList())
         {
-            // Busy carriers keep their place in the reserve count: they convert only if it still allows then.
+            // Busy carriers keep their place in the reserve count: they convert only if it still allows
+            // then and they can still leave their field.
             if (!_world.Recruitment.MayConvert(settler.Player, reserved: _conversions.Keys.Count(p => p.Player == settler.Player)))
                 break;
             if (settler.IsAvailableCarrier)
@@ -222,9 +223,11 @@ public sealed class Geology
             }
             else if (!settler.HasTask && settler.Carrying is null)
             {
+                // Pending goes even without a conversion: a walled-in carrier stays a carrier (a new try once
+                // freed) — holding the flag would block task-taking forever.
                 _conversions.Remove(settler);
                 settler.ConversionPending = false;
-                if (_world.Recruitment.MayConvert(settler.Player))
+                if (_world.Recruitment.MayConvert(settler.Player) && CanLeave(settler))
                     Make(settler, profession);
             }
         }
