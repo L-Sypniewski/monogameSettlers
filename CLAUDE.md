@@ -55,7 +55,7 @@ Vor Arbeit an einem System die passende Datei lesen und dort nachführen (wie bi
 
 ### Bilder in GitHub-Kommentaren (Agenten)
 - Evidenz-Bilder VOR dem Einbetten visuell prüfen (Vision-Leaf) — exakt die Datei, die eingebettet wird. Crops sind eigene Artefakte: leere oder versehentlich byte-identische Crops fallen Pixel-Heuristiken nicht auf.
-- Upload über `uploads.github.com/user-attachments/assets` mit `gh auth token`; Repos ohne Schreibrecht lehnen den Upload ab (404) → an das eigene öffentliche Repo (Fork) anhängen. Danach anonym (`curl -L`) 200 + `image/png` prüfen.
+- Bild-Upload nach `uploads.github.com/user-attachments/assets` braucht Schreibrecht auf das Ziel-Repo (sonst 404). KEIN Workaround über eigene Repos/URLs — Upstream-PRs und -Kommentare dürfen nirgends auf den Fork verweisen. Ohne Schreibrecht: Bilder dem Menschen zum Browser-Upload übergeben (der hängt sie ans richtige Repo). Erfolgreicher Upload: anonym (`curl -L`) auf 200 + `image/png` prüfen.
 - `gh api`: `-f key=@datei` sendet den Literalstring `@datei`, NICHT den Dateiinhalt — Inhalt nur mit `-F key=@datei` oder `--input` (JSON vorher mit `jq` bauen).
 - Nach jeder Kommentar-Mutation (POST/PATCH) den Body zurücklesen und inhaltlich prüfen; die Antwort-URL genügt nicht.
 - Capture-Variablen heißen `HOMESTEAD_CAPTURE_*` (`EVERY`, `SIZE`, … — siehe capture.md); vor Capture-Läufen die Tabelle dort nachlesen, nicht aus dem Gedächtnis.
