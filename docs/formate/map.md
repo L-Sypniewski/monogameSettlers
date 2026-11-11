@@ -1,6 +1,6 @@
 # Map format (`Map/**/*.map`)
 
-Status: all 198 maps of the GOG Ultimate Collection readable. Cross-checked with JSettlers
+Status: all 198 maps of the GOG Ultimate Collection readable. Cross-checked against JSettlers
 (`jsettlers.logic/.../map/loading/original`). All values little endian.
 
 ## Layout
@@ -64,7 +64,7 @@ Visually cross-checked against the original on 11 October 2026 – no deviation 
 | 1–8, 9–12, 13–20 | large stones, stones, boundary stones | 29 / code−1 | confirmed (8 boundary stones = images 12–19) |
 | 21–28 | small stones | 30 / code−21 | plausible |
 | 29–33, 34 | wrecks, grave | 28 / code−29 | confirmed |
-| 35–67 | plants, mushrooms, stumps, dead trees, cacti, bones, flowers, bushes, reeds | 27 / code−35 | confirmed (33 images, order fits) |
+| 35–67 | plants, mushrooms, stumps, dead trees, cacti, bones, flowers, bushes, reeds | 27 / code−35 | confirmed (33 images, order matches) |
 | 68–81 | trees (7 kinds × 2 variants) | 1 + (code−68)/2·3 + (code−68)%2, animated | confirmed (78/79 "Arecaceae" = palms 16/17) |
 | 84 | small tree | 22 / 0 | plausible |
 | 111–114 | reefs | 30 / code−103 | uncertain |

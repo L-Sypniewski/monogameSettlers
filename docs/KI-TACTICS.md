@@ -22,17 +22,17 @@ A uniform vocabulary – in conversations, docs, code and data:
 The AI remains a player with the same commands as a human. But new behaviour does not come
 hard-wired into `AiPlayer`; it comes as a **trait**: a self-contained building block with its own
 id, its own values and a clearly outlined place of use. A **character** is a list of
-traits with values. Every people gets one or more characters; one of them is chosen per game.
+traits with values. Every people gets one or more characters; one of them is chosen per match.
 
 ```
-People ──(one of them per game)──> Character ──> Traits (+ values)
+People ──(one of them per match)──> Character ──> Traits (+ values)
 ```
 
 ### What stays the foundation
 
-Not everything should be switchable off. Without the following basic behaviour an AI would be broken, not different:
+Not everything should be switchable. Without the following basic behaviour an AI would be broken, not different:
 
-- Economy by build order, housing, expansion to resources
+- Economy by build order, housing, expansion towards raw materials
 - Defence first (enemies in our own land are always fought)
 - No demolition of a military building whose land carries own buildings (since demolition leaves land
   unprotected, the AI would otherwise make itself vulnerable)
@@ -52,15 +52,15 @@ traits work together:
 |---|---|---|
 | **Garrison** (`GarrisonLimit`, implemented) | every military round, per own military building | traits limit the garrison; the lowest limit applies (at least 1) |
 | **Attack targets** | planning of a campaign | traits evaluate targets (points add up), the best target wins |
-| **Leading the troops** (`LeadCampaign`, implemented) | during a campaign | one leads the squad (e.g. pincer *or* ambush) |
-| **Leading the engagement** (`LeadStrike`, implemented) | start of a strike (guerrilla, defence), then every military round | one leads the strike (e.g. battle formation); without one they all go in at the same time |
+| **Troop command** (`LeadCampaign`, implemented) | during a campaign | one leads the squad (e.g. pincer *or* ambush) |
+| **Engagement command** (`LeadStrike`, implemented) | start of a strike (guerrilla, defence), then every military round | one leads the strike (e.g. battle formation); without one they all go in at the same time |
 | **Guarding** (`Guard`, implemented) | every military round, for the remaining idle soldiers | the first one to station them decides; without one they stay put |
 | **Tower spots** | expansion | traits evaluate build spots, points add up |
 | **Timing** (`AllowCampaign`, implemented) | every military round, before planning a campaign | every trait can hold back a new campaign |
 | **Spells** | priest at the battle | one decides spell and moment |
 | **Build order** (`ArrangeBuildOrder`, implemented) | once at the start | every trait rearranges the build order the previous one left |
 | **Errands** (`RunErrands`, implemented) | every military round, after guarding | every trait sends its own people out (e.g. scouts to steal) |
-| **Thresholds** | wherever a ratio decides | modifier on values like `attack.ratio` |
+| **Thresholds** | wherever a ratio decides | modifier on values such as `attack.ratio` |
 
 ### Distributing soldiers
 
@@ -71,7 +71,7 @@ Several traits want the same idle soldiers. Fixed order:
 3. traits by their priority in the character (named first = first)
 4. rest: guarding (if the character has it)
 
-A trait takes only what it needs and gives soldiers back when its plan ends.
+A trait takes only what it needs and returns soldiers when its plan ends.
 
 ### Data (`ai.json`)
 
@@ -97,7 +97,7 @@ id, and every general value too (after the people's). The weights
 
 - Base class `AiTrait` with overridable methods per decision point (`LeadCampaign`, `Guard`;
   more come with the traits that need them).
-- Every trait in its own file under `Ai/Traits/` (`<id>Trait`, e.g. `PincerTrait`).
+- Every trait in its own file under `Ai/Traits/` (`<Id>Trait`, e.g. `PincerTrait`).
 - `AiPlayer` asks the traits of its character at every decision point.
 - Client and Arena: `--characters ,general` fixes the character per player.
 - A trait's notes begin with its id; client and Arena show them immediately,
@@ -109,7 +109,7 @@ Status: all **open**. Effort roughly: S (small), M (medium), L (large).
 
 ### Guarding
 
-**`guardByThreat` – Guard by threat** · **implemented** (for `general`, not for `standard`)
+**`guardByThreat` – Guard by threat** · **implemented** (with `general`, not with `standard`)
 Idle soldiers guard our own military buildings, distributed by strength and proximity of enemy
 squads (`military.threatRange`); without a threat they gather at the home tower. Whoever stands within
 `military.guardDistance` of their post stays. Decision point "Guarding" (`Guard`).
@@ -128,21 +128,21 @@ Without a threat (no enemy soldiers within `military.threatRange` of own militar
 traits distribute the idle soldiers evenly over selected towers; with a threat the next trait
 takes over (`guardByThreat`), so they stand before it in the character:
 - `frontTowers` – Towers to the front (`skirmisher`): towers from which the nearest enemy
-  military building is reachable without a detour (path at most `detour` × straight line + 5) and no own
+  military building is reachable without a detour (path at most `detour` × straight-line distance + 5) and no own
   military building stands in between.
-- `everyOtherTower` – Every other tower (`general`, `legion`): from the front every second one – a tower
+- `everyOtherTower` – Every other tower (`general`, `legion`): every other one, counting from the front – a tower
   drops out if a neighbour (at most `neighborFactor` × distance to the nearest tower) is already chosen.
-  Larger groups that are quickly at the skipped neighbours.
-- `rotatingTowers` – Rotating towers (`unyielding`): randomly `share` (30%) of the towers, redrawn
+  Larger groups that quickly reach the skipped neighbours.
+- `rotatingTowers` – Rotating towers (`unyielding`): a random `share` (30%) of the towers, redrawn
   every `rotateSeconds` (60) (fixed seed of the world).
 The `hothead` keeps everything on one heap (no such trait).
 
-The AI weighs military commands anew every second (`military.thinkSeconds` 1): soldiers on a simple
+The AI re-weighs military commands every second (`military.thinkSeconds` 1): soldiers on a simple
 AI move order (to the post, home) count as idle, campaigns are abandoned on the way to the
 gathering point if the defence has become too strong. Guerrilla also hits enemy
 geologists (one soldier suffices). Enemy soldiers within `military.reinforceRadius` (30) count towards a guerrilla's target – lightly
 scattered ones come to help; without that, early guerrillas almost always failed. Tower bowmen are
-not opponents you defeat but a cost: guerrilla (not defence) is skipped where they make up more than
+not opponents to be defeated but a cost: guerrilla (not defence) is skipped where they make up more than
 `military.towerFireRatio` (0.5) × the strength of the enemies there (otherwise a single soldier next to a
 full castle cost three men for one); if the enemy slips under the towers during a guerrilla,
 the AI cancels. The check is from the centre of the chosen attackers, not from the nearest one
@@ -182,10 +182,10 @@ crowd at the door they would push each other aside and the healer would never co
 the range of all hospitals → one at the military building nearest them. They come back when they are healed,
 needed, or the enemy is almost defeated. The `hothead` never withdraws (`withdrawHealth` 0).
 
-### Leading the troops
+### Troop command
 
 **`formation` – Battle formation** · M · **implemented** (`legion`, `general`, `skirmisher`)
-Decision point "Leading the engagement" (`LeadStrike`, strikes = guerrilla and defence). If a strike
+Decision point "Engagement command" (`LeadStrike`, strikes = guerrilla and defence). If a strike
 has bowmen and melee fighters, the enemies are predominantly on foot (their bowmen at most
 `maxEnemyBowShare` of their strength) and still out of bow range, the bowmen go up front and shoot
 from range; the melee fighters hold `parkDistance` fields behind them, out of sight of the enemies. If an
@@ -202,13 +202,13 @@ after from the other side. The campaign gets two gathering points for it.
 Implementation: `Ai/Traits/PincerTrait.cs`. The feint (`feintShare`) gathers at our own building nearest
 the target, the main group walks via a waypoint in an arc to a staging point
 (`flankAngle`, `flankDistance`, out of range of the target's bowmen); both ready → the feint
-attacks, `strikeSeconds` later the main group. It takes `extraShare` extra soldiers along, gives
-up only below `retreatRatio`. The General attacks from 1.2:1 and lets guerrilla be far from our
+attacks, the main group `strikeSeconds` later. It takes `extraShare` extra soldiers along, gives
+up only below `retreatRatio`. The General already attacks at 1.2:1 and lets guerrilla be far from our
 own land (`strikeRange` 40), so soldiers remain for campaigns.
 Observed (Salomons, 3 players): several pincers from about minute 37; the opponent often pulls
 soldiers together, then the General cancels – intended behaviour.
 
-**`flanking` – Ambush** · L
+**`flanking` – Ambush by outflanking** · L
 A small squad walks in a wide arc around the enemy camp, outside the sight of enemy
 soldiers and the range of bowmen in towers, and attacks from behind. The targets are weakly
 garrisoned buildings in the hinterland. If one is captured, it takes land, and the enemy
@@ -230,11 +230,11 @@ fields win, then the nearest to the priest. Only as long as none of the player's
 
 ### Exploiting weaknesses
 
-**`exposedTowers` – Exposed towers** · M
+**`exposedTowers` – Counter exposed towers** · M
 If the opponent pulls soldiers out of his towers for an attack (down to one), exactly
 these towers are attacked immediately. Evaluates targets by garrison now, not by the normal garrison.
 
-**`landGrab` – Land grab** · M
+**`landGrab` – Land grab without a fight** · M
 Prefer tower spots whose territory covers unprotected enemy land (e.g. after a
 demolition). As soon as the tower is garrisoned, the enemy buildings on it fall.
 
@@ -260,23 +260,23 @@ a scout stands on its land, and sends a soldier who recognizes him up close.
 
 See [Gold as a lever](#gold-as-a-lever). Three traits, each at its own decision point.
 
-**`goldRace` – Gold rush** · M
+**`goldRace` – Secure gold early** · M
 Gold mountains (Egyptians: gems) count as an expansion target from the start, not only after the
-build order (`lateOres`). Gold mine and smelter move up in the build order as soon as food
+build order (`lateOres`). Gold mine and gold smelter move up in the build order as soon as food
 and tools are running. Values: from which step of the build order, weight of contested gold mountains.
 Decision points: tower spots, building.
 
-**`goldGuard` – Gold guard** · M
-Land on which our own gold lies (storehouse, output pile of the smelter) counts as front – in
+**`goldGuard` – Protect gold** · M
+Land on which our own gold lies (storehouse, output pile of the smelter) counts as front – even in
 the hinterland too: military buildings there fully garrisoned, with bowmen, guards by the amount of gold
-instead of only by threat. A new storehouse only on land that several own towers cover. Optionally distribute
+instead of only by threat. A new storehouse only on land covered by several own towers. Optionally distribute
 gold over several storehouses so that one hit does not cost everything (trade-off: more places to defend).
 Decision points: garrison, guarding, storehouse build spot.
 Recommended on Hard in every character – without it a single capture can finish the AI.
 
-**`goldRaid` – Gold raid** · M
+**`goldRaid` – Capture gold** · M
 Attack targets whose land carries enemy gold get the highest rating: the capture takes combat
-strength from the opponent and gives it to the attacker. Worth it at a tighter superiority too
+strength from the opponent and gives it to the attacker. Worthwhile even with a narrower superiority
 (own value for `attack.ratio`), because the gain shifts the forces immediately.
 Decision point: attack targets.
 
@@ -295,26 +295,26 @@ may come without its own mine if its ore lies on own land (applies to all).
 With the starting soldiers, attack a nearby enemy tower early, before the opponent has barracks
 and weapons. Normal economy afterwards.
 
-**`powerSpike` – Power spike** · S
+**`powerSpike` – Attack after an upgrade** · S
 Hold back attacks until an upgrade is finished or enough gold for high combat strength is stored,
-then strike in a bundle. Collect gold for it deliberately.
+then strike in a concentrated blow. Collect gold specifically for this.
 
-**`waves` – Attack waves** · S · **implemented** (character `legion`)
+**`waves` – Phases of tension** · S · **implemented** (character `legion`)
 An alternation of calm build-up phases and attack waves instead of steady pressure. Values: `calmSeconds`,
 `waveSeconds`, `jitter` (spread). Defence and guerrilla keep running in the calm phase.
 
-**`multiFront` – Several fronts** · M
+**`multiFront` – Pressure at several points** · M
 Two or three squads threaten different border sections at the same time. The defender must
 split up; the attack goes where he stands thinnest.
 
-**`jitter` – Unpredictable** · S
+**`jitter` – Spread thresholds** · S
 Fixed ratios (`attack.ratio`, `strikeRatio` …) are rolled within a span at every decision
 (e.g. 1.3–1.8 instead of 1.5). The behaviour becomes harder to predict.
 
 ### Rejected
 
-**Focus fire** (several soldiers onto the same target, the wounded and bowmen first): the player
-cannot have individual units attack in a targeted way. The AI should not get a control that
+**Focus fire** (several soldiers on the same target, wounded and bowmen first): the player
+cannot order individual units to attack a specific target. The AI should not get a control that
 the human lacks.
 
 ## Knobs without a trait
@@ -324,10 +324,10 @@ Many differences need no trait of their own, just different values in the charac
 | Value | Effect |
 |---|---|
 | `attack.ratio` | superiority at the target from which a campaign starts |
-| `attack.armyRatio` | superiority of the whole army (default: `ratio`; 0 = any → small campaigns against weak towers) |
+| `attack.armyRatio` | superiority of the whole army (default: `ratio`; 0 = irrelevant → small campaigns against weak towers) |
 | `attack.commit` | share of the remaining free soldiers that comes along in addition (1 = full strength) |
 | `attack.abortRatio` | after gathering: cancellation below this ratio (default: `ratio`; 0 = never) |
-| `attack.maxDistance` | target at most this far from our own land (0 = any; a border tower stands a good 30 fields behind its land border) |
+| `attack.maxDistance` | target at most this far from our own land (0 = irrelevant; a border tower stands a good 30 fields behind its land border) |
 | `attack.minSoldiers`, `attack.defenseRadius` | smallest squad; how far enemies around the target count for the defence |
 | `military.strikeRange`, `military.strikeRatio` | guerrilla: how far out, from which superiority |
 | `military.retreatRatio` | retreat below it (0 = never) |
@@ -345,16 +345,16 @@ people via `characterWeights` (under `civilizations`).
 
 | People | Character | Idea | Implementation |
 |---|---|---|---|
-| Egyptians | Hothead (`hothead`) | temperamental, always attacks with full strength | earlyArmy, frontGarrison, thief; `ratio` 1.2, `commit` 1, guerrilla at 1.2:1 up to 120 fields (with earlyArmy 0.56 instead of 0.52 against Standard, decides more games) |
-| Asians | Unyielding (`unyielding`) | never gives up, never retreats | guardByThreat; `abortRatio` 0.5, `retreatRatio` 0.5 (at 0 it ran itself dead: 0.35 points against Standard, with 0.5: 0.50), `ratio` 1.4 |
-| Romans | Legion (`legion`) | economically strong, attacks in bundled waves | waves, pincer, guardByThreat, summoner; `minSoldiers` 8, `commit` 0.6; gold 10 places earlier; 5 construction sites |
-| Amazons | Skirmisher (`skirmisher`) | plays it safe, weakens the opponent with small guerrillas and theft at the border | guardByThreat, thief; campaign only from 2:1, but without army comparison from 2 soldiers and only up to 50 fields from our own land (`maxDistance`; measured from the nearest tower she never attacked, because two towers on a shared border already stand a good 60 fields apart; without it she attacked a tower right across the map in minute 1 and lost everything afterwards); guerrilla up to 150 fields at 2:1 (at 1.3:1 with retreat below 1.2 the small squads turned around at the first sign of danger), retreat below 1:1 |
+| Egyptians | Hothead (`hothead`) | temperamental, always attacks with full strength | earlyArmy, frontGarrison, thief; `ratio` 1.2, `commit` 1, guerrilla at 1.2:1 up to 120 fields (with earlyArmy 0.56 instead of 0.52 against Standard, decides more matches) |
+| Asians | Unyielding (`unyielding`) | never gives up, never retreats | guardByThreat; `abortRatio` 0.5, `retreatRatio` 0.5 (at 0 it ran itself to death: 0.35 points against Standard, with 0.5: 0.50), `ratio` 1.4 |
+| Romans | Legion (`legion`) | economically strong, attacks in concentrated waves | waves, pincer, guardByThreat, summoner; `minSoldiers` 8, `commit` 0.6; gold 10 places earlier; 5 construction sites |
+| Amazons | Skirmisher (`skirmisher`) | plays it safe, weakens the opponent with small guerrillas and theft at the border | guardByThreat, thief; campaign only from 2:1, but without army comparison from 2 soldiers and only up to 50 fields from our own land (`maxDistance`; measured from the nearest tower it never attacked, because two towers on a shared border already stand a good 60 fields apart; without it, it attacked a tower right across the map in minute 1 and then lost everything); guerrilla up to 150 fields at 2:1 (at 1.3:1 with retreat below 1.2 the small squads turned around at the first sign of danger), retreat below 1:1 |
 
-Guideline: play style, variety and fun before exact balance. Every people should play recognizably
+Guideline: play style, variety and fun before exact balance. Every people should play recognisably
 differently as an opponent, with strengths and exploitable weaknesses. Observed (Arena, Amazons against
-Egyptians, 10 games): the Hothead overruns on small maps in 20–30 minutes; if the rush fizzles out,
-he bleeds to death (in the end 3–33 against 100–220 soldiers). So against Egyptians it means
-surviving early, against Amazons attacking early or settling in for a hard late game.
+Egyptians, 10 matches): the Hothead overruns small maps in 20–30 minutes; if the rush fizzles out,
+it bleeds to death (in the end 3–33 against 100–220 soldiers). Against Egyptians, then, the task is to
+survive early; against Amazons, attack early or prepare for a hard late game.
 
 ## Characters (draft)
 
@@ -372,7 +372,7 @@ surviving early, against Amazons attacking early or settling in for a hard late 
 Two independent axes:
 
 - **Character** = *how* the AI plays (style, traits).
-- **Difficulty** = *how well* it does it (perception, reaction, decision quality).
+- **Difficulty** = *how well* it does so (perception, reaction, decision quality).
 
 A Rusher can be easy or hard. What is built is the best AI (Hard); easier levels
 get targeted deductions.
@@ -382,9 +382,9 @@ get targeted deductions.
 | Knob | Easy | Medium | Hard |
 |---|---|---|---|
 | Perception | own land, scouts, geologists | what it sees, plus the location of mountains and stones | everything |
-| Scouts/geologists | yes, for finding resources | yes, for finding opponents | no |
+| Scouts/geologists | yes, to find raw materials | yes, for finding opponents | no |
 | Reaction | only to attacks in our own land | to discovered enemies nearby | to all enemies nearby, anticipating |
-| Stationing soldiers | somewhere in the land | at border towers towards the enemy land | at border towers towards enemy squads |
+| Stationing soldiers | somewhere in the land | at border towers towards the enemy land | at border towers towards enemy troops |
 | Guerrilla | no | yes | yes |
 | Traits | few, simple ones | the ones for combat | all of the character's |
 | Thresholds | rather hesitant or reckless | Standard | precisely calculated |
@@ -396,7 +396,7 @@ sight range) instead of only being switched on or off.
 ### Hard must win, not just hold
 
 An impenetrable defence makes the AI hard to *beat*, but not hard to *play*:
-the human only has to bunker down too, and the game ends in a stalemate. Hard therefore also
+the human only has to bunker down too, and the match ends in stalemate. Hard therefore also
 needs a path to victory:
 
 - **Outplay the economy:** distribute better, gold earlier, secure resources faster. Against an
@@ -421,19 +421,19 @@ Gold exists in the game precisely to break the defender's advantage and force in
   can only hold.
 - **Gold belongs to the land:** what counts are the piles on a player's land, no matter who put
   them down. If a player captures the land around an enemy storehouse, the gold there belongs to him
-  (intended). The opponent loses combat strength, the winner gains it – the game can be
+  (intended). The opponent loses combat strength, the winner gains it – the match can be
   decided by it immediately.
 - **Consequences for the AI:**
   - Gold is a strategic target from the start (`goldRace`), not an afterthought at the end of the build order.
   - Our own gold is the most valuable possession and is protected like the front (`goldGuard`).
   - Enemy gold is the best attack target (`goldRaid`).
 - **Risk:** the snowball effect is strongest here. The intent is that a successful strike on the
-  gold turns the game; bad would be if it happened without a real chance to counter. Therefore
+  gold turns the match; it would be bad if that happened without a real chance to counter. Therefore
   gold must lie visibly and defensibly – the same for human and AI.
 
 ## Dynamics and stalemate
 
-### Why games end in a stalemate today
+### Why matches end in stalemate today
 
 - **Defender's advantage:** in our own land 100% combat strength, in enemy land 100% / player count. With
   two players an attacker needs roughly double the army; the AI attacks only from 1.5:1.
@@ -441,35 +441,35 @@ Gold exists in the game precisely to break the defender's advantage and force in
   is seen before attacking.
 - **The same calculation on both sides:** two identical AIs hold each other back.
 - **Hardly any weaknesses:** the AI rarely stalls (smelter only with its own mine, material for
-  the stonecutter held back …). In the original exactly such hang-ups decided the games.
+  the stonecutter held back …). In the original exactly such hang-ups decided the matches.
 
-### What can turn a game (intended)
+### What can turn a match (intended)
 
 - **Gold race:** gold raises combat strength in enemy land – the built-in way out of the stalemate.
   Whoever comes close to 100% first can attack; above it they must. Gold mountains become a contested target.
-- **Resources run out** (`depletion`): whoever does not get to new resources loses slowly. If they
+- **Raw materials run out** (`depletion`): whoever does not get to new raw materials loses slowly. If they
   lie between the players, fighting becomes necessary.
 - **Capture with consequences:** if a tower falls, the buildings on its land fall. A hit on
   a mine, smelter or weaponsmith cripples a whole chain.
-- **Magic:** turns force ratios without a double army.
-- **Different characters:** a Rusher against a Merchant goes into risk; one
-  wins early or loses himself.
+- **Magic:** turns the balance of power without a double army.
+- **Different characters:** a Rusher against a Merchant takes a risk; one of them
+  wins early or burns out.
 - **Intended weaknesses per character:** the Land taker is thinly garrisoned everywhere, the Rusher
-  neglects the economy. Something to exploit – recognizable rather than random.
+  neglects the economy. Something to exploit – recognisable rather than random.
 
-### What can spoil a game
+### What can spoil a match
 
-- **Too fast a snowball effect:** an early capture tips over half the economy; the game is
+- **Too fast a snowball effect:** an early capture tips over half the economy; the match is
   decided in minute 15 but lasts another hour.
 - **Bunkering:** if defending becomes even cheaper, both build only towers and nothing happens.
-- **Omniscience feels unfair:** a human ambush never succeeds. Remedy via the
+- **Omniscience feels unfair:** a human's ambush never succeeds. Remedy via the
   perception of the difficulty levels.
 - **Random hang-ups:** if the AI stalls because of a bug, luck decides instead of play.
 - **The map decides:** if gold is the only lever, whoever happens to have the gold mountain wins.
 
 ### First steps
 
-1. **Measure:** Arena, 5–10 games of AI against AI at 60 minutes each; log combat strength, gold, captures and
+1. **Measure:** Arena, 5–10 matches of AI against AI at 60 minutes each; log combat strength, gold, captures and
    losses. How often does it end in a stalemate?
 2. **Gold earlier and deliberately:** aim for gold mountains (`goldRace`), protect gold (`goldGuard`),
    hoard gold for combat strength and then strike (`powerSpike`, `goldRaid`).

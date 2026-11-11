@@ -1,6 +1,6 @@
 # SND format (`SND/Siedler3_00.dat`) and music
 
-Status: verified against the GOG Ultimate Collection, cross-checked with JSettlers (`jsettlers.graphics/.../sound/SoundManager`).
+Status: verified against the GOG Ultimate Collection, cross-checked against JSettlers (`jsettlers.graphics/.../sound/SoundManager`).
 All values little endian. Parser: `src/Homestead.Assets/Sound/SoundFile.cs`.
 
 ## Files
@@ -21,7 +21,7 @@ The table ends where the first variant list begins: (first offset − 0x24) / 4 
 (JSettlers reads 118).
 
 ## Variant list
-`int32 count`, then per variant the `int32 Offset` of the recording. The game picks one at random.
+`int32 count`, then per variant the `int32 offset` of the recording. The game picks one at random.
 
 ## Recording
 | Offset | Content |
@@ -34,7 +34,7 @@ The table ends where the first variant list begins: (first offset − 0x24) / 4 
 | 20 | Samples, signed 16 bit; (length − 20) / 2 of them (odd lengths: last byte left over) |
 
 ## Usage
-Bold: used in-game (`data/sound.json`). "By ear": recognized in the original by the project owner, otherwise from JSettlers.
+Bold: used in-game (`data/sound.json`). "By ear": recognised in the original by the project owner, otherwise from JSettlers.
 
 | No. | Sound | No. | Sound |
 |-----|----------|-----|----------|
@@ -53,7 +53,7 @@ Bold: used in-game (`data/sound.json`). "By ear": recognized in the original by 
 | **22** | **work area moved** (by ear) | **69/70** | **birds** (ambience) |
 | **24** | geologist; **variants 1–3: large deposit** (by ear) | **71** | **river** (ambience) |
 | **25** | **variant 1: pioneer sets a border post** (by ear; JSettlers: bowman) | **72** | **swamp** (bursting bubble) |
-| **51** | **click on the demolition icon** ("crack", by ear) | | |
+| **51** | **click on the demolish icon** ("crack", by ear) | | |
 | **30** | **swordsman** (strike) | **73/74** | **wind** (ambience, mountains) |
 | 31 | ? | **75** | **casting** (by ear; JSettlers: thunder) |
 | **32** | **Egyptian bow shot** (by ear) | 76 | rain |

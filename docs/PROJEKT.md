@@ -9,10 +9,10 @@ several times over (original, Collector's Edition, GOG, among others).
 - **Engine:** MonoGame (C#, .NET 9)
 - **Single player only**, no multiplayer
 - **Open source** (MIT, [LICENSE.md](../LICENSE.md)), a non-commercial fan project; rules for contributors: [CONTRIBUTING.md](../CONTRIBUTING.md)
-- **Main goals over the original:**
+- **Main goals compared to the original:**
   1. Strong AI
-  2. No carriers getting stuck (especially with AI opponents)
-  3. Mountains that do not run empty as quickly
+  2. No stuck carriers (especially with the AI opponent)
+  3. Mountains that do not run out so quickly
 
 ## Legal guardrails (binding)
 - **No original assets in the repo, in the build or in downloads.** The engine reads GFX/SND at runtime from
@@ -37,15 +37,15 @@ several times over (original, Collector's Edition, GOG, among others).
 - **Carrier logistics:** carriers replan their route when it is blocked. A watchdog detects carriers
   that have not moved for too long and resolves the case (replan, put down the good or similar).
   Applies to all players – stable logistics is also a prerequisite for a strong AI.
-- **Resources in the mountains:** the stock per field is a setting (higher than in the original),
+- **Raw materials in the mountains:** the deposit per field is a setting (higher than in the original),
   optionally with slow regeneration.
-- **AI:** plans goods chains and reacts to bottlenecks instead of replaying fixed build sequences.
+- **AI:** plans goods chains and reacts to bottlenecks instead of reeling off fixed build sequences.
   Builds on a stable economy simulation and therefore comes last.
 
 ## Architecture principles
 - Game simulation strictly separated from rendering, fixed tick rate → AI and logistics can be
   tested and debugged without graphics.
-- Balancing values (resource amounts, production times etc.) data-driven in configuration files,
+- Balancing values (raw material amounts, production times etc.) data-driven in configuration files,
   not in code.
 - Asset access encapsulated behind its own layer (`Homestead.Assets`: parsers → own types,
   no MonoGame dependency).
@@ -81,35 +81,35 @@ several times over (original, Collector's Edition, GOG, among others).
    - [x] Logistics: requests/offers, carrier jobs with reservation, watchdog (putting down goods),
      the storehouse takes everything, production demand before the storehouse; tests incl. conservation of goods
    - [x] Building: construction sites with placement check, diggers level the ground (terrain changes live),
-     builders consume the delivered materials, construction progress visible; placement mode in the client (P)
+     builders install the delivered materials, construction progress visible; placement mode in the client (P)
    - [x] The storehouse as a source (goods from the storehouse to construction sites and buildings); order construction site → production → storehouse
    - [x] Further stuck cases found and fixed (pushing each other aside at piles, circling around crowds)
    - [x] Idle carriers spread out (leave the storehouse yard, building surroundings and crowds; remain instantly available)
    - [x] Diggers/builders emerge from carriers + tool (shovel/hammer)
    - [x] Click a building: state (waiting for a good/tool, nothing in range, …) and work area
-     (original marker, four circles); flags on occupied buildings
+     (original marker, four circles); little flags on occupied buildings
    - [ ] Move the work area
    - [x] Residences release carriers (small 10, medium 30, large 100; one per second, configurable)
-   - [x] Starting setup on multiplayer maps: guard tower, goods, settlers per start level of the map, the same for all
-     players (`data/start.json`); single player maps bring their own buildings
+   - [x] Starting equipment on multiplayer maps: guard tower, goods, settlers per the map's start level, the same for all
+     players (`data/start.json`); single-player maps bring their own buildings
    - [ ] Animate picking up and putting down; paths (speed up walking)
    - [x] Construction sites: the door and pile spots must be free (otherwise never suppliable); the storehouse keeps one good together
    - [x] The storehouse takes any number of good types (opens more pile spots around it when needed)
    - [ ] Footprints: the JSettlers data are somewhat more generous than the walkability of the original maps
-4. **Economy:** goods chains, production, resources. ← *started*
+4. **Economy:** goods chains, production, raw materials. ← *started*
    - [x] Production balancing as a file (`data/production.json`, our own values)
    - [x] Workshops (sawmill, mill, bakery, butcher, smelters, charcoal burner, pig farm)
    - [x] Woodcutter (tree stumps remain), stonecutter (rocks shrink down to rubble, yield configurable
      per size), forester (saplings grow back)
    - [x] Workers are recruited from carriers; watchdog for workers
    - [x] Cycle tested: the economy builds a building only from its own production
-   - [x] Map resources from the original maps (fish, coal, iron, gold, gems, sulfur)
-   - [x] Mines: one unit of food per ore (the input piles per people determine which); yield per
+   - [x] Mineral resources from the original maps (fish, coal, iron, gold, gems, sulfur)
+   - [x] Mines: one unit of food per ore (which one is determined by the input piles per people); yield per
      amount step (`orePerAmount`) and regeneration (`regenerateSeconds`) configurable → goal 3
-   - [x] Grain farm (fields grow in levels), fisherman (fish stock decreases), waterworks
+   - [x] Grain farm (fields grow in stages), fisherman (fish stock decreases), waterworks
    - [x] Cycle tested: grain farm + waterworks → mill → bakery → coal mine
    - [ ] Winegrower, beekeeper, rice farmer, donkey farm
-   - [ ] Mine display (stock/exhausted) in-game
+   - [ ] Mine display (deposit/exhausted) in-game
    - [x] Tools: carriers become specialists only with a tool (table in `production.json`);
      if their building is demolished, they keep profession and tool and take over the next building of their profession
    - [x] Toolsmith and weaponsmith: the toolsmith only makes what is currently needed and missing;
@@ -133,9 +133,9 @@ several times over (original, Collector's Edition, GOG, among others).
 6. **AI** ← *started*
    - [x] Framework: `Ai/AiPlayer` per computer player, the same commands as a human, knows the whole map
      (no exploring, as in the original); values and build list in `data/ai.json`
-   - [x] Economy: build list plus demand (residence when carriers are short, toolsmith when a tool is missing,
+   - [x] Economy: build list plus demand (residence when short of carriers, toolsmith when a tool is missing,
      food for hungry mines, a new stonecutter/woodcutter when the old ones find nothing any more); location
-     at the resource or near home; the stock for one stonecutter always remains; demolition of exhausted buildings
+     at the raw material or near home; the deposit for one stonecutter always remains; demolition of exhausted buildings
    - [x] Strategic expansion (not in the original): towers aimed at missing stones, ores, trees,
      water or space – so that no game stalls for lack of mountains/stones in the starting area
    - [x] Expansion to distant targets (e.g. mountains on "Frontier"): if no tower spot is free within 60 fields
@@ -144,7 +144,7 @@ several times over (original, Collector's Edition, GOG, among others).
    - [ ] Ore demand satisfied only at a real amount (minimum amount as with stones, only fields with mountains)
    - [ ] Do not pursue distant targets alternately: if coal and iron lie in opposite directions,
      the AI switches direction tower by tower
-   - [ ] Alternative tactics when a resource (above all mountains) is missing on our own island or
+   - [ ] Alternative tactics when a raw material (above all mountains) is missing on our own island or
      on the whole map
    - [x] Storehouse only once a smith/the gold smelter produces in quantity (only tools, weapons, gold are
      stored – configurable in `production.json`; storehouse piles hold 8)
