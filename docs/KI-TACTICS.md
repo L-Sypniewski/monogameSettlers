@@ -217,7 +217,7 @@ Values: squad size, minimum distance from the enemy on the detour, highest garri
 If the squad is discovered (enemies come into sight), it attacks immediately or withdraws.
 
 **`spellTiming` – Well-timed spells** · M
-Freezing immediately before the clash, banishing on clusters in front of a tower, converting
+Freeze immediately before the clash, Banish on clusters in front of a tower, Convert
 onto the strongest enemies in range. Today the AI casts as soon as enough targets stand in the radius.
 
 **`summoner` – Goods summoner** · S · **implemented** (`legion`)
@@ -268,7 +268,7 @@ Decision points: tower spots, building.
 
 **`goldGuard` – Protect gold** · M
 Land on which our own gold lies (storehouse, output pile of the smelter) counts as front – even in
-the hinterland too: military buildings there fully garrisoned, with bowmen, guards by the amount of gold
+the hinterland: military buildings there fully garrisoned, with bowmen, guards by the amount of gold
 instead of only by threat. A new storehouse only on land covered by several own towers. Optionally distribute
 gold over several storehouses so that one hit does not cost everything (trade-off: more places to defend).
 Decision points: garrison, guarding, storehouse build spot.
@@ -406,7 +406,7 @@ needs a path to victory:
 - **Patience and then a strike:** wait until combat strength (gold) and upgrades are clearly ahead
   (`powerSpike`), then attack in a bundle where a capture drags the economy along
   (`economicTargets`).
-- **Magic as a breakthrough:** Freezing, Banishing, Converting deliberately in the assault on a tower.
+- **Magic as a breakthrough:** Freeze, Banish, Convert deliberately in the assault on a tower.
 
 ## Gold as a lever
 
