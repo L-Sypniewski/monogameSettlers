@@ -27,7 +27,7 @@ belong in named constants instead of scattered literals (cf. `SettlerKinds`).
 - `src/Homestead.AssetViewer` – MonoGame viewer (DesktopGL), without the Content Pipeline.
 - `src/Homestead.Server` – multiplayer server (ASP.NET Core, WebSocket, Docker), details: `docs/MULTIPLAYER.md`.
 - `data/` – game data (no original assets), copied next to every program. `production.json`: our own balancing
-  (times, recipes, stones per rock size, ore per amount level, regeneration, `depletion`: consumption of stones/mountains/fish in %, 0 = infinite;
+  (times, recipes, stones per rock size, ore per amount step, regeneration, `depletion`: consumption of stones/mountains/fish in %, 0 = infinite;
   overridable in-game via the settings).
   Building data is generated from JSettlers (`tools/data-import/`) – never edit it by hand, use `data/buildings/overrides.json`
   instead (per people/building, `all` for all; e.g. Roman castle 6 infantry + 4 bowmen as in the original, mines only on mountains).
