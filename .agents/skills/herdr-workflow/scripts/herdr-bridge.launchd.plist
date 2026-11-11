@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- macOS counterpart of herdr-bridge.service: a 0666 socat relay in
+     ~/.herdr/bridge forwarding to herdr's owner-only real socket, so
+     rootless-docker uid-shifted container agents can reach the API.
+     Paths expand at load time via /bin/sh; socat stays absolute because
+     launchd's default PATH excludes Homebrew (/opt/homebrew on ARM,
+     /usr/local on Intel - adjust if yours differs).
+     Install: cp herdr-bridge.launchd.plist ~/Library/LaunchAgents/dev.herdr.bridge.plist
+     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.herdr.bridge.plist -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.herdr.bridge</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>rm -f "$HOME/.herdr/bridge/herdr.sock" &amp;&amp; exec /opt/homebrew/bin/socat UNIX-LISTEN:"$HOME/.herdr/bridge/herdr.sock",mode=0666,fork UNIX-CONNECT:"$HOME/.config/herdr/herdr.sock"</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

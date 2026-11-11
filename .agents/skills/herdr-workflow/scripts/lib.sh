@@ -178,11 +178,34 @@ hr_ensure_herdr_bridge() {
       return 0
     fi
   fi
+  # darwin: no systemctl, so nudge the LaunchAgent when installed, else start an
+  # unmanaged session-scoped socat relay (same contract as the systemd unit: a 0666
+  # relay socket in ~/.herdr/bridge forwarding to the owner-only real socket,
+  # reachable across the rootless-docker uid shift).
+  if [[ "$(uname -s)" == "Darwin" ]] && command -v socat >/dev/null 2>&1; then
+    if [[ -f "$HOME/Library/LaunchAgents/dev.herdr.bridge.plist" ]]; then
+      launchctl kickstart -k "gui/$(id -u)/dev.herdr.bridge" >/dev/null 2>&1 || true
+      sleep 1
+      if [[ -S "$HOME/.herdr/bridge/herdr.sock" ]]; then
+        return 0
+      fi
+    fi
+    mkdir -p "$HOME/.herdr/bridge"
+    rm -f "$HOME/.herdr/bridge/herdr.sock"
+    nohup socat UNIX-LISTEN:"$HOME/.herdr/bridge/herdr.sock",mode=0666,fork \
+      UNIX-CONNECT:"$HOME/.config/herdr/herdr.sock" >/dev/null 2>&1 &
+    disown 2>/dev/null || true
+    sleep 1
+    if [[ -S "$HOME/.herdr/bridge/herdr.sock" ]]; then
+      hr_info "herdr bridge started as an unmanaged socat (ends at logout/reboot) - for persistence install scripts/herdr-bridge.launchd.plist as ~/Library/LaunchAgents/dev.herdr.bridge.plist"
+      return 0
+    fi
+  fi
   if [[ "${HERDR_BRIDGE_OPTIONAL:-}" == "1" ]]; then
     hr_warn "herdr bridge socket unavailable - agents inside devcontainers stay invisible to herdr (see scripts/herdr-bridge.service); continuing"
     return 0
   fi
-  hr_die "herdr bridge socket unavailable - agents inside devcontainers would stay invisible to herdr. Install the shipped unit: cp scripts/herdr-bridge.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now herdr-bridge - or start an existing one: systemctl --user start herdr-bridge. Set HERDR_BRIDGE_OPTIONAL=1 to downgrade this to a warning and continue."
+  hr_die "herdr bridge socket unavailable - agents inside devcontainers would stay invisible to herdr. Linux: cp scripts/herdr-bridge.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now herdr-bridge. macOS: cp scripts/herdr-bridge.launchd.plist ~/Library/LaunchAgents/dev.herdr.bridge.plist && launchctl bootstrap gui/\$(id -u) ~/Library/LaunchAgents/dev.herdr.bridge.plist. Set HERDR_BRIDGE_OPTIONAL=1 to downgrade this to a warning and continue."
 }
 
 # Docker --mount type=bind errors on a missing source instead of auto-creating it, so a

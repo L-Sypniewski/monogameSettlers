@@ -134,15 +134,21 @@ The board mapping is repo-specific and lives in `.herdr-workflow.json` at the ta
 
 ## Agent bridge
 
-`hr_launch` runs the devcontainer chain through `~/.herdr/shim/opencode` - a copy of bash renamed so herdr's process-name agent detection sees an `opencode` in the pane's process tree (on macOS the copy is re-signed ad-hoc: macOS 26 SIGKILLs a copied Apple platform binary at exec). Before launching it calls `hr_ensure_herdr_bridge`: when `~/.herdr/bridge/herdr.sock` is missing it best-effort starts `herdr-bridge.service` and **dies if the socket is still absent** - the bridge is required for launches; a silent miss would degrade herdr agent visibility with no signal at launch time. Set `HERDR_BRIDGE_OPTIONAL=1` to downgrade the failure to a warning and continue. The launch chain's first command echoes `[herdr] agent bridge up` in the pane, so the scrollback shows the bridge was verified at launch time. Claude Code launches (`--agent claude`) run the same devcontainer chain with an interactive `claude "<prompt>"` in the pane (never headless `-p`: it draws nothing and cannot be steered; plain interactive `claude` when no prompt is given; an interactive resume resolves the worktree's newest session and resumes it by id - claude leaves headless-created sessions out of `--continue` - falling back to `claude --continue`); claude detection uses the claude integration hook (`herdr integration install claude` host-side, staged by the target devcontainer) plus the same bridge, and the pane shim is renamed per agent so the process tree carries the right name.
+`hr_launch` runs the devcontainer chain through `~/.herdr/shim/opencode` - a copy of bash renamed so herdr's process-name agent detection sees an `opencode` in the pane's process tree (on macOS the copy is re-signed ad-hoc: macOS 26 SIGKILLs a copied Apple platform binary at exec). Before launching it calls `hr_ensure_herdr_bridge`: when `~/.herdr/bridge/herdr.sock` is missing it best-effort starts `herdr-bridge.service` (Linux) or the `dev.herdr.bridge` LaunchAgent, falling back on darwin to an unmanaged session-scoped socat spawn when neither path yields a socket, and **dies if it is still absent** - the bridge is required for launches; a silent miss would degrade herdr agent visibility with no signal at launch time. Set `HERDR_BRIDGE_OPTIONAL=1` to downgrade the failure to a warning and continue. The launch chain's first command echoes `[herdr] agent bridge up` in the pane, so the scrollback shows the bridge was verified at launch time. Claude Code launches (`--agent claude`) run the same devcontainer chain with an interactive `claude "<prompt>"` in the pane (never headless `-p`: it draws nothing and cannot be steered; plain interactive `claude` when no prompt is given; an interactive resume resolves the worktree's newest session and resumes it by id - claude leaves headless-created sessions out of `--continue` - falling back to `claude --continue`); claude detection uses the claude integration hook (`herdr integration install claude` host-side, staged by the target devcontainer) plus the same bridge, and the pane shim is renamed per agent so the process tree carries the right name.
 
-Install the shipped unit once:
+Install the shipped unit once (Linux):
 
 ```bash
 cp "${CLAUDE_SKILL_DIR}/scripts/herdr-bridge.service" ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now herdr-bridge
 ```
 
-The bridge socket is mode 0666 so the rootless-docker uid-shifted container process can connect; that mode also exposes the herdr API (including `herdr pane run` - arbitrary command execution in the user's panes) to any other local OS user. The unit assumes a single-user host.
+or the LaunchAgent (macOS - paths expand at load time; adjust the socat prefix on Intel Homebrew):
+
+```bash
+cp "${CLAUDE_SKILL_DIR}/scripts/herdr-bridge.launchd.plist" ~/Library/LaunchAgents/dev.herdr.bridge.plist && launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/dev.herdr.bridge.plist
+```
+
+The bridge socket is mode 0666 so the rootless-docker uid-shifted container process can connect; that mode also exposes the herdr API (including `herdr pane run` - arbitrary command execution in the user's panes) to any other local OS user. The unit/agent assume a single-user host.
 
 In host-mode launches (no devcontainer config, see Host-mode fallback) the same shim runs the agent directly on the host, so the bridge line and everything downstream are unchanged - only the container chain is skipped.
 
