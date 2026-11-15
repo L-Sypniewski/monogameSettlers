@@ -75,7 +75,7 @@ while IFS=$'\t' read -r id name status folder; do
 done < <(docker ps -a --filter label=devcontainer.local_folder \
           --format '{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Label "devcontainer.local_folder"}}')
 
-protected_volumes="$(sort -u <<<"$PROTECTED_VOLUMES")"
+protected_volumes="$(tr -s '[:space:]' '\n' <<<"$PROTECTED_VOLUMES" | sort -u)"
 keep_volumes=""
 if [[ ${#KEEP_IDS[@]} -gt 0 ]]; then
   keep_volumes="$(docker inspect "${KEEP_IDS[@]}" --format '{{range .Mounts}}{{.Name}}{{"\n"}}{{end}}' | grep -v '^$' | sort -u)"
